@@ -1,0 +1,6 @@
+# Patch files are binary; never touch their bytes.
+*.pch2 binary
+*.prf2 binary
+# Golden test data is compared byte for byte: keep LF line endings on every OS.
+tests/golden/** text eol=lf
+tests/protocol/*.json text eol=lf
