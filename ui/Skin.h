@@ -64,6 +64,8 @@ public:
     juce::Image cbmp(int resId) const;
     // A CBMP sprite strip with each frame's background made transparent.
     juce::Image sprite(int resId, int frameWidth) const;
+    // A module face with its grey background replaced by `colour`.
+    juce::Image tintedFace(int resId, juce::Colour colour) const;
     // A small JPEG sprite; invalid if missing.
     juce::Image jpeg(int resId) const;
 

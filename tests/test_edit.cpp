@@ -148,3 +148,77 @@ TEST_CASE("patch settings read and write like the original editor")
     CHECK(edit::settingValue(again, Setting::Glide, 1, 3) == 90);
     CHECK(savePatch(again) == bytes);
 }
+
+TEST_CASE("morph, knob and MIDI assignments")
+{
+    Patch p = Patch::makeDefault();
+    const u8 osc = edit::addModule(p, Location::Va, kOscB, 0, 0);
+    edit::setMorph(p, 0, Location::Va, osc, 0, 2, -40);
+    REQUIRE(edit::morphOf(p, 0, Location::Va, osc, 0));
+    CHECK(edit::morphOf(p, 0, Location::Va, osc, 0)->group == 2);
+    CHECK(edit::morphOf(p, 0, Location::Va, osc, 0)->range == -40);
+    CHECK_FALSE(edit::morphOf(p, 1, Location::Va, osc, 0)); // per variation
+    edit::setMorph(p, 0, Location::Va, osc, 0, 5, 100);     // re-assign, no duplicate
+    CHECK(p.morphs[0].assigns.size() == 1);
+    CHECK(edit::morphOf(p, 0, Location::Va, osc, 0)->group == 5);
+
+    edit::assignKnob(p, 9, Location::Va, osc, 0);
+    CHECK(edit::knobOf(p, Location::Va, osc, 0) == 9);
+    edit::assignKnob(p, 20, Location::Va, osc, 0); // moves to the new knob
+    CHECK(edit::knobOf(p, Location::Va, osc, 0) == 20);
+    CHECK_FALSE(p.knobs[9].has_value());
+    CHECK(edit::knobName(0) == "1A-1");
+    CHECK(edit::knobName(9) == "1B-2");
+    CHECK(edit::knobName(119) == "5C-8");
+
+    edit::assignMidiCc(p, 21, Location::Va, osc, 1);
+    CHECK(edit::midiCcOf(p, Location::Va, osc, 1) == 21);
+    edit::assignMidiCc(p, 21, Location::Va, osc, 2); // a CC drives one parameter
+    CHECK_FALSE(edit::midiCcOf(p, Location::Va, osc, 1));
+
+    edit::setParamLabel(p, Location::Va, osc, 0, "Pitch");
+    CHECK(edit::paramLabel(p, Location::Va, osc, 0) == "Pitch");
+    edit::setParamLabel(p, Location::Va, osc, 0, "");
+    CHECK(edit::paramLabel(p, Location::Va, osc, 0).empty());
+    CHECK_FALSE(p.va.find(osc)->customData.has_value());
+
+    edit::removeModule(p, Location::Va, osc); // everything referring to it goes
+    CHECK(p.morphs[0].assigns.empty());
+    CHECK_FALSE(p.knobs[20].has_value());
+    const auto bytes = savePatch(p);
+    CHECK(savePatch(loadPatch(bytes)) == bytes);
+}
+
+TEST_CASE("copy a variation, copy and paste modules")
+{
+    Patch p = loadPatch(g2test::readBytes(G2_CORPUS_DIR "/pch2csd/test_3osc.pch2"));
+    const u8 first = p.va.modules.front().index;
+    edit::setParam(p, Location::Va, first, 0, 0, 99);
+    edit::copyVariation(p, 0, 4);
+    CHECK(p.va.find(first)->params[4][0] == 99);
+
+    // Copy two cabled modules and paste them in the FX area.
+    const Cable c = p.va.cables.front();
+    const auto clip = edit::copyModules(p, Location::Va, {c.fromModule, c.toModule});
+    REQUIRE(clip.modules.size() == 2);
+    REQUIRE_FALSE(clip.cables.empty());
+    const auto fxBefore = p.fx.modules.size();
+    const auto added = edit::pasteModules(p, Location::Fx, clip, 3, 10);
+    CHECK(added.size() == 2);
+    CHECK(p.fx.modules.size() == fxBefore + 2);
+    bool cablePasted = false;
+    for (const auto& fc : p.fx.cables)
+        cablePasted |= std::find(added.begin(), added.end(), fc.fromModule) != added.end()
+                       && std::find(added.begin(), added.end(), fc.toModule) != added.end();
+    CHECK(cablePasted);
+    // Pasting again in the same area renumbers names and indices.
+    const auto again = edit::pasteModules(p, Location::Fx, clip, 3, 10);
+    CHECK(again != added);
+    CHECK(p.fx.find(again[0])->name != p.fx.find(added[0])->name);
+
+    edit::moveModules(p, Location::Fx, added, 1, 2);
+    edit::removeModules(p, Location::Fx, again);
+    CHECK(p.fx.modules.size() == fxBefore + 2);
+    const auto bytes = savePatch(p);
+    CHECK(savePatch(loadPatch(bytes)) == bytes);
+}

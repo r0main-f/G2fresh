@@ -8,6 +8,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <array>
 #include <optional>
 
 namespace g2ui {
@@ -47,6 +48,13 @@ public:
 
     // The 8 morph-group colours, as in the original editor's knob sprites.
     static juce::Colour morphColour(int group);
+
+    // The 25 module colours of the original (Color::kModuleBackColorNN,
+    // CPanel::MapPanelColorToRBGColor @0xbda68); 0 is the default grey.
+    static constexpr int kModuleColours = 25;
+    static juce::Colour moduleColour(int index);
+    // The order of the original's colour menu (CPaletteView).
+    static const std::array<int, kModuleColours>& moduleColourMenuOrder();
 
 private:
     static void paintElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted);

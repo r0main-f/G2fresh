@@ -135,6 +135,21 @@ juce::Image Skin::load(const juce::String& name) const
 
 juce::Image Skin::cbmp(int resId) const { return load(juce::String(resId) + ".png"); }
 
+juce::Image Skin::tintedFace(int resId, juce::Colour colour) const
+{
+    const juce::String key = "tint:" + juce::String(resId) + ":" + colour.toString();
+    if (const auto it = images_.find(key); it != images_.end())
+        return it->second;
+    juce::Image out = cbmp(resId).createCopy();
+    const auto grey = juce::Colour(0xffbdbdbd); // the faces' background
+    for (int y = 0; y < out.getHeight(); ++y)
+        for (int x = 0; x < out.getWidth(); ++x)
+            if (out.getPixelAt(x, y) == grey)
+                out.setPixelAt(x, y, colour);
+    images_.emplace(key, out);
+    return out;
+}
+
 juce::Image Skin::sprite(int resId, int frameWidth) const
 {
     const juce::String key = "keyed:" + juce::String(resId);

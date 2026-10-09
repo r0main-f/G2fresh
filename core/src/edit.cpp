@@ -1,5 +1,7 @@
 #include "g2/edit.hpp"
 
+#include "g2/uprate.hpp"
+
 #include <algorithm>
 #include <array>
 #include <stdexcept>
@@ -81,6 +83,7 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
         m.params.assign(patch.variationCount, values);
     }
     area.modules.push_back(std::move(m));
+    uprate::update(patch, loc);
     return index;
 }
 
@@ -99,6 +102,7 @@ void removeModule(Patch& patch, Location loc, u8 index)
         if (k && refersTo(k->location, k->module, loc, index))
             k.reset();
     std::erase_if(patch.controllers, [&](const CtrlAssign& c) { return refersTo(c.location, c.module, loc, index); });
+    uprate::update(patch, loc);
 }
 
 void moveModule(Patch& patch, Location loc, u8 index, u8 col, u8 row)
@@ -198,6 +202,12 @@ Cable connect(Patch& patch, Location loc, Endpoint from, Endpoint to)
             && existing.toConn == c.toConn)
             throw std::invalid_argument("these connectors are already connected");
     area.cables.push_back(c);
+    // Rates (and so cable colours) follow the new connection, as in the original.
+    uprate::update(patch, loc);
+    for (const auto& cable : area.cables)
+        if (cable.fromModule == c.fromModule && cable.fromConn == c.fromConn && cable.fromIsOutput == c.fromIsOutput
+            && cable.toModule == c.toModule && cable.toConn == c.toConn)
+            return cable;
     return c;
 }
 
@@ -208,6 +218,7 @@ void disconnect(Patch& patch, Location loc, const Cable& cable)
     if (it == area.cables.end())
         throw std::invalid_argument("no such cable");
     area.cables.erase(it);
+    uprate::update(patch, loc);
 }
 
 void setParam(Patch& patch, Location loc, u8 module, u8 param, u8 variation, u8 value)
@@ -384,6 +395,335 @@ void setMorphLabel(Patch& patch, int group, const std::string& label)
         }
     }
     bytes->insert(bytes->end(), record.begin(), record.end());
+}
+
+// ---- Morphs, knob and MIDI assignments, labels ---------------------------------
+
+namespace {
+
+bool sameTarget(u8 location, u8 module, u8 param, Location loc, u8 m, u8 p)
+{
+    return location == static_cast<u8>(loc) && module == m && param == p;
+}
+
+void checkParam(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    if (loc == Location::Settings) {
+        for (const auto& m : patch.settings)
+            if (m.index == module && !m.params.empty() && param < m.params.front().size())
+                return;
+        throw std::invalid_argument("no such setting");
+    }
+    const Module* m = patch.area(loc).find(module);
+    if (!m || !m->def() || param >= m->def()->params.size())
+        throw std::invalid_argument("no such parameter");
+}
+
+// Custom-data records of a module: [kind, len, payload] with kind 1 =
+// parameter label: payload [param, 7 label bytes, ...].
+std::vector<u8>* customOf(Patch& patch, Location loc, u8 module)
+{
+    if (loc == Location::Settings) {
+        for (auto& m : patch.settingsCustomData)
+            if (m.index == module)
+                return &m.bytes;
+        patch.settingsCustomData.push_back({module, {}});
+        return &patch.settingsCustomData.back().bytes;
+    }
+    Module* m = patch.area(loc).find(module);
+    if (!m)
+        throw std::invalid_argument("no module with this index");
+    if (!m->customData)
+        m->customData.emplace();
+    return &*m->customData;
+}
+
+const std::vector<u8>* customOf(const Patch& patch, Location loc, u8 module)
+{
+    if (loc == Location::Settings) {
+        for (const auto& m : patch.settingsCustomData)
+            if (m.index == module)
+                return &m.bytes;
+        return nullptr;
+    }
+    const Module* m = patch.area(loc).find(module);
+    return m && m->customData ? &*m->customData : nullptr;
+}
+
+} // namespace
+
+std::optional<Morph> morphOf(const Patch& patch, u8 variation, Location loc, u8 module, u8 param)
+{
+    if (variation >= patch.morphs.size())
+        return std::nullopt;
+    for (const auto& a : patch.morphs[variation].assigns)
+        if (sameTarget(a.location, a.module, a.param, loc, module, param))
+            return Morph{a.morph, a.range};
+    return std::nullopt;
+}
+
+void setMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group, std::int8_t range)
+{
+    checkParam(patch, loc, module, param);
+    if (variation >= patch.morphs.size() || group >= kMorphGroups)
+        throw std::invalid_argument("no such variation or morph group");
+    auto& list = patch.morphs[variation].assigns;
+    for (auto& a : list)
+        if (sameTarget(a.location, a.module, a.param, loc, module, param)) {
+            a.morph = group;
+            a.range = range;
+            return;
+        }
+    list.push_back({static_cast<u8>(loc), module, param, group, range});
+}
+
+void clearMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param)
+{
+    if (variation >= patch.morphs.size())
+        return;
+    std::erase_if(patch.morphs[variation].assigns,
+                  [&](const MorphAssign& a) { return sameTarget(a.location, a.module, a.param, loc, module, param); });
+}
+
+std::optional<int> knobOf(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    for (std::size_t i = 0; i < patch.knobs.size(); ++i)
+        if (const auto& k = patch.knobs[i]; k && sameTarget(k->location, k->module, k->param, loc, module, param))
+            return static_cast<int>(i);
+    return std::nullopt;
+}
+
+void assignKnob(Patch& patch, int knob, Location loc, u8 module, u8 param)
+{
+    checkParam(patch, loc, module, param);
+    if (knob < 0 || static_cast<std::size_t>(knob) >= patch.knobs.size())
+        throw std::invalid_argument("no such knob");
+    // A parameter sits on one knob only.
+    if (const auto old = knobOf(patch, loc, module, param))
+        patch.knobs[static_cast<std::size_t>(*old)].reset();
+    patch.knobs[static_cast<std::size_t>(knob)] = KnobAssign{static_cast<u8>(loc), module, 0, param, 0};
+}
+
+void clearKnob(Patch& patch, int knob)
+{
+    if (knob >= 0 && static_cast<std::size_t>(knob) < patch.knobs.size())
+        patch.knobs[static_cast<std::size_t>(knob)].reset();
+}
+
+std::string knobName(int knob)
+{
+    const int group = knob / kKnobsPerPage;
+    return std::to_string(group / 3 + 1) + static_cast<char>('A' + group % 3) + "-" + std::to_string(knob % kKnobsPerPage + 1);
+}
+
+std::optional<u8> midiCcOf(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    for (const auto& c : patch.controllers)
+        if (sameTarget(c.location, c.module, c.param, loc, module, param))
+            return c.cc;
+    return std::nullopt;
+}
+
+void assignMidiCc(Patch& patch, u8 cc, Location loc, u8 module, u8 param)
+{
+    checkParam(patch, loc, module, param);
+    if (cc > 127)
+        throw std::invalid_argument("MIDI controllers are 0..127");
+    std::erase_if(patch.controllers, [&](const CtrlAssign& c) {
+        return c.cc == cc || sameTarget(c.location, c.module, c.param, loc, module, param);
+    });
+    patch.controllers.push_back({cc, static_cast<u8>(loc), module, param});
+}
+
+void clearMidiCc(Patch& patch, u8 cc)
+{
+    std::erase_if(patch.controllers, [&](const CtrlAssign& c) { return c.cc == cc; });
+}
+
+std::string paramLabel(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    const auto* bytes = customOf(patch, loc, module);
+    if (!bytes)
+        return {};
+    for (std::size_t i = 0; i + 2 <= bytes->size(); i += 2u + (*bytes)[i + 1]) {
+        const u8 kind = (*bytes)[i], len = (*bytes)[i + 1];
+        if (i + 2 + len > bytes->size())
+            break;
+        if (kind == 1 && len >= 1 && (*bytes)[i + 2] == param) {
+            std::string s(bytes->begin() + static_cast<std::ptrdiff_t>(i + 3),
+                          bytes->begin() + static_cast<std::ptrdiff_t>(i + 3 + std::min<std::size_t>(7, len - 1u)));
+            return s.substr(0, s.find('\0'));
+        }
+    }
+    return {};
+}
+
+void setParamLabel(Patch& patch, Location loc, u8 module, u8 param, const std::string& label)
+{
+    checkParam(patch, loc, module, param);
+    if (label.size() > 7 || label.find('\0') != std::string::npos)
+        throw std::invalid_argument("labels have at most 7 characters");
+    auto* bytes = customOf(patch, loc, module);
+    std::size_t at = bytes->size();
+    for (std::size_t i = 0; i + 2 <= bytes->size(); i += 2u + (*bytes)[i + 1])
+        if ((*bytes)[i] == 1 && (*bytes)[i + 1] >= 1 && i + 2 < bytes->size() && (*bytes)[i + 2] == param) {
+            at = i;
+            bytes->erase(bytes->begin() + static_cast<std::ptrdiff_t>(i),
+                         bytes->begin() + static_cast<std::ptrdiff_t>(i + 2 + (*bytes)[i + 1]));
+            break;
+        }
+    if (!label.empty()) {
+        std::string padded = label;
+        padded.resize(7, '\0');
+        std::vector<u8> record{1, 8, param};
+        record.insert(record.end(), padded.begin(), padded.end());
+        bytes->insert(bytes->begin() + static_cast<std::ptrdiff_t>(std::min(at, bytes->size())), record.begin(), record.end());
+    }
+    if (loc != Location::Settings && bytes->empty())
+        patch.area(loc).find(module)->customData.reset();
+}
+
+void setModuleColor(Patch& patch, Location loc, u8 module, u8 color)
+{
+    moduleAt(patch, loc, module).color = color;
+}
+
+void setCableColor(Patch& patch, Location loc, const Cable& cable, CableColor color)
+{
+    Area& area = areaFor(patch, loc);
+    const auto it = std::find(area.cables.begin(), area.cables.end(), cable);
+    if (it == area.cables.end())
+        throw std::invalid_argument("no such cable");
+    it->color = color;
+}
+
+void setCablesVisible(Patch& patch, CableColor color, bool visible)
+{
+    patch.header.cablesVisible[static_cast<std::size_t>(color)] = visible;
+}
+
+void copyVariation(Patch& patch, u8 from, u8 to)
+{
+    if (from >= patch.variationCount || to >= patch.variationCount)
+        throw std::invalid_argument("no such variation");
+    if (from == to)
+        return;
+    for (auto* area : {&patch.va, &patch.fx})
+        for (auto& m : area->modules)
+            if (from < m.params.size() && to < m.params.size())
+                m.params[to] = m.params[from];
+    for (auto& m : patch.settings)
+        if (from < m.params.size() && to < m.params.size())
+            m.params[to] = m.params[from];
+    if (from < patch.morphs.size() && to < patch.morphs.size())
+        patch.morphs[to].assigns = patch.morphs[from].assigns;
+}
+
+// ---- Clipboard -----------------------------------------------------------------
+
+Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& indices)
+{
+    Clipboard clip;
+    clip.from = loc;
+    const Area& area = patch.area(loc);
+    int minCol = 127, minRow = 127;
+    for (const auto& m : area.modules)
+        if (std::find(indices.begin(), indices.end(), m.index) != indices.end()) {
+            clip.modules.push_back(m);
+            minCol = std::min<int>(minCol, m.col);
+            minRow = std::min<int>(minRow, m.row);
+        }
+    for (auto& m : clip.modules) {
+        m.col = static_cast<u8>(m.col - minCol);
+        m.row = static_cast<u8>(m.row - minRow);
+    }
+    auto inside = [&](u8 index) { return std::find(indices.begin(), indices.end(), index) != indices.end(); };
+    for (const auto& c : area.cables)
+        if (inside(c.fromModule) && inside(c.toModule))
+            clip.cables.push_back(c);
+    for (std::size_t v = 0; v < patch.morphs.size(); ++v)
+        for (const auto& a : patch.morphs[v].assigns)
+            if (a.location == static_cast<u8>(loc) && inside(a.module))
+                clip.morphs.emplace_back(static_cast<u8>(v), a);
+    return clip;
+}
+
+std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 row)
+{
+    Area& area = areaFor(patch, loc);
+    std::vector<std::pair<u8, u8>> remap; // old index -> new index
+    std::vector<u8> added;
+    for (const auto& src : clip.modules) {
+        u8 index = 1;
+        while (area.find(index) || std::find(added.begin(), added.end(), index) != added.end())
+            if (++index == 0)
+                throw std::invalid_argument("the area is full");
+        Module m = src;
+        m.index = index;
+        m.col = static_cast<u8>(std::min(127, col + src.col));
+        m.row = static_cast<u8>(std::min(127, row + src.row));
+        // Keep the variation count of the patch.
+        if (!m.params.empty())
+            m.params.resize(patch.variationCount, m.params.front());
+        // A default-style name gets the next free number ("OscB1" -> "OscB2").
+        if (const auto* def = m.def(); def && m.name.rfind(def->shortName, 0) == 0) {
+            int number = 1;
+            auto taken = [&](int n) {
+                const std::string name = def->shortName + std::to_string(n);
+                return std::any_of(area.modules.begin(), area.modules.end(), [&](const Module& x) { return x.name == name; });
+            };
+            while (taken(number))
+                ++number;
+            m.name = std::string(def->shortName) + std::to_string(number);
+        }
+        area.modules.push_back(std::move(m));
+        added.push_back(index);
+        remap.emplace_back(src.index, index);
+    }
+    auto mapped = [&](u8 old) {
+        for (const auto& [o, n] : remap)
+            if (o == old)
+                return n;
+        return u8{0};
+    };
+    for (Cable c : clip.cables) {
+        c.fromModule = mapped(c.fromModule);
+        c.toModule = mapped(c.toModule);
+        if (loc != clip.from)
+            c.color = cableColor(patch, loc, {c.fromModule, c.fromConn, c.fromIsOutput});
+        area.cables.push_back(c);
+    }
+    for (auto [v, a] : clip.morphs) {
+        if (v >= patch.morphs.size())
+            continue;
+        a.location = static_cast<u8>(loc);
+        a.module = mapped(a.module);
+        patch.morphs[v].assigns.push_back(a);
+    }
+    for (u8 index : added)
+        resolveOverlaps(patch, loc, index);
+    uprate::update(patch, loc);
+    return added;
+}
+
+void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices)
+{
+    for (u8 index : indices)
+        if (patch.area(loc).find(index))
+            removeModule(patch, loc, index);
+}
+
+void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow)
+{
+    Area& area = areaFor(patch, loc);
+    for (auto& m : area.modules)
+        if (std::find(indices.begin(), indices.end(), m.index) != indices.end()) {
+            m.col = static_cast<u8>(std::clamp(m.col + dCol, 0, 127));
+            m.row = static_cast<u8>(std::clamp(m.row + dRow, 0, 127));
+        }
+    // The moved group keeps its place; others make room below.
+    for (u8 index : indices)
+        resolveOverlaps(patch, loc, index);
 }
 
 } // namespace g2::edit

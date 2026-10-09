@@ -33,14 +33,40 @@ juce::Font smallFont(float size = 9.0f)
     return juce::Font(juce::FontOptions(size));
 }
 
-int morphGroup(const ModuleContext& c, int param)
+const g2::MorphAssign* morphOf(const ModuleContext& c, int param)
 {
     if (c.variation < 0 || static_cast<std::size_t>(c.variation) >= c.patch.morphs.size())
-        return -1;
+        return nullptr;
     for (const auto& a : c.patch.morphs[static_cast<std::size_t>(c.variation)].assigns)
         if (a.location == static_cast<std::uint8_t>(c.location) && a.module == c.module.index && a.param == param)
-            return a.morph;
-    return -1;
+            return &a;
+    return nullptr;
+}
+
+int morphGroup(const ModuleContext& c, int param)
+{
+    const auto* a = morphOf(c, param);
+    return a ? a->morph : -1;
+}
+
+// The arc a morph adds to a knob: from the value to where the morph takes it,
+// in the morph group's colour, just outside the knob.
+void drawMorphRange(juce::Graphics& g, const ModuleContext& c, int param, juce::Point<float> centre, float radius,
+                    int value, int max, float thickness)
+{
+    const auto* a = morphOf(c, param);
+    if (!a || a->range == 0)
+        return;
+    const float start = juce::degreesToRadians(-135.0f), sweep = juce::degreesToRadians(270.0f);
+    const float from = static_cast<float>(value) / static_cast<float>(max);
+    const float to = juce::jlimit(0.0f, 1.0f, from + static_cast<float>(a->range) / 127.0f);
+    juce::Path arc;
+    arc.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, start + sweep * std::min(from, to),
+                      start + sweep * std::max(from, to), true);
+    g.setColour(juce::Colours::black.withAlpha(0.5f));
+    g.strokePath(arc, juce::PathStrokeType(thickness + 1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+    g.setColour(ModulePainter::morphColour(a->morph).brighter(0.1f));
+    g.strokePath(arc, juce::PathStrokeType(thickness, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
 }
 
 const std::vector<std::uint8_t>* params(const ModuleContext& c);
@@ -327,6 +353,22 @@ juce::Colour ModulePainter::cableColour(g2::CableColor color)
     return juce::Colours::grey;
 }
 
+juce::Colour ModulePainter::moduleColour(int index)
+{
+    static const juce::uint32 colours[kModuleColours] = {
+        0xffc0c0c0, 0xffccbaba, 0xffbaccba, 0xffb0bacc, 0xffd0cbaa, 0xff74a0d4, 0xffe5777a, 0xff7bc1bd, 0xff82b980,
+        0xffe7d14b, 0xff93d162, 0xffdec77d, 0xff8f9ac2, 0xffba7d81, 0xffca8d8d, 0xffded1a5, 0xff94cf9c, 0xff69d6c7,
+        0xffa0d2c8, 0xffbed2d2, 0xff808cc0, 0xffd673c7, 0xffbe82be, 0xffcda0d2, 0xffd2bed2};
+    return juce::Colour(colours[juce::isPositiveAndBelow(index, kModuleColours) ? index : 0]);
+}
+
+const std::array<int, ModulePainter::kModuleColours>& ModulePainter::moduleColourMenuOrder()
+{
+    static const std::array<int, kModuleColours> order{0, 6, 13, 14, 1, 9, 11, 15, 4, 10, 8, 16, 2,
+                                                       17, 7, 18, 19, 5, 20, 12, 3, 21, 22, 23, 24};
+    return order;
+}
+
 juce::Colour ModulePainter::morphColour(int group)
 {
     static const juce::uint32 colours[8] = {0xffe5a1a1, 0xffc5dac5, 0xffa1a1e5, 0xffdadac5,
@@ -342,7 +384,9 @@ void ModulePainter::paint(juce::Graphics& g, const ModuleContext& c, const Panel
     }
     const auto* def = c.module.def();
     const auto bounds = moduleBounds(c.module).withZeroOrigin();
-    const auto face = def ? Skin::get().cbmp(def->faceResId) : juce::Image();
+    const auto face = !def ? juce::Image()
+                      : c.module.color == 0 ? Skin::get().cbmp(def->faceResId)
+                                            : Skin::get().tintedFace(def->faceResId, moduleColour(c.module.color));
     if (face.isValid()) {
         g.drawImageAt(face, 0, 0);
     } else {
@@ -389,6 +433,7 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
         const float radius = static_cast<float>(sprite.size) * 0.5f - 2.5f;
         g.setColour(juce::Colours::black);
         g.drawLine(centre.x, centre.y, centre.x + radius * std::sin(angle), centre.y - radius * std::cos(angle), 2.0f);
+        drawMorphRange(g, c, e.codeRef, centre, static_cast<float>(sprite.size) * 0.5f + 1.5f, val, max, 2.5f);
         return;
     }
     if (isJack(e)) {
@@ -579,8 +624,12 @@ void ModulePainter::paintModern(juce::Graphics& g, const ModuleContext& c, const
     const auto accent = categoryColour(def);
 
     // Body: soft vertical gradient, rounded corners, hairline border.
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xffeef0f3), 0.0f, body.getY(),
-                                           juce::Colour(0xffdfe2e7), 0.0f, body.getBottom(), false));
+    // Default modules are light grey; a module colour tints the body.
+    const auto top = c.module.color == 0 ? juce::Colour(0xffeef0f3)
+                                         : moduleColour(c.module.color).interpolatedWith(juce::Colours::white, 0.55f);
+    const auto bottom = c.module.color == 0 ? juce::Colour(0xffdfe2e7)
+                                            : moduleColour(c.module.color).interpolatedWith(juce::Colours::white, 0.35f);
+    g.setGradientFill(juce::ColourGradient(top, 0.0f, body.getY(), bottom, 0.0f, body.getBottom(), false));
     g.fillRoundedRectangle(body, 5.0f);
     // Category accent along the top edge.
     {
@@ -703,6 +752,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         g.setColour(kInk);
         g.drawLine(centre.x + (cap * 0.25f) * std::sin(angle), centre.y - (cap * 0.25f) * std::cos(angle),
                    centre.x + (cap - 1.0f) * std::sin(angle), centre.y - (cap - 1.0f) * std::cos(angle), 1.8f);
+        drawMorphRange(g, c, e.codeRef, centre, radius + 1.5f, val, max, 2.6f);
         return;
     }
     if (isJack(e)) {

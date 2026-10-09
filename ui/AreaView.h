@@ -26,8 +26,25 @@ public:
     std::function<void(float factor, juce::Point<int> where)> onZoom;
 
     g2::Location location() const { return location_; }
+
+    // Selection (click; Shift-click toggles; drag a rectangle on the background).
+    bool hasSelection() const { return !selection_.empty(); }
+    const std::vector<std::uint8_t>& selection() const { return selection_; }
+    void selectAll();
+    void clearSelection();
     void deleteSelected();
-    bool hasSelection() const { return selected_ != 0; }
+    g2::edit::Clipboard copySelection() const;
+    // Pastes below the selection (or at the first free row) and selects the result.
+    void paste(const g2::edit::Clipboard& clip);
+    void duplicateSelection();
+    // The editor-wide clipboard (shared by both areas).
+    static g2::edit::Clipboard& clipboard()
+    {
+        static g2::edit::Clipboard clip;
+        return clip;
+    }
+    // Called when the user clicks in this area (it becomes the paste target).
+    std::function<void(AreaView*)> onActivated;
     // Adds a module at the first free row of the first column, or at `where`.
     void addModule(std::uint8_t type, std::optional<juce::Point<int>> where = std::nullopt);
 
@@ -97,6 +114,13 @@ private:
     void clickControl(const Hit& h);
     void showModuleMenu(std::uint8_t module);
     void showJackMenu(const Jack& jack);
+    void showControlMenu(const Hit& h);
+    void showCableMenu(const g2::Cable& cable);
+    std::optional<g2::Cable> cableAt(juce::Point<int> p) const;
+    juce::Path cablePath(juce::Point<float> a, juce::Point<float> b) const;
+    bool isSelected(std::uint8_t module) const;
+    void select(std::uint8_t module, bool toggle);
+    void rename(std::uint8_t module);
     void status(const juce::String& s) { if (onStatus) onStatus(s); }
     void touch(std::uint8_t module)
     {
@@ -106,13 +130,17 @@ private:
 
     PatchDocument& doc_;
     g2::Location location_;
-    std::uint8_t selected_ = 0;
+    std::vector<std::uint8_t> selection_;
     Hit hover_;
 
-    enum class Drag { None, Value, Module, Cable };
+    // Value: knob drag; Range: Alt-drag sets the knob's morph range;
+    // Module: moves the selection; Cable: patching; Band: rubber-band selection.
+    enum class Drag { None, Value, Range, Module, Cable, Band };
     Drag drag_ = Drag::None;
     Hit dragHit_;
     int dragStartValue_ = 0;
+    int dragStartRange_ = 0;
+    std::uint8_t morphGroupForRange_ = 0; // the group Alt-drag assigns to unassigned knobs
     juce::Point<int> dragOffset_;   // module drag: mouse offset in the module
     juce::Point<int> dragPos_;      // current mouse position
     std::optional<Jack> cableFrom_;

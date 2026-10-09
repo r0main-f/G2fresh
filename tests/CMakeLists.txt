@@ -12,6 +12,7 @@ add_executable(g2tests
   test_edit.cpp
   test_file.cpp
   test_patch.cpp
+  test_uprate.cpp
   test_param_text.cpp
   test_param_text_golden.cpp
   test_graphs.cpp
