@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <map>
 #include <utility>
 
@@ -60,9 +61,25 @@ PatchEngine::PatchEngine(const Patch& patch) : patch_(patch)
     for (auto& n : nodes_)
         if (n.proc) {
             const auto* m = patch_.area(n.loc).find(n.index);
+            std::vector<bool> connected(n.sources.size());
+            for (std::size_t i = 0; i < n.sources.size(); ++i)
+                connected[i] = n.sources[i].first >= 0;
+            n.proc->connected(connected);
             n.proc->update(*m, variation_);
             n.audioRate = n.proc->audioRate(*m);
         }
+    updateGain();
+}
+
+// The patch's Gain setting (Level, On/Off) scales the voice's outputs. Its
+// curve, measured on the emulated G2 as a black box, is the mixers' "Exp"
+// level curve: 0.01 x + 0.99 x^3 with x = v/127 (Level 100 = -6.2 dB).
+void PatchEngine::updateGain()
+{
+    const auto level = edit::settingValue(patch_, edit::Setting::Gain, 0, variation_);
+    const auto on = edit::settingValue(patch_, edit::Setting::Gain, 1, variation_);
+    const float x = static_cast<float>(level) / 127.0f;
+    gain_ = on ? 0.01f * x + 0.99f * x * x * x : 0.0f;
 }
 
 PatchEngine::~PatchEngine() = default;
@@ -115,24 +132,31 @@ void PatchEngine::build(Location loc)
         nodeOf[idx] = static_cast<int>(nodes_.size());
         nodes_.push_back(std::move(n));
     }
-    // Cables: an input reads the output it is connected to. Links between
-    // inputs (fromIsOutput false) share the source of the first input.
-    for (int pass = 0; pass < 2; ++pass)
-        for (const auto& c : area.cables) {
-            if (!nodeOf.count(c.toModule) || !nodeOf.count(c.fromModule))
-                continue;
-            auto& to = nodes_[static_cast<std::size_t>(nodeOf[c.toModule])];
-            if (c.toConn >= to.sources.size())
-                continue;
-            if (c.fromIsOutput && pass == 0) {
-                to.sources[c.toConn] = {nodeOf[c.fromModule], c.fromConn};
-            } else if (!c.fromIsOutput && pass == 1) {
-                const auto& from = nodes_[static_cast<std::size_t>(nodeOf[c.fromModule])];
-                if (c.fromConn < from.sources.size())
-                    to.sources[c.toConn] = from.sources[c.fromConn];
-            }
+    // Cables: an input reads the output it is connected to. Inputs joined by
+    // links (fromIsOutput false) form one net with one source, whichever of
+    // them the output cable reaches: a link has no direction for the signal.
+    std::map<std::pair<int, int>, std::pair<int, int>> parent; // (node, input) -> its net's representative
+    std::function<std::pair<int, int>(std::pair<int, int>)> root = [&](std::pair<int, int> x) {
+        auto it = parent.find(x);
+        if (it == parent.end() || it->second == x)
+            return x;
+        return it->second = root(it->second);
+    };
+    for (const auto& c : area.cables)
+        if (!c.fromIsOutput && nodeOf.count(c.fromModule) && nodeOf.count(c.toModule)) {
+            const auto a = root({nodeOf[c.fromModule], c.fromConn});
+            const auto b = root({nodeOf[c.toModule], c.toConn});
+            if (a != b)
+                parent[a] = b;
         }
-    (void)first;
+    std::map<std::pair<int, int>, std::pair<int, int>> netSource; // representative -> (node, output)
+    for (const auto& c : area.cables)
+        if (c.fromIsOutput && nodeOf.count(c.fromModule) && nodeOf.count(c.toModule))
+            netSource[root({nodeOf[c.toModule], c.toConn})] = {nodeOf[c.fromModule], c.fromConn};
+    for (int i = first; i < static_cast<int>(nodes_.size()); ++i)
+        for (std::size_t in = 0; in < nodes_[static_cast<std::size_t>(i)].sources.size(); ++in)
+            if (const auto it = netSource.find(root({i, static_cast<int>(in)})); it != netSource.end())
+                nodes_[static_cast<std::size_t>(i)].sources[in] = it->second;
 }
 
 void PatchEngine::setVariation(std::uint8_t variation)
@@ -141,10 +165,19 @@ void PatchEngine::setVariation(std::uint8_t variation)
     for (auto& n : nodes_)
         if (n.proc)
             n.proc->update(*patch_.area(n.loc).find(n.index), variation_);
+    updateGain();
 }
 
 void PatchEngine::setParam(Location loc, std::uint8_t module, std::uint8_t param, std::uint8_t value)
 {
+    if (loc == Location::Settings) {
+        try {
+            edit::setTargetValue(patch_, {loc, module, param}, variation_, value);
+        } catch (const std::exception&) {
+        }
+        updateGain();
+        return;
+    }
     try {
         edit::setTargetValue(patch_, {loc, module, param}, variation_, value);
     } catch (const std::exception&) {
@@ -155,19 +188,26 @@ void PatchEngine::setParam(Location loc, std::uint8_t module, std::uint8_t param
             n.proc->update(*patch_.area(loc).find(module), variation_);
 }
 
-void PatchEngine::setKey(int note, bool gate)
+void PatchEngine::setKey(int note, bool gate, int velocity)
 {
-    // Placeholder encoding until the module catalog documents the G2's note
-    // signal: 0 at note 64, 1/64 per semitone.
-    io_.pitch = static_cast<float>(note - 64) / 64.0f;
+    // The G2's note signal: 0 at note 64 (E4), one unit (1/64) per semitone
+    // (the Keyboard module's Pitch output, measured on the emulated G2).
+    io_.pitch = static_cast<float>(note - 64) / kUnitsPerSignal;
     io_.gate = gate ? 1.0f : 0.0f;
+    const float v = static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f;
+    if (gate)
+        io_.velocity = v;
+    else
+        io_.releaseVelocity = v;
 }
 
 void PatchEngine::step()
 {
     const bool controlTick = sampleCount_ % kControlDivider == 0;
+    io_.controlTick = controlTick;
     io_.out = {};
     io_.fx = {};
+    io_.bus = {};
     for (auto& n : nodes_) {
         if (!n.proc || (!n.audioRate && !controlTick))
             continue;
@@ -186,7 +226,7 @@ void PatchEngine::render(std::array<float*, 4> outs, int frames)
         step();
         for (int c = 0; c < 4; ++c)
             if (outs[static_cast<std::size_t>(c)])
-                outs[static_cast<std::size_t>(c)][f] = io_.out[static_cast<std::size_t>(c)];
+                outs[static_cast<std::size_t>(c)][f] = io_.out[static_cast<std::size_t>(c)] * gain_;
     }
 }
 

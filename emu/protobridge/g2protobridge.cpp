@@ -10,6 +10,7 @@
 //   g2p_take_out        the next bulk-OUT frame for the device (0 if none)
 //   g2p_tick            advance the client's clock (ms) and run it
 //   g2p_send_patch      upload a .pch2 file into a slot
+//   g2p_send_kbd_performance  upload a performance with a .pch2 in slot A and the keyboard on slot A
 //   g2p_send_module_patch  build and upload a patch with one module (+ an output)
 //   g2p_set_param / g2p_set_mode / g2p_play_note   live edits (tools/firmware/g2catalog.py)
 //   g2p_module_cost     the editor's resource estimate of a module type (core/patch_load)
@@ -135,6 +136,36 @@ extern "C"
 		catch(const std::exception& e)
 		{
 			std::fprintf(stderr, "proto: cannot load %s: %s\n", path, e.what());
+			return 2;
+		}
+		return 0;
+	}
+
+	// A performance with the patch of `path` in slot A (default patches elsewhere), slot A
+	// focused and keyboard-enabled, so that PlayNote (56) reaches slot A (the synth's default
+	// performance has the keyboard off on every slot): for tools/firmware/g2blackbox.py.
+	int g2p_send_kbd_performance(void* h, const char* path)
+	{
+		std::ifstream f(path, std::ios::binary);
+		if(!f) return 1;
+		const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+		try
+		{
+			Performance perf;
+			for(auto& p : perf.slots) p = Patch::makeDefault();
+			perf.slots[0] = Patch::fromFile(file::read(bytes));
+			perf.header.focusedSlot = 0;
+			for(int i = 0; i < 4; ++i)
+			{
+				perf.header.slots[std::size_t(i)].patchName = i == 0 ? "Test" : "Init";
+				perf.header.slots[std::size_t(i)].enabled = i == 0 ? 1 : 0;
+				perf.header.slots[std::size_t(i)].keyboard = i == 0 ? 1 : 0;
+			}
+			static_cast<Handle*>(h)->client->sendPerformance(perf, "KbdTest");
+		}
+		catch(const std::exception& e)
+		{
+			std::fprintf(stderr, "proto: cannot build a performance from %s: %s\n", path, e.what());
 			return 2;
 		}
 		return 0;

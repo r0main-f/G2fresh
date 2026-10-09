@@ -26,14 +26,26 @@ namespace g2::engine {
 inline constexpr double kSampleRate = 96000.0;
 inline constexpr int kControlDivider = 4;
 
+// Signals are floats in the G2's units: 1.0 is a full-scale signal (64
+// "units" on the G2's displays), so the note signal moves 1/64 per semitone.
+inline constexpr float kUnitsPerSignal = 64.0f;
+
 // What modules exchange with the outside of the patch, per sample.
 struct Io {
     std::array<float, 4> out{}; // Out 1..4 (to the DACs)
-    std::array<float, 2> fx{};  // FX send (VA -> FX area)
-    std::array<float, 2> bus{}; // Bus 1/2
+    std::array<float, 4> fx{};  // FX 1..4 (VA -> FX area)
+    std::array<float, 4> bus{}; // Bus 1..4
     std::array<float, 4> in{};  // audio inputs 1..4 (from the ADCs)
-    float pitch = 0.0f;         // keyboard pitch (the G2's note signal), for keyboard-driven modules
-    float gate = 0.0f;          // keyboard gate
+    // Keyboard of the voice: the note signal, 0 at note 64 (E4) and 1/64 per
+    // semitone; the gate (0 or 1); velocities 0..1.
+    float pitch = 0.0f;
+    float gate = 0.0f;
+    float velocity = 0.0f;
+    float releaseVelocity = 0.0f;
+    // True on the samples where control-rate code runs (every
+    // kControlDivider-th sample): an audio-rate processor with a control-rate
+    // part (an envelope driving a VCA) updates that part on these samples.
+    bool controlTick = true;
 };
 
 class Processor {
@@ -48,6 +60,10 @@ public:
     // Audio-rate processors run every sample; the others every
     // kControlDivider samples. Asked after update().
     virtual bool audioRate(const Module& module) const { return module.uprate; }
+    // Which inputs have a cable, once after the patch is built (before
+    // update()). An unconnected input reads 0; a module whose unconnected
+    // input means something else (an AM input at full level) asks here.
+    virtual void connected(const std::vector<bool>& inputs) { (void)inputs; }
 };
 
 using Factory = std::function<std::unique_ptr<Processor>()>;
@@ -71,11 +87,14 @@ public:
     void setVariation(std::uint8_t variation);
     // Applies a parameter change of the current variation (like a knob).
     void setParam(Location loc, std::uint8_t module, std::uint8_t param, std::uint8_t value);
-    // Keyboard (for keyboard-driven modules): G2 note number, gate on/off.
-    void setKey(int note, bool gate);
+    // Keyboard (for keyboard-driven modules): G2 note number (60 = C4),
+    // gate on/off, velocity 0..127. The pitch keeps the last note after the
+    // gate closes, as on the synth.
+    void setKey(int note, bool gate, int velocity = 100);
 
     // Renders `frames` samples of Out 1..4 into `outs` (each `frames` long;
-    // null pointers are skipped).
+    // null pointers are skipped). The outputs are the 2-Out/4-Out signals
+    // times the patch's Gain setting, in signal units (1.0 = full scale).
     void render(std::array<float*, 4> outs, int frames);
 
 private:
@@ -87,8 +106,11 @@ private:
     std::uint8_t variation_ = 0;
     std::vector<Node> nodes_; // VA in cable order, then FX in cable order
     std::vector<std::string> unsupported_;
+    void updateGain();
+
     Io io_;
     int sampleCount_ = 0;
+    float gain_ = 1.0f; // patch Gain setting
 };
 
 } // namespace g2::engine
