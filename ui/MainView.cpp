@@ -58,6 +58,7 @@ MainView::MainView(PatchDocument& doc)
     addAndMakeVisible(status_);
 
     settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
+    settings_.onLayoutChanged = [this] { resized(); };
     addAndMakeVisible(settings_);
     browser_.onAdd = [this](std::uint8_t type) { va_.addModule(type); };
     browser_.onStatus = [this](const juce::String& s) { setStatus(s); };
@@ -232,7 +233,7 @@ void MainView::resized()
     animate_.setBounds(bar.removeFromRight(130));
     title_.setBounds(bar);
 
-    settings_.setBounds(r.removeFromTop(78));
+    settings_.setBounds(r.removeFromTop(settings_.preferredHeight(r.getWidth())));
     browser_.setBounds(r.removeFromTop(56));
     status_.setBounds(r.removeFromBottom(22));
     juce::Component* parts[] = {&vaPane_, &divider_, &fxPane_};

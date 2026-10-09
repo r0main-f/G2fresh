@@ -1,6 +1,9 @@
 #include "PatchSettingsBar.h"
 
 #include "ModulePainter.h"
+#include "Skin.h"
+
+#include <cstdlib>
 #include "g2/param_text.hpp"
 
 namespace g2ui {
@@ -13,7 +16,10 @@ using edit::Setting;
 
 class PatchSettingsBar::Control : public juce::Component {
 public:
-    enum class Kind { Knob, Menu, Toggle };
+    // Knob: rotary; Menu: drop-down; Toggle: on/off button; Bar: horizontal
+    // value bar with a colour chip and name; Cycle: button stepping through
+    // the values on each click.
+    enum class Kind { Knob, Menu, Toggle, Bar, Cycle };
 
     Kind kind = Kind::Menu;
     juce::String name;
@@ -30,6 +36,23 @@ public:
     void paint(juce::Graphics& g) override
     {
         auto r = getLocalBounds().toFloat();
+        if (kind == Kind::Bar) {
+            paintBar(g, r);
+            return;
+        }
+        if (kind == Kind::Cycle) {
+            const int v = get();
+            const auto box = r.reduced(1.0f, 1.0f);
+            const auto tint = colour ? colour() : kAccent;
+            g.setColour(v != 0 ? tint.withAlpha(0.85f) : juce::Colour(0xff3a3d44));
+            g.fillRoundedRectangle(box, 4.0f);
+            g.setColour(hovered_ ? juce::Colour(0xffff8c1a) : juce::Colour(0xff555a64));
+            g.drawRoundedRectangle(box.reduced(0.5f), 4.0f, 1.0f);
+            g.setColour(v != 0 ? juce::Colour(0xff1d1f24) : kInk);
+            g.setFont(juce::FontOptions(10.5f));
+            g.drawFittedText(text(v), box.toNearestInt(), juce::Justification::centred, 1, 0.7f);
+            return;
+        }
         g.setColour(kDim);
         g.setFont(juce::FontOptions(10.5f));
         g.drawFittedText(name, r.removeFromTop(13.0f).toNearestInt(), juce::Justification::centred, 1, 0.8f);
@@ -88,10 +111,22 @@ public:
         repaint();
     }
 
-    void mouseDown(const juce::MouseEvent&) override { startValue_ = get(); }
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        startValue_ = get();
+        if (kind == Kind::Bar && e.y >= kBarTop)
+            setFromBar(e.x, true);
+    }
 
     void mouseDrag(const juce::MouseEvent& e) override
     {
+        if (kind == Kind::Bar) {
+            if (e.getMouseDownY() >= kBarTop)
+                setFromBar(e.x, true);
+            if (status)
+                status(name + ": " + text(get()));
+            return;
+        }
         if (kind != Kind::Knob)
             return;
         const int m = std::max(1, max());
@@ -103,10 +138,16 @@ public:
 
     void mouseUp(const juce::MouseEvent& e) override
     {
-        if (kind == Kind::Knob || e.getDistanceFromDragStart() > 4)
+        if (kind == Kind::Knob || kind == Kind::Bar || e.getDistanceFromDragStart() > 4)
             return;
         if (kind == Kind::Toggle) {
             set(get() ? 0 : 1, false);
+            return;
+        }
+        if (kind == Kind::Cycle) {
+            set(get() >= max() ? 0 : get() + 1, false);
+            if (status)
+                status(name + ": " + text(get()));
             return;
         }
         juce::PopupMenu menu;
@@ -128,12 +169,51 @@ public:
 
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
     {
-        if (kind != Kind::Knob || w.deltaY == 0.0f)
+        if ((kind != Kind::Knob && kind != Kind::Bar) || w.deltaY == 0.0f)
             return;
         set(juce::jlimit(0, max(), get() + (w.deltaY > 0 ? 1 : -1)), true);
     }
 
 private:
+    static constexpr int kBarTop = 15; // the bar starts below the name row
+
+    juce::Rectangle<float> barArea() const
+    {
+        return getLocalBounds().toFloat().withTrimmedTop(static_cast<float>(kBarTop)).withHeight(14.0f).reduced(2.0f, 0.0f);
+    }
+
+    void setFromBar(int x, bool coalesce)
+    {
+        const auto bar = barArea();
+        const float t = juce::jlimit(0.0f, 1.0f, (static_cast<float>(x) - bar.getX()) / bar.getWidth());
+        set(juce::roundToInt(t * static_cast<float>(max())), coalesce);
+    }
+
+    void paintBar(juce::Graphics& g, juce::Rectangle<float> r)
+    {
+        const auto tint = colour ? colour() : kAccent;
+        // Name row: colour chip and name.
+        auto row = r.removeFromTop(static_cast<float>(kBarTop)).reduced(2.0f, 2.0f);
+        g.setColour(tint);
+        g.fillRoundedRectangle(row.removeFromLeft(8.0f).withSizeKeepingCentre(8.0f, 8.0f), 2.0f);
+        row.removeFromLeft(4.0f);
+        g.setColour(kInk);
+        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+        g.drawFittedText(name, row.toNearestInt(), juce::Justification::centredLeft, 1, 0.8f);
+        // Value bar.
+        const auto bar = barArea();
+        const float t = static_cast<float>(get()) / static_cast<float>(std::max(1, max()));
+        g.setColour(juce::Colour(0xff3a3d44));
+        g.fillRoundedRectangle(bar, 4.0f);
+        g.setColour(tint);
+        g.fillRoundedRectangle(bar.withWidth(std::max(8.0f, bar.getWidth() * t)), 4.0f);
+        g.setColour(hovered_ ? juce::Colour(0xffff8c1a) : juce::Colour(0xff555a64));
+        g.drawRoundedRectangle(bar.reduced(0.5f), 4.0f, 1.0f);
+        g.setColour(t > 0.55f ? juce::Colour(0xff1d1f24) : kInk);
+        g.setFont(juce::FontOptions(10.0f));
+        g.drawText(text(get()), bar.reduced(5.0f, 0.0f).toNearestInt(), juce::Justification::centredRight, false);
+    }
+
     bool hovered_ = false;
     int startValue_ = 0;
 };
@@ -239,12 +319,13 @@ PatchSettingsBar::PatchSettingsBar(PatchDocument& doc) : doc_(doc)
     setting(keyboard, Setting::Misc, 0, Control::Kind::Menu, "Octave");
     setting(keyboard, Setting::Misc, 1, Control::Kind::Toggle, "Sustain");
 
-    // Morph groups: dial value (knob, named after the group) and source.
+    // Morph groups: one card per group, a value bar named after the group
+    // (double-click the name to rename) and its source (Knob or a controller).
     auto& morph = groups_.emplace_back(Group{"Morph", {}});
     for (int i = 0; i < 8; ++i) {
-        auto& knob = setting(morph, Setting::Morph, static_cast<std::uint8_t>(i), Control::Kind::Knob, {});
-        knob.colour = [i] { return ModulePainter::morphColour(i); };
-        knob.onRename = [this, i] {
+        auto& bar = setting(morph, Setting::Morph, static_cast<std::uint8_t>(i), Control::Kind::Bar, {});
+        bar.colour = [i] { return ModulePainter::morphColour(i); };
+        bar.onRename = [this, i] {
             auto* w = new juce::AlertWindow("Rename morph group", "Name (up to 7 characters):", juce::MessageBoxIconType::NoIcon);
             w->addTextEditor("name", juce::String(edit::morphLabel(doc_.patch(), i)));
             w->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
@@ -257,8 +338,16 @@ PatchSettingsBar::PatchSettingsBar(PatchDocument& doc) : doc_(doc)
             }), true);
         };
     }
-    for (int i = 0; i < 8; ++i)
-        setting(morph, Setting::Morph, static_cast<std::uint8_t>(8 + i), Control::Kind::Menu, {});
+    for (int i = 0; i < 8; ++i) {
+        auto& source = setting(morph, Setting::Morph, static_cast<std::uint8_t>(8 + i), Control::Kind::Cycle, {});
+        source.colour = [i] { return ModulePainter::morphColour(i); };
+    }
+
+    collapsed_ = userSettings().getBoolValue("settingsCollapsed", false);
+    if (const char* env = std::getenv("G2_SETTINGS_COLLAPSED")) // for g2render snapshots
+        collapsed_ = juce::String(env) == "1";
+    for (auto* c : controls_)
+        c->setVisible(!collapsed_);
 
     doc_.addChangeListener(this);
     changeListenerCallback(nullptr);
@@ -271,52 +360,140 @@ PatchSettingsBar::~PatchSettingsBar()
 
 void PatchSettingsBar::changeListenerCallback(juce::ChangeBroadcaster*)
 {
-    // Morph knobs are named after their group label ("Wheel", "Vel", ...).
+    // Morph bars are named after their group label ("Wheel", "Vel", ...).
     auto& morph = groups_.back();
     for (int i = 0; i < 8; ++i) {
-        morph.controls[static_cast<std::size_t>(i)]->name = edit::morphLabel(doc_.patch(), i);
-        morph.controls[static_cast<std::size_t>(8 + i)]->name = {}; // the knob above names the group
+        const auto label = juce::String(edit::morphLabel(doc_.patch(), i));
+        morph.controls[static_cast<std::size_t>(i)]->name = label;
+        morph.controls[static_cast<std::size_t>(8 + i)]->name = label + " source";
     }
     repaint();
     for (auto* c : controls_)
         c->repaint();
 }
 
+juce::String PatchSettingsBar::summary() const
+{
+    const auto& p = doc_.patch();
+    const auto v = static_cast<std::uint8_t>(doc_.variation());
+    auto on = [&](Setting s, std::uint8_t param) { return edit::settingValue(p, s, param, v) != 0; };
+    juce::StringArray parts;
+    const auto voices = juce::String(edit::voicesText(p));
+    parts.add(voices.containsOnly("0123456789") ? voices + (voices == "1" ? " voice" : " voices") : voices);
+    parts.add(edit::categoryName(p.header.category));
+    parts.add("Level " + juce::String(edit::settingText(p, Setting::Gain, 0, v)));
+    parts.add("Glide " + juce::String(edit::settingText(p, Setting::Glide, 0, v)));
+    parts.add("Bend " + juce::String(on(Setting::Bend, 0) ? edit::settingText(p, Setting::Bend, 1, v) : "Off"));
+    parts.add("Vibrato " + juce::String(edit::settingText(p, Setting::Vibrato, 0, v)));
+    parts.add("Arp " + juce::String(on(Setting::Arpeggiator, 0) ? "On" : "Off"));
+    parts.add("Octave " + juce::String(edit::settingText(p, Setting::Misc, 0, v)));
+    return parts.joinIntoString("  \u00b7  ");
+}
+
+void PatchSettingsBar::setCollapsed(bool collapsed)
+{
+    collapsed_ = collapsed;
+    userSettings().setValue("settingsCollapsed", collapsed);
+    for (auto* c : controls_)
+        c->setVisible(!collapsed);
+    if (onLayoutChanged)
+        onLayoutChanged();
+    repaint();
+}
+
+void PatchSettingsBar::mouseDown(const juce::MouseEvent& e)
+{
+    if (e.y < kHeaderHeight)
+        setCollapsed(!collapsed_);
+}
+
 void PatchSettingsBar::paint(juce::Graphics& g)
 {
     g.fillAll(kPanel);
+    // Header: chevron, title, and the summary when collapsed.
+    auto header = getLocalBounds().removeFromTop(kHeaderHeight);
+    {
+        juce::Path chevron;
+        const float cx = 12.0f, cy = static_cast<float>(header.getCentreY());
+        if (collapsed_)
+            chevron.addTriangle(cx - 2.5f, cy - 4.0f, cx - 2.5f, cy + 4.0f, cx + 3.0f, cy);
+        else
+            chevron.addTriangle(cx - 4.0f, cy - 2.5f, cx + 4.0f, cy - 2.5f, cx, cy + 3.0f);
+        g.setColour(kDim);
+        g.fillPath(chevron);
+    }
+    g.setColour(kInk);
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.drawText("PATCH SETTINGS", header.withTrimmedLeft(22).withWidth(110), juce::Justification::centredLeft);
+    if (collapsed_) {
+        g.setColour(kDim);
+        g.setFont(juce::FontOptions(11.0f));
+        g.drawText(summary(), header.withTrimmedLeft(140).reduced(4, 0), juce::Justification::centredLeft, true);
+        return;
+    }
+    g.setColour(kDim.withAlpha(0.7f));
+    g.setFont(juce::FontOptions(10.5f));
+    g.drawText("variation " + juce::String(doc_.variation() + 1), header.withTrimmedLeft(140).reduced(4, 0),
+               juce::Justification::centredLeft, true);
+
     g.setFont(juce::FontOptions(9.5f, juce::Font::bold));
     for (const auto& group : groups_) {
         if (group.controls.empty())
             continue;
-        auto first = group.controls.front()->getBounds();
-        auto last = group.controls.back()->getBounds();
-        if (&group == &groups_.back()) // morph: two rows
-            last = group.controls[7]->getBounds();
-        const auto frame = first.getUnion(last).withTop(2).withBottom(getHeight() - 2).expanded(4, 0).toFloat();
+        juce::Rectangle<int> area = group.controls.front()->getBounds();
+        for (const auto* c : group.controls)
+            area = area.getUnion(c->getBounds());
+        const auto frame = area.withTop(area.getY() - 12).withBottom(area.getY() - 12 + kRowHeight - 2)
+                               .expanded(4, 0).toFloat();
         g.setColour(juce::Colour(0xff32353b));
         g.fillRoundedRectangle(frame, 5.0f);
         g.setColour(kDim.withAlpha(0.8f));
-        g.drawText(group.title.toUpperCase(), frame.withHeight(12.0f).translated(5.0f, 0.0f).toNearestInt(),
+        g.drawText(group.title.toUpperCase(), frame.withHeight(12.0f).translated(5.0f, 1.0f).toNearestInt(),
                    juce::Justification::centredLeft, false);
     }
 }
 
+int PatchSettingsBar::settingsWidth() const
+{
+    int x = 10;
+    for (const auto& group : groups_) {
+        if (&group == &groups_.back())
+            break;
+        for (const auto* c : group.controls)
+            x += c->preferredWidth();
+        x += 12;
+    }
+    return x;
+}
+
+int PatchSettingsBar::preferredHeight(int width) const
+{
+    if (collapsed_)
+        return kHeaderHeight + 2;
+    const bool wrap = (width - settingsWidth() - 10) / 8 < kMinCard;
+    return kHeaderHeight + (wrap ? 2 : 1) * kRowHeight + 4;
+}
+
 void PatchSettingsBar::resized()
 {
-    int x = 8;
-    const int top = 12, height = getHeight() - top - 2;
+    if (collapsed_)
+        return;
+    const bool wrap = (getWidth() - settingsWidth() - 10) / 8 < kMinCard;
+    int x = 10;
+    int top = kHeaderHeight + 13;
+    const int height = kRowHeight - 17;
     for (auto& group : groups_) {
-        const bool isMorph = &group == &groups_.back();
-        if (isMorph) {
-            // Knobs on top, source menus below, one column per group.
-            const int w = 46;
-            for (int i = 0; i < 8; ++i) {
-                group.controls[static_cast<std::size_t>(i)]->setBounds(x + i * w, top, w, height * 3 / 5);
-                group.controls[static_cast<std::size_t>(8 + i)]->setBounds(x + i * w, top + height * 3 / 5 - 12, w,
-                                                                           height - height * 3 / 5 + 12);
+        if (&group == &groups_.back()) {
+            // Morph cards: bar (with name) above, source button below.
+            if (wrap) {
+                x = 10;
+                top += kRowHeight;
             }
-            x += 8 * w + 12;
+            const int w = juce::jlimit(kMinCard, kMaxCard, (getWidth() - x - 14) / 8);
+            for (int i = 0; i < 8; ++i) {
+                group.controls[static_cast<std::size_t>(i)]->setBounds(x + i * w, top, w - 4, 31);
+                group.controls[static_cast<std::size_t>(8 + i)]->setBounds(x + i * w + 2, top + 33, w - 8, 18);
+            }
             continue;
         }
         for (auto* c : group.controls) {
