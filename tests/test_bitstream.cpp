@@ -14,9 +14,9 @@ TEST_CASE("bit writer and reader round-trip mixed widths")
     w.write(0, 1);
     w.write(0xDEADBEEF, 32);
     w.align();
-    REQUIRE(w.bytes().size() == 6);
+    REQUIRE(w.data().size() == 6);
 
-    g2::BitReader r(w.bytes());
+    g2::BitReader r(w.data());
     CHECK(r.read(3) == 0b101);
     CHECK(r.read(9) == 0x1FF);
     CHECK(r.read(1) == 0);
@@ -29,7 +29,7 @@ TEST_CASE("bits are packed most significant first")
     w.write(1, 1);
     w.write(0, 6);
     w.write(1, 1);
-    REQUIRE(w.bytes() == std::vector<std::uint8_t>{0x81});
+    REQUIRE(w.data() == std::vector<std::uint8_t>{0x81});
 }
 
 TEST_CASE("reading past the end throws")

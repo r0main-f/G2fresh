@@ -193,7 +193,7 @@ difference while it is 0.
 | 7 | row ([3]). The corpus has col 0–4 and row 0–85, which matches Verhue's col/row order [E] |
 | 8 | color (`EModuleColor`) |
 | 1 | uprate (`EModuleBandWidth`, written as `bandwidth == 1`) |
-| 1 | "is_led" flag (`+0x18`): a per-type property. `ConvertPatch22to23` @0004f09c sets it to 1 for a fixed list of types (3, 4, 17, 38, 42, …) and 0 otherwise. It is the module-has-LED/meter flag (Verhue `IsLed`) |
+| 1 | "is_led" flag (`+0x18`), Verhue `IsLed`. It is really the module **lock** flag (excluded from randomizing): it equals the per-type `defaultLocked` of `data/modules.json` on all 210 corpus modules, and matches "has LEDs" on only 128. `ConvertPatch22to23` @0004f09c sets it from a fixed type list (3, 4, 17, 38, 42, …) = the default-locked set |
 | 6 | reserved, written 0 |
 | 4 | selector-value count *n* (Clavia's term for module "modes") |
 | 6 ×n | selector values |

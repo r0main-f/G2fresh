@@ -4,7 +4,7 @@ A modern, native editor for the Clavia **Nord Modular G2**, for macOS (Apple Sil
 
 Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a proprietary kernel driver on Windows, so it no longer runs on current systems. G2fresh is a rewrite. Ghidra analysis of the original editor serves as the specification, cross-checked against Bruno Verhue's open-source editor.
 
-**Status:** v0.1, early. Specs for the patch format, module database, parameter display and USB protocol are in `re/notes/`; the app and plugin are still an empty shell.
+**Status:** early. Specs for the patch format, module database, parameter display and USB protocol are in `re/notes/`. The C++ core loads, edits and saves patches and performances, reproducing original files byte for byte (milestone M2). The app and plugin are still an empty shell; the patch editor UI comes next.
 
 ## Layout
 
@@ -13,8 +13,10 @@ Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a 
 | `re/ghidra_scripts/` | Headless Ghidra scripts (`ExportAll.java`: decompiled C, symbols, call graph, strings) |
 | `re/notes/` | Recovered specifications (file format, USB protocol, resources, parameter display) |
 | `tools/rsrc/` | Extractors for the original editor's resources (`rsrc.py`, `panl.py`) |
-| `core/` | `libg2core`: patch model, `.pch2`/`.prf2` codec |
-| `tests/` | Catch2 tests; `tests/corpus/` holds freely licensed patch files |
+| `core/` | `libg2core`: `.pch2`/`.prf2` codec (`file.hpp`), patch model (`patch.hpp`), edit operations (`edit.hpp`), module database (`module_db.hpp`), parameter display text (`param_text.hpp`) |
+| `data/` | Module and parameter database (JSON), compiled into the core by `tools/moduledb/gen_cpp.py` |
+| `plugin/` | JUCE target: stand-alone app, VST3, AU |
+| `tests/` | Catch2 tests; `tests/corpus/` holds freely licensed patch files. Set `G2_EXTRA_CORPUS=<dir>` to also test your own patches |
 | `third_party/nord_g2_editor` | Bruno Verhue's editor (GPL-2-or-later), used as a reference |
 
 ## Build
