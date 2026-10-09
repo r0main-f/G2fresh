@@ -749,9 +749,13 @@ void Client::storeToFlash(int slot, u8 bank, u8 prog)
 {
     if (slot < 0 || slot > kSlotSynth)
         return;
-    enqueueUser([slot, bank, prog] {
-        return Bubble::synth({FlashCommand{id::FlashStore, static_cast<u8>(slot), bank, prog}});
-    });
+    // The synth does not send the new name list by itself: read it again once
+    // the store is answered, so editors see the new entry.
+    enqueueUser([slot, bank, prog] { return Bubble::synth({FlashCommand{id::FlashStore, static_cast<u8>(slot), bank, prog}}); },
+                [this, slot](const std::vector<Molecule>&) {
+                    if (options_.readFlashNames)
+                        enqueueFlashNames(slot == kSlotSynth ? 1 : 0, 0, 0, false);
+                });
 }
 
 void Client::playNote(u8 note, bool on)

@@ -66,6 +66,13 @@ public:
     // A slot's patch name on the synth ("" when unknown).
     juce::String slotName(int slot) const;
 
+    // ---- Synth memory (flash banks) --------------------------------------
+    // Loads a stored patch into a slot (slot 4: a stored performance); with
+    // `open`, the editor then shows it (replacing the document, bound).
+    void loadFromBank(int slot, std::uint8_t bank, std::uint8_t prog, bool open);
+    // Stores a slot's patch (slot 4: the performance) on the synth.
+    void storeToBank(int slot, std::uint8_t bank, std::uint8_t prog);
+
     // LiveLeds: the LEDs and meters of the slot shown, while bound.
     std::optional<int> ledValue(g2::Location location, std::uint8_t module, int group) const override;
     std::uint32_t ledGeneration() const override { return ledGeneration_; }
@@ -95,6 +102,8 @@ private:
     void variationChanged(int slot, g2::u8 variation) override;
     void patchEdited(int slot, const g2::proto::Molecule&) override;
     void ledsChanged(int slot) override;
+    void flashNamesChanged(g2::u8 type) override;
+    void performanceChanged() override;
     // The virtual G2 makes its LEDs and meters move, so they can be seen.
     void animateVirtualLeds();
 
@@ -109,6 +118,7 @@ private:
     LedMap ledMap_; // of the document slot shown
     std::uint32_t ledGeneration_ = 0;
     double lastVirtualLeds_ = 0.0;
+    int pendingOpen_ = -1; // a slot (4: the performance) to open once the synth has loaded it
 };
 
 } // namespace g2ui

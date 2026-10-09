@@ -111,6 +111,7 @@ private:
     std::unique_ptr<MutatorWindow> mutator_;
     MidiOutputTarget* midiOut_ = nullptr;
     SynthSync* synth_ = nullptr;
+    std::unique_ptr<class BankBrowser> bankBrowser_;
     juce::Label synthStatus_;
     void updateSynthStatus();
     juce::PopupMenu synthMenu();

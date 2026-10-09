@@ -416,11 +416,22 @@ void SynthSync::statusChanged(g2::proto::Status)
 
 void SynthSync::synced()
 {
+    // A performance loaded from the synth's memory: the synth released it and
+    // everything was read again; open it now that the slots are read too.
+    if (pendingOpen_ == 4) {
+        pendingOpen_ = -1;
+        getPerformance();
+    }
     sendChangeMessage();
 }
 
 void SynthSync::slotChanged(int slot)
 {
+    if (slot == pendingOpen_) {
+        pendingOpen_ = -1;
+        getPatch(slot); // the patch just loaded from the synth's memory
+        return;
+    }
     slotReplacedOnSynth(slot);
     sendChangeMessage(); // slot names in the menus
 }
@@ -448,6 +459,31 @@ void SynthSync::variationChanged(int slot, g2::u8 variation)
     fromSynth(slot, [variation](g2::Patch& p) { p.header.activeVariation = variation; });
     if (docSlotFor(slot) == doc_.slot() && variation < g2::kUserVariations)
         doc_.setVariation(variation);
+}
+
+void SynthSync::loadFromBank(int slot, std::uint8_t bank, std::uint8_t prog, bool open)
+{
+    if (!ready() || !juce::isPositiveAndBelow(slot, 5))
+        return;
+    pendingOpen_ = open ? slot : -1;
+    link_->loadFromFlash(slot, bank, prog);
+}
+
+void SynthSync::storeToBank(int slot, std::uint8_t bank, std::uint8_t prog)
+{
+    if (!ready() || !juce::isPositiveAndBelow(slot, 5))
+        return;
+    link_->storeToFlash(slot, bank, prog);
+}
+
+void SynthSync::flashNamesChanged(g2::u8)
+{
+    sendChangeMessage();
+}
+
+void SynthSync::performanceChanged()
+{
+    sendChangeMessage();
 }
 
 void SynthSync::ledsChanged(int slot)

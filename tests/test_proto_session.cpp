@@ -407,6 +407,11 @@ TEST_CASE("session: flash name lists in chunks, load and store")
     rig.run();
     REQUIRE(rig.emulator.flash()[0].count({5, 9}));
     CHECK(rig.emulator.flash()[0][{5, 9}].name == "Far Away");
+    // The client reads the name list again: the new entry shows.
+    const auto& after = rig.client.state().flash[0];
+    CHECK(after.size() == bank.size());
+    CHECK(std::any_of(after.begin(), after.end(),
+                      [](const FlashName& n) { return n.bank == 5 && n.prog == 9 && n.name == "Far Away"; }));
 }
 
 TEST_CASE("session: no version reply, then the synth answers")

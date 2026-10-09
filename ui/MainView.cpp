@@ -1,5 +1,6 @@
 #include "MainView.h"
 
+#include "BankBrowser.h"
 #include "CableLayout.h"
 
 #include "Dialogs.h"
@@ -22,7 +23,7 @@ enum MenuId {
     kCablesBase = 300,        // + cable colour
     kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
     kMidiChannelBase = 600,   // + channel (0: as played)
-    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind,
+    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
 };
@@ -256,6 +257,7 @@ juce::PopupMenu MainView::synthMenu()
         get.addItem(item(kGetPatchBase + s, slotLabel(s), {}, ready));
     m.addSubMenu("Get Patch from Slot", get, ready);
     m.addItem(item(kGetPerformance, "Get Performance from G2", {}, ready));
+    m.addItem(item(kSynthMemory, "Synth Memory (Banks)...", {}, true));
     m.addSeparator();
     m.addItem(item(kUnbind, synth_->bound() ? "Stop Live Editing" : "Live Editing (send or get a patch first)", {},
                    synth_->bound(), synth_->bound()));
@@ -375,6 +377,14 @@ void MainView::menuItemSelected(int id, int)
             confirmDiscard([this] { synth_->getPerformance(); });
         else if (id == kUnbind)
             synth_->unbind();
+        else if (id == kSynthMemory) {
+            if (!bankBrowser_)
+                bankBrowser_ = std::make_unique<BankBrowser>(*synth_, [this](std::function<void()> then) {
+                    confirmDiscard(std::move(then));
+                });
+            bankBrowser_->setVisible(true);
+            bankBrowser_->toFront(true);
+        }
         else if (id >= kGetPatchBase)
             confirmDiscard([this, slot = id - kGetPatchBase] { synth_->getPatch(slot); });
         else if (id >= kSendPatchBase)
