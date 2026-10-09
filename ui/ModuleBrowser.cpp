@@ -57,7 +57,7 @@ private:
 ModuleBrowser::ModuleBrowser()
 {
     for (const auto& c : g2::db::categories())
-        tabs_.addTab(c.name, juce::Colour(c.r, c.g, c.b).withMultipliedSaturation(0.6f), -1);
+        tabs_.addTab(c.name, juce::Colour(c.r, c.g, c.b), -1);
     addAndMakeVisible(tabs_);
     strip_.setViewedComponent(&stripContent_, false);
     strip_.setScrollBarsShown(false, true); // the wheel scrolls horizontally
