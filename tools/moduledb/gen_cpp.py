@@ -132,7 +132,8 @@ def generate():
             f"{'true' if fl.get('selectable') else 'false'}, {'true' if fl.get('defaultLocked') else 'false'}, "
             f"{m.get('panelResId') or 0}, {m.get('faceResId') or 0}, "
             f"{span('Inputs', 'inputs')}, {span('Outputs', 'outputs')}, "
-            f"{span('Params', 'params')}, {span('Modes', 'modes')}, {cstr(descriptions.get(m['shortName']))}}},")
+            f"{span('Params', 'params')}, {span('Modes', 'modes')}, {cstr(descriptions.get(m['shortName']))}, "
+            f"{m['toolbarSlot'] if m.get('toolbarSlot') is not None else 255}}},")
     lines += ["};", "", "const CategoryDef kCategories[] = {"]
     for c in mdb["categories"]:
         r, g, b = c["color"]

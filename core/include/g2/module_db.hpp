@@ -64,6 +64,7 @@ struct ModuleDef {
     std::span<const ParamDef> params;
     std::span<const ModeDef> modes;
     const char* description; // short summary from the original help, or nullptr
+    std::uint8_t browserOrder; // position in its category's toolbar in the original editor (255: none)
 };
 
 struct CategoryDef {

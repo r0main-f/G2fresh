@@ -81,9 +81,19 @@ void ModuleBrowser::changeListenerCallback(juce::ChangeBroadcaster*)
 void ModuleBrowser::showCategory(int index)
 {
     buttons_.clear();
+    // In the original editor's toolbar order, which groups families together
+    // (OscA, OscB, OscC, OscD, ...); by name for any module without a slot.
+    std::vector<const g2::db::ModuleDef*> defs;
     for (const auto& def : g2::db::modules())
         if (def.selectable && def.kind == g2::db::ModuleKind::Module && def.category == index)
-            stripContent_.addAndMakeVisible(buttons_.add(new ModuleButton(*this, def)));
+            defs.push_back(&def);
+    std::sort(defs.begin(), defs.end(), [](const auto* a, const auto* b) {
+        if (a->browserOrder != b->browserOrder)
+            return a->browserOrder < b->browserOrder;
+        return juce::String(a->shortName).compareNatural(b->shortName) < 0;
+    });
+    for (const auto* def : defs)
+        stripContent_.addAndMakeVisible(buttons_.add(new ModuleButton(*this, *def)));
     strip_.setViewPosition(0, 0);
     resized();
 }
