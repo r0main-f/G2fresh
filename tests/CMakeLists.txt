@@ -23,6 +23,7 @@ add_executable(g2tests
   test_proto_framing.cpp
   test_proto_messages.cpp
   test_proto_session.cpp
+  test_proto_link.cpp
 )
 target_link_libraries(g2tests PRIVATE g2proto Catch2::Catch2WithMain) # g2core comes with g2proto
 target_compile_definitions(g2tests PRIVATE
