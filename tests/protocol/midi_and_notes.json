@@ -1,0 +1,44 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "midi_and_notes",
+  "description": "Everything MIDI-like the USB protocol can carry (see usb-protocol.md §12): note on/off without velocity, controller snapshot trigger, MIDI-learn reporting.",
+  "steps": [
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0A 01 2C 41 56 00 3C C5 A6",
+      "annotation": "CMPlayNote note-on middle C (60). No velocity/channel field; plays on the keyboard-focused slot(s) (inferred)",
+      "provenance": "clavia-derived",
+      "expect": "00 0A 01 2C 41 56 00 3C C5 A6"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0A 01 2C 41 56 01 3C F6 97",
+      "annotation": "CMPlayNote note-off 60",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 28 00 55 53 83",
+      "annotation": "CMSendCtrlSnap: synth sends values of assigned MIDI CCs (out its MIDI port)",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 2C 41 81 3A 47",
+      "annotation": "CMMidiLearnRequest",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "82 01 04 00 80 00 3F 30 40 00 00 00 00 00 00 00",
+      "annotation": "embedded message -- 0x80 CMMidiLearn slot 0 CC 63 (Verhue capture 82 01 04 00 80 00 3F 30 40)",
+      "provenance": "verhue-capture"
+    }
+  ]
+}

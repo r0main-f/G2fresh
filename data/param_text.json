@@ -1,0 +1,2347 @@
+{
+ "description": "Parameter display functions of the original G2 editor (Mac v1.62, ParamText namespace). See re/notes/param-display.md; C++ port in core/src/param_text.cpp.",
+ "dispatch": {
+   "rule": "The number of values a display depends on selects the table: 1 single, 2 dual, 3 triple. Arguments are passed in order (own value first, then dependencies). Ids missing from a table use its default.",
+   "single_table": {
+     "getter": "ParamText::GetSingelDependencyTextFunction",
+     "address": "0x2c9a4",
+     "default": "Default"
+   },
+   "dual_table": {
+     "getter": "ParamText::GetDualDependencyTextFunction",
+     "address": "0x2d178",
+     "default": "DualDefault"
+   },
+   "triple_table": {
+     "getter": "ParamText::GetTripleDependencyTextFunction",
+     "address": "0x2d2c0",
+     "default": "TripleDefault"
+   },
+   "dependency_ref": "paramN = value of parameter N of the same module (current variation); modeN = module mode/static value N (PANL \"S0\"/\"s0\", module-info byte with bit 7 set)"
+ },
+ "ids": [
+  {"id": 1, "arity": 1, "function": "Negative", "args": ["v"]},
+  {"id": 2, "arity": 1, "function": "Enum", "args": ["v"]},
+  {"id": 3, "arity": 1, "function": "OnOff", "args": ["v"]},
+  {"id": 4, "arity": 1, "function": "Mono", "args": ["v"]},
+  {"id": 5, "arity": 1, "function": "Flip", "args": ["v"]},
+  {"id": 6, "arity": 1, "function": "GainCompensation", "args": ["v"]},
+  {"id": 7, "arity": 1, "function": "Mute", "args": ["v"]},
+  {"id": 8, "arity": 1, "function": "Bypass", "args": ["v"]},
+  {"id": 9, "arity": 1, "function": "Loop", "args": ["v"]},
+  {"id": 10, "arity": 1, "function": "Rec", "args": ["v"]},
+  {"id": 11, "arity": 1, "function": "OffNum", "args": ["v"]},
+  {"id": 12, "arity": 1, "function": "Phase", "args": ["v"]},
+  {"id": 13, "arity": 1, "function": "Semitone", "args": ["v"]},
+  {"id": 14, "arity": 1, "function": "SemitoneKey", "args": ["v"]},
+  {"id": 15, "arity": 1, "function": "SemitoneFilter", "args": ["v"]},
+  {"id": 16, "arity": 1, "function": "UniPol", "args": ["v"]},
+  {"id": 17, "arity": 1, "function": "BiPol", "args": ["v"]},
+  {"id": 18, "arity": 1, "function": "Polarity", "args": ["v"]},
+  {"id": 19, "arity": 1, "function": "Sym", "args": ["v"]},
+  {"id": 20, "arity": 1, "function": "DelayTime", "args": ["v"]},
+  {"id": 21, "arity": 1, "function": "FilterCutOff", "args": ["v"]},
+  {"id": 22, "arity": 1, "function": "DrumMstFreq", "args": ["v"]},
+  {"id": 23, "arity": 1, "function": "DrumSlvMult", "args": ["v"]},
+  {"id": 24, "arity": 1, "function": "OnePoleFreq", "args": ["v"]},
+  {"id": 25, "arity": 1, "function": "KBT", "args": ["v"]},
+  {"id": 26, "arity": 1, "function": "KBTOnOff", "args": ["v"]},
+  {"id": 27, "arity": 1, "function": "PulseWidth", "args": ["v"]},
+  {"id": 28, "arity": 1, "function": "EnvelopeTime", "args": ["v"]},
+  {"id": 29, "arity": 1, "function": "EnvAttackType", "args": ["v"]},
+  {"id": 30, "arity": 1, "function": "LFORange", "args": ["v"]},
+  {"id": 31, "arity": 1, "function": "LFOWaveFull", "args": ["v"]},
+  {"id": 32, "arity": 1, "function": "LfoRateMult", "args": ["v"]},
+  {"id": 33, "arity": 1, "function": "Slide", "args": ["v"]},
+  {"id": 34, "arity": 1, "function": "Smooth", "args": ["v"]},
+  {"id": 35, "arity": 1, "function": "PlusMinusHalfSteps", "args": ["v"]},
+  {"id": 36, "arity": 1, "function": "EqGain", "args": ["v"]},
+  {"id": 37, "arity": 1, "function": "AmpGain", "args": ["v"]},
+  {"id": 38, "arity": 1, "function": "EqFreq", "args": ["v"]},
+  {"id": 39, "arity": 1, "function": "PhaserFreq", "args": ["v"]},
+  {"id": 40, "arity": 1, "function": "SampleRate", "args": ["v"]},
+  {"id": 41, "arity": 1, "function": "OscWaveFull", "args": ["v"]},
+  {"id": 42, "arity": 1, "function": "OscWaveSine", "args": ["v"]},
+  {"id": 43, "arity": 1, "function": "TrigGate", "args": ["v"]},
+  {"id": 44, "arity": 1, "function": "GoStop", "args": ["v"]},
+  {"id": 45, "arity": 1, "function": "BPM", "args": ["v"]},
+  {"id": 46, "arity": 1, "function": "LevelShift", "args": ["v"]},
+  {"id": 47, "arity": 1, "function": "OnOff", "args": ["v"]},
+  {"id": 48, "arity": 1, "function": "EnvAttackType", "args": ["v"]},
+  {"id": 49, "arity": 1, "function": "EnvADDSRSusPlace", "args": ["v"]},
+  {"id": 50, "arity": 1, "function": "EnvMultiSusPlace", "args": ["v"]},
+  {"id": 51, "arity": 1, "function": "EnvMultiType", "args": ["v"]},
+  {"id": 52, "arity": 1, "function": "Fade2to1", "args": ["v"]},
+  {"id": 53, "arity": 1, "function": "Fade1to2", "args": ["v"]},
+  {"id": 54, "arity": 1, "function": "AmpGain", "args": ["v"]},
+  {"id": 55, "arity": 1, "function": "AmRm", "args": ["v"]},
+  {"id": 57, "arity": 1, "function": "dB_0_6_12", "args": ["v"]},
+  {"id": 58, "arity": 1, "function": "OscAWave", "args": ["v"]},
+  {"id": 59, "arity": 1, "function": "OscFine", "args": ["v"]},
+  {"id": 61, "arity": 1, "function": "BiPol", "args": ["v"]},
+  {"id": 62, "arity": 1, "function": "FmType", "args": ["v"]},
+  {"id": 63, "arity": 1, "function": "OscTuneMode", "args": ["v"]},
+  {"id": 64, "arity": 1, "function": "Enum", "args": ["v"]},
+  {"id": 66, "arity": 1, "function": "Enum", "args": ["v"]},
+  {"id": 67, "arity": 1, "function": "OutBusBDest", "args": ["v"]},
+  {"id": 68, "arity": 1, "function": "PartialGen", "args": ["v"]},
+  {"id": 69, "arity": 1, "function": "NoteScaler", "args": ["v"]},
+  {"id": 70, "arity": 1, "function": "NoteVelScale", "args": ["v"]},
+  {"id": 71, "arity": 1, "function": "FltKBT", "args": ["v"]},
+  {"id": 72, "arity": 1, "function": "GCOnOff", "args": ["v"]},
+  {"id": 73, "arity": 1, "function": "dB_6_12", "args": ["v"]},
+  {"id": 74, "arity": 1, "function": "dB_12_24", "args": ["v"]},
+  {"id": 75, "arity": 1, "function": "FilterCType", "args": ["v"]},
+  {"id": 76, "arity": 1, "function": "EQParBW", "args": ["v"]},
+  {"id": 77, "arity": 1, "function": "HiLo", "args": ["v"]},
+  {"id": 78, "arity": 1, "function": "Vowels", "args": ["v"]},
+  {"id": 79, "arity": 1, "function": "OffNum", "args": ["v"]},
+  {"id": 80, "arity": 1, "function": "Emphasis", "args": ["v"]},
+  {"id": 81, "arity": 1, "function": "VocoderMon", "args": ["v"]},
+  {"id": 82, "arity": 1, "function": "ClipSym", "args": ["v"]},
+  {"id": 83, "arity": 1, "function": "DiodeModes", "args": ["v"]},
+  {"id": 84, "arity": 1, "function": "ShaperModes", "args": ["v"]},
+  {"id": 85, "arity": 1, "function": "PhaserFreq", "args": ["v"]},
+  {"id": 86, "arity": 1, "function": "Enum", "args": ["v"]},
+  {"id": 87, "arity": 1, "function": "DelayTime", "args": ["v"]},
+  {"id": 88, "arity": 1, "function": "SampleRate", "args": ["v"]},
+  {"id": 89, "arity": 1, "function": "Enum", "args": ["v"]},
+  {"id": 90, "arity": 1, "function": "ReverbType", "args": ["v"]},
+  {"id": 91, "arity": 1, "function": "Enum", "args": ["v"]},
+  {"id": 92, "arity": 1, "function": "Enum", "args": ["v"]},
+  {"id": 93, "arity": 1, "function": "FilterCdB", "args": ["v"]},
+  {"id": 94, "arity": 1, "function": "Enum", "args": ["v"]},
+  {"id": 99, "arity": 1, "function": "SwitchCtrl", "args": ["v"]},
+  {"id": 100, "arity": 1, "function": "SwitchCtrl", "args": ["v"]},
+  {"id": 101, "arity": 1, "function": "SwitchCtrl", "args": ["v"]},
+  {"id": 104, "arity": 1, "function": "LFORange", "args": ["v"]},
+  {"id": 105, "arity": 1, "function": "LfoKBT", "args": ["v"]},
+  {"id": 106, "arity": 1, "function": "LfoAWave", "args": ["v"]},
+  {"id": 108, "arity": 1, "function": "PatchMIDIOutChannel", "args": ["v"]},
+  {"id": 109, "arity": 1, "function": "PatchMIDIInChannel", "args": ["v"]},
+  {"id": 111, "arity": 1, "function": "ArpeggiatorRange", "args": ["v"]},
+  {"id": 112, "arity": 1, "function": "ArpeggiatorRate", "args": ["v"]},
+  {"id": 113, "arity": 1, "function": "ArpeggiatorMode", "args": ["v"]},
+  {"id": 114, "arity": 1, "function": "UniPolShort", "args": ["v"]},
+  {"id": 115, "arity": 1, "function": "PortamentoTime", "args": ["v"]},
+  {"id": 116, "arity": 1, "function": "PortamentoMode", "args": ["v"]},
+  {"id": 117, "arity": 1, "function": "BendOnOff", "args": ["v"]},
+  {"id": 118, "arity": 1, "function": "VolumeDb", "args": ["v"]},
+  {"id": 119, "arity": 1, "function": "VibratoAmount", "args": ["v"]},
+  {"id": 120, "arity": 1, "function": "VibratoSource", "args": ["v"]},
+  {"id": 121, "arity": 1, "function": "OctShift", "args": ["v"]},
+  {"id": 123, "arity": 1, "function": "FilterCutOff2", "args": ["v"]},
+  {"id": 124, "arity": 1, "function": "FilterResonance", "args": ["v"]},
+  {"id": 125, "arity": 1, "function": "FmKBT", "args": ["v"]},
+  {"id": 126, "arity": 1, "function": "PulseWidthHalf", "args": ["v"]},
+  {"id": 127, "arity": 1, "function": "SignalType", "args": ["v"]},
+  {"id": 128, "arity": 1, "function": "LfoShape", "args": ["v"]},
+  {"id": 129, "arity": 1, "function": "EnvFollowerAttack", "args": ["v"]},
+  {"id": 130, "arity": 1, "function": "EnvFollowerRelease", "args": ["v"]},
+  {"id": 131, "arity": 1, "function": "LFOFreq1", "args": ["v"]},
+  {"id": 132, "arity": 1, "function": "NotePlusMinus", "args": ["v"]},
+  {"id": 134, "arity": 1, "function": "XFade", "args": ["v"]},
+  {"id": 135, "arity": 1, "function": "PosNeg", "args": ["v"]},
+  {"id": 136, "arity": 1, "function": "EnvAttackDecayShape", "args": ["v"]},
+  {"id": 138, "arity": 1, "function": "EnvReset", "args": ["v"]},
+  {"id": 139, "arity": 1, "function": "EnvADRSust", "args": ["v"]},
+  {"id": 144, "arity": 1, "function": "DelayTimeMode", "args": ["v"]},
+  {"id": 148, "arity": 1, "function": "AmpType", "args": ["v"]},
+  {"id": 149, "arity": 1, "function": "InputPad", "args": ["v"]},
+  {"id": 150, "arity": 1, "function": "In2Src", "args": ["v"]},
+  {"id": 151, "arity": 1, "function": "In4Src", "args": ["v"]},
+  {"id": 152, "arity": 1, "function": "InCVA", "args": ["v"]},
+  {"id": 153, "arity": 1, "function": "dB", "args": ["v"]},
+  {"id": 155, "arity": 1, "function": "OscSinShpWave", "args": ["v"]},
+  {"id": 156, "arity": 1, "function": "OscBWave", "args": ["v"]},
+  {"id": 157, "arity": 1, "function": "LogLin", "args": ["v"]},
+  {"id": 158, "arity": 1, "function": "PortamentoType", "args": ["v"]},
+  {"id": 159, "arity": 1, "function": "NoiseGateAtkTime", "args": ["v"]},
+  {"id": 160, "arity": 1, "function": "NoiseGateRelTime", "args": ["v"]},
+  {"id": 161, "arity": 1, "function": "BendOnOff", "args": ["v"]},
+  {"id": 162, "arity": 1, "function": "BendRange", "args": ["v"]},
+  {"id": 163, "arity": 1, "function": "LFOPhase", "args": ["v"]},
+  {"id": 164, "arity": 1, "function": "LfoBWave", "args": ["v"]},
+  {"id": 165, "arity": 1, "function": "LfoCWave", "args": ["v"]},
+  {"id": 166, "arity": 1, "function": "ClkGenSync", "args": ["v"]},
+  {"id": 167, "arity": 1, "function": "OverDriveType", "args": ["v"]},
+  {"id": 168, "arity": 1, "function": "OverDriveSym", "args": ["v"]},
+  {"id": 169, "arity": 1, "function": "ExpLin", "args": ["v"]},
+  {"id": 170, "arity": 1, "function": "PhaserType", "args": ["v"]},
+  {"id": 171, "arity": 1, "function": "VibratoRate", "args": ["v"]},
+  {"id": 172, "arity": 1, "function": "FltVariant", "args": ["v"]},
+  {"id": 173, "arity": 1, "function": "OscFreqSingle", "args": ["v"]},
+  {"id": 174, "arity": 1, "function": "CompressorAttack", "args": ["v"]},
+  {"id": 175, "arity": 1, "function": "CompressorRelease", "args": ["v"]},
+  {"id": 176, "arity": 1, "function": "CompressorThreshold", "args": ["v"]},
+  {"id": 177, "arity": 1, "function": "CompressorRatio", "args": ["v"]},
+  {"id": 178, "arity": 1, "function": "CompressorLevel", "args": ["v"]},
+  {"id": 179, "arity": 1, "function": "MIDIValue", "args": ["v"]},
+  {"id": 180, "arity": 1, "function": "OutPad", "args": ["v"]},
+  {"id": 181, "arity": 1, "function": "MonoKeybPrio", "args": ["v"]},
+  {"id": 182, "arity": 1, "function": "Out2Dest", "args": ["v"]},
+  {"id": 183, "arity": 1, "function": "Out4Dest", "args": ["v"]},
+  {"id": 184, "arity": 1, "function": "EqFreq100To8k", "args": ["v"]},
+  {"id": 185, "arity": 1, "function": "OscPhase", "args": ["v"]},
+  {"id": 186, "arity": 1, "function": "InactiveActive", "args": ["v"]},
+  {"id": 187, "arity": 1, "function": "ClkGenSource", "args": ["v"]},
+  {"id": 188, "arity": 1, "function": "Pad", "args": ["v"]},
+  {"id": 189, "arity": 1, "function": "ModAmountMode", "args": ["v"]},
+  {"id": 190, "arity": 1, "function": "ClkGenSwing", "args": ["v"]},
+  {"id": 191, "arity": 1, "function": "From0to200Percent", "args": ["v"]},
+  {"id": 192, "arity": 1, "function": "ShapeExpCurve", "args": ["v"]},
+  {"id": 193, "arity": 1, "function": "PTrackAlgorithm", "args": ["v"]},
+  {"id": 194, "arity": 1, "function": "KeyQuantCaptureRange", "args": ["v"]},
+  {"id": 195, "arity": 1, "function": "DigitizerBits", "args": ["v"]},
+  {"id": 196, "arity": 1, "function": "DXDetune", "args": ["v"]},
+  {"id": 197, "arity": 1, "function": "DXBreakPoint", "args": ["v"]},
+  {"id": 199, "arity": 1, "function": "DXCurve", "args": ["v"]},
+  {"id": 200, "arity": 1, "function": "DXTuneMode", "args": ["v"]},
+  {"id": 202, "arity": 1, "function": "PitchShiftDelay", "args": ["v"]},
+  {"id": 203, "arity": 1, "function": "RndSmooth", "args": ["v"]},
+  {"id": 204, "arity": 1, "function": "RndLevelShift", "args": ["v"]},
+  {"id": 205, "arity": 1, "function": "RndStep", "args": ["v"]},
+  {"id": 206, "arity": 1, "function": "RndDistribution", "args": ["v"]},
+  {"id": 207, "arity": 1, "function": "RndStepSwitch", "args": ["v"]},
+  {"id": 208, "arity": 1, "function": "RndLogic", "args": ["v"]},
+  {"id": 209, "arity": 1, "function": "PitchShuttle", "args": ["v"]},
+  {"id": 210, "arity": 1, "function": "MIDIFilter", "args": ["v"]},
+  {"id": 211, "arity": 1, "function": "MIDIEcho", "args": ["v"]},
+  {"id": 212, "arity": 1, "function": "RndDensity", "args": ["v"]},
+  {"id": 213, "arity": 1, "function": "EqFreqLo", "args": ["v"]},
+  {"id": 214, "arity": 1, "function": "EqFreqHi", "args": ["v"]},
+  {"id": 215, "arity": 1, "function": "FlangerRate", "args": ["v"]},
+  {"id": 216, "arity": 1, "function": "PhaserRate", "args": ["v"]},
+  {"id": 218, "arity": 1, "function": "DrumFilterType", "args": ["v"]},
+  {"id": 219, "arity": 1, "function": "OffOnOn", "args": ["v"]},
+  {"id": 220, "arity": 1, "function": "NoiseGateLevel", "args": ["v"]},
+  {"id": 221, "arity": 1, "function": "MorphGroupSource1", "args": ["v"]},
+  {"id": 222, "arity": 1, "function": "MorphGroupSource2", "args": ["v"]},
+  {"id": 223, "arity": 1, "function": "MorphGroupSource3", "args": ["v"]},
+  {"id": 224, "arity": 1, "function": "MorphGroupSource4", "args": ["v"]},
+  {"id": 225, "arity": 1, "function": "MorphGroupSource5", "args": ["v"]},
+  {"id": 226, "arity": 1, "function": "MorphGroupSource6", "args": ["v"]},
+  {"id": 227, "arity": 1, "function": "MorphGroupSource7", "args": ["v"]},
+  {"id": 228, "arity": 1, "function": "MorphGroupSource8", "args": ["v"]},
+  {"id": 0, "arity": 2, "function": "OscSubFreq", "args": ["coarse", "fine"]},
+  {"id": 65, "arity": 2, "function": "OscSemi2", "args": ["coarse", "fine"]},
+  {"id": 95, "arity": 2, "function": "LevMult", "args": ["mode", "v"]},
+  {"id": 96, "arity": 2, "function": "BiUniPol", "args": ["v", "polarity"]},
+  {"id": 97, "arity": 2, "function": "OscSyncTimbre", "args": ["a", "b"]},
+  {"id": 98, "arity": 2, "function": "OscPulseTimbre", "args": ["a", "b"]},
+  {"id": 102, "arity": 2, "function": "dBLin", "args": ["v", "mode"]},
+  {"id": 103, "arity": 2, "function": "LFOFreq", "args": ["rate", "range"]},
+  {"id": 107, "arity": 2, "function": "ReverbTime", "args": ["time", "roomType"]},
+  {"id": 122, "arity": 2, "function": "LogicTime", "args": ["time", "range"]},
+  {"id": 133, "arity": 2, "function": "BiUniPolCompact", "args": ["v", "polarity"]},
+  {"id": 137, "arity": 2, "function": "MultiEnvBiUni", "args": ["v", "outType"]},
+  {"id": 141, "arity": 2, "function": "DelayTime2", "args": ["time", "range"]},
+  {"id": 142, "arity": 2, "function": "BodeFreq", "args": ["v", "range"]},
+  {"id": 145, "arity": 2, "function": "DelayTimeTap8", "args": ["time", "range"]},
+  {"id": 147, "arity": 2, "function": "AmpGainNew", "args": ["v", "type"]},
+  {"id": 201, "arity": 2, "function": "PitchShift", "args": ["semi", "fine"]},
+  {"id": 217, "arity": 2, "function": "GlideTimeRate", "args": ["time", "shape"]},
+  {"id": 60, "arity": 3, "function": "OscFreqDep", "args": ["coarse", "fine", "tuneMode"]},
+  {"id": 110, "arity": 3, "function": "ClkGenTempo", "args": ["rate", "active", "source"]},
+  {"id": 140, "arity": 3, "function": "DelayTimeTap", "args": ["time", "sync", "range"]},
+  {"id": 143, "arity": 3, "function": "DelayTimeFx", "args": ["time", "sync", "range"]},
+  {"id": 146, "arity": 3, "function": "DelayTimeStereo", "args": ["time", "sync", "range"]},
+  {"id": 198, "arity": 3, "function": "DXOscFreq", "args": ["coarse", "fine", "fixed"]}
+ ],
+ "functions": {
+  "AmRm": {"arity": 1, "args": ["v"], "formula": "0 \"None\", 64 \"Am\", 127 \"Rm\", else \"%d\"", "address": "0x2b308"},
+  "AmpGain": {"arity": 1, "args": ["v"], "formula": "\"x%.2f\" of 16^(v/128)/4 (127 -> 4.00)", "address": "0x2e08e"},
+  "AmpGainNew": {"arity": 2, "args": ["v", "type"], "formula": "g = k[v]/2^21: type 0 \"x%.2f\" of g; else \"%.1f\" of 20*log10(g) (\"-oo\" at 0)", "address": "0x2dfd4"},
+  "AmpType": {"arity": 1, "args": ["v"], "formula": "Lin/dB", "address": "0x2be98"},
+  "ArpeggiatorMode": {"arity": 1, "args": ["v"], "formula": "Up/Down/Up/Down/Rnd", "address": "0x2d86a"},
+  "ArpeggiatorRange": {"arity": 1, "args": ["v"], "formula": "1..4 Oct", "address": "0x2d7de"},
+  "ArpeggiatorRate": {"arity": 1, "args": ["v"], "formula": "1/8, 1/8T, 1/16, 1/16T", "address": "0x2d824"},
+  "BPM": {"arity": 1, "args": ["v"], "formula": "\"%dBPM\" of 24+2v (v<32), v+56 (v<97), 2v-40", "address": "0x2a58e"},
+  "BendOnOff": {"arity": 1, "args": ["v"], "formula": "Off/On", "address": "0x2dae2"},
+  "BendRange": {"arity": 1, "args": ["v"], "formula": "\"%d semi\" of v+1", "address": "0x2db00"},
+  "BiPol": {"arity": 1, "args": ["v"], "formula": "\"%d\" of v-64, 127 -> \"64\"", "address": "0x2a3ce"},
+  "BiUniPol": {"arity": 2, "args": ["v", "polarity"], "formula": "polarity 0: BiPol(v), else UniPol(v)", "address": "0x2aa80"},
+  "BiUniPolCompact": {"arity": 2, "args": ["v", "polarity"], "formula": "polarity 0: BiPol(v), else UniPolCompact(v)", "address": "0x2aaae"},
+  "BodeFreq": {"arity": 2, "args": ["v", "range"], "formula": "v^3*{8.78, 97.6, 1568, 1}[range]/2048383 Hz, 3/2/1/0 decimals by decade", "address": "0x2f6f4"},
+  "Bypass": {"arity": 1, "args": ["v"], "formula": "Bypass/Active", "address": "0x2a11c"},
+  "ClipSym": {"arity": 1, "args": ["v"], "formula": "Asym/Sym", "address": "0x2b770"},
+  "ClkGenSource": {"arity": 1, "args": ["v"], "formula": "Intern/Master", "address": "0x2a60a"},
+  "ClkGenSwing": {"arity": 1, "args": ["v"], "formula": "\"%.1f%\" of v/5.08+50", "address": "0x2dbe2"},
+  "ClkGenSync": {"arity": 1, "args": ["v"], "formula": "1/2/4/8/16/32", "address": "0x2a636"},
+  "ClkGenTempo": {"arity": 3, "args": ["rate", "active", "source"], "formula": "active 0 -> \"--\"; source 0 -> BPM(rate); else \"Master\"", "address": "0x2a5c4"},
+  "CompressorAttack": {"arity": 1, "args": ["v"], "formula": "string table (\"Fast\", \"0.53m\" .. \" 767m\")", "address": "0x2c0a4"},
+  "CompressorLevel": {"arity": 1, "args": ["v"], "formula": "\"%3ddB\" of v-30", "address": "0x2c200"},
+  "CompressorRatio": {"arity": 1, "args": ["v"], "formula": "ratio*10 r = u+10 / 2u / 5u-75 (u = v or v-35, x10 above 34): \"%d.%d:1\" below 10:1, else \" %2d:1\"", "address": "0x2c12a"},
+  "CompressorRelease": {"arity": 1, "args": ["v"], "formula": "string table (\" 125m\" .. \"10.2s\")", "address": "0x2c0ca"},
+  "CompressorThreshold": {"arity": 1, "args": ["v"], "formula": "\"%3ddB\" of v-30, 42 -> \" Off\"", "address": "0x2c0f0"},
+  "DXBreakPoint": {"arity": 1, "args": ["v"], "formula": "Semitone(v+9)", "address": "0x2c342"},
+  "DXCurve": {"arity": 1, "args": ["v"], "formula": "-Lin/-Exp/+Exp/+Lin", "address": "0x2c358"},
+  "DXDetune": {"arity": 1, "args": ["v"], "formula": "\"%d\" of v-7", "address": "0x2c32a"},
+  "DXOscFreq": {"arity": 3, "args": ["coarse", "fine", "fixed"], "formula": "fixed 0: \"x%.2f\" of c*(1+fine/100) (c=coarse, 0 -> 0.5); else 10^(coarse&3) * 10^(fine/100) Hz with 3/2/1/0 decimals (\"%.0f Hz\" with a space for the last decade)", "address": "0x2c3d6"},
+  "DXTuneMode": {"arity": 1, "args": ["v"], "formula": "Ratio/Fixed", "address": "0x2c39e"},
+  "Default": {"arity": 1, "args": ["v"], "formula": "From0to100(v)", "address": "0x29f42"},
+  "DelayTime": {"arity": 1, "args": ["v"], "formula": "Sci(v*2.5/127 s)", "address": "0x2a47e"},
+  "DelayTime2": {"arity": 2, "args": ["time", "range"], "formula": "DelayTimeTap(time, 0, range)", "address": "0x2b114"},
+  "DelayTimeFx": {"arity": 3, "args": ["time", "sync", "range"], "formula": "DelayTimeTapHelp(time, sync, kRangeFx[range])", "address": "0x2b098"},
+  "DelayTimeMode": {"arity": 1, "args": ["v"], "formula": "Time/ClkSync", "address": "0x2b140"},
+  "DelayTimeStereo": {"arity": 3, "args": ["time", "sync", "range"], "formula": "DelayTimeTapHelp(time, sync, kRangeStereo[range])", "address": "0x2b01c"},
+  "DelayTimeTap": {"arity": 3, "args": ["time", "sync", "range"], "formula": "DelayTimeTapHelp(time, sync, kRangeTap[range])", "address": "0x2b0d6"},
+  "DelayTimeTap8": {"arity": 2, "args": ["time", "range"], "formula": "DelayTimeTapHelp(time, 0, kRange8[range], /8)", "address": "0x2b05a"},
+  "DigitizerBits": {"arity": 1, "args": ["v"], "formula": "\"%d\" of v+1, 12 -> \" Off\"", "address": "0x2fdb6"},
+  "DiodeModes": {"arity": 1, "args": ["v"], "formula": "HalfPos/HalfNeg/FullPos/FullNeg", "address": "0x2b7ac"},
+  "DrumFilterType": {"arity": 1, "args": ["v"], "formula": "LP/BP/HP", "address": "0x2c74e"},
+  "DrumMstFreq": {"arity": 1, "args": ["v"], "formula": "note n = (v>>1)+16, half a semitone lower when v is even: \"%.1fHz\" (or \"%.0fHz\" from 100) of 440*2^((n-69)/12)", "address": "0x2e5e0"},
+  "DrumSlvMult": {"arity": 1, "args": ["v"], "formula": "ratio 2^((v>>2 + (v&3)/4)/12): \"N:1\" when it is the nearest integer ratio, else \"x%.2f\"/\"x%.1f\"", "address": "0x2e6cc"},
+  "DualDefault": {"arity": 2, "args": ["v", "dep"], "formula": "\"%d\" of v", "address": "0x2a01e"},
+  "EQParBW": {"arity": 1, "args": ["v"], "formula": "\"%.2fOct\" of (128-v)/64", "address": "0x2e19e"},
+  "Emphasis": {"arity": 1, "args": ["v"], "formula": "Off/On", "address": "0x2b752"},
+  "Enum": {"arity": 1, "args": ["v"], "formula": "\"%d\" of v+1", "address": "0x2a2e4"},
+  "EnvADDSRSusPlace": {"arity": 1, "args": ["v"], "formula": "L1/L2", "address": "0x2b922"},
+  "EnvADRSust": {"arity": 1, "args": ["v"], "formula": "AD/AR", "address": "0x2a158"},
+  "EnvAttackDecayShape": {"arity": 1, "args": ["v"], "formula": "LogExp/LinExp/ExpExp/LinLin", "address": "0x2a7fc"},
+  "EnvAttackType": {"arity": 1, "args": ["v"], "formula": "Exp/Lin/Log", "address": "0x2a7dc"},
+  "EnvFollowerAttack": {"arity": 1, "args": ["v"], "formula": "0 \"Fast\", else Time(log(0.01)/log(1-k[v]/2^23)/96000 s)", "address": "0x2b95a"},
+  "EnvFollowerRelease": {"arity": 1, "args": ["v"], "formula": "Time(log(0.01)/log(1-k[v]/2^23)/96000 s)", "address": "0x2b9f2"},
+  "EnvMultiSusPlace": {"arity": 1, "args": ["v"], "formula": "L1/L2/L3/Trg", "address": "0x2b8dc"},
+  "EnvMultiType": {"arity": 1, "args": ["v"], "formula": "Bipolar/Uni/Exp/Uni/Lin", "address": "0x2b2e8"},
+  "EnvReset": {"arity": 1, "args": ["v"], "formula": "Normal/Reset", "address": "0x2a13a"},
+  "EnvelopeTime": {"arity": 1, "args": ["v"], "formula": "string table (128 entries, \" 0.5m\" .. \"45.0s\")", "address": "0x2a7b6"},
+  "EqFreq": {"arity": 1, "args": ["v"], "formula": "Sci(20*800^(v/127) Hz)", "address": "0x2fbf6"},
+  "EqFreq100To8k": {"arity": 1, "args": ["v"], "formula": "100*80^(v/127) Hz: \"%.0fHz\", \"%.2fkHz\", \"%.1fkHz\"", "address": "0x2fc60"},
+  "EqFreqHi": {"arity": 1, "args": ["v"], "formula": "6 kHz/8 kHz/12 kHz", "address": "0x2a914"},
+  "EqFreqLo": {"arity": 1, "args": ["v"], "formula": "80 Hz/110 Hz/160 Hz", "address": "0x2a954"},
+  "EqGain": {"arity": 1, "args": ["v"], "formula": "\"%.1fdB\" of (v-64)*0.28125 (127 counts as 128)", "address": "0x2df72"},
+  "ExpLin": {"arity": 1, "args": ["v"], "formula": "Exp/Lin/dB", "address": "0x2bed0"},
+  "Fade1to2": {"arity": 1, "args": ["v"], "formula": "as Fade2to1 with O1/O2", "address": "0x2ac92"},
+  "Fade2to1": {"arity": 1, "args": ["v"], "formula": "64 \"Mute\"; <64 \"I1:%d\" of (64-v)*2 (0 -> \"I1:127\"); >64 \"I2:%d\" of 2v-128 (127 -> \"I2:127\")", "address": "0x2ac18"},
+  "FilterCType": {"arity": 1, "args": ["v"], "formula": "LP/BP/HP/BR", "address": "0x2da52"},
+  "FilterCdB": {"arity": 1, "args": ["v"], "formula": "12dB/18dB/24dB", "address": "0x2b2c8"},
+  "FilterCutOff": {"arity": 1, "args": ["v"], "formula": "Sci(440*2^((v-65)/12) Hz)", "address": "0x2e4d0"},
+  "FilterCutOff2": {"arity": 1, "args": ["v"], "formula": "Sci(440*2^((v-60)/12) Hz)", "address": "0x2e558"},
+  "FilterResonance": {"arity": 1, "args": ["v"], "formula": "0.5/(1-0.9v/127)^2 as \"%.2f\" (below 10) or \"%.0f\"", "address": "0x2dcae"},
+  "FlangerRate": {"arity": 1, "args": ["v"], "formula": "\"%.2fHz\" of v*384000/2^24 (0 -> 0.0114)", "address": "0x2c540"},
+  "Flip": {"arity": 1, "args": ["v"], "formula": "Normal/Inverted", "address": "0x2a0a4"},
+  "FltKBT": {"arity": 1, "args": ["v"], "formula": "KBT Off/25%/50%/75%/100", "address": "0x2b5c2"},
+  "FltVariant": {"arity": 1, "args": ["v"], "formula": "Notch/Peak/Deep", "address": "0x2a4fa"},
+  "FmKBT": {"arity": 1, "args": ["v"], "formula": "FM Lin/FM Trk", "address": "0x2b610"},
+  "FmType": {"arity": 1, "args": ["v"], "formula": "FM A/FM B/FM C", "address": "0x2ae92"},
+  "From0to200Percent": {"arity": 1, "args": ["v"], "formula": "like From0to100 on 0..200 (exact at multiples of 16, 127=\"200\"), \"%.1f\" of v*200/128, then \"%\"", "address": "0x29f52"},
+  "GCOnOff": {"arity": 1, "args": ["v"], "formula": "GC Off/GC On", "address": "0x2a0e0"},
+  "GainCompensation": {"arity": 1, "args": ["v"], "formula": "GC Off/GC On", "address": "0x2a0c2"},
+  "GlideTimeRate": {"arity": 2, "args": ["time", "shape"], "formula": "shape 0: TimeShort(log(0.01)/(24000*log(k[v]/2^22-1)) s); else TimeShort(245760/(1500*a[v]) s) + \"/oct\"", "address": "0x2c638"},
+  "GoStop": {"arity": 1, "args": ["v"], "formula": "Go/Stop", "address": "0x2ab18"},
+  "HiLo": {"arity": 1, "args": ["v"], "formula": "Low/High", "address": "0x2b6ca"},
+  "In2Src": {"arity": 1, "args": ["v"], "formula": "In 1/2, In 3/4, Bus 1/2, Bus 3/4", "address": "0x2b42c"},
+  "In4Src": {"arity": 1, "args": ["v"], "formula": "In/Bus", "address": "0x2b472"},
+  "InCVA": {"arity": 1, "args": ["v"], "formula": "FX 1/2, FX 3/4", "address": "0x2b4aa"},
+  "InactiveActive": {"arity": 1, "args": ["v"], "formula": "Inact/Active", "address": "0x2a068"},
+  "InputPad": {"arity": 1, "args": ["v"], "formula": "+6 dB/ 0 dB/-6dB/-12dB", "address": "0x2b4e2"},
+  "KBT": {"arity": 1, "args": ["v"], "formula": "0 \"Off\", 64 \"Key\", 127 \"x2\", else \"x%.2f\" of v/64", "address": "0x2dd4c"},
+  "KBTOnOff": {"arity": 1, "args": ["v"], "formula": "KBT Off/KBT On", "address": "0x2a728"},
+  "KeyQuantCaptureRange": {"arity": 1, "args": ["v"], "formula": "Closest/Evenly", "address": "0x2dc20"},
+  "LFOFreq": {"arity": 2, "args": ["rate", "range"], "formula": "range 0 Sub: period 699.05/(rate+1) s; 1 Lo: 0.0159*2^(rate/12) Hz; 2 Hi: 0.2555*2^(rate/12) Hz; 3 BPM: \"%d\" (BPM curve); 4 ClkSync: ratio table [rate>>2]; Hz below 0.1 shown as \"%.1fs\" period; \"%.2f\"/\"%.1f\"/\"%.0f\" by decade", "address": "0x2f41a"},
+  "LFOFreq1": {"arity": 1, "args": ["v"], "formula": "LFOFreq(v, 1)", "address": "0x2f666"},
+  "LFOPhase": {"arity": 1, "args": ["v"], "formula": "\"%.0f\" of v*360/128", "address": "0x2bac8"},
+  "LFORange": {"arity": 1, "args": ["v"], "formula": "Sub/Lo/Hi/BPM/ClkSync", "address": "0x2ba7a"},
+  "LFOWaveFull": {"arity": 1, "args": ["v"], "formula": "Sine/Tri/Saw/SawN/Sqr", "address": "0x2a842"},
+  "LevMult": {"arity": 2, "args": ["mode", "v"], "formula": "mode != 0: From0to100(v); else \"%d\" of 2v-128", "address": "0x2fd2c"},
+  "LevelShift": {"arity": 1, "args": ["v"], "formula": "Pos/PosInv/Neg/NegInv/Bip/BipInv/Bip/BipInv", "address": "0x2ab36"},
+  "LfoAWave": {"arity": 1, "args": ["v"], "formula": "Sine/Tri/Saw/Sqr/RndStep/Rnd", "address": "0x2bb0a"},
+  "LfoBWave": {"arity": 1, "args": ["v"], "formula": "Sine/Tri/Saw/Sqr", "address": "0x2bb5e"},
+  "LfoCWave": {"arity": 1, "args": ["v"], "formula": "Sine/CosBell/TriBell/Saw2Tri/Sqr2Tri/Sqr", "address": "0x2bba4"},
+  "LfoKBT": {"arity": 1, "args": ["v"], "formula": "KBT Off/25%/50%/75%/100", "address": "0x2d518"},
+  "LfoRateMult": {"arity": 1, "args": ["v"], "formula": "SlaveMult(v-64 semitones, precision 2): \"x%.3f\"-ish or \"N:1\"/\"1:N\"", "address": "0x2efcc"},
+  "LfoShape": {"arity": 1, "args": ["v"], "formula": "\"%d%\" of floor(v*98/127)+1", "address": "0x2d964"},
+  "LogLin": {"arity": 1, "args": ["v"], "formula": "Log/Lin", "address": "0x2bf10"},
+  "LogicTime": {"arity": 2, "args": ["time", "range"], "formula": "1/(96000*(0.93327-0.000644*time)^100) * 10/100/1000 (range 0/1/2) ms, as \"%.2fm\"..\"%.1fs\"", "address": "0x2b178"},
+  "Loop": {"arity": 1, "args": ["v"], "formula": "1-Cycle/Loop", "address": "0x2a176"},
+  "MIDIEcho": {"arity": 1, "args": ["v"], "formula": "EchoOff/EchoOn", "address": "0x2c2f2"},
+  "MIDIFilter": {"arity": 1, "args": ["v"], "formula": "Notes/Note+CC", "address": "0x2c2ba"},
+  "MIDIValue": {"arity": 1, "args": ["v"], "formula": "\"%d\"", "address": "0x2c226"},
+  "ModAmountMode": {"arity": 1, "args": ["v"], "formula": "m/1-m", "address": "0x2dbc4"},
+  "Mono": {"arity": 1, "args": ["v"], "formula": "Poly/Mono", "address": "0x2a086"},
+  "MonoKeybPrio": {"arity": 1, "args": ["v"], "formula": "Last/Low/High", "address": "0x2dba4"},
+  "MorphGroupSource1": {"arity": 1, "args": ["v"], "formula": "Knob/Wheel", "address": "0x2c7ce"},
+  "MorphGroupSource2": {"arity": 1, "args": ["v"], "formula": "Knob/Vel", "address": "0x2c808"},
+  "MorphGroupSource3": {"arity": 1, "args": ["v"], "formula": "Knob/Keyb", "address": "0x2c842"},
+  "MorphGroupSource4": {"arity": 1, "args": ["v"], "formula": "Knob/Aft.Tch", "address": "0x2c87c"},
+  "MorphGroupSource5": {"arity": 1, "args": ["v"], "formula": "Knob/Sust.Pd/G.Wh 1", "address": "0x2c8b6"},
+  "MorphGroupSource6": {"arity": 1, "args": ["v"], "formula": "Knob/Ctrl.Pd", "address": "0x2c8f6"},
+  "MorphGroupSource7": {"arity": 1, "args": ["v"], "formula": "Knob/P.Stick", "address": "0x2c930"},
+  "MorphGroupSource8": {"arity": 1, "args": ["v"], "formula": "Knob/G.Wh 2", "address": "0x2c96a"},
+  "MultiEnvBiUni": {"arity": 2, "args": ["v", "outType"], "formula": "outType < 4: UniPol(v), else BiPol(v)", "address": "0x2af00"},
+  "Mute": {"arity": 1, "args": ["v"], "formula": "Muted/Active", "address": "0x2a0fe"},
+  "Negative": {"arity": 1, "args": ["v"], "formula": "\"%d\" of -v", "address": "0x2a30a"},
+  "NoiseGateAtkTime": {"arity": 1, "args": ["v"], "formula": "string table (\" 0.2m\" .. \" 100m\")", "address": "0x2bf80"},
+  "NoiseGateLevel": {"arity": 1, "args": ["v"], "formula": "0 \"-oo\", 127 \"-0dB\", else \"%.1fdB\" of 20*log10(v/127)", "address": "0x2e30c"},
+  "NoiseGateRelTime": {"arity": 1, "args": ["v"], "formula": "Time(log(0.01)/log(k[v]/2^23)/24000 s)", "address": "0x2bfa6"},
+  "NotePlusMinus": {"arity": 1, "args": ["v"], "formula": "\"±%d.0\"/\"±%d.5\" of v/2, 127 -> \"±64.0\"", "address": "0x2d56c"},
+  "NoteScaler": {"arity": 1, "args": ["v"], "formula": "PlusMinusHalfSteps(v) + \"-Oct\"/\"-5th\"/\"-7th\" when (v+120)%24 is 0/14/20", "address": "0x2ded8"},
+  "NoteVelScale": {"arity": 1, "args": ["v"], "formula": "\"%.1fdB\" of (v-64)/8, 127 -> \"8.0dB\"", "address": "0x2e134"},
+  "OctShift": {"arity": 1, "args": ["v"], "formula": "\"%d oct\" of v-2 with \"+\" above 0", "address": "0x2db26"},
+  "OffNum": {"arity": 1, "args": ["v"], "formula": "0 -> \"Off\", else \"%d\"", "address": "0x2a1f4"},
+  "OffOnOn": {"arity": 1, "args": ["v"], "formula": "Off/On/On", "address": "0x2c78e"},
+  "OnOff": {"arity": 1, "args": ["v"], "formula": "Off/On", "address": "0x2a04a"},
+  "OnePoleFreq": {"arity": 1, "args": ["v"], "formula": "Sci(12*1666.67^(v/127) Hz)", "address": "0x2eb2e"},
+  "OscAWave": {"arity": 1, "args": ["v"], "formula": "Sine/Tri/Saw/Sqr50/Sqr25/Sqr10", "address": "0x2ad52"},
+  "OscBWave": {"arity": 1, "args": ["v"], "formula": "Sine/Tri/Saw/Sqr/DualSaw", "address": "0x2ada6"},
+  "OscFine": {"arity": 1, "args": ["v"], "formula": "\"%+5.1f\" cents of (v-64)*50/64", "address": "0x2ae48"},
+  "OscFreqDep": {"arity": 3, "args": ["coarse", "fine", "tuneMode"], "formula": "tuneMode 0 Semi: \"%+3d %+4.0f\"; 1 Freq: OscFreq; 2 Factor: OscFactor; 3 Partial: OscPartials; else Sub: OscSubFreq", "address": "0x2fe18"},
+  "OscFreqSingle": {"arity": 1, "args": ["v"], "formula": "OscFreq(v, 64)", "address": "0x2faa2"},
+  "OscPhase": {"arity": 1, "args": ["v"], "formula": "\"%.0f\" of v*360/128", "address": "0x2d922"},
+  "OscPulseTimbre": {"arity": 2, "args": ["a", "b"], "formula": "OscSyncTimbre(a, b)", "address": "0x2fa8a"},
+  "OscSemi2": {"arity": 2, "args": ["coarse", "fine"], "formula": "\"%+3d %+4.0f\" of coarse-64 and cents (fine-64)*50/64", "address": "0x2a53a"},
+  "OscSinShpWave": {"arity": 1, "args": ["v"], "formula": "Sine1..Sine4/TriSaw/Pulse", "address": "0x2adf4"},
+  "OscSubFreq": {"arity": 2, "args": ["coarse", "fine"], "formula": "coarse 0 -> \"0 Hz\", else \"%.4fHz\" of 0.21484375*2^((coarse+(fine-64)/128-69)/12)", "address": "0x2f8f6"},
+  "OscSyncTimbre": {"arity": 2, "args": ["a", "b"], "formula": "a != 0: \"+%d\" of b; else OscFreq(b, 64)", "address": "0x2fa48"},
+  "OscTuneMode": {"arity": 1, "args": ["v"], "formula": "Semi/Freq/Factor/Partial/Sub", "address": "0x2aeb2"},
+  "OscWaveFull": {"arity": 1, "args": ["v"], "formula": "Sqr/Saw/Tri/Sine", "address": "0x2aa1c"},
+  "OscWaveSine": {"arity": 1, "args": ["v"], "formula": "Off/Sine", "address": "0x2aa62"},
+  "Out2Dest": {"arity": 1, "args": ["v"], "formula": "Out 1/2, Out 3/4, FX 1/2, FX 3/4, Bus 1/2, Bus 3/4", "address": "0x2b398"},
+  "Out4Dest": {"arity": 1, "args": ["v"], "formula": "Out/FX/Bus", "address": "0x2b3ec"},
+  "OutBusBDest": {"arity": 1, "args": ["v"], "formula": "1/2, 3/4, CVA", "address": "0x2b378"},
+  "OutPad": {"arity": 1, "args": ["v"], "formula": " 0 dB/+6 dB/+12dB/+18dB", "address": "0x2b528"},
+  "OverDriveSym": {"arity": 1, "args": ["v"], "formula": "Asym/Sym", "address": "0x2c068"},
+  "OverDriveType": {"arity": 1, "args": ["v"], "formula": "Soft/Hard/Fat/Heavy", "address": "0x2c022"},
+  "PTrackAlgorithm": {"arity": 1, "args": ["v"], "formula": "Normal/HiPitch", "address": "0x2c23c"},
+  "Pad": {"arity": 1, "args": ["v"], "formula": "0dB/-6dB/-12dB", "address": "0x2d5ee"},
+  "PartialGen": {"arity": 1, "args": ["v"], "formula": "\"±%d\" of v>>1, \"*\" appended above 64", "address": "0x2b56e"},
+  "PatchMIDIInChannel": {"arity": 1, "args": ["v"], "formula": "1..16, This, Keyb", "address": "0x2be14"},
+  "PatchMIDIOutChannel": {"arity": 1, "args": ["v"], "formula": "1..16, This, SlotA..SlotD", "address": "0x2bdc8"},
+  "Phase": {"arity": 1, "args": ["v"], "formula": "\"%d\" of floor(v*360/128 - 180) (16.16 fixed point)", "address": "0x2a1b2"},
+  "PhaserFreq": {"arity": 1, "args": ["v"], "formula": "Sci(100*160^(v/127) Hz)", "address": "0x2f68a"},
+  "PhaserRate": {"arity": 1, "args": ["v"], "formula": "\"%.2fHz\" (\"%.1f\" from 119) of ((v*v>>1)*24000+768000)/2^24", "address": "0x2c5a2"},
+  "PhaserType": {"arity": 1, "args": ["v"], "formula": "Type I/Type II", "address": "0x2c086"},
+  "PitchShift": {"arity": 2, "args": ["semi", "fine"], "formula": "\"%+2.1f %+4.0f\" of (semi-64)/4 and cents (fine-64)*50/64", "address": "0x2a68a"},
+  "PitchShiftDelay": {"arity": 1, "args": ["v"], "formula": "12.5m/25m/50m/100m", "address": "0x2c274"},
+  "PitchShuttle": {"arity": 1, "args": ["v"], "formula": "64 \"x0\", 127 \"x4.00\", else \"x%.2f\" (or \"- x%.2f\" below 64) of |v-64|/16", "address": "0x2e3f4"},
+  "PlusMinusHalfSteps": {"arity": 1, "args": ["v"], "formula": "0 \"0\", 127 \"±64\", else \"±%.1f\" of v/2", "address": "0x2de6c"},
+  "Polarity": {"arity": 1, "args": ["v"], "formula": "Bipol/Unipol", "address": "0x2aadc"},
+  "PortamentoMode": {"arity": 1, "args": ["v"], "formula": "Off/Normal/Auto", "address": "0x2d760"},
+  "PortamentoTime": {"arity": 1, "args": ["v"], "formula": "gTimes[v]/8192 s: \"%.2fs\" (>= 1 s) or \"%.0fm\"", "address": "0x2d6fc"},
+  "PortamentoType": {"arity": 1, "args": ["v"], "formula": "C-Rate/C-Time", "address": "0x2bf48"},
+  "PosNeg": {"arity": 1, "args": ["v"], "formula": "Pos/Neg", "address": "0x2be60"},
+  "PulseWidth": {"arity": 1, "args": ["v"], "formula": "\"%d%\" of (v*99>>7)+1", "address": "0x2a746"},
+  "PulseWidthHalf": {"arity": 1, "args": ["v"], "formula": "\"%.0f%\" of v*49/127+50", "address": "0x2a76c"},
+  "Rec": {"arity": 1, "args": ["v"], "formula": "Off/Rec On", "address": "0x2a194"},
+  "ReverbTime": {"arity": 2, "args": ["time", "roomType"], "formula": "Sci((3*roomType+3)*time/127 s)", "address": "0x2a4bc"},
+  "ReverbType": {"arity": 1, "args": ["v"], "formula": "Room/Hall/Plate/Gate", "address": "0x2b87e"},
+  "RndDensity": {"arity": 1, "args": ["v"], "formula": "\"%d%\" of v*100/127", "address": "0x2bd82"},
+  "RndDistribution": {"arity": 1, "args": ["v"], "formula": "\"%d%\" of v*100/127", "address": "0x2bd3c"},
+  "RndLevelShift": {"arity": 1, "args": ["v"], "formula": "Bip/Pos/Neg", "address": "0x2ab98"},
+  "RndLogic": {"arity": 1, "args": ["v"], "formula": "10%..90%", "address": "0x2bcd2"},
+  "RndSmooth": {"arity": 1, "args": ["v"], "formula": "0%/25%/50%/75%/100%", "address": "0x2bbf8"},
+  "RndStep": {"arity": 1, "args": ["v"], "formula": "\"%d%\" of v*100/127", "address": "0x2bc46"},
+  "RndStepSwitch": {"arity": 1, "args": ["v"], "formula": "25%/50%/75%/100%", "address": "0x2bc8c"},
+  "SampleRate": {"arity": 1, "args": ["v"], "formula": "Sci(1760*2^((v-69)/12) Hz)", "address": "0x2a994"},
+  "Semitone": {"arity": 1, "args": ["v"], "formula": "MIDI note name, kNotes[(v+3)%12] + (v/12-1): 60 -> \"C4\", 69 -> \"A4\"", "address": "0x2a226"},
+  "SemitoneFilter": {"arity": 1, "args": ["v"], "formula": "SemitoneKey(v+4)", "address": "0x2a2ce"},
+  "SemitoneKey": {"arity": 1, "args": ["v"], "formula": "Semitone(v), plus \" Key\" when v == 64", "address": "0x2a286"},
+  "ShapeExpCurve": {"arity": 1, "args": ["v"], "formula": "x2/x3/x4/x5", "address": "0x2b838"},
+  "ShaperModes": {"arity": 1, "args": ["v"], "formula": "Inv x3/Inv x2/x2/x3", "address": "0x2b7f2"},
+  "SignalType": {"arity": 1, "args": ["v"], "formula": "Bipol/Pos/Neg", "address": "0x2abd8"},
+  "Slide": {"arity": 1, "args": ["v"], "formula": "\"%.0fms\" of 5.3*255.6^(v/127)", "address": "0x2ddda"},
+  "Smooth": {"arity": 1, "args": ["v"], "formula": "Sci(1000^(v/127)/(1000*pi) s)", "address": "0x2a890"},
+  "SwitchCtrl": {"arity": 1, "args": ["v"], "formula": "\"%d\" of 4v", "address": "0x2b8c4"},
+  "Sym": {"arity": 1, "args": ["v"], "formula": "v-64 with explicit \"+\" above 64", "address": "0x2a43c"},
+  "TrigGate": {"arity": 1, "args": ["v"], "formula": "Trig/Gate", "address": "0x2aafa"},
+  "TripleDefault": {"arity": 3, "args": ["v", "dep1", "dep2"], "formula": "\"%d\" of v", "address": "0x2a034"},
+  "UniPol": {"arity": 1, "args": ["v"], "formula": "v/2 with one decimal (\"%d.0\"/\"%d.5\"), 127 -> \"64.0\"", "address": "0x2a330"},
+  "UniPolShort": {"arity": 1, "args": ["v"], "formula": "\"%d\" of v, 63 -> \"64\"", "address": "0x2a406"},
+  "VibratoAmount": {"arity": 1, "args": ["v"], "formula": "\"%3d cnt\"", "address": "0x2d626"},
+  "VibratoRate": {"arity": 1, "args": ["v"], "formula": "\"%d.%02u Hz\" of a 16.16 table (4.00 .. 8.00)", "address": "0x2d6b4"},
+  "VibratoSource": {"arity": 1, "args": ["v"], "formula": "Off/Aftouch/Wheel", "address": "0x2d64a"},
+  "VocoderMon": {"arity": 1, "args": ["v"], "formula": "Active/Monitor", "address": "0x2b78e"},
+  "VolumeDb": {"arity": 1, "args": ["v"], "formula": "\"-%.1f dB\" (or \"-%.0f dB\" from 10) of 18*(5.333^((127-v)/127)-1)", "address": "0x2d9b6"},
+  "Vowels": {"arity": 1, "args": ["v"], "formula": "A/E/I/O/U/Y/AA/AE/OE", "address": "0x2b6e8"},
+  "XFade": {"arity": 1, "args": ["v"], "formula": "Off/25%/50%/100%", "address": "0x2ad0c"},
+  "dB": {"arity": 1, "args": ["v"], "formula": "0 \"-oo\", 1 \"-99.9\", 2 \"-99.0\", 127 \"-0\", else \"%.1f\" of 20*log10(0.01x+0.99x^3), x=v/127", "address": "0x2e1f4"},
+  "dBLin": {"arity": 2, "args": ["v", "mode"], "formula": "mode 2 (dB): dB(v), else From0to100(v)", "address": "0x2fd78"},
+  "dB_0_6_12": {"arity": 1, "args": ["v"], "formula": "0dB/-6dB/-12dB", "address": "0x2b358"},
+  "dB_12_24": {"arity": 1, "args": ["v"], "formula": "12dB/24dB", "address": "0x2b666"},
+  "dB_6_12": {"arity": 1, "args": ["v"], "formula": "6dB/12dB", "address": "0x2b648"}
+ },
+ "modules": [
+  {"type_id": 1, "module": "Keyboard", "panel_res_id": 985, "panel": "Keyboard",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 3, "module": "Out4", "panel_res_id": 891, "panel": "4-Out",
+   "params": [
+    {"index": 0, "name": "Dest", "max": 2, "func_id": 183, "arity": 1, "function": "Out4Dest", "deps": [], "source": "panel"},
+    {"index": 1, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Pad", "max": 1, "func_id": 180, "arity": 1, "function": "OutPad", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 4, "module": "Out2", "panel_res_id": 890, "panel": "2-Out",
+   "params": [
+    {"index": 0, "name": "Dest", "max": 5, "func_id": 182, "arity": 1, "function": "Out2Dest", "deps": [], "source": "panel"},
+    {"index": 1, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Pad", "max": 1, "func_id": 180, "arity": 1, "function": "OutPad", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 5, "module": "Invert", "panel_res_id": 821, "panel": "Invert",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 7, "module": "OscB2", "panel_res_id": 721, "panel": "OscB",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param4"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 5, "name": "FM M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Shape", "max": 127, "func_id": 126, "arity": 1, "function": "PulseWidthHalf", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Shape M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Wave", "max": 4, "func_id": 156, "arity": 1, "function": "OscBWave", "deps": [], "source": "panel"},
+    {"index": 9, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 10, "name": "FM PTrk", "max": 1, "func_id": 125, "arity": 1, "function": "FmKBT", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param4"]},
+    {"master": 6, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 8, "module": "OscC2", "panel_res_id": 722, "panel": "OscShpB",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param4"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 5, "name": "FM Amt", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Shape", "max": 127, "func_id": 126, "arity": 1, "function": "PulseWidthHalf", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Shape M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 9, "name": "FM PTrk", "max": 1, "func_id": 125, "arity": 1, "function": "FmKBT", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 6, "uses": "parameter text of master"},
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param4"]}
+   ]},
+  {"type_id": 9, "module": "OscD2", "panel_res_id": 723, "panel": "OscC",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param3"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 4, "name": "FM M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 6, "name": "FM PTrk", "max": 1, "func_id": 125, "arity": 1, "function": "FmKBT", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param3"]}
+   ]},
+  {"type_id": 12, "module": "FxReverb", "panel_res_id": 829, "panel": "Reverb",
+   "params": [
+    {"index": 0, "name": "Time", "max": 127, "func_id": 107, "arity": 2, "function": "ReverbTime", "deps": ["mode0"], "source": "module"},
+    {"index": 1, "name": "Bright", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Mix", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 107, "arity": 2, "function": "ReverbTime", "values": ["param0", "mode0"]},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 13, "module": "OscKarplus", "panel_res_id": 837, "panel": "OscString",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param4"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Decay", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Damp", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 7, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param4"]}
+   ]},
+  {"type_id": 15, "module": "Switch8_1", "panel_res_id": 795, "panel": "Sw8-1",
+   "params": [
+    {"index": 0, "name": "Source", "max": 7, "func_id": 64, "arity": 1, "function": "Enum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 17, "module": "Mux1_2", "panel_res_id": 765, "panel": "ValSw1-2",
+   "params": [
+    {"index": 0, "name": "Value", "max": 63, "func_id": 114, "arity": 1, "function": "UniPolShort", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 18, "module": "MixS", "panel_res_id": 734, "panel": "X-Fade",
+   "params": [
+    {"index": 0, "name": "XFadeM", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "XFade", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Log/Lin", "max": 1, "func_id": 157, "arity": 1, "function": "LogLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 19, "module": "Mix4_1a", "panel_res_id": 741, "panel": "Mix4-1B",
+   "params": [
+    {"index": 0, "name": "Level 1", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param4"], "source": "module"},
+    {"index": 1, "name": "Level 2", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param4"], "source": "module"},
+    {"index": 2, "name": "Level 3", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param4"], "source": "module"},
+    {"index": 3, "name": "Level 4", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param4"], "source": "module"},
+    {"index": 4, "name": "Lin/Exp", "max": 2, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 20, "module": "EnvADSR", "panel_res_id": 705, "panel": "EnvADSR",
+   "params": [
+    {"index": 0, "name": "Shape", "max": 3, "func_id": 136, "arity": 1, "function": "EnvAttackDecayShape", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Attack", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Decay", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Sustain", "max": 127, "func_id": 16, "arity": 1, "function": "UniPol", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Release", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 5, "name": "OutType", "max": 5, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 6, "name": "KBG", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Reset", "max": 1, "func_id": 138, "arity": 1, "function": "EnvReset", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 4, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"},
+    {"master": 3, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 21, "module": "Mux1_8", "panel_res_id": 771, "panel": "Mux1-8",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 22, "module": "Harmqnt", "panel_res_id": 410, "panel": "PartQuant",
+   "params": [
+    {"index": 0, "name": "Range", "max": 127, "func_id": 68, "arity": 1, "function": "PartialGen", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 23, "module": "EnvADSRMod", "panel_res_id": 711, "panel": "ModADSR",
+   "params": [
+    {"index": 0, "name": "Attack", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Decay", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Sustain", "max": 127, "func_id": 16, "arity": 1, "function": "UniPol", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Release", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Atk M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Dcy M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Sust M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Rel M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "OutType", "max": 5, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 9, "name": "KBG", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 3, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 24, "module": "LfoF2", "panel_res_id": 839, "panel": "LfoC",
+   "params": [
+    {"index": 0, "name": "Rate", "max": 127, "func_id": 103, "arity": 2, "function": "LFOFreq", "deps": ["param3"], "source": "module"},
+    {"index": 1, "name": "Mode", "max": 1, "func_id": 4, "arity": 1, "function": "Mono", "deps": [], "source": "panel"},
+    {"index": 2, "name": "OutType", "max": 5, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Range", "max": 3, "func_id": 104, "arity": 1, "function": "LFORange", "deps": [], "source": "panel"},
+    {"index": 4, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 103, "arity": 2, "function": "LFOFreq", "values": ["param0", "param3"]}
+   ]},
+  {"type_id": 25, "module": "LfoC2", "panel_res_id": 841, "panel": "LfoShpA",
+   "params": [
+    {"index": 0, "name": "Rate", "max": 127, "func_id": 103, "arity": 2, "function": "LFOFreq", "deps": ["param1"], "source": "module"},
+    {"index": 1, "name": "Range", "max": 4, "func_id": 104, "arity": 1, "function": "LFORange", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 4, "func_id": 105, "arity": 1, "function": "LfoKBT", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Rate M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Shape", "max": 127, "func_id": 128, "arity": 1, "function": "LfoShape", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Phase M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Phase", "max": 127, "func_id": 163, "arity": 1, "function": "LFOPhase", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Shape M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Mode", "max": 1, "func_id": 4, "arity": 1, "function": "Mono", "deps": [], "source": "panel"},
+    {"index": 10, "name": "OutType", "max": 5, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 11, "name": "Wave", "max": 5, "func_id": 165, "arity": 1, "function": "LfoCWave", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 103, "arity": 2, "function": "LFOFreq", "values": ["param0", "param1"]},
+    {"master": 7, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 26, "module": "LfoA2", "panel_res_id": 843, "panel": "LfoA",
+   "params": [
+    {"index": 0, "name": "Rate", "max": 127, "func_id": 103, "arity": 2, "function": "LFOFreq", "deps": ["param7"], "source": "module"},
+    {"index": 1, "name": "Mode", "max": 1, "func_id": 4, "arity": 1, "function": "Mono", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 4, "func_id": 105, "arity": 1, "function": "LfoKBT", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Rate M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Wave", "max": 5, "func_id": 106, "arity": 1, "function": "LfoAWave", "deps": [], "source": "panel"},
+    {"index": 5, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 6, "name": "OutType", "max": 5, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Range", "max": 3, "func_id": 104, "arity": 1, "function": "LFORange", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 103, "arity": 2, "function": "LFOFreq", "values": ["param0", "param7"]}
+   ]},
+  {"type_id": 27, "module": "Mstosc", "panel_res_id": 990, "panel": "OscMaster",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param3"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Tune Md", "max": 2, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param3"]}
+   ]},
+  {"type_id": 28, "module": "Saturate", "panel_res_id": 991, "panel": "Saturate",
+   "params": [
+    {"index": 0, "name": "Sat", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Sat M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Curve", "max": 3, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 29, "module": "MetalNoise", "panel_res_id": 666, "panel": "MetNoise",
+   "params": [
+    {"index": 0, "name": "Color", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Freq", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Freq M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "ColorM", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 30, "module": "Device", "panel_res_id": 392, "panel": "Device",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 31, "module": "Noisea", "panel_res_id": 372, "panel": "Noise",
+   "params": [
+    {"index": 0, "name": "Color", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 32, "module": "FltEqLoHi", "panel_res_id": 981, "panel": "Eq2Band",
+   "params": [
+    {"index": 0, "name": "Lo Gain", "max": 127, "func_id": 36, "arity": 1, "function": "EqGain", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Hi Gain", "max": 127, "func_id": 36, "arity": 1, "function": "EqGain", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Level", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Lo Freq", "max": 2, "func_id": 213, "arity": 1, "function": "EqFreqLo", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Hi Freq", "max": 2, "func_id": 214, "arity": 1, "function": "EqFreqHi", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 33, "module": "FltEqLoMidHi", "panel_res_id": 982, "panel": "Eq3band",
+   "params": [
+    {"index": 0, "name": "Lo", "max": 127, "func_id": 36, "arity": 1, "function": "EqGain", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Mid", "max": 127, "func_id": 36, "arity": 1, "function": "EqGain", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Mid Frq", "max": 127, "func_id": 184, "arity": 1, "function": "EqFreq100To8k", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Hi", "max": 127, "func_id": 36, "arity": 1, "function": "EqGain", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Level", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Lo Freq", "max": 2, "func_id": 213, "arity": 1, "function": "EqFreqLo", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Hi Freq", "max": 2, "func_id": 214, "arity": 1, "function": "EqFreqHi", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 3, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 34, "module": "Shape", "panel_res_id": 987, "panel": "ShpExp",
+   "params": [
+    {"index": 0, "name": "Shape", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Shape M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Curve", "max": 3, "func_id": 192, "arity": 1, "function": "ShapeExpCurve", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 36, "module": "Switch1_1", "panel_res_id": 376, "panel": "SwOnOffM",
+   "params": [
+    {"index": 0, "name": "Switch", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 38, "module": "LogicPulse", "panel_res_id": 825, "panel": "Pulse",
+   "params": [
+    {"index": 0, "name": "Time", "max": 127, "func_id": 122, "arity": 2, "function": "LogicTime", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "Time M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Range", "max": 2, "func_id": 30, "arity": 1, "function": "LFORange", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 122, "arity": 2, "function": "LogicTime", "values": ["param0", "param2"]}
+   ]},
+  {"type_id": 40, "module": "Mix8_1b", "panel_res_id": 728, "panel": "Mix8-1B",
+   "params": [
+    {"index": 0, "name": "Level 1", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 1, "name": "Level 2", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 2, "name": "Level 3", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 3, "name": "Level 4", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 4, "name": "Level 5", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 5, "name": "Level 6", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 6, "name": "Level 7", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 7, "name": "Level 8", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 8, "name": "Lin/Exp", "max": 2, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Pad", "max": 2, "func_id": 188, "arity": 1, "function": "Pad", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 41, "module": "EnvH", "panel_res_id": 686, "panel": "EnvH",
+   "params": [
+    {"index": 0, "name": "HldTime", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 1, "name": "OutType", "max": 3, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 42, "module": "LogicDelay", "panel_res_id": 824, "panel": "Delay",
+   "params": [
+    {"index": 0, "name": "Time", "max": 127, "func_id": 122, "arity": 2, "function": "LogicTime", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "Time M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Range", "max": 2, "func_id": 30, "arity": 1, "function": "LFORange", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 122, "arity": 2, "function": "LogicTime", "values": ["param0", "param2"]}
+   ]},
+  {"type_id": 43, "module": "Const", "panel_res_id": 419, "panel": "Constant",
+   "params": [
+    {"index": 0, "name": "Level", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param1"], "source": "module"},
+    {"index": 1, "name": "Pol", "max": 1, "func_id": 18, "arity": 1, "function": "Polarity", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 96, "arity": 2, "function": "BiUniPol", "values": ["param0", "param1"]}
+   ]},
+  {"type_id": 44, "module": "Vca", "panel_res_id": 737, "panel": "LevMult",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 45, "module": "FormFlt", "panel_res_id": 417, "panel": "FltVoice",
+   "params": [
+    {"index": 0, "name": "Vowel 1", "max": 8, "func_id": 78, "arity": 1, "function": "Vowels", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Vowel 2", "max": 8, "func_id": 78, "arity": 1, "function": "Vowels", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Vowel 3", "max": 8, "func_id": 78, "arity": 1, "function": "Vowels", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Level", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Nav", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Nav M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Freq", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Freq M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Res", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 9, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"},
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 46, "module": "EnvAHD", "panel_res_id": 707, "panel": "EnvAHD",
+   "params": [
+    {"index": 0, "name": "Shape", "max": 3, "func_id": 136, "arity": 1, "function": "EnvAttackDecayShape", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Attack", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Hold", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Trigged", "max": 1, "func_id": 138, "arity": 1, "function": "EnvReset", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Release", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 5, "name": "OutType", "max": 3, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 6, "name": "KBG", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 4, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 47, "module": "Pan", "panel_res_id": 746, "panel": "Pan",
+   "params": [
+    {"index": 0, "name": "Pan M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Pan", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Log/Lin", "max": 1, "func_id": 157, "arity": 1, "function": "LogLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 48, "module": "StMixer", "panel_res_id": 669, "panel": "MixStereo",
+   "params": [
+    {"index": 0, "name": "Lvl 1", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Lvl 2", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Lvl 3", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Lvl 4", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Lvl 5", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Lvl 6", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Pan 1", "max": 127, "func_id": 19, "arity": 1, "function": "Sym", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Pan 2", "max": 127, "func_id": 19, "arity": 1, "function": "Sym", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Pan 3", "max": 127, "func_id": 19, "arity": 1, "function": "Sym", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Pan 4", "max": 127, "func_id": 19, "arity": 1, "function": "Sym", "deps": [], "source": "panel"},
+    {"index": 10, "name": "Pan 5", "max": 127, "func_id": 19, "arity": 1, "function": "Sym", "deps": [], "source": "panel"},
+    {"index": 11, "name": "Pan 6", "max": 127, "func_id": 19, "arity": 1, "function": "Sym", "deps": [], "source": "panel"},
+    {"index": 12, "name": "Master", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 49, "module": "FilterA", "panel_res_id": 369, "panel": "FltMulti",
+   "params": [
+    {"index": 0, "name": "Freq", "max": 127, "func_id": 123, "arity": 1, "function": "FilterCutOff2", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Freq M", "max": 127, "func_id": 191, "arity": 1, "function": "From0to200Percent", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 4, "func_id": 71, "arity": 1, "function": "FltKBT", "deps": [], "source": "panel"},
+    {"index": 3, "name": "GComp", "max": 1, "func_id": 72, "arity": 1, "function": "GCOnOff", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Res", "max": 127, "func_id": 124, "arity": 1, "function": "FilterResonance", "deps": [], "source": "panel"},
+    {"index": 5, "name": "dB/Oct", "max": 1, "func_id": 73, "arity": 1, "function": "dB_6_12", "deps": [], "source": "panel"},
+    {"index": 6, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 4, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 50, "module": "SwitchOffset", "panel_res_id": 365, "panel": "ConstSwT",
+   "params": [
+    {"index": 0, "name": "Value", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "State", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Pol", "max": 1, "func_id": 18, "arity": 1, "function": "Polarity", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 96, "arity": 2, "function": "BiUniPol", "values": ["param0", "param2"]}
+   ]},
+  {"type_id": 51, "module": "FilterC", "panel_res_id": 367, "panel": "FltNord",
+   "params": [
+    {"index": 0, "name": "Freq", "max": 127, "func_id": 123, "arity": 1, "function": "FilterCutOff2", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Pitch M", "max": 127, "func_id": 191, "arity": 1, "function": "From0to200Percent", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 4, "func_id": 71, "arity": 1, "function": "FltKBT", "deps": [], "source": "panel"},
+    {"index": 3, "name": "GComp", "max": 1, "func_id": 72, "arity": 1, "function": "GCOnOff", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Res", "max": 127, "func_id": 124, "arity": 1, "function": "FilterResonance", "deps": [], "source": "panel"},
+    {"index": 5, "name": "dB/Oct", "max": 1, "func_id": 74, "arity": 1, "function": "dB_12_24", "deps": [], "source": "panel"},
+    {"index": 6, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 7, "name": "FrqLinM", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Type", "max": 3, "func_id": 75, "arity": 1, "function": "FilterCType", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Res M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 4, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 52, "module": "EnvMulti", "panel_res_id": 702, "panel": "EnvMulti",
+   "params": [
+    {"index": 0, "name": "Level 1", "max": 127, "func_id": 137, "arity": 2, "function": "MultiEnvBiUni", "deps": ["param10"], "source": "module"},
+    {"index": 1, "name": "Level 2", "max": 127, "func_id": 137, "arity": 2, "function": "MultiEnvBiUni", "deps": ["param10"], "source": "module"},
+    {"index": 2, "name": "Level 3", "max": 127, "func_id": 137, "arity": 2, "function": "MultiEnvBiUni", "deps": ["param10"], "source": "module"},
+    {"index": 3, "name": "Level 4", "max": 127, "func_id": 137, "arity": 2, "function": "MultiEnvBiUni", "deps": ["param10"], "source": "module"},
+    {"index": 4, "name": "Time 1", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Time 2", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Time 3", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Time 4", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Reset", "max": 1, "func_id": 138, "arity": 1, "function": "EnvReset", "deps": [], "source": "panel"},
+    {"index": 9, "name": "SusPlac", "max": 3, "func_id": 50, "arity": 1, "function": "EnvMultiSusPlace", "deps": [], "source": "panel"},
+    {"index": 10, "name": "OutType", "max": 4, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 11, "name": "KBG", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 12, "name": "Shape", "max": 3, "func_id": 136, "arity": 1, "function": "EnvAttackDecayShape", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 137, "arity": 2, "function": "MultiEnvBiUni", "values": ["param0", "param10"]},
+    {"master": 1, "func_id": 137, "arity": 2, "function": "MultiEnvBiUni", "values": ["param1", "param10"]},
+    {"master": 2, "func_id": 137, "arity": 2, "function": "MultiEnvBiUni", "values": ["param2", "param10"]},
+    {"master": 3, "func_id": 137, "arity": 2, "function": "MultiEnvBiUni", "values": ["param3", "param10"]},
+    {"master": 4, "uses": "parameter text of master"},
+    {"master": 5, "uses": "parameter text of master"},
+    {"master": 6, "uses": "parameter text of master"},
+    {"master": 7, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 53, "module": "SampleHold", "panel_res_id": 357, "panel": "S&H",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 54, "module": "FltStatic", "panel_res_id": 994, "panel": "FltStatic",
+   "params": [
+    {"index": 0, "name": "Freq", "max": 127, "func_id": 123, "arity": 1, "function": "FilterCutOff2", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Res", "max": 127, "func_id": 124, "arity": 1, "function": "FilterResonance", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Type", "max": 2, "func_id": 75, "arity": 1, "function": "FilterCType", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 4, "name": "GComp", "max": 1, "func_id": 72, "arity": 1, "function": "GCOnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 55, "module": "EnvDcy", "panel_res_id": 688, "panel": "EnvD",
+   "params": [
+    {"index": 0, "name": "Decay", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 1, "name": "OutType", "max": 3, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 57, "module": "MIDIAutomate", "panel_res_id": 989, "panel": "Automate",
+   "params": [
+    {"index": 0, "name": "Control", "max": 127, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Value", "max": 127, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Channel", "max": 20, "func_id": 108, "arity": 1, "function": "PatchMIDIOutChannel", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Echo", "max": 1, "func_id": 211, "arity": 1, "function": "MIDIEcho", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 2, "uses": "parameter text of master"},
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 58, "module": "Drum", "panel_res_id": 1025, "panel": "DrumSynth",
+   "params": [
+    {"index": 0, "name": "MstTune", "max": 127, "func_id": 22, "arity": 1, "function": "DrumMstFreq", "deps": [], "source": "panel"},
+    {"index": 1, "name": "SlvTune", "max": 127, "func_id": 23, "arity": 1, "function": "DrumSlvMult", "deps": [], "source": "panel"},
+    {"index": 2, "name": "MstDcy", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 3, "name": "SlvDcy", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 4, "name": "MstLvl", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "SlvLvl", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "FltFreq", "max": 127, "func_id": 21, "arity": 1, "function": "FilterCutOff", "deps": [], "source": "panel"},
+    {"index": 7, "name": "FltRes", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "FltSwp", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 9, "name": "FltDcy", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 10, "name": "FltType", "max": 2, "func_id": 218, "arity": 1, "function": "DrumFilterType", "deps": [], "source": "panel"},
+    {"index": 11, "name": "BendAmt", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 12, "name": "BendDcy", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 13, "name": "Click", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 14, "name": "Noise", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 15, "name": "On/Off", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 59, "module": "Compare", "panel_res_id": 422, "panel": "CompLev",
+   "params": [
+    {"index": 0, "name": "Level", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 60, "module": "XMux8_1", "panel_res_id": 791, "panel": "Mux8-1X",
+   "params": [
+    {"index": 0, "name": "X-Fade", "max": 127, "func_id": 56, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 61, "module": "Dista", "panel_res_id": 388, "panel": "Clip",
+   "params": [
+    {"index": 0, "name": "Clip M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Clip", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Shape", "max": 1, "func_id": 82, "arity": 1, "function": "ClipSym", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 62, "module": "Distb", "panel_res_id": 389, "panel": "Overdrive",
+   "params": [
+    {"index": 0, "name": "Drive M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Drive", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Type", "max": 3, "func_id": 167, "arity": 1, "function": "OverDriveType", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Shape", "max": 1, "func_id": 168, "arity": 1, "function": "OverDriveSym", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 63, "module": "PitchShuttle", "panel_res_id": 1000, "panel": "Scratch",
+   "params": [
+    {"index": 0, "name": "P Ratio", "max": 127, "func_id": 209, "arity": 1, "function": "PitchShuttle", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Ratio M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Delay", "max": 3, "func_id": 202, "arity": 1, "function": "PitchShiftDelay", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Active", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 64, "module": "Gate", "panel_res_id": 819, "panel": "Gate",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 66, "module": "Mix2_1", "panel_res_id": 740, "panel": "Mix2-1B",
+   "params": [
+    {"index": 0, "name": "Inv 1", "max": 1, "func_id": 5, "arity": 1, "function": "Flip", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Gain 1", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param4"], "source": "module"},
+    {"index": 2, "name": "Inv 2", "max": 1, "func_id": 5, "arity": 1, "function": "Flip", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Gain 2", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param4"], "source": "module"},
+    {"index": 4, "name": "Lin/Exp", "max": 2, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param1", "param4"]},
+    {"master": 3, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param3", "param4"]}
+   ]},
+  {"type_id": 68, "module": "ClkGen", "panel_res_id": 684, "panel": "ClkGen",
+   "params": [
+    {"index": 0, "name": "Tempo", "max": 127, "func_id": 110, "arity": 3, "function": "ClkGenTempo", "deps": ["param1", "param2"], "source": "module"},
+    {"index": 1, "name": "On/Off", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Source", "max": 1, "func_id": 187, "arity": 1, "function": "ClkGenSource", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Sync", "max": 5, "func_id": 166, "arity": 1, "function": "ClkGenSync", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Swing", "max": 127, "func_id": 190, "arity": 1, "function": "ClkGenSwing", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 110, "arity": 3, "function": "ClkGenTempo", "values": ["param0", "param1", "param2"]},
+    {"master": 3, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 69, "module": "Clkdiv", "panel_res_id": 420, "panel": "ClkDiv",
+   "params": [
+    {"index": 0, "name": "Divider", "max": 127, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 71, "module": "EnvFol2", "panel_res_id": 709, "panel": "EnvFollow",
+   "params": [
+    {"index": 0, "name": "Attack", "max": 127, "func_id": 129, "arity": 1, "function": "EnvFollowerAttack", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Release", "max": 127, "func_id": 130, "arity": 1, "function": "EnvFollowerRelease", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 72, "module": "Scale3", "panel_res_id": 411, "panel": "NoteScaler",
+   "params": [
+    {"index": 0, "name": "Range", "max": 127, "func_id": 69, "arity": 1, "function": "NoteScaler", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 74, "module": "Wraper", "panel_res_id": 382, "panel": "WaveWrap",
+   "params": [
+    {"index": 0, "name": "Wrap M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "WrpGain", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 75, "module": "Noteq", "panel_res_id": 412, "panel": "NoteQuant",
+   "params": [
+    {"index": 0, "name": "Range", "max": 127, "func_id": 35, "arity": 1, "function": "PlusMinusHalfSteps", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Notes", "max": 127, "func_id": 11, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 76, "module": "OnOff", "panel_res_id": 799, "panel": "SwOnOffT",
+   "params": [
+    {"index": 0, "name": "Switch", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 78, "module": "Switch1_8", "panel_res_id": 773, "panel": "Sw1-8",
+   "params": [
+    {"index": 0, "name": "Dest", "max": 7, "func_id": 64, "arity": 1, "function": "Enum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 79, "module": "Switch4_1", "panel_res_id": 779, "panel": "Sw4-1",
+   "params": [
+    {"index": 0, "name": "Source", "max": 3, "func_id": 64, "arity": 1, "function": "Enum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 81, "module": "Amp", "panel_res_id": 748, "panel": "LevAmp",
+   "params": [
+    {"index": 0, "name": "Gain", "max": 127, "func_id": 147, "arity": 2, "function": "AmpGainNew", "deps": ["param1"], "source": "module"},
+    {"index": 1, "name": "Type", "max": 1, "func_id": 148, "arity": 1, "function": "AmpType", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 147, "arity": 2, "function": "AmpGainNew", "values": ["param0", "param1"]}
+   ]},
+  {"type_id": 82, "module": "Diod", "panel_res_id": 384, "panel": "Rect",
+   "params": [
+    {"index": 0, "name": "Type", "max": 3, "func_id": 83, "arity": 1, "function": "DiodeModes", "deps": [], "source": "panel"},
+    {"index": 1, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 83, "module": "Veldyn", "panel_res_id": 386, "panel": "ShpStatic",
+   "params": [
+    {"index": 0, "name": "Curve", "max": 3, "func_id": 84, "arity": 1, "function": "ShaperModes", "deps": [], "source": "panel"},
+    {"index": 1, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 84, "module": "EnvAD", "panel_res_id": 703, "panel": "EnvADR",
+   "params": [
+    {"index": 0, "name": "Shape", "max": 3, "func_id": 136, "arity": 1, "function": "EnvAttackDecayShape", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Attack", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Reset", "max": 1, "func_id": 138, "arity": 1, "function": "EnvReset", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Dcy/Rel", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Trigged", "max": 1, "func_id": 43, "arity": 1, "function": "TrigGate", "deps": [], "source": "panel"},
+    {"index": 5, "name": "OutType", "max": 3, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 6, "name": "KBG", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Type", "max": 1, "func_id": 139, "arity": 1, "function": "EnvADRSust", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 3, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 85, "module": "SwitchWin", "panel_res_id": 790, "panel": "WindSw",
+   "params": [
+    {"index": 0, "name": "From", "max": 127, "func_id": 16, "arity": 1, "function": "UniPol", "deps": [], "source": "panel"},
+    {"index": 1, "name": "To", "max": 127, "func_id": 16, "arity": 1, "function": "UniPol", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 86, "module": "Counter8", "panel_res_id": 807, "panel": "8Counter",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 87, "module": "FilterLP", "panel_res_id": 360, "panel": "FltLP",
+   "params": [
+    {"index": 0, "name": "Freq", "max": 127, "func_id": 123, "arity": 1, "function": "FilterCutOff2", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Freq M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 4, "func_id": 71, "arity": 1, "function": "FltKBT", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 88, "module": "Switch1_4", "panel_res_id": 769, "panel": "Sw1-4",
+   "params": [
+    {"index": 0, "name": "Dest", "max": 3, "func_id": 64, "arity": 1, "function": "Enum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 89, "module": "Flanger", "panel_res_id": 665, "panel": "Flanger",
+   "params": [
+    {"index": 0, "name": "Rate", "max": 127, "func_id": 215, "arity": 1, "function": "FlangerRate", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Range", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "FB", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 90, "module": "Switch1_2", "panel_res_id": 767, "panel": "Sw1-2",
+   "params": [
+    {"index": 0, "name": "Dest", "max": 1, "func_id": 64, "arity": 1, "function": "Enum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 91, "module": "FlipFlop", "panel_res_id": 817, "panel": "FlipFlop",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 92, "module": "FilterH", "panel_res_id": 371, "panel": "FltClassic",
+   "params": [
+    {"index": 0, "name": "Freq", "max": 127, "func_id": 123, "arity": 1, "function": "FilterCutOff2", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Freq M", "max": 127, "func_id": 191, "arity": 1, "function": "From0to200Percent", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 4, "func_id": 71, "arity": 1, "function": "FltKBT", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Res", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "dB/Oct", "max": 2, "func_id": 93, "arity": 1, "function": "FilterCdB", "deps": [], "source": "panel"},
+    {"index": 5, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 3, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 94, "module": "Unison", "panel_res_id": 836, "panel": "StChorus",
+   "params": [
+    {"index": 0, "name": "Detune", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Amount", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 96, "module": "OscF2", "panel_res_id": 720, "panel": "OscD",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param3"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 4, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param3"]}
+   ]},
+  {"type_id": 97, "module": "OscA2", "panel_res_id": 725, "panel": "OscA",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param6"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Wave", "max": 5, "func_id": 58, "arity": 1, "function": "OscAWave", "deps": [], "source": "panel"},
+    {"index": 5, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param6"]}
+   ]},
+  {"type_id": 98, "module": "Bode", "panel_res_id": 672, "panel": "FreqShift",
+   "params": [
+    {"index": 0, "name": "Shift", "max": 127, "func_id": 142, "arity": 2, "function": "BodeFreq", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "Shift M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Range", "max": 2, "func_id": 30, "arity": 1, "function": "LFORange", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Active", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 142, "arity": 2, "function": "BodeFreq", "values": ["param0", "param2"]}
+   ]},
+  {"type_id": 100, "module": "Switch2_1", "panel_res_id": 777, "panel": "Sw2-1",
+   "params": [
+    {"index": 0, "name": "Source", "max": 1, "func_id": 64, "arity": 1, "function": "Enum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 102, "module": "Allpass", "panel_res_id": 378, "panel": "FltPhase",
+   "params": [
+    {"index": 0, "name": "Freq M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Freq", "max": 127, "func_id": 39, "arity": 1, "function": "PhaserFreq", "deps": [], "source": "panel"},
+    {"index": 2, "name": "SpreadM", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "FB", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Notch", "max": 5, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Spread", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 7, "name": "In Lvl", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "FB M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Type", "max": 2, "func_id": 172, "arity": 1, "function": "FltVariant", "deps": [], "source": "panel"},
+    {"index": 10, "name": "KBT", "max": 4, "func_id": 71, "arity": 1, "function": "FltKBT", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 4, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 103, "module": "EqPeak", "panel_res_id": 415, "panel": "EqPeak",
+   "params": [
+    {"index": 0, "name": "Freq", "max": 127, "func_id": 38, "arity": 1, "function": "EqFreq", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Gain", "max": 127, "func_id": 36, "arity": 1, "function": "EqGain", "deps": [], "source": "panel"},
+    {"index": 2, "name": "BWidth", "max": 127, "func_id": 76, "arity": 1, "function": "EQParBW", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 4, "name": "In Lvl", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 105, "module": "Mux2_1", "panel_res_id": 775, "panel": "ValSw2-1",
+   "params": [
+    {"index": 0, "name": "Value", "max": 63, "func_id": 114, "arity": 1, "function": "UniPolShort", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 106, "module": "TunedNoise", "panel_res_id": 1019, "panel": "OscNoise",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param4"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Width M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Width", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 7, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param4"]}
+   ]},
+  {"type_id": 108, "module": "Vocoder", "panel_res_id": 418, "panel": "Vocoder",
+   "params": [
+    {"index": 0, "name": "Band 1", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Band 2", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Band 3", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Band 4", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Band 5", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Band 6", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Band 7", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Band 8", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Band 9", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Band 10", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 10, "name": "Band 11", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 11, "name": "Band 12", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 12, "name": "Band 13", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 13, "name": "Band 14", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 14, "name": "Band 15", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 15, "name": "Band 16", "max": 16, "func_id": 79, "arity": 1, "function": "OffNum", "deps": [], "source": "panel"},
+    {"index": 16, "name": "Emphas", "max": 1, "func_id": 80, "arity": 1, "function": "Emphasis", "deps": [], "source": "panel"},
+    {"index": 17, "name": "Monitor", "max": 1, "func_id": 81, "arity": 1, "function": "VocoderMon", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 112, "module": "Lvladd", "panel_res_id": 738, "panel": "LevAdd",
+   "params": [
+    {"index": 0, "name": "Offset", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param1"], "source": "module"},
+    {"index": 1, "name": "Pol", "max": 1, "func_id": 18, "arity": 1, "function": "Polarity", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 96, "arity": 2, "function": "BiUniPol", "values": ["param0", "param1"]}
+   ]},
+  {"type_id": 113, "module": "Fade1t2", "panel_res_id": 735, "panel": "Fade1-2",
+   "params": [
+    {"index": 0, "name": "Out Lvl", "max": 127, "func_id": 53, "arity": 1, "function": "Fade1to2", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Fade M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 114, "module": "Fade2t1", "panel_res_id": 736, "panel": "Fade2-1",
+   "params": [
+    {"index": 0, "name": "In Lvl", "max": 127, "func_id": 52, "arity": 1, "function": "Fade2to1", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Fade M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 115, "module": "AmpProc", "panel_res_id": 414, "panel": "LevScaler",
+   "params": [
+    {"index": 0, "name": "L.Gain", "max": 127, "func_id": 70, "arity": 1, "function": "NoteVelScale", "deps": [], "source": "panel"},
+    {"index": 1, "name": "BrkPnt", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 2, "name": "R.Gain", "max": 127, "func_id": 70, "arity": 1, "function": "NoteVelScale", "deps": [], "source": "panel"},
+    {"index": 3, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 116, "module": "Mix8_1a", "panel_res_id": 726, "panel": "Mix8-1A",
+   "params": [
+    {"index": 0, "name": "Pad", "max": 2, "func_id": 57, "arity": 1, "function": "dB_0_6_12", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 117, "module": "Am", "panel_res_id": 747, "panel": "LevMod",
+   "params": [
+    {"index": 0, "name": "Depth M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Depth", "max": 127, "func_id": 55, "arity": 1, "function": "AmRm", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 118, "module": "Resamp", "panel_res_id": 379, "panel": "Digitizer",
+   "params": [
+    {"index": 0, "name": "Bits", "max": 12, "func_id": 195, "arity": 1, "function": "DigitizerBits", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Rate", "max": 127, "func_id": 88, "arity": 1, "function": "SampleRate", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Rate M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 119, "module": "EnvADBDSR", "panel_res_id": 700, "panel": "EnvADDSR",
+   "params": [
+    {"index": 0, "name": "KBG", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Shape", "max": 3, "func_id": 136, "arity": 1, "function": "EnvAttackDecayShape", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Attack", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Decay 1", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Break 1", "max": 127, "func_id": 16, "arity": 1, "function": "UniPol", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Decay 2", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Break 2", "max": 127, "func_id": 16, "arity": 1, "function": "UniPol", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Release", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 8, "name": "SusPlac", "max": 1, "func_id": 49, "arity": 1, "function": "EnvADDSRSusPlace", "deps": [], "source": "panel"},
+    {"index": 9, "name": "OutType", "max": 5, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 10, "name": "Reset", "max": 1, "func_id": 138, "arity": 1, "function": "EnvReset", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 2, "uses": "parameter text of master"},
+    {"master": 5, "uses": "parameter text of master"},
+    {"master": 3, "uses": "parameter text of master"},
+    {"master": 4, "uses": "parameter text of master"},
+    {"master": 6, "uses": "parameter text of master"},
+    {"master": 7, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 121, "module": "SeqNote", "panel_res_id": 876, "panel": "SeqNote",
+   "params": [
+    {"index": 0, "name": "Step 1", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Step 2", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Step 3", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Step 4", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Step 5", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Step 6", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Step 7", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Step 8", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Step 9", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Step 10", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 10, "name": "Step 11", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 11, "name": "Step 12", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 12, "name": "Step 13", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 13, "name": "Step 14", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 14, "name": "Step 15", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 15, "name": "Step 16", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 16, "name": "Evnt 1", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 17, "name": "Evnt 2", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 18, "name": "Evnt 3", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 19, "name": "Evnt 4", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 20, "name": "Evnt 5", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 21, "name": "Evnt 6", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 22, "name": "Evnt 7", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 23, "name": "Evnt 8", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 24, "name": "Evnt 9", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 25, "name": "Evnt 10", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 26, "name": "Evnt 11", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 27, "name": "Evnt 12", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 28, "name": "Evnt 13", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 29, "name": "Evnt 14", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 30, "name": "Evnt 15", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 31, "name": "Evnt 16", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 32, "name": "Cycles", "max": 1, "func_id": 9, "arity": 1, "function": "Loop", "deps": [], "source": "panel"},
+    {"index": 33, "name": "Length", "max": 15, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"},
+    {"index": 34, "name": "Pulse", "max": 1, "func_id": 43, "arity": 1, "function": "TrigGate", "deps": [], "source": "panel"},
+    {"index": 35, "name": "Random", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 36, "name": "Clear", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 33, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 123, "module": "Mix4_1b", "panel_res_id": 742, "panel": "Mix4-1C",
+   "params": [
+    {"index": 0, "name": "Level 1", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param9"], "source": "module"},
+    {"index": 1, "name": "Level 2", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param9"], "source": "module"},
+    {"index": 2, "name": "Level 3", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param9"], "source": "module"},
+    {"index": 3, "name": "Level 4", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param9"], "source": "module"},
+    {"index": 4, "name": "On 1", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 5, "name": "On 2", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 6, "name": "On 3", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 7, "name": "On 4", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Pad", "max": 1, "func_id": 188, "arity": 1, "function": "Pad", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Lin/Exp", "max": 2, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 124, "module": "Mux8_1", "panel_res_id": 793, "panel": "Mux8-1",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 125, "module": "Wah", "panel_res_id": 534, "panel": "WahWah",
+   "params": [
+    {"index": 0, "name": "Sweep M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Sweep", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 127, "module": "Polyin", "panel_res_id": 889, "panel": "Fx-In",
+   "params": [
+    {"index": 0, "name": "Bus", "max": 1, "func_id": 152, "arity": 1, "function": "InCVA", "deps": [], "source": "panel"},
+    {"index": 1, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Pad", "max": 3, "func_id": 149, "arity": 1, "function": "InputPad", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 128, "module": "MinMax", "panel_res_id": 682, "panel": "MinMax",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 130, "module": "CounterBin", "panel_res_id": 809, "panel": "BinCounter",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 131, "module": "ADConv", "panel_res_id": 847, "panel": "ADConv",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 132, "module": "DAConv", "panel_res_id": 849, "panel": "DAConv",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 134, "module": "FilterHP", "panel_res_id": 851, "panel": "FltHP",
+   "params": [
+    {"index": 0, "name": "Freq", "max": 127, "func_id": 123, "arity": 1, "function": "FilterCutOff2", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Freq M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 4, "func_id": 71, "arity": 1, "function": "FltKBT", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 139, "module": "TrackHold", "panel_res_id": 359, "panel": "T&H",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 140, "module": "Mix4_2", "panel_res_id": 743, "panel": "Mix4-1S",
+   "params": [
+    {"index": 0, "name": "Level 1", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 1, "name": "Level 2", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 2, "name": "Level 3", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 3, "name": "Level 4", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param8"], "source": "module"},
+    {"index": 4, "name": "On 1", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 5, "name": "On 2", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 6, "name": "On 3", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 7, "name": "On 4", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Lin/Exp", "max": 2, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 141, "module": "MIDICtrlSend", "panel_res_id": 853, "panel": "CtrlSend",
+   "params": [
+    {"index": 0, "name": "Control", "max": 127, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Value", "max": 127, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Channel", "max": 20, "func_id": 108, "arity": 1, "function": "PatchMIDIOutChannel", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 2, "uses": "parameter text of master"},
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 142, "module": "MIDIPCSend", "panel_res_id": 855, "panel": "PCSend",
+   "params": [
+    {"index": 0, "name": "Program", "max": 127, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Channel", "max": 16, "func_id": 108, "arity": 1, "function": "PatchMIDIOutChannel", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 143, "module": "MIDINoteSend", "panel_res_id": 857, "panel": "NoteSend",
+   "params": [
+    {"index": 0, "name": "Vel", "max": 127, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Note", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Channel", "max": 20, "func_id": 108, "arity": 1, "function": "PatchMIDIOutChannel", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 2, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 144, "module": "SeqEvent", "panel_res_id": 859, "panel": "SeqEvent",
+   "params": [
+    {"index": 0, "name": "Step 1", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Step 2", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Step 3", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Step 4", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Step 5", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Step 6", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Step 7", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Step 8", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Step 9", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Step 10", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 10, "name": "Step 11", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 11, "name": "Step 12", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 12, "name": "Step 13", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 13, "name": "Step 14", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 14, "name": "Step 15", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 15, "name": "Step 16", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 16, "name": "Evnt 1", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 17, "name": "Evnt 2", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 18, "name": "Evnt 3", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 19, "name": "Evnt 4", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 20, "name": "Evnt 5", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 21, "name": "Evnt 6", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 22, "name": "Evnt 7", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 23, "name": "Evnt 8", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 24, "name": "Evnt 9", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 25, "name": "Evnt 10", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 26, "name": "Evnt 11", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 27, "name": "Evnt 12", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 28, "name": "Evnt 13", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 29, "name": "Evnt 14", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 30, "name": "Evnt 15", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 31, "name": "Evnt 16", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 32, "name": "Cycles", "max": 1, "func_id": 9, "arity": 1, "function": "Loop", "deps": [], "source": "panel"},
+    {"index": 33, "name": "Length", "max": 15, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"},
+    {"index": 34, "name": "PulseUp", "max": 1, "func_id": 43, "arity": 1, "function": "TrigGate", "deps": [], "source": "panel"},
+    {"index": 35, "name": "PulseLo", "max": 1, "func_id": 43, "arity": 1, "function": "TrigGate", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 33, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 145, "module": "SeqValue", "panel_res_id": 861, "panel": "SeqVal",
+   "params": [
+    {"index": 0, "name": "Step 1", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 1, "name": "Step 2", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 2, "name": "Step 3", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 3, "name": "Step 4", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 4, "name": "Step 5", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 5, "name": "Step 6", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 6, "name": "Step 7", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 7, "name": "Step 8", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 8, "name": "Step 9", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 9, "name": "Step 10", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 10, "name": "Step 11", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 11, "name": "Step 12", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 12, "name": "Step 13", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 13, "name": "Step 14", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 14, "name": "Step 15", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 15, "name": "Step 16", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 16, "name": "Evnt 1", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 17, "name": "Evnt 2", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 18, "name": "Evnt 3", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 19, "name": "Evnt 4", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 20, "name": "Evnt 5", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 21, "name": "Evnt 6", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 22, "name": "Evnt 7", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 23, "name": "Evnt 8", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 24, "name": "Evnt 9", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 25, "name": "Evnt 10", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 26, "name": "Evnt 11", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 27, "name": "Evnt 12", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 28, "name": "Evnt 13", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 29, "name": "Evnt 14", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 30, "name": "Evnt 15", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 31, "name": "Evnt 16", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 32, "name": "Cycles", "max": 1, "func_id": 9, "arity": 1, "function": "Loop", "deps": [], "source": "panel"},
+    {"index": 33, "name": "Length", "max": 15, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"},
+    {"index": 34, "name": "Pol", "max": 1, "func_id": 18, "arity": 1, "function": "Polarity", "deps": [], "source": "panel"},
+    {"index": 35, "name": "Pulse", "max": 1, "func_id": 43, "arity": 1, "function": "TrigGate", "deps": [], "source": "panel"},
+    {"index": 36, "name": "Random", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 37, "name": "Clear", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 33, "uses": "parameter text of master"},
+    {"master": 0, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param0", "param34"]},
+    {"master": 1, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param1", "param34"]},
+    {"master": 2, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param2", "param34"]},
+    {"master": 3, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param3", "param34"]},
+    {"master": 4, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param4", "param34"]},
+    {"master": 5, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param5", "param34"]},
+    {"master": 6, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param6", "param34"]},
+    {"master": 7, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param7", "param34"]},
+    {"master": 8, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param8", "param34"]},
+    {"master": 9, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param9", "param34"]},
+    {"master": 10, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param10", "param34"]},
+    {"master": 11, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param11", "param34"]},
+    {"master": 12, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param12", "param34"]},
+    {"master": 13, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param13", "param34"]},
+    {"master": 14, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param14", "param34"]},
+    {"master": 15, "func_id": 133, "arity": 2, "function": "BiUniPolCompact", "values": ["param15", "param34"]}
+   ]},
+  {"type_id": 146, "module": "SeqCtrl", "panel_res_id": 863, "panel": "SeqLev",
+   "params": [
+    {"index": 0, "name": "Step 1", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 1, "name": "Step 2", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 2, "name": "Step 3", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 3, "name": "Step 4", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 4, "name": "Step 5", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 5, "name": "Step 6", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 6, "name": "Step 7", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 7, "name": "Step 8", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 8, "name": "Step 9", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 9, "name": "Step 10", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 10, "name": "Step 11", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 11, "name": "Step 12", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 12, "name": "Step 13", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 13, "name": "Step 14", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 14, "name": "Step 15", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 15, "name": "Step 16", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param34"], "source": "module"},
+    {"index": 16, "name": "Evnt 1", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 17, "name": "Evnt 2", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 18, "name": "Evnt 3", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 19, "name": "Evnt 4", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 20, "name": "Evnt 5", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 21, "name": "Evnt 6", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 22, "name": "Evnt 7", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 23, "name": "Evnt 8", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 24, "name": "Evnt 9", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 25, "name": "Evnt 10", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 26, "name": "Evnt 11", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 27, "name": "Evnt 12", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 28, "name": "Evnt 13", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 29, "name": "Evnt 14", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 30, "name": "Evnt 15", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 31, "name": "Evnt 16", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 32, "name": "Cycles", "max": 1, "func_id": 9, "arity": 1, "function": "Loop", "deps": [], "source": "panel"},
+    {"index": 33, "name": "Length", "max": 15, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"},
+    {"index": 34, "name": "Pol", "max": 1, "func_id": 18, "arity": 1, "function": "Polarity", "deps": [], "source": "panel"},
+    {"index": 35, "name": "Pulse", "max": 1, "func_id": 43, "arity": 1, "function": "TrigGate", "deps": [], "source": "panel"},
+    {"index": 36, "name": "Random", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 37, "name": "Clear", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 33, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 147, "module": "MIDICtrlRcv", "panel_res_id": 865, "panel": "CtrlRcv",
+   "params": [
+    {"index": 0, "name": "Control", "max": 127, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Channel", "max": 16, "func_id": 109, "arity": 1, "function": "PatchMIDIInChannel", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 148, "module": "MIDINoteRcv", "panel_res_id": 868, "panel": "NoteRcv",
+   "params": [
+    {"index": 0, "name": "Note", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Channel", "max": 17, "func_id": 109, "arity": 1, "function": "PatchMIDIInChannel", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 149, "module": "MIDINoteZone", "panel_res_id": 867, "panel": "NoteZone",
+   "params": [
+    {"index": 0, "name": "RcvChan", "max": 17, "func_id": 109, "arity": 1, "function": "PatchMIDIInChannel", "deps": [], "source": "panel"},
+    {"index": 1, "name": "NoteMin", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 2, "name": "NoteMax", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Transp", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 4, "name": "SndChan", "max": 20, "func_id": 108, "arity": 1, "function": "PatchMIDIOutChannel", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Filter", "max": 1, "func_id": 210, "arity": 1, "function": "MIDIFilter", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"},
+    {"master": 3, "uses": "parameter text of master"},
+    {"master": 4, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 150, "module": "Compressor", "panel_res_id": 871, "panel": "Compress",
+   "params": [
+    {"index": 0, "name": "Thres", "max": 42, "func_id": 176, "arity": 1, "function": "CompressorThreshold", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Ratio", "max": 66, "func_id": 177, "arity": 1, "function": "CompressorRatio", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Attack", "max": 127, "func_id": 174, "arity": 1, "function": "CompressorAttack", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Release", "max": 127, "func_id": 175, "arity": 1, "function": "CompressorRelease", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Output", "max": 42, "func_id": 178, "arity": 1, "function": "CompressorLevel", "deps": [], "source": "panel"},
+    {"index": 5, "name": "SideChn", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 6, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"},
+    {"master": 3, "uses": "parameter text of master"},
+    {"master": 4, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 152, "module": "KeyQuantizer", "panel_res_id": 878, "panel": "KeyQuant",
+   "params": [
+    {"index": 0, "name": "Range", "max": 127, "func_id": 132, "arity": 1, "function": "NotePlusMinus", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Capture", "max": 1, "func_id": 194, "arity": 1, "function": "KeyQuantCaptureRange", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Note E", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Note F", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Note F#", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Note G", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Note G#", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Note A", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Note Bb", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Note B", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 10, "name": "Note C", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 11, "name": "Note C#", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 12, "name": "Note D", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 13, "name": "Note D#", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 154, "module": "SeqVolt", "panel_res_id": 880, "panel": "SeqCtr",
+   "params": [
+    {"index": 0, "name": "Step 1", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 1, "name": "Step 2", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 2, "name": "Step 3", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 3, "name": "Step 4", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 4, "name": "Step 5", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 5, "name": "Step 6", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 6, "name": "Step 7", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 7, "name": "Step 8", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 8, "name": "Step 9", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 9, "name": "Step 10", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 10, "name": "Step 11", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 11, "name": "Step 12", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 12, "name": "Step 13", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 13, "name": "Step 14", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 14, "name": "Step 15", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 15, "name": "Step 16", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param33"], "source": "module"},
+    {"index": 16, "name": "Evnt 1", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 17, "name": "Evnt 2", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 18, "name": "Evnt 3", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 19, "name": "Evnt 4", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 20, "name": "Evnt 5", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 21, "name": "Evnt 6", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 22, "name": "Evnt 7", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 23, "name": "Evnt 8", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 24, "name": "Evnt 9", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 25, "name": "Evnt 10", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 26, "name": "Evnt 11", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 27, "name": "Evnt 12", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 28, "name": "Evnt 13", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 29, "name": "Evnt 14", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 30, "name": "Evnt 15", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 31, "name": "Evnt 16", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 32, "name": "Pulse", "max": 1, "func_id": 43, "arity": 1, "function": "TrigGate", "deps": [], "source": "panel"},
+    {"index": 33, "name": "Pol", "max": 1, "func_id": 18, "arity": 1, "function": "Polarity", "deps": [], "source": "panel"},
+    {"index": 34, "name": "XFade", "max": 3, "func_id": 134, "arity": 1, "function": "XFade", "deps": [], "source": "panel"},
+    {"index": 35, "name": "Random", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 36, "name": "Clear", "max": 1, "func_id": 47, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 156, "module": "NoteDetector", "panel_res_id": 892, "panel": "NoteDet",
+   "params": [
+    {"index": 0, "name": "Note", "max": 127, "func_id": 13, "arity": 1, "function": "Semitone", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 157, "module": "LevelConverter", "panel_res_id": 894, "panel": "LevConv",
+   "params": [
+    {"index": 0, "name": "OutType", "max": 5, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 1, "name": "InType", "max": 2, "func_id": 127, "arity": 1, "function": "SignalType", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 158, "module": "Portamento", "panel_res_id": 362, "panel": "Glide",
+   "params": [
+    {"index": 0, "name": "Time", "max": 127, "func_id": 217, "arity": 2, "function": "GlideTimeRate", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "Active", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Shape", "max": 1, "func_id": 157, "arity": 1, "function": "LogLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 217, "arity": 2, "function": "GlideTimeRate", "values": ["param0", "param2"]}
+   ]},
+  {"type_id": 159, "module": "CompareB", "panel_res_id": 900, "panel": "CompSig",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 160, "module": "PitchTrack", "panel_res_id": 902, "panel": "ZeroCnt",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 161, "module": "Mix8_1Fader", "panel_res_id": 904, "panel": "MixFader",
+   "params": [
+    {"index": 0, "name": "Level 1", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param16"], "source": "module"},
+    {"index": 1, "name": "Level 2", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param16"], "source": "module"},
+    {"index": 2, "name": "Level 3", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param16"], "source": "module"},
+    {"index": 3, "name": "Level 4", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param16"], "source": "module"},
+    {"index": 4, "name": "Level 5", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param16"], "source": "module"},
+    {"index": 5, "name": "Level 6", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param16"], "source": "module"},
+    {"index": 6, "name": "Level 7", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param16"], "source": "module"},
+    {"index": 7, "name": "Level 8", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param16"], "source": "module"},
+    {"index": 8, "name": "On 1", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 9, "name": "On 2", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 10, "name": "On 3", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 11, "name": "On 4", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 12, "name": "On 5", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 13, "name": "On 6", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 14, "name": "On 7", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 15, "name": "On 8", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 16, "name": "Lin/Exp", "max": 2, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"},
+    {"index": 17, "name": "Pad", "max": 2, "func_id": 188, "arity": 1, "function": "Pad", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param0", "param16"]},
+    {"master": 1, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param1", "param16"]},
+    {"master": 2, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param2", "param16"]},
+    {"master": 3, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param3", "param16"]},
+    {"master": 4, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param4", "param16"]},
+    {"master": 5, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param5", "param16"]},
+    {"master": 6, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param6", "param16"]},
+    {"master": 7, "func_id": 102, "arity": 2, "function": "dBLin", "values": ["param7", "param16"]}
+   ]},
+  {"type_id": 162, "module": "DelayLine", "panel_res_id": 906, "panel": "FltComb",
+   "params": [
+    {"index": 0, "name": "Freq", "max": 127, "func_id": 173, "arity": 1, "function": "OscFreqSingle", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 4, "func_id": 71, "arity": 1, "function": "FltKBT", "deps": [], "source": "panel"},
+    {"index": 3, "name": "FB", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 4, "name": "FB M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Type", "max": 2, "func_id": 172, "arity": 1, "function": "FltVariant", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Inp lvl", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 7, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 163, "module": "OscSinShp", "panel_res_id": 909, "panel": "OscShpA",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param4"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 5, "name": "FM M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "FM PTrk", "max": 1, "func_id": 125, "arity": 1, "function": "FmKBT", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Shape", "max": 127, "func_id": 126, "arity": 1, "function": "PulseWidthHalf", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Shape M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Wave", "max": 5, "func_id": 155, "arity": 1, "function": "OscSinShpWave", "deps": [], "source": "panel"},
+    {"index": 10, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param4"]},
+    {"master": 7, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 164, "module": "OscJun", "panel_res_id": 908, "panel": "OscDual",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param4"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Sqr Lvl", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "PW M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Saw Lvl", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Saw Ph", "max": 127, "func_id": 185, "arity": 1, "function": "OscPhase", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Sub Lvl", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 10, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 11, "name": "Sqr PW", "max": 127, "func_id": 126, "arity": 1, "function": "PulseWidthHalf", "deps": [], "source": "panel"},
+    {"index": 12, "name": "Phase M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 13, "name": "SoftSqr", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param4"]}
+   ]},
+  {"type_id": 165, "module": "DXRouter", "panel_res_id": 912, "panel": "DXRouter",
+   "params": [
+    {"index": 0, "name": "Algortm", "max": 31, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"},
+    {"index": 1, "name": "FeedBk", "max": 7, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 167, "module": "PitchShifter", "panel_res_id": 996, "panel": "PShift",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 61, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Delay", "max": 3, "func_id": 202, "arity": 1, "function": "PitchShiftDelay", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Active", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 201, "arity": 2, "function": "PitchShift", "values": ["param0", "param1"]}
+   ]},
+  {"type_id": 169, "module": "EnvAHDMod", "panel_res_id": 916, "panel": "ModAHD",
+   "params": [
+    {"index": 0, "name": "Attack", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Hold", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Decay", "max": 127, "func_id": 28, "arity": 1, "function": "EnvelopeTime", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Atk M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Hold M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Dcy M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "OutType", "max": 3, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 7, "name": "KBG", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 170, "module": "In2", "panel_res_id": 896, "panel": "2-In",
+   "params": [
+    {"index": 0, "name": "Source", "max": 3, "func_id": 150, "arity": 1, "function": "In2Src", "deps": [], "source": "panel"},
+    {"index": 1, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Pad", "max": 3, "func_id": 149, "arity": 1, "function": "InputPad", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 171, "module": "In4", "panel_res_id": 897, "panel": "4-In",
+   "params": [
+    {"index": 0, "name": "Source", "max": 1, "func_id": 151, "arity": 1, "function": "In4Src", "deps": [], "source": "panel"},
+    {"index": 1, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Pad", "max": 3, "func_id": 149, "arity": 1, "function": "InputPad", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 172, "module": "Dly1a", "panel_res_id": 920, "panel": "DlySingleA",
+   "params": [
+    {"index": 0, "name": "Time", "max": 127, "func_id": 141, "arity": 2, "function": "DelayTime2", "deps": ["mode0"], "source": "module"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 141, "arity": 2, "function": "DelayTime2", "values": ["param0", "mode0"]}
+   ]},
+  {"type_id": 173, "module": "Dly1b", "panel_res_id": 929, "panel": "DlySingleB",
+   "params": [
+    {"index": 0, "name": "Time", "max": 127, "func_id": 141, "arity": 2, "function": "DelayTime2", "deps": ["mode0"], "source": "module"},
+    {"index": 1, "name": "Time M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 141, "arity": 2, "function": "DelayTime2", "values": ["param0", "mode0"]}
+   ]},
+  {"type_id": 174, "module": "Dly2", "panel_res_id": 930, "panel": "DelayDual",
+   "params": [
+    {"index": 0, "name": "Time1", "max": 127, "func_id": 141, "arity": 2, "function": "DelayTime2", "deps": ["mode0"], "source": "module"},
+    {"index": 1, "name": "Time1 M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Time2", "max": 127, "func_id": 141, "arity": 2, "function": "DelayTime2", "deps": ["mode0"], "source": "module"},
+    {"index": 3, "name": "Time2 M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 141, "arity": 2, "function": "DelayTime2", "values": ["param0", "mode0"]},
+    {"master": 2, "func_id": 141, "arity": 2, "function": "DelayTime2", "values": ["param2", "mode0"]}
+   ]},
+  {"type_id": 175, "module": "Dly4", "panel_res_id": 931, "panel": "DelayQuad",
+   "params": [
+    {"index": 0, "name": "Time1", "max": 127, "func_id": 140, "arity": 3, "function": "DelayTimeTap", "deps": ["param8", "mode0"], "source": "module"},
+    {"index": 1, "name": "Time1 M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Time2", "max": 127, "func_id": 140, "arity": 3, "function": "DelayTimeTap", "deps": ["param8", "mode0"], "source": "module"},
+    {"index": 3, "name": "Time2 M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Time3", "max": 127, "func_id": 140, "arity": 3, "function": "DelayTimeTap", "deps": ["param8", "mode0"], "source": "module"},
+    {"index": 5, "name": "Time3 M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Time4", "max": 127, "func_id": 140, "arity": 3, "function": "DelayTimeTap", "deps": ["param8", "mode0"], "source": "module"},
+    {"index": 7, "name": "Time4 M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Time Md", "max": 1, "func_id": 144, "arity": 1, "function": "DelayTimeMode", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 140, "arity": 3, "function": "DelayTimeTap", "values": ["param0", "param8", "mode0"]},
+    {"master": 2, "func_id": 140, "arity": 3, "function": "DelayTimeTap", "values": ["param2", "param8", "mode0"]},
+    {"master": 4, "func_id": 140, "arity": 3, "function": "DelayTimeTap", "values": ["param4", "param8", "mode0"]},
+    {"master": 6, "func_id": 140, "arity": 3, "function": "DelayTimeTap", "values": ["param6", "param8", "mode0"]}
+   ]},
+  {"type_id": 176, "module": "DlyA", "panel_res_id": 932, "panel": "DelayA",
+   "params": [
+    {"index": 0, "name": "Time", "max": 127, "func_id": 143, "arity": 3, "function": "DelayTimeFx", "deps": ["param5", "mode0"], "source": "module"},
+    {"index": 1, "name": "FB", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Flt LP", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Dry/Wet", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Time Md", "max": 1, "func_id": 144, "arity": 1, "function": "DelayTimeMode", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 143, "arity": 3, "function": "DelayTimeFx", "values": ["param0", "param5", "mode0"]}
+   ]},
+  {"type_id": 177, "module": "DlyB", "panel_res_id": 933, "panel": "DelayB",
+   "params": [
+    {"index": 0, "name": "Time", "max": 127, "func_id": 143, "arity": 3, "function": "DelayTimeFx", "deps": ["param4", "mode0"], "source": "module"},
+    {"index": 1, "name": "FB", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Flt LP", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Dry/Wet", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Time Md", "max": 1, "func_id": 144, "arity": 1, "function": "DelayTimeMode", "deps": [], "source": "panel"},
+    {"index": 5, "name": "FB M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "DryWetM", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 7, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Flt HP", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 143, "arity": 3, "function": "DelayTimeFx", "values": ["param0", "param4", "mode0"]}
+   ]},
+  {"type_id": 178, "module": "DlyClock", "panel_res_id": 934, "panel": "DlyClock",
+   "params": [
+    {"index": 0, "name": "Delay", "max": 127, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 179, "module": "DlyShift", "panel_res_id": 935, "panel": "DlyShiftReg",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 180, "module": "Operator", "panel_res_id": 940, "panel": "Operator",
+   "params": [
+    {"index": 0, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Sync", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Tune Md", "max": 1, "func_id": 200, "arity": 1, "function": "DXTuneMode", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Coarse", "max": 31, "func_id": 198, "arity": 3, "function": "DXOscFreq", "deps": ["param4", "param2"], "source": "module"},
+    {"index": 4, "name": "Fine", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Detune", "max": 14, "func_id": 196, "arity": 1, "function": "DXDetune", "deps": [], "source": "panel"},
+    {"index": 6, "name": "KeyVel", "max": 7, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 7, "name": "RScale", "max": 7, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 8, "name": "R1", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 9, "name": "L1", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 10, "name": "R2", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 11, "name": "L2", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 12, "name": "R3", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 13, "name": "L3", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 14, "name": "R4", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 15, "name": "L4", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 16, "name": "A-Mod", "max": 7, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 17, "name": "BreakP", "max": 99, "func_id": 197, "arity": 1, "function": "DXBreakPoint", "deps": [], "source": "panel"},
+    {"index": 18, "name": "L-Curve", "max": 3, "func_id": 199, "arity": 1, "function": "DXCurve", "deps": [], "source": "panel"},
+    {"index": 19, "name": "L-Depth", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 20, "name": "R-Curve", "max": 3, "func_id": 199, "arity": 1, "function": "DXCurve", "deps": [], "source": "panel"},
+    {"index": 21, "name": "R-Depth", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 22, "name": "Level", "max": 99, "func_id": 179, "arity": 1, "function": "MIDIValue", "deps": [], "source": "panel"},
+    {"index": 23, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 24, "name": "KBG", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 8, "uses": "parameter text of master"},
+    {"master": 9, "uses": "parameter text of master"},
+    {"master": 10, "uses": "parameter text of master"},
+    {"master": 11, "uses": "parameter text of master"},
+    {"master": 12, "uses": "parameter text of master"},
+    {"master": 13, "uses": "parameter text of master"},
+    {"master": 14, "uses": "parameter text of master"},
+    {"master": 15, "uses": "parameter text of master"},
+    {"master": 4, "func_id": 198, "arity": 3, "function": "DXOscFreq", "values": ["param3", "param4", "param2"]},
+    {"master": 5, "uses": "parameter text of master"},
+    {"master": 6, "uses": "parameter text of master"},
+    {"master": 7, "uses": "parameter text of master"},
+    {"master": 16, "uses": "parameter text of master"},
+    {"master": 22, "uses": "parameter text of master"},
+    {"master": 21, "uses": "parameter text of master"},
+    {"master": 19, "uses": "parameter text of master"},
+    {"master": 17, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 181, "module": "Dly8", "panel_res_id": 937, "panel": "DlyEight",
+   "params": [
+    {"index": 0, "name": "Time", "max": 127, "func_id": 145, "arity": 2, "function": "DelayTimeTap8", "deps": ["mode0"], "source": "module"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 145, "arity": 2, "function": "DelayTimeTap8", "values": ["param0", "mode0"]}
+   ]},
+  {"type_id": 182, "module": "DlyStereo", "panel_res_id": 936, "panel": "DlyStereo",
+   "params": [
+    {"index": 0, "name": "Time L", "max": 127, "func_id": 146, "arity": 3, "function": "DelayTimeStereo", "deps": ["param6", "mode0"], "source": "module"},
+    {"index": 1, "name": "Time R", "max": 127, "func_id": 146, "arity": 3, "function": "DelayTimeStereo", "deps": ["param6", "mode0"], "source": "module"},
+    {"index": 2, "name": "FB L", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "FB R", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "X-FB L", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "X-FB R", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Time Md", "max": 1, "func_id": 144, "arity": 1, "function": "DelayTimeMode", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Flt LP", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Dry/Wet", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 9, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"},
+    {"index": 10, "name": "Flt HP", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 146, "arity": 3, "function": "DelayTimeStereo", "values": ["param0", "param6", "mode0"]},
+    {"master": 0, "func_id": 146, "arity": 3, "function": "DelayTimeStereo", "values": ["param1", "param6", "mode0"]}
+   ]},
+  {"type_id": 183, "module": "OscPH", "panel_res_id": 943, "panel": "OscPM",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param3"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Tune Md", "max": 3, "func_id": 63, "arity": 1, "function": "OscTuneMode", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Phase M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param3"]}
+   ]},
+  {"type_id": 184, "module": "Mix1_1", "panel_res_id": 945, "panel": "Mix1-1A",
+   "params": [
+    {"index": 0, "name": "Level", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "On", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Lin/Exp", "max": 2, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 185, "module": "Mix2_2", "panel_res_id": 944, "panel": "Mix1-1S",
+   "params": [
+    {"index": 0, "name": "Level", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "On", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Lin/Exp", "max": 2, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 186, "module": "Switch1_2Mom", "panel_res_id": 952, "panel": "Sw1-2M",
+   "params": [
+    {"index": 0, "name": "Switch", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 187, "module": "Switch2_1Mom", "panel_res_id": 950, "panel": "Sw2-1M",
+   "params": [
+    {"index": 0, "name": "Switch", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 188, "module": "SwitchOffsetMom", "panel_res_id": 955, "panel": "ConstSwM",
+   "params": [
+    {"index": 0, "name": "Value", "max": 127, "func_id": 96, "arity": 2, "function": "BiUniPol", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "State", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Pol", "max": 1, "func_id": 18, "arity": 1, "function": "Polarity", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 96, "arity": 2, "function": "BiUniPol", "values": ["param0", "param2"]}
+   ]},
+  {"type_id": 189, "module": "NoiseGate", "panel_res_id": 957, "panel": "NoiseGate",
+   "params": [
+    {"index": 0, "name": "Thresh", "max": 127, "func_id": 220, "arity": 1, "function": "NoiseGateLevel", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Attack", "max": 127, "func_id": 159, "arity": 1, "function": "NoiseGateAtkTime", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Release", "max": 127, "func_id": 160, "arity": 1, "function": "NoiseGateRelTime", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 190, "module": "LfoB2", "panel_res_id": 963, "panel": "LfoB",
+   "params": [
+    {"index": 0, "name": "Rate", "max": 127, "func_id": 103, "arity": 2, "function": "LFOFreq", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "Rate M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Range", "max": 4, "func_id": 104, "arity": 1, "function": "LFORange", "deps": [], "source": "panel"},
+    {"index": 3, "name": "KBT", "max": 4, "func_id": 105, "arity": 1, "function": "LfoKBT", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Wave", "max": 3, "func_id": 164, "arity": 1, "function": "LfoBWave", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Mode", "max": 1, "func_id": 4, "arity": 1, "function": "Mono", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Phase", "max": 127, "func_id": 163, "arity": 1, "function": "LFOPhase", "deps": [], "source": "panel"},
+    {"index": 7, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 8, "name": "OutType", "max": 5, "func_id": 46, "arity": 1, "function": "LevelShift", "deps": [], "source": "panel"},
+    {"index": 9, "name": "Phase M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 103, "arity": 2, "function": "LFOFreq", "values": ["param0", "param2"]},
+    {"master": 6, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 192, "module": "Phaser", "panel_res_id": 965, "panel": "Phaser",
+   "params": [
+    {"index": 0, "name": "Type", "max": 1, "func_id": 170, "arity": 1, "function": "PhaserType", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Rate", "max": 127, "func_id": 216, "arity": 1, "function": "PhaserRate", "deps": [], "source": "panel"},
+    {"index": 2, "name": "FB", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "On/Off", "max": 1, "func_id": 8, "arity": 1, "function": "Bypass", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 1, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 193, "module": "Mix4_1c", "panel_res_id": 967, "panel": "Mix4-1A",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 194, "module": "Mix2_1a", "panel_res_id": 969, "panel": "Mix2-1A",
+   "params": [
+    {"index": 0, "name": "Level1", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param4"], "source": "module"},
+    {"index": 1, "name": "On1", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Level2", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param4"], "source": "module"},
+    {"index": 3, "name": "On2", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Lin/Exp", "max": 2, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 195, "module": "ModAmount", "panel_res_id": 971, "panel": "ModAmt",
+   "params": [
+    {"index": 0, "name": "Amount", "max": 127, "func_id": 102, "arity": 2, "function": "dBLin", "deps": ["param2"], "source": "module"},
+    {"index": 1, "name": "On", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Lin/Exp", "max": 1, "func_id": 169, "arity": 1, "function": "ExpLin", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Mode", "max": 1, "func_id": 189, "arity": 1, "function": "ModAmountMode", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 196, "module": "OscPerc", "panel_res_id": 973, "panel": "OscPerc",
+   "params": [
+    {"index": 0, "name": "Coarse", "max": 127, "func_id": 60, "arity": 3, "function": "OscFreqDep", "deps": ["param1", "param2"], "source": "module"},
+    {"index": 1, "name": "Fine", "max": 127, "func_id": 59, "arity": 1, "function": "OscFine", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Tune Md", "max": 3, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "KBT", "max": 1, "func_id": 26, "arity": 1, "function": "KBTOnOff", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Pitch M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Decay", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Click", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Punch", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 8, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 60, "arity": 3, "function": "OscFreqDep", "values": ["param0", "param1", "param2"]}
+   ]},
+  {"type_id": 197, "module": "Status", "panel_res_id": 975, "panel": "Status",
+   "params": [],
+   "text_fields": []},
+  {"type_id": 198, "module": "PitchDetect", "panel_res_id": 979, "panel": "PitchTrack",
+   "params": [
+    {"index": 0, "name": "Thresh", "max": 127, "func_id": 220, "arity": 1, "function": "NoiseGateLevel", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 199, "module": "MonoKeyboard", "panel_res_id": 977, "panel": "MonoKey",
+   "params": [
+    {"index": 0, "name": "Priorty", "max": 2, "func_id": 181, "arity": 1, "function": "MonoKeybPrio", "deps": [], "source": "panel"}
+   ],
+   "text_fields": []},
+  {"type_id": 200, "module": "RndLfoA", "panel_res_id": 1005, "panel": "RandomA",
+   "params": [
+    {"index": 0, "name": "Rate", "max": 127, "func_id": 103, "arity": 2, "function": "LFOFreq", "deps": ["param3"], "source": "module"},
+    {"index": 1, "name": "Mode", "max": 1, "func_id": 4, "arity": 1, "function": "Mono", "deps": [], "source": "panel"},
+    {"index": 2, "name": "OutType", "max": 2, "func_id": 204, "arity": 1, "function": "RndLevelShift", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Range", "max": 3, "func_id": 104, "arity": 1, "function": "LFORange", "deps": [], "source": "panel"},
+    {"index": 4, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 5, "name": "Edge", "max": 4, "func_id": 203, "arity": 1, "function": "RndSmooth", "deps": [], "source": "panel"},
+    {"index": 6, "name": "Step", "max": 3, "func_id": 207, "arity": 1, "function": "RndStepSwitch", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 103, "arity": 2, "function": "LFOFreq", "values": ["param0", "param3"]}
+   ]},
+  {"type_id": 202, "module": "RndLfoB", "panel_res_id": 1003, "panel": "RandomB",
+   "params": [
+    {"index": 0, "name": "Rate", "max": 127, "func_id": 103, "arity": 2, "function": "LFOFreq", "deps": ["param7"], "source": "module"},
+    {"index": 1, "name": "Mode", "max": 1, "func_id": 4, "arity": 1, "function": "Mono", "deps": [], "source": "panel"},
+    {"index": 2, "name": "KBT", "max": 4, "func_id": 105, "arity": 1, "function": "LfoKBT", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Rate M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Step", "max": 127, "func_id": 205, "arity": 1, "function": "RndStep", "deps": [], "source": "panel"},
+    {"index": 5, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"},
+    {"index": 6, "name": "OutType", "max": 2, "func_id": 204, "arity": 1, "function": "RndLevelShift", "deps": [], "source": "panel"},
+    {"index": 7, "name": "Range", "max": 3, "func_id": 104, "arity": 1, "function": "LFORange", "deps": [], "source": "panel"},
+    {"index": 8, "name": "Edge", "max": 4, "func_id": 203, "arity": 1, "function": "RndSmooth", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "func_id": 103, "arity": 2, "function": "LFOFreq", "values": ["param0", "param7"]}
+   ]},
+  {"type_id": 204, "module": "RndClkA", "panel_res_id": 1007, "panel": "RndClkA",
+   "params": [
+    {"index": 0, "name": "Step", "max": 127, "func_id": 205, "arity": 1, "function": "RndStep", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Mode", "max": 1, "func_id": 4, "arity": 1, "function": "Mono", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Dice", "max": 1, "func_id": 3, "arity": 1, "function": "OnOff", "deps": [], "source": "panel"},
+    {"index": 3, "name": "OutType", "max": 2, "func_id": 204, "arity": 1, "function": "RndLevelShift", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Active", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 205, "module": "RndClkB", "panel_res_id": 1001, "panel": "RndTrig",
+   "params": [
+    {"index": 0, "name": "Prob", "max": 127, "func_id": 212, "arity": 1, "function": "RndDensity", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Prob M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 2, "name": "On/Off", "max": 1, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Mode", "max": 1, "func_id": 4, "arity": 1, "function": "Mono", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 206, "module": "RndClkC", "panel_res_id": 1013, "panel": "RndClkB",
+   "params": [
+    {"index": 0, "name": "Step", "max": 127, "func_id": 205, "arity": 1, "function": "RndStep", "deps": [], "source": "panel"},
+    {"index": 1, "name": "OutType", "max": 2, "func_id": 204, "arity": 1, "function": "RndLevelShift", "deps": [], "source": "panel"},
+    {"index": 2, "name": "On/Off", "max": 1, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Mode", "max": 1, "func_id": 4, "arity": 1, "function": "Mono", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Step M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 0, "uses": "parameter text of master"}
+   ]},
+  {"type_id": 208, "module": "RndClkPattern", "panel_res_id": 1017, "panel": "RndPattern",
+   "params": [
+    {"index": 0, "name": "Pattern", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 1, "name": "Bank", "max": 127, "func_id": 17, "arity": 1, "function": "BiPol", "deps": [], "source": "panel"},
+    {"index": 2, "name": "Step", "max": 127, "func_id": 205, "arity": 1, "function": "RndStep", "deps": [], "source": "panel"},
+    {"index": 3, "name": "Loop", "max": 127, "func_id": 2, "arity": 1, "function": "Enum", "deps": [], "source": "panel"},
+    {"index": 4, "name": "Step M", "max": 127, "func_id": 0, "arity": 1, "function": "Default", "deps": [], "source": "panel"},
+    {"index": 5, "name": "OutType", "max": 2, "func_id": 204, "arity": 1, "function": "RndLevelShift", "deps": [], "source": "panel"},
+    {"index": 6, "name": "On/Off", "max": 1, "func_id": 7, "arity": 1, "function": "Mute", "deps": [], "source": "panel"}
+   ],
+   "text_fields": [
+    {"master": 3, "uses": "parameter text of master"},
+    {"master": 0, "uses": "parameter text of master"},
+    {"master": 1, "uses": "parameter text of master"},
+    {"master": 2, "uses": "parameter text of master"}
+   ]}
+ ]
+}

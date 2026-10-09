@@ -1,0 +1,30 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "errors_and_acks",
+  "description": "Acknowledge / exception terminators and a CRC failure.",
+  "steps": [
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "62 01 0C 41 7F B2 50 00 00 00 00 00 00 00 00 00",
+      "annotation": "embedded message -- 0x7F kMesAck: end of reply, no data",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "72 01 0A 07 7E 03 5C 5F 00 00 00 00 00 00 00 00",
+      "annotation": "embedded message -- 0x7E kMesException code 3 for slot C (Clavia throws XMHostMidi(3) -> major error)",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "62 01 0C 41 7F B2 AF 00 00 00 00 00 00 00 00 00",
+      "annotation": "Same ack with corrupted CRC: Clavia silently drops it (CSynthPortUSB::InterruptHandleData @0x106f72); Verhue only logs",
+      "provenance": "synthetic",
+      "valid": false
+    }
+  ]
+}

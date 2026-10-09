@@ -12,7 +12,7 @@ jobs:
         include:
           - os: macos-latest
             name: macOS universal
-            cmake_extra: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
+            cmake_extra: "\"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64\""
           - os: windows-latest
             name: Windows x64
             cmake_extra: ""
@@ -29,7 +29,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libasound2-dev libx11-dev libxrandr-dev \
-            libxinerama-dev libxcursor-dev libxcomposite-dev libfreetype-dev \
+            libxinerama-dev libxcursor-dev libxcomposite-dev libxi-dev libxext-dev \
+            libxrender-dev libglu1-mesa-dev libfreetype-dev \
             libfontconfig1-dev libgl1-mesa-dev xvfb
 
       - name: macOS dependencies

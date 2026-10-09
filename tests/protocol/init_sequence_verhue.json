@@ -1,0 +1,155 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "init_sequence_verhue",
+  "description": "Request frames of Verhue's (Gen2) init sequence in order, slot A only, all version bytes 0. Each must be answered before the next one is sent.",
+  "steps": [
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 05 80 91 88",
+      "annotation": "Init",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 2C 41 7D 01 96 94",
+      "annotation": "Stop comm 7D 01",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 2C 41 35 04 42 54",
+      "annotation": "Get perf version 35 04",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 2C 41 02 9B AC",
+      "annotation": "Get synth settings 02",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 2C 41 81 3A 47",
+      "annotation": "Unknown1 81 (= Clavia MidiLearnRequest)",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 2C 00 10 97 22",
+      "annotation": "Get perf settings 10 (PV=0)",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 2C 00 59 4E CF",
+      "annotation": "Unknown2 59 (= Clavia GlobalParameterPageFocusRequest) PV=0",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 2C 41 35 00 02 D0",
+      "annotation": "Get slot A version 35 00",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 28 00 3C AE 0C",
+      "annotation": "Get patch slot A 3C",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 28 00 28 FC B9",
+      "annotation": "Get patch name slot A 28",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 28 00 68 B4 7D",
+      "annotation": "Get current note slot A 68",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 28 00 6E D4 BB",
+      "annotation": "Get patch text slot A 6E",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 28 00 71 01 33 95",
+      "annotation": "Get resources VA slot A 71 01",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 28 00 71 00 23 B4",
+      "annotation": "Get resources FX slot A 71 00",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 28 00 70 27 44",
+      "annotation": "Unknown6 70 (= Clavia FlushBlink)",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 28 00 2E 9C 7F",
+      "annotation": "Get selected param 2E",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 2C 41 04 FB 6A",
+      "annotation": "Get assigned voices 04",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 2C 00 5E 3E 28",
+      "annotation": "Get global knobs 5E (PV=0)",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 2C 41 3B 3C D6",
+      "annotation": "Get master clock 3B",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0B 01 2C 41 14 00 00 00 EC E5",
+      "annotation": "List names 14 00 00 00",
+      "provenance": "verhue-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 2C 41 7D 00 86 B5",
+      "annotation": "Start comm 7D 00",
+      "provenance": "verhue-derived"
+    }
+  ]
+}

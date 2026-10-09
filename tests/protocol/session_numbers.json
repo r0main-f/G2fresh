@@ -1,0 +1,50 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "session_numbers",
+  "description": "Per-slot session ('patch version') counters. Slot bubbles carry the slot session in byte 4; a mismatch makes the synth/editor discard the bubble.",
+  "steps": [
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 2C 41 35 02 22 92",
+      "annotation": "Session request slot C",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "82 01 0C 41 36 02 21 F3 87 00 00 00 00 00 00 00",
+      "annotation": "embedded message -- 0x36 slot 2 session 0x21",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "82 01 04 40 38 01 05 AD AA 00 00 00 00 00 00 00",
+      "annotation": "embedded message -- unsolicited 0x38 patch release: slot B now has session 5 (patch changed on synth, editor must re-read slot B)",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "72 01 04 40 1F 06 0E 86 00 00 00 00 00 00 00 00",
+      "annotation": "embedded message -- unsolicited 0x1F performance release: new perf session 6 (whole performance re-sync)",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "01 00 13 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "annotation": "extended announcement, len=19 -- Verhue-described compound form '1F PV {36 slot ver}x4' (Gen2 Mess:1614)",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "bulk_in",
+      "hex": "01 0C 40 1F 06 36 00 01 36 01 02 36 02 03 36 03 04 D2 9C",
+      "annotation": "extended message body -- Verhue-described compound form '1F PV {36 slot ver}x4' (Gen2 Mess:1614)",
+      "provenance": "synthetic"
+    }
+  ]
+}

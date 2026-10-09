@@ -1,0 +1,68 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "param_changes",
+  "description": "Live parameter, morph and variation messages.",
+  "steps": [
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0D 01 38 00 40 01 01 00 40 00 08 1C",
+      "annotation": "CMParamChange (realtime) slot A: loc 1 (VA) module 1 param 0 value 64 variation 0. No reply.",
+      "provenance": "clavia-derived",
+      "expect": "00 0D 01 38 00 40 01 01 00 40 00 08 1C"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0C 01 38 00 2F 00 01 01 00 E4 BF",
+      "annotation": "CMParamFocusDump (realtime): flag 0, loc VA, module 1, param 0 (select parameter)",
+      "provenance": "clavia-derived",
+      "expect": "00 0C 01 38 00 2F 00 01 01 00 E4 BF"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0F 01 38 00 43 01 01 00 00 2B 00 00 8A CA",
+      "annotation": "CMMorphChange realtime (while dragging): loc VA, module 1, param 0, morph 0, |range| 0x2B, positive, variation 0",
+      "provenance": "clavia-derived",
+      "expect": "00 0F 01 38 00 43 01 01 00 00 2B 00 00 8A CA"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0F 01 2A 07 43 00 05 02 03 10 01 02 36 C5",
+      "annotation": "CMMorphChange normal (mouse-up) slot C sess 7: FX module 5 param 2 morph 3 range -16 variation 2",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 29 03 6A 02 F3 9B",
+      "annotation": "CMParamSettingFocus slot B: select variation 3 (index 2)",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0A 01 28 00 44 00 08 0F 5C",
+      "annotation": "CMParamSettingCopy slot A: copy variation 0 -> 8 (Verhue capture 'copy variation 1 -> init')",
+      "provenance": "verhue-capture",
+      "expect": "00 0A 01 28 00 44 00 08 0F 5C"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "B2 01 01 03 40 01 04 02 7F 00 08 C5 00 00 00 00",
+      "annotation": "embedded message -- unsolicited front-panel param change slot B sess 3: VA module 4 param 2 value 127 var 0",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "A2 01 00 00 2F 01 01 03 05 6E EC 00 00 00 00 00",
+      "annotation": "embedded message -- unsolicited param focus from panel: slot A, VA module 3 param 5",
+      "provenance": "synthetic"
+    }
+  ]
+}

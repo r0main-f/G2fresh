@@ -1,0 +1,50 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "framing",
+  "description": "Frame/CRC sanity vectors. CRC-16/XMODEM check values: '123456789' -> 0x31C3, '1234' -> 0xD789 (the value asserted by Clavia CRC_UnitTest @0x14fe5e).",
+  "crc_checks": [
+    {
+      "ascii": "123456789",
+      "crc": "31C3"
+    },
+    {
+      "ascii": "1234",
+      "crc": "D789"
+    },
+    {
+      "hex": "80",
+      "crc": "9188"
+    }
+  ],
+  "steps": [
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 05 80 91 88",
+      "annotation": "Version request (CSynthPort::SendVersionRequest @0x10496c, CSynthPortUSB::BuildOutputMessage @0x10691a): len=5, 0x80, CRC over [80] = 0x9188",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 2C 41 35 04 42 54",
+      "annotation": "Smallest normal bubble: 1 molecule (0x35 session-number request, slot 4). hdr 0x2C = first(0x20)|last(0x08)|slot 4; sess 0x41 = void|count 1",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0D 01 38 00 40 01 01 00 40 00 08 1C",
+      "annotation": "Realtime message: hdr 0x38 = first|realtime|last|slot A; sess = slot session number (0 here)",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "82 01 04 00 80 00 3F 30 40 00 00 00 00 00 00 00",
+      "annotation": "embedded message -- Verhue capture (Gen2 BVE.NMG2Mess.pas:2124): 82 01 04 00 80 00 3F 30 40: n=8, hdr 0x04 (slot 4, not a response), sess 0, molecule 0x80 MidiLearn slot 0 CC 63",
+      "provenance": "verhue-capture"
+    }
+  ]
+}

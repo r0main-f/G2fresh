@@ -1,0 +1,31 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "patch_transfer",
+  "description": "Patch / performance upload & download framing.",
+  "steps": [
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": null,
+      "annotation": "Patch upload into slot A = one bubble: hdr 0x28, sess 0x53 (void | 19 molecules: 37, 21, 4A x2, 69, 52 x2, 4D x3, 65, 62, 60, 5B x3, 5A x2, 6F), payload = '37 00 00 00 <str16 name>' followed by the 18 .pch2 sections (each: id, u16be length, body; 4D sections carry 10 variations over USB). Verhue hard-codes the 0x53 byte. Frame bytes depend on the patch, so only the prefix is given.",
+      "prefix_hex": "01 28 53 37 00 00 00 4D 79 50 61 74 63 68 00",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": null,
+      "annotation": "Performance upload: hdr 0x2C, sess 0x42 (void | 2 molecules: 37 + 1A). 1A wraps 29 name, 11 section, 4 x patch sections, 5F section.",
+      "prefix_hex": "01 2C 42 37 00 00 00 4D 79 50 61 74 63 68 00",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 08 01 28 11 3C 9E 4E",
+      "annotation": "Download: CMCompletePatchRequest slot A. Reply (hdr 0x08, sess 0x11) = 21 ... 6F sections (Verhue: optionally '2D 00' after 21)",
+      "provenance": "clavia-derived"
+    }
+  ]
+}

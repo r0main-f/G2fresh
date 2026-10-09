@@ -1,0 +1,126 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "patch_edits",
+  "description": "Patch-edit bubbles. Each needs a reply (0x7F ack or a dump) before the next normal bubble.",
+  "steps": [
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0A 01 28 00 44 08 01 17 DC",
+      "annotation": "Init variation 2 (copy 8 -> 1)",
+      "provenance": "verhue-capture",
+      "expect": "00 0A 01 28 00 44 08 01 17 DC"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0B 01 28 00 6F 00 01 68 D3 88",
+      "annotation": "Patch notes section 0x6F len 1 'h'",
+      "provenance": "verhue-capture",
+      "expect": "00 0B 01 28 00 6F 00 01 68 D3 88"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0C 01 28 00 6F 00 02 68 61 56 C9",
+      "annotation": "Patch notes 'ha'",
+      "provenance": "verhue-capture",
+      "expect": "00 0C 01 28 00 6F 00 02 68 61 56 C9"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0D 01 28 00 6F 00 03 68 61 6C 28 AD",
+      "annotation": "Patch notes 'hal'",
+      "provenance": "verhue-capture",
+      "expect": "00 0D 01 28 00 6F 00 03 68 61 6C 28 AD"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 19 01 28 00 4D 00 0F 40 40 40 45 80 D9 80 04 00 00 00 00 02 02 00 53 D3",
+      "annotation": "Param paste: one 0x4D section (len 15) VA, 1 module, 1 variation",
+      "provenance": "verhue-capture",
+      "expect": "00 19 01 28 00 4D 00 0F 40 40 40 45 80 D9 80 04 00 00 00 00 02 02 00 53 D3"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 31 01 28 00 43 01 03 00 00 2B 00 00 43 01 03 06 00 1E 00 00 43 01 03 08 00 04 00 00 4D 00 0F 40 40 40 C5 80 55 4A 04 00 00 00 00 02 02 00 91 00",
+      "annotation": "Param paste with morphs: 3 x 0x43 + one 0x4D section in a single bubble. NOTE: Verhue sends sess byte 0x00 (slot session) although the bubble has 4 molecules; Clavia would also send the slot session here",
+      "provenance": "verhue-capture",
+      "expect": "00 31 01 28 00 43 01 03 00 00 2B 00 00 43 01 03 06 00 1E 00 00 43 01 03 08 00 04 00 00 4D 00 0F 40 40 40 C5 80 55 4A 04 00 00 00 00 02 02 00 91 00"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0C 01 28 00 34 01 02 03 04 32 63",
+      "annotation": "CMModuleMove: VA module 2 -> column 3 row 4",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0D 01 28 00 50 18 02 40 03 01 4D C5",
+      "annotation": "CMCableConnect: flags 0x18 (not-dump=1, VA=1, color 0 red) from module 2 output 0 (0x40|0) to module 3 input 1",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0D 01 28 00 51 03 02 40 03 01 E0 C0",
+      "annotation": "CMCableDelete: flags 0x03 (not-dump, VA) same cable",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0D 01 28 00 25 02 00 40 00 05 F1 13",
+      "annotation": "CMKnobAssign: module 2 param 0, loc VA (b2=1 -> 0x40), assignType 0, knob 5 (u16be)",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0A 01 28 00 26 00 05 2B FA",
+      "annotation": "CMKnobDeassign knob 5",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0C 01 28 00 22 01 02 00 07 9E 8C",
+      "annotation": "CMCtrlAssign: VA module 2 param 0 -> MIDI CC 7",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 09 01 28 00 23 07 3B 8E",
+      "annotation": "CMCtrlDeassign CC 7",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0F 01 28 00 33 01 02 4F 73 63 31 00 4F 20",
+      "annotation": "CMModuleName: VA module 2 'Osc1' (str16, NUL-terminated because < 16 chars)",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 18 01 28 00 27 53 69 78 74 65 65 6E 43 68 61 72 73 4E 61 6D 65 53 FA",
+      "annotation": "CMPatchNameDump: name of exactly 16 chars -> no NUL",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "62 01 08 00 7F 50 6D 00 00 00 00 00 00 00 00 00",
+      "annotation": "embedded message -- generic ack (response bit 0x08, slot A)",
+      "provenance": "synthetic"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "bank_ops",
+  "description": "Flash (bank) list, load, store, delete.",
+  "steps": [
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0B 01 2C 41 14 00 00 00 EC E5",
+      "annotation": "CMFlashDataRequest: list patch names from bank 0 prog 0",
+      "provenance": "clavia-derived",
+      "expect": "00 0B 01 2C 41 14 00 00 00 EC E5"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "01 00 1B 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "annotation": "extended announcement, len=27 -- 0x16 CMFlashDataDump: flag 1, type 0 (patch), tag 03 bank 0 prog 0, 'Init' cat 0, tag 02 (empty prog 1), 'Bass 1' cat 3, tag 05 (chunk end: request again)",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "bulk_in",
+      "hex": "01 0C 41 16 01 00 03 00 00 49 6E 69 74 00 00 02 42 61 73 73 20 31 00 03 05 CF AD",
+      "annotation": "extended message body -- 0x16 CMFlashDataDump: flag 1, type 0 (patch), tag 03 bank 0 prog 0, 'Init' cat 0, tag 02 (empty prog 1), 'Bass 1' cat 3, tag 05 (chunk end: request again)",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0B 01 2C 41 0A 00 01 02 46 6B",
+      "annotation": "CMFlashLoadCommand: load bank 1 prog 2 into slot A",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0B 01 2C 41 0B 04 00 07 8F 8B",
+      "annotation": "CMFlashStoreCommand: store performance (slot 4) to bank 0 prog 7",
+      "provenance": "clavia-derived"
+    },
+    {
+      "dir": "device->host",
+      "endpoint": "interrupt_in",
+      "hex": "B2 01 0C 41 0D 01 00 07 00 00 FE 9B 00 00 00 00",
+      "annotation": "embedded message -- 0x0D CMFlashCommandResult type 1 bank 0 prog 7 origin 0 result 0 (ok)",
+      "provenance": "synthetic"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0C 01 2C 41 0C 00 02 10 00 B2 C6",
+      "annotation": "CMFlashDeleteCommand patch bank 2 prog 16 origin 0",
+      "provenance": "clavia-derived"
+    }
+  ]
+}

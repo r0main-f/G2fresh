@@ -4,7 +4,7 @@ A modern, native editor for the Clavia **Nord Modular G2**, for macOS (Apple Sil
 
 Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a proprietary kernel driver on Windows, so it no longer runs on current systems. G2fresh is a rewrite. Ghidra analysis of the original editor serves as the specification, cross-checked against Bruno Verhue's open-source editor.
 
-**Status:** early. Reverse-engineering specs are in progress in `re/notes/`.
+**Status:** v0.1, early. Specs for the patch format, module database, parameter display and USB protocol are in `re/notes/`; the app and plugin are still an empty shell.
 
 ## Layout
 
