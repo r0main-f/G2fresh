@@ -20,6 +20,8 @@ enum MenuId {
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
+    kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
+    kMidiChannelBase = 600,   // + channel (0: as played)
 };
 
 juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
@@ -190,7 +192,7 @@ MainView::~MainView()
 juce::StringArray MainView::getMenuBarNames()
 {
     juce::StringArray names{"File", "Edit", "View"};
-    if (onAudioSettings)
+    if (onAudioSettings || midiOut_ != nullptr)
         names.add("Options");
     return names;
 }
@@ -254,13 +256,45 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
         m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic));
         m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation()));
     } else if (index == 3) {
-        m.addItem(item(kAudioSettings, "Audio/MIDI Settings..."));
+        if (onAudioSettings)
+            m.addItem(item(kAudioSettings, "Audio/MIDI Settings..."));
+        if (midiOut_ != nullptr) {
+            // The G2's USB connection carries no notes: MIDI goes to the
+            // synth through a MIDI interface.
+            juce::PopupMenu out;
+            const auto current = midiOut_->deviceIdentifier();
+            out.addItem(item(kMidiOutOff, "Off", {}, true, current.isEmpty()));
+            const auto devices = midiOut_->availableDevices();
+            if (!devices.isEmpty())
+                out.addSeparator();
+            for (int i = 0; i < devices.size() && i < kMidiChannelBase - kMidiOutBase; ++i)
+                out.addItem(item(kMidiOutBase + i, devices[i].name, {}, true, devices[i].identifier == current));
+            out.addSeparator();
+            juce::PopupMenu channels;
+            channels.addItem(item(kMidiChannelBase, "As Played", {}, true, midiOut_->channel() == 0));
+            for (int c = 1; c <= 16; ++c)
+                channels.addItem(item(kMidiChannelBase + c, "Channel " + juce::String(c), {}, true, midiOut_->channel() == c));
+            out.addSubMenu("Channel", channels, current.isNotEmpty());
+            m.addSubMenu("MIDI Output to G2", out);
+        }
     }
     return m;
 }
 
 void MainView::menuItemSelected(int id, int)
 {
+    if (midiOut_ != nullptr && id >= kMidiOutOff && id < kMidiChannelBase) {
+        const auto devices = midiOut_->availableDevices();
+        const int i = id - kMidiOutBase;
+        midiOut_->setDevice(juce::isPositiveAndBelow(i, devices.size()) ? devices[i].identifier : juce::String());
+        setStatus(midiOut_->deviceIdentifier().isEmpty() ? juce::String("MIDI output to the G2: off")
+                                                         : "MIDI output to the G2: " + devices[i].name);
+        return;
+    }
+    if (midiOut_ != nullptr && id >= kMidiChannelBase && id <= kMidiChannelBase + 16) {
+        midiOut_->setChannel(id - kMidiChannelBase);
+        return;
+    }
     if (id >= kCablesBase && id < kCablesBase + 7) {
         const auto colour = static_cast<g2::CableColor>(id - kCablesBase);
         const bool visible = !doc_.patch().header.cablesVisible[static_cast<std::size_t>(colour)];

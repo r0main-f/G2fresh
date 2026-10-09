@@ -102,6 +102,18 @@ bool PatchDocument::performCoalesced(const juce::String& key, const std::functio
     return true;
 }
 
+bool PatchDocument::performLive(const std::function<void(g2::Patch&)>& edit)
+{
+    g2::Patch next = patch();
+    try {
+        edit(next);
+    } catch (const std::exception&) {
+        return false;
+    }
+    replace(slot_, next);
+    return true;
+}
+
 bool PatchDocument::undo()
 {
     endCoalescing();

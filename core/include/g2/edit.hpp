@@ -124,6 +124,26 @@ void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int
 
 // The 8 morph groups' names (at most 7 characters), e.g. "Wheel".
 std::string morphLabel(const Patch& patch, int group);
+
+// ---- Knob and controller targets ----------------------------------------------
+
+// What a knob or MIDI controller can control: a module parameter (VA or FX
+// area) or a patch setting (location Settings, module = Setting, e.g. the
+// morph dials are Setting::Morph parameters 0..7).
+struct Target {
+    Location location = Location::Va;
+    u8 module = 0, param = 0;
+};
+// The target's range (0..max), value in a variation and display text, or
+// nullopt / 0 / "" when it does not exist.
+std::optional<u8> targetValue(const Patch& patch, Target t, u8 variation);
+int targetMax(const Patch& patch, Target t);
+std::string targetText(const Patch& patch, Target t, u8 variation);
+// "Osc1 Pitch", "Morph Wheel", "Glide Rate".
+std::string targetName(const Patch& patch, Target t);
+void setTargetValue(Patch& patch, Target t, u8 variation, u8 value); // clamped to the range
+// The target of one of the 120 knobs, or nullopt when unassigned.
+std::optional<Target> knobTarget(const Patch& patch, int knob);
 void setMorphLabel(Patch& patch, int group, const std::string& label);
 
 } // namespace g2::edit

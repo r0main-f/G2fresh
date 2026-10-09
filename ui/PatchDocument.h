@@ -36,6 +36,10 @@ public:
     // (e.g. one knob drag) merge into a single undo step.
     bool performCoalesced(const juce::String& coalesceKey, const std::function<void(g2::Patch&)>& edit);
     void endCoalescing() { coalesceKey_.clear(); }
+    // Applies a change that does not go into the undo history: a value moved
+    // by DAW automation, or (later) a knob turned on the synth. Returns false
+    // if the edit throws.
+    bool performLive(const std::function<void(g2::Patch&)>& edit);
 
     bool undo();
     bool redo();

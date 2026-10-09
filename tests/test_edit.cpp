@@ -283,3 +283,26 @@ TEST_CASE("cable bend points are editor-only")
                                        std::nullopt),
                     std::invalid_argument);
 }
+
+TEST_CASE("knob targets read and write module parameters and patch settings")
+{
+    Patch p = Patch::makeDefault();
+    const u8 osc = edit::addModule(p, Location::Va, kOscB, 0, 0);
+    const edit::Target pitch{Location::Va, osc, 0};
+    edit::assignKnob(p, 9, Location::Va, osc, 0);
+    REQUIRE(edit::knobTarget(p, 9));
+    CHECK(edit::knobTarget(p, 9)->module == osc);
+    CHECK_FALSE(edit::knobTarget(p, 10));
+    CHECK(edit::targetMax(p, pitch) == 127);
+    edit::setTargetValue(p, pitch, 2, 100);
+    CHECK(edit::targetValue(p, pitch, 2) == 100);
+    CHECK(edit::targetName(p, pitch) == "OscB1 " + std::string(p.va.find(osc)->def()->params[0].name));
+    CHECK_FALSE(edit::targetText(p, pitch, 2).empty());
+
+    const edit::Target wheel{Location::Settings, static_cast<u8>(edit::Setting::Morph), 0};
+    edit::setTargetValue(p, wheel, 1, 90);
+    CHECK(edit::targetValue(p, wheel, 1) == 90);
+    CHECK(edit::targetMax(p, wheel) == 127);
+    CHECK(edit::targetName(p, wheel) == "Morph " + edit::morphLabel(p, 0));
+    CHECK_FALSE(edit::targetValue(p, {Location::Va, 99, 0}, 0));
+}

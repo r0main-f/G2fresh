@@ -22,6 +22,8 @@ juce_add_plugin(G2Editor
 
 target_sources(G2Editor PRIVATE
   Source/PluginProcessor.cpp
+  Source/AutomationBank.cpp
+  Source/MidiForwarder.cpp
   Source/PluginEditor.cpp
   Source/StandaloneApp.cpp
   ${G2_UI_SOURCES})

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "AreaView.h"
+#include "MidiOutputTarget.h"
 #include "ModuleBrowser.h"
 #include "MutatorWindow.h"
 #include "PatchDocument.h"
@@ -32,6 +33,12 @@ public:
 
     // Stand-alone app only: opens the audio/MIDI device settings.
     std::function<void()> onAudioSettings;
+    // Where Options > MIDI Output to G2 sends the MIDI (nullptr: no such menu).
+    void setMidiOutput(MidiOutputTarget* target)
+    {
+        midiOut_ = target;
+        menuItemsChanged();
+    }
 
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -99,6 +106,7 @@ private:
     juce::TextButton zoomOut_{"-"}, zoomReset_{"100%"}, zoomIn_{"+"};
     juce::TextButton randomizeButton_{"Randomize"}, mutatorButton_{"Mutator..."};
     std::unique_ptr<MutatorWindow> mutator_;
+    MidiOutputTarget* midiOut_ = nullptr;
     void showMutator();
     juce::Label status_, load_;
     PatchSettingsBar settings_{doc_};

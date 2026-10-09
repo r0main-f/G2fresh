@@ -264,6 +264,73 @@ std::string paramText(const Patch& patch, Location loc, u8 module, u8 param, u8 
     return db::formatParam(*m->def(), param, m->params[variation], m->modes);
 }
 
+// ---- Knob and controller targets ---------------------------------------------------
+
+std::optional<u8> targetValue(const Patch& patch, Target t, u8 variation)
+{
+    if (t.location == Location::Settings) {
+        const auto* def = settingDef(static_cast<Setting>(t.module));
+        if (!def || t.param >= def->params.size())
+            return std::nullopt;
+        return settingValue(patch, static_cast<Setting>(t.module), t.param, variation);
+    }
+    const Module* m = patch.area(t.location).find(t.module);
+    if (!m || variation >= m->params.size() || t.param >= m->params[variation].size())
+        return std::nullopt;
+    return m->params[variation][t.param];
+}
+
+int targetMax(const Patch& patch, Target t)
+{
+    const db::ModuleDef* def = nullptr;
+    if (t.location == Location::Settings) {
+        def = settingDef(static_cast<Setting>(t.module));
+    } else if (const Module* m = patch.area(t.location).find(t.module)) {
+        def = m->def();
+    }
+    return def && t.param < def->params.size() ? def->params[t.param].max : 0;
+}
+
+std::string targetText(const Patch& patch, Target t, u8 variation)
+{
+    if (t.location == Location::Settings)
+        return settingDef(static_cast<Setting>(t.module)) ? settingText(patch, static_cast<Setting>(t.module), t.param, variation)
+                                                          : std::string();
+    return paramText(patch, t.location, t.module, t.param, variation);
+}
+
+std::string targetName(const Patch& patch, Target t)
+{
+    if (t.location == Location::Settings) {
+        const auto* def = settingDef(static_cast<Setting>(t.module));
+        if (!def || t.param >= def->params.size())
+            return {};
+        if (static_cast<Setting>(t.module) == Setting::Morph && t.param < kMorphGroups)
+            return "Morph " + morphLabel(patch, t.param);
+        return std::string(def->longName) + " " + def->params[t.param].name;
+    }
+    const Module* m = patch.area(t.location).find(t.module);
+    if (!m || !m->def() || t.param >= m->def()->params.size())
+        return {};
+    return m->name + " " + m->def()->params[t.param].name;
+}
+
+void setTargetValue(Patch& patch, Target t, u8 variation, u8 value)
+{
+    if (t.location == Location::Settings)
+        setSetting(patch, static_cast<Setting>(t.module), t.param, variation, value);
+    else
+        setParam(patch, t.location, t.module, t.param, variation, value);
+}
+
+std::optional<Target> knobTarget(const Patch& patch, int knob)
+{
+    if (knob < 0 || static_cast<std::size_t>(knob) >= patch.knobs.size() || !patch.knobs[static_cast<std::size_t>(knob)])
+        return std::nullopt;
+    const auto& k = *patch.knobs[static_cast<std::size_t>(knob)];
+    return Target{static_cast<Location>(k.location), k.module, k.param};
+}
+
 // ---- Patch settings -----------------------------------------------------------
 
 namespace {
