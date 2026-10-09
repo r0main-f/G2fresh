@@ -227,8 +227,19 @@ juce::Colour ModulePainter::cableColour(g2::CableColor color)
     return juce::Colours::grey;
 }
 
+juce::Colour ModulePainter::morphColour(int group)
+{
+    static const juce::uint32 colours[8] = {0xffe5a1a1, 0xffc5dac5, 0xffa1a1e5, 0xffdadac5,
+                                            0xffd87093, 0xff758e40, 0xff88cccc, 0xfff29664};
+    return juce::Colour(colours[juce::jlimit(0, 7, group)]);
+}
+
 void ModulePainter::paint(juce::Graphics& g, const ModuleContext& c, const PanelElement* highlighted)
 {
+    if (c.look == Look::Modern) {
+        paintModern(g, c, highlighted);
+        return;
+    }
     const auto* def = c.module.def();
     const auto bounds = moduleBounds(c.module).withZeroOrigin();
     const auto face = def ? Skin::get().cbmp(def->faceResId) : juce::Image();
@@ -385,6 +396,323 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
     }
     // Text, Line, Symbol, Bitmap are part of the face bitmap; Graph is not
     // drawn yet.
+}
+
+// ---- Modern look: everything drawn as vectors -------------------------------
+
+namespace {
+
+const juce::Colour kInk(0xff2b2d33);        // labels and pointers
+const juce::Colour kSubtle(0xff8a8f99);     // decorative lines
+const juce::Colour kControl(0xfffafafb);    // knob caps, buttons
+const juce::Colour kControlEdge(0xffa3a8b2);
+const juce::Colour kAccent(0xff3478d4);     // values, active buttons
+const juce::Colour kHighlight(0xffff8c1a);  // hovered control
+
+juce::Colour categoryColour(const g2::db::ModuleDef* def)
+{
+    const auto cats = g2::db::categories();
+    if (!def || def->category < 0 || static_cast<std::size_t>(def->category) >= cats.size())
+        return juce::Colour(0xff9096a0);
+    const auto& c = cats[static_cast<std::size_t>(def->category)];
+    return juce::Colour(c.r, c.g, c.b);
+}
+
+void roundedButton(juce::Graphics& g, juce::Rectangle<float> r, bool on, bool highlighted, float radius = 3.0f)
+{
+    g.setColour(on ? kAccent : kControl);
+    g.fillRoundedRectangle(r, radius);
+    g.setColour(highlighted ? kHighlight : on ? kAccent.darker(0.3f) : kControlEdge);
+    g.drawRoundedRectangle(r.reduced(0.5f), radius, highlighted ? 1.5f : 1.0f);
+}
+
+void centredText(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& text, juce::Colour colour,
+                 float size = 9.5f)
+{
+    g.setColour(colour);
+    g.setFont(juce::Font(juce::FontOptions(size)));
+    g.drawFittedText(text, r.toNearestInt(), juce::Justification::centred, 1, 0.75f);
+}
+
+// Draws a frame of an original 1-bit-style icon as a glyph: dark pixels in
+// `colour`, light background transparent, centred on `centre`.
+void drawGlyph(juce::Graphics& g, const juce::Image& strip, int frame, int frameWidth, juce::Point<float> centre,
+               juce::Colour colour)
+{
+    if (!strip.isValid() || frameWidth <= 0)
+        return;
+    const int h = strip.getHeight();
+    const float x0 = std::round(centre.x - static_cast<float>(frameWidth) * 0.5f);
+    const float y0 = std::round(centre.y - static_cast<float>(h) * 0.5f);
+    g.setColour(colour);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < frameWidth; ++x) {
+            const float b = strip.getPixelAt(frame * frameWidth + x, y).getBrightness();
+            if (b < 0.6f) {
+                g.setOpacity(b < 0.3f ? 1.0f : 0.55f);
+                g.fillRect(x0 + static_cast<float>(x), y0 + static_cast<float>(y), 1.0f, 1.0f);
+            }
+        }
+    g.setOpacity(1.0f);
+}
+
+void chevron(juce::Graphics& g, juce::Point<float> c, float size, float angle, juce::Colour colour)
+{
+    juce::Path p;
+    p.startNewSubPath(-size, -size * 0.5f);
+    p.lineTo(0.0f, size * 0.5f);
+    p.lineTo(size, -size * 0.5f);
+    g.setColour(colour);
+    g.strokePath(p, juce::PathStrokeType(1.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
+                 juce::AffineTransform::rotation(angle).translated(c));
+}
+
+} // namespace
+
+void ModulePainter::paintModern(juce::Graphics& g, const ModuleContext& c, const PanelElement* highlighted)
+{
+    const auto* def = c.module.def();
+    const auto body = moduleBounds(c.module).withZeroOrigin().toFloat().reduced(1.5f, 1.0f);
+    const auto accent = categoryColour(def);
+
+    // Body: soft vertical gradient, rounded corners, hairline border.
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xffeef0f3), 0.0f, body.getY(),
+                                           juce::Colour(0xffdfe2e7), 0.0f, body.getBottom(), false));
+    g.fillRoundedRectangle(body, 5.0f);
+    // Category accent along the top edge.
+    {
+        juce::Graphics::ScopedSaveState state(g);
+        juce::Path clip;
+        clip.addRoundedRectangle(body, 5.0f);
+        g.reduceClipRegion(clip);
+        g.setColour(accent);
+        g.fillRect(body.withHeight(2.5f));
+    }
+    g.setColour(juce::Colour(0xff9ea3ad));
+    g.drawRoundedRectangle(body, 5.0f, 1.0f);
+
+    g.setColour(kInk);
+    g.setFont(juce::Font(juce::FontOptions(10.5f, juce::Font::bold)));
+    g.drawText(juce::String(c.module.name), 5, 2, 130, 12, juce::Justification::centredLeft, true);
+
+    if (!c.panel)
+        return;
+    // Decorations first (by ZPos), then live controls on top.
+    std::vector<const PanelElement*> decor;
+    for (const auto& e : c.panel->elements)
+        if (e.kind == "Text" || e.kind == "Line" || e.kind == "Symbol" || e.kind == "Bitmap")
+            decor.push_back(&e);
+    std::stable_sort(decor.begin(), decor.end(), [](auto* a, auto* b) { return a->zpos < b->zpos; });
+    for (const auto* e : decor)
+        paintModernElement(g, c, *e, false);
+    for (const auto& e : c.panel->elements)
+        if (e.kind != "Text" && e.kind != "Line" && e.kind != "Symbol" && e.kind != "Bitmap")
+            paintModernElement(g, c, e, &e == highlighted);
+}
+
+void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e,
+                                       bool highlighted)
+{
+    const auto r = elementBounds(e).toFloat();
+    const auto v = value(c, e);
+    const int max = std::max(1, maxValue(c, e));
+
+    if (e.kind == "Text") {
+        const auto text = e.options.isEmpty() ? juce::String() : e.options[0];
+        g.setColour(kInk.withAlpha(0.85f));
+        g.setFont(juce::Font(juce::FontOptions(e.fontSize + 0.5f)));
+        g.drawSingleLineText(text, e.x, e.y + juce::roundToInt(e.fontSize));
+        return;
+    }
+    if (e.kind == "Line") {
+        g.setColour(kSubtle);
+        const float w = e.thick ? 2.0f : 1.0f;
+        if (e.orientation == "Vertical")
+            g.fillRoundedRectangle(static_cast<float>(e.x), static_cast<float>(e.y), w, static_cast<float>(e.length), w * 0.5f);
+        else
+            g.fillRoundedRectangle(static_cast<float>(e.x), static_cast<float>(e.y), static_cast<float>(e.length), w, w * 0.5f);
+        return;
+    }
+    if (e.kind == "Bitmap") {
+        if (e.image.isValid())
+            drawGlyph(g, e.image, 0, e.image.getWidth(),
+                      juce::Rectangle<float>(static_cast<float>(e.x), static_cast<float>(e.y),
+                                             static_cast<float>(e.image.getWidth()), static_cast<float>(e.image.getHeight())).getCentre(),
+                      kInk.withAlpha(0.85f));
+        return;
+    }
+    if (e.kind == "Symbol") {
+        const auto s = juce::Rectangle<float>(static_cast<float>(e.x), static_cast<float>(e.y),
+                                              static_cast<float>(std::max(e.width, 3)), static_cast<float>(std::max(e.height, 3)));
+        g.setColour(kSubtle);
+        if (e.type == "Box") {
+            g.drawRoundedRectangle(s, 2.0f, 1.0f);
+        } else if (e.type == "Amplifier") {
+            juce::Path p;
+            p.addTriangle(s.getX(), s.getY(), s.getX(), s.getBottom(), s.getRight(), s.getCentreY());
+            g.strokePath(p, juce::PathStrokeType(1.0f));
+        } else { // Trig 1 / Trig 2: a small pulse
+            juce::Path p;
+            p.startNewSubPath(s.getX(), s.getBottom());
+            p.lineTo(s.getX(), s.getY());
+            p.lineTo(s.getRight(), s.getY());
+            p.lineTo(s.getRight(), s.getBottom());
+            g.strokePath(p, juce::PathStrokeType(1.0f));
+        }
+        return;
+    }
+
+    if (e.kind == "Knob") {
+        const int val = v.value_or(0);
+        const int group = morphGroup(c, e.codeRef);
+        const auto ring = group >= 0 ? morphColour(group).darker(0.15f) : kAccent;
+        if (isSlider(e)) {
+            const auto track = r.withSizeKeepingCentre(4.0f, r.getHeight());
+            g.setColour(juce::Colour(0xffc4c8cf));
+            g.fillRoundedRectangle(track, 2.0f);
+            const float travel = r.getHeight() - 8.0f;
+            const float y = r.getBottom() - 8.0f - travel * static_cast<float>(val) / static_cast<float>(max);
+            g.setColour(ring);
+            g.fillRoundedRectangle(track.withTop(y + 4.0f), 2.0f);
+            roundedButton(g, {r.getX(), y, r.getWidth(), 8.0f}, false, highlighted, 2.5f);
+            return;
+        }
+        const float size = static_cast<float>(knobSprite(e.type).size) - 2.0f;
+        const auto area = r.withSizeKeepingCentre(size, size);
+        const auto centre = area.getCentre();
+        const float radius = size * 0.5f;
+        const float start = juce::degreesToRadians(-135.0f);
+        const float angle = start + juce::degreesToRadians(270.0f) * static_cast<float>(val) / static_cast<float>(max);
+        // Track and value arc.
+        juce::Path track, arc;
+        track.addCentredArc(centre.x, centre.y, radius - 1.0f, radius - 1.0f, 0.0f, start, -start, true);
+        arc.addCentredArc(centre.x, centre.y, radius - 1.0f, radius - 1.0f, 0.0f, start, angle, true);
+        g.setColour(juce::Colour(0xffc4c8cf));
+        g.strokePath(track, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.setColour(highlighted ? kHighlight : ring);
+        g.strokePath(arc, juce::PathStrokeType(2.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        // Cap and pointer.
+        const float cap = radius - 3.5f;
+        g.setColour(group >= 0 ? morphColour(group).brighter(0.35f) : kControl);
+        g.fillEllipse(centre.x - cap, centre.y - cap, cap * 2.0f, cap * 2.0f);
+        g.setColour(kControlEdge);
+        g.drawEllipse(centre.x - cap, centre.y - cap, cap * 2.0f, cap * 2.0f, 1.0f);
+        g.setColour(kInk);
+        g.drawLine(centre.x + (cap * 0.25f) * std::sin(angle), centre.y - (cap * 0.25f) * std::cos(angle),
+                   centre.x + (cap - 1.0f) * std::sin(angle), centre.y - (cap - 1.0f) * std::cos(angle), 1.8f);
+        return;
+    }
+    if (isJack(e)) {
+        const auto colour = jackColour(c, e);
+        const auto jr = r.reduced(0.5f);
+        if (e.kind == "Output") {
+            g.setColour(colour);
+            g.fillRoundedRectangle(jr, 3.5f);
+        } else {
+            g.setColour(colour);
+            g.fillEllipse(jr);
+        }
+        g.setColour(juce::Colour(0xff1d1f24));
+        g.fillEllipse(jr.reduced(3.5f));
+        if (highlighted) {
+            g.setColour(kHighlight);
+            if (e.kind == "Output")
+                g.drawRoundedRectangle(jr.expanded(1.5f), 4.5f, 1.5f);
+            else
+                g.drawEllipse(jr.expanded(1.5f), 1.5f);
+        }
+        return;
+    }
+    if (e.kind == "TextField") {
+        g.setColour(juce::Colours::white);
+        g.fillRoundedRectangle(r, 3.0f);
+        g.setColour(juce::Colour(0xffc3c7ce));
+        g.drawRoundedRectangle(r.reduced(0.5f), 3.0f, 1.0f);
+        centredText(g, r.reduced(2.0f, 0.0f), valueText(c, e), kInk);
+        return;
+    }
+    if (e.kind == "ButtonText" || e.kind == "TextEdit") {
+        const bool on = v.value_or(0) != 0;
+        roundedButton(g, r, on, highlighted);
+        if (e.image.isValid()) {
+            drawGlyph(g, e.image, 0, e.image.getWidth(), r.getCentre(), on ? juce::Colours::white : kInk);
+        } else {
+            centredText(g, r, e.options.joinIntoString(","), on ? juce::Colours::white : kInk);
+        }
+        return;
+    }
+    if (e.kind == "ButtonFlat" || e.kind == "LevelShift") {
+        roundedButton(g, r, false, highlighted);
+        const int val = v.value_or(0);
+        if (e.image.isValid() && e.imageCount > 0)
+            drawGlyph(g, e.image, juce::jlimit(0, e.imageCount - 1, val), e.imageWidth, r.getCentre(), kInk);
+        else
+            centredText(g, r, juce::isPositiveAndBelow(val, e.options.size()) ? e.options[val] : juce::String(val), kInk);
+        return;
+    }
+    if (e.kind == "ButtonRadio" || e.kind == "ButtonRadioEdit") {
+        const bool vertical = e.orientation == "Vertical";
+        const int n = e.kind == "ButtonRadio" ? std::max(1, e.buttonCount) : std::max(1, e.columns * e.rows);
+        const int cols = e.kind == "ButtonRadio" ? (vertical ? 1 : n) : std::max(1, e.columns);
+        const int rows = (n + cols - 1) / cols;
+        const float w = r.getWidth() / static_cast<float>(cols), h = r.getHeight() / static_cast<float>(rows);
+        // A segmented control: one rounded outline, active segment filled.
+        g.setColour(kControl);
+        g.fillRoundedRectangle(r, 3.0f);
+        for (int i = 0; i < n; ++i) {
+            const juce::Rectangle<float> b(r.getX() + static_cast<float>(i % cols) * w,
+                                           r.getY() + static_cast<float>(i / cols) * h, w, h);
+            const bool on = v.value_or(-1) == i;
+            if (on) {
+                g.setColour(kAccent);
+                g.fillRoundedRectangle(b.reduced(1.0f), 2.5f);
+            }
+            if (e.image.isValid() && e.imageWidth > 0) {
+                drawGlyph(g, e.image, i, e.imageWidth, b.getCentre(), on ? juce::Colours::white : kInk);
+            } else if (i < e.options.size()) {
+                centredText(g, b, e.options[i], on ? juce::Colours::white : kInk, 9.0f);
+            }
+            if (i % cols > 0) {
+                g.setColour(kControlEdge.withAlpha(0.6f));
+                g.drawVerticalLine(juce::roundToInt(b.getX()), b.getY() + 2.0f, b.getBottom() - 2.0f);
+            }
+        }
+        g.setColour(highlighted ? kHighlight : kControlEdge);
+        g.drawRoundedRectangle(r.reduced(0.5f), 3.0f, 1.0f);
+        return;
+    }
+    if (e.kind == "ButtonIncDec") {
+        const bool lr = e.type == "Left/Right";
+        const auto a = lr ? r.withWidth(r.getWidth() * 0.5f) : r.withHeight(r.getHeight() * 0.5f);
+        const auto b = lr ? r.withLeft(r.getCentreX()) : r.withTop(r.getCentreY());
+        roundedButton(g, a.reduced(0.5f), false, highlighted, 2.5f);
+        roundedButton(g, b.reduced(0.5f), false, highlighted, 2.5f);
+        const float pi = juce::MathConstants<float>::pi;
+        chevron(g, a.getCentre(), 2.5f, lr ? pi * 0.5f : pi, kInk);  // left / up
+        chevron(g, b.getCentre(), 2.5f, lr ? -pi * 0.5f : 0.0f, kInk); // right / down
+        return;
+    }
+    if (e.kind == "PartSelector") {
+        roundedButton(g, r, false, highlighted);
+        if (e.image.isValid() && e.imageCount > 0)
+            drawGlyph(g, e.image, juce::jlimit(0, e.imageCount - 1, v.value_or(0)), e.imageWidth,
+                      r.withTrimmedRight(8.0f).getCentre(), kInk);
+        else
+            centredText(g, r.withTrimmedRight(8.0f), valueText(c, e), kInk);
+        chevron(g, {r.getRight() - 5.0f, r.getCentreY()}, 2.5f, 0.0f, kInk);
+        return;
+    }
+    if (e.kind == "Led") {
+        const auto led = r.withSizeKeepingCentre(6.0f, 6.0f);
+        g.setColour(e.type == "Sequencer" ? juce::Colour(0xff6b5a1a) : juce::Colour(0xff2f5a2f));
+        g.fillEllipse(led);
+        return;
+    }
+    if (e.kind == "MiniVU") {
+        g.setColour(juce::Colour(0xff2a2e35));
+        g.fillRoundedRectangle(r, 2.0f);
+        return;
+    }
 }
 
 } // namespace g2ui

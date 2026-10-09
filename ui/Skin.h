@@ -28,7 +28,19 @@ struct PanelElement {
     int buttonCount = 0, buttonWidth = 0, columns = 0, rows = 0;
     int imageCount = 0, imageWidth = 0;
     juce::Image image;   // decoded inline "rrggbb:..." image strip, if any
+    float fontSize = 9.0f;  // Text
+    int length = 0;         // Line
+    bool thick = false;     // Line
+    int zpos = 0;
 };
+
+enum class Look { Modern, Classic };
+// The look used to draw modules, saved in the user's settings.
+Look currentLook();
+void setCurrentLook(Look look);
+// Whether cables show their signal flow with moving pulses (saved setting).
+bool cableAnimation();
+void setCableAnimation(bool on);
 
 struct PanelDef {
     int resId = 0;

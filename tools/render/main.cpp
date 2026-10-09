@@ -4,6 +4,8 @@
 //   g2render modules <out.png> [typeId...]   (all selectable modules if none given)
 //   g2render patch <file.pch2> <out.png>
 //   g2render ui <file.pch2> <out.png>        (the whole editor window)
+//
+// Set G2_LOOK=classic to draw with the original bitmaps instead of the modern look.
 #include "MainView.h"
 #include "ModulePainter.h"
 
@@ -31,7 +33,7 @@ void drawArea(juce::Graphics& g, const g2::Patch& p, g2::Location loc, int origi
         juce::Graphics::ScopedSaveState state(g);
         g.setOrigin(b.getPosition());
         g.reduceClipRegion(b.withZeroOrigin());
-        ModulePainter::paint(g, {p, loc, m, 0, ModulePainter::panelFor(m)});
+        ModulePainter::paint(g, {p, loc, m, 0, ModulePainter::panelFor(m), currentLook()});
     }
 }
 

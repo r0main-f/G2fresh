@@ -22,6 +22,7 @@ struct ModuleContext {
     const g2::Module& module;
     int variation = 0;
     const PanelDef* panel = nullptr; // nullptr: draw a plain box
+    Look look = Look::Modern;
 };
 
 class ModulePainter {
@@ -44,8 +45,13 @@ public:
 
     static juce::Colour cableColour(g2::CableColor color);
 
+    // The 8 morph-group colours, as in the original editor's knob sprites.
+    static juce::Colour morphColour(int group);
+
 private:
     static void paintElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted);
+    static void paintModern(juce::Graphics& g, const ModuleContext& c, const PanelElement* highlighted);
+    static void paintModernElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted);
 };
 
 } // namespace g2ui

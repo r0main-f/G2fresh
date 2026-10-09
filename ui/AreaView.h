@@ -12,7 +12,8 @@ namespace g2ui {
 
 class AreaView : public juce::Component,
                  public juce::DragAndDropTarget,
-                 private juce::ChangeListener {
+                 private juce::ChangeListener,
+                 private juce::Timer {
 public:
     AreaView(PatchDocument& doc, g2::Location location);
     ~AreaView() override;
@@ -27,6 +28,9 @@ public:
     void addModule(std::uint8_t type, std::optional<juce::Point<int>> where = std::nullopt);
 
     void paint(juce::Graphics&) override;
+    void resized() override;
+    // Re-reads the look and animation settings.
+    void settingsChanged();
     void mouseMove(const juce::MouseEvent&) override;
     void mouseExit(const juce::MouseEvent&) override;
     void mouseDown(const juce::MouseEvent&) override;
@@ -62,8 +66,17 @@ private:
     ModuleContext context(const g2::Module& m) const;
     juce::Point<int> gridCell(juce::Point<int> p) const;
 
+    // Modules are drawn on a layer cached as an image; cables, drag previews
+    // and the flow animation on an overlay above it, so animating cables
+    // never re-renders the modules.
+    class ModulesLayer;
+    class Overlay;
+    void paintModules(juce::Graphics& g);
+    void paintOverlay(juce::Graphics& g);
     void paintCables(juce::Graphics& g);
-    static void paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<float> b, juce::Colour c);
+    void paintCable(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to, juce::Colour c, bool flowing);
+    void timerCallback() override;
+    void repaintModules();
 
     void setValue(const Hit& h, int value, bool coalesce);
     void clickControl(const Hit& h);
@@ -84,6 +97,10 @@ private:
     juce::Point<int> dragPos_;      // current mouse position
     std::optional<Jack> cableFrom_;
     std::optional<juce::Point<int>> dropCell_; // browser drag-over preview
+
+    std::unique_ptr<ModulesLayer> modules_;
+    std::unique_ptr<Overlay> overlay_;
+    float flowPhase_ = 0.0f; // pixels the pulses have travelled
 };
 
 } // namespace g2ui

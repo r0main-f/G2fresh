@@ -34,6 +34,24 @@ MainView::MainView(PatchDocument& doc)
         b->onClick = [this, i] { doc_.setSlot(i); };
         addChildComponent(b);
     }
+    classic_.setToggleState(currentLook() == Look::Classic, juce::dontSendNotification);
+    classic_.setTooltip("Draw modules with the original editor's bitmaps");
+    classic_.onClick = [this] {
+        setCurrentLook(classic_.getToggleState() ? Look::Classic : Look::Modern);
+        va_.settingsChanged();
+        fx_.settingsChanged();
+        va_.repaint();
+        fx_.repaint();
+    };
+    addAndMakeVisible(classic_);
+    animate_.setToggleState(cableAnimation(), juce::dontSendNotification);
+    animate_.setTooltip("Show the signal flow along cables, from source to destination");
+    animate_.onClick = [this] {
+        setCableAnimation(animate_.getToggleState());
+        va_.settingsChanged();
+        fx_.settingsChanged();
+    };
+    addAndMakeVisible(animate_);
     title_.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     addAndMakeVisible(title_);
     status_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
@@ -122,6 +140,8 @@ void MainView::resized()
             b->setBounds(bar.removeFromLeft(26)), bar.removeFromLeft(1);
         bar.removeFromLeft(14);
     }
+    classic_.setBounds(bar.removeFromRight(110));
+    animate_.setBounds(bar.removeFromRight(130));
     title_.setBounds(bar);
 
     browser_.setBounds(r.removeFromTop(56));

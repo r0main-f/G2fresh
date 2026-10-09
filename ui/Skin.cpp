@@ -2,6 +2,10 @@
 
 #include "G2SkinData.h"
 
+#include <juce_data_structures/juce_data_structures.h>
+
+#include <cstdlib>
+
 namespace g2ui {
 namespace {
 
@@ -66,6 +70,14 @@ PanelElement element(const juce::var& v)
         e.options.addTokens(text, ",", "");
     else
         e.options.add(text);
+    e.fontSize = static_cast<float>(static_cast<double>(v.getProperty("FontSize", 9)));
+    e.length = v.getProperty("Length", 0);
+    e.thick = v.getProperty("Width", {}).toString() == "Thick";
+    e.zpos = v.getProperty("ZPos", 0);
+    if (e.kind == "Bitmap") {
+        e.image = decodeInlineImage(v.getProperty("Data", {}).toString(), e.width, 1);
+        return e;
+    }
     const auto image = v.getProperty("Image", {}).toString();
     if (image.isNotEmpty())
         e.image = decodeInlineImage(image, e.imageWidth,
@@ -146,5 +158,44 @@ juce::Image Skin::sprite(int resId, int frameWidth) const
     return out;
 }
 juce::Image Skin::jpeg(int resId) const { return load(juce::String(resId) + ".jpg"); }
+
+namespace {
+juce::PropertiesFile& settings()
+{
+    static juce::PropertiesFile file([] {
+        juce::PropertiesFile::Options o;
+        o.applicationName = "G2fresh";
+        o.filenameSuffix = ".settings";
+        o.osxLibrarySubFolder = "Application Support";
+        o.folderName = "G2fresh";
+        return o;
+    }());
+    return file;
+}
+} // namespace
+
+Look currentLook()
+{
+    if (const char* env = std::getenv("G2_LOOK"))
+        return juce::String(env).equalsIgnoreCase("classic") ? Look::Classic : Look::Modern;
+    return settings().getValue("look", "modern") == "classic" ? Look::Classic : Look::Modern;
+}
+
+void setCurrentLook(Look look)
+{
+    settings().setValue("look", look == Look::Classic ? "classic" : "modern");
+    settings().saveIfNeeded();
+}
+
+bool cableAnimation()
+{
+    return settings().getBoolValue("animateCables", true);
+}
+
+void setCableAnimation(bool on)
+{
+    settings().setValue("animateCables", on);
+    settings().saveIfNeeded();
+}
 
 } // namespace g2ui

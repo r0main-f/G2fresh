@@ -34,6 +34,8 @@ private:
     juce::TextButton undo_{"Undo"}, redo_{"Redo"};
     juce::OwnedArray<juce::TextButton> variations_;
     juce::OwnedArray<juce::TextButton> slots_; // performance slots A-D
+    juce::ToggleButton classic_{"Classic look"};
+    juce::ToggleButton animate_{"Animate cables"};
     juce::Label title_, status_;
     ModuleBrowser browser_;
     AreaView va_, fx_;

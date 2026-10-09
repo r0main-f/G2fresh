@@ -21,17 +21,73 @@ int pixelsPerStep(int max, bool fine)
 
 } // namespace
 
+class AreaView::ModulesLayer : public juce::Component {
+public:
+    explicit ModulesLayer(AreaView& owner) : owner_(owner)
+    {
+        setInterceptsMouseClicks(false, false);
+        setBufferedToImage(true);
+    }
+    void paint(juce::Graphics& g) override { owner_.paintModules(g); }
+
+private:
+    AreaView& owner_;
+};
+
+class AreaView::Overlay : public juce::Component {
+public:
+    explicit Overlay(AreaView& owner) : owner_(owner) { setInterceptsMouseClicks(false, false); }
+    void paint(juce::Graphics& g) override { owner_.paintOverlay(g); }
+
+private:
+    AreaView& owner_;
+};
+
 AreaView::AreaView(PatchDocument& doc, g2::Location location)
-    : doc_(doc), location_(location)
+    : doc_(doc), location_(location),
+      modules_(std::make_unique<ModulesLayer>(*this)), overlay_(std::make_unique<Overlay>(*this))
 {
+    addAndMakeVisible(*modules_);
+    addAndMakeVisible(*overlay_);
     setWantsKeyboardFocus(true);
     doc_.addChangeListener(this);
     updateSize();
+    settingsChanged();
 }
 
 AreaView::~AreaView()
 {
+    stopTimer();
     doc_.removeChangeListener(this);
+}
+
+void AreaView::resized()
+{
+    modules_->setBounds(getLocalBounds());
+    overlay_->setBounds(getLocalBounds());
+}
+
+void AreaView::settingsChanged()
+{
+    if (cableAnimation() && currentLook() == Look::Modern)
+        startTimerHz(30);
+    else
+        stopTimer();
+    repaintModules();
+}
+
+void AreaView::repaintModules()
+{
+    modules_->repaint();
+    overlay_->repaint();
+}
+
+void AreaView::timerCallback()
+{
+    if (!isShowing() || doc_.patch().area(location_).cables.empty())
+        return;
+    flowPhase_ = std::fmod(flowPhase_ + 1.6f, 36.0f * 100.0f);
+    overlay_->repaint();
 }
 
 void AreaView::changeListenerCallback(juce::ChangeBroadcaster*)
@@ -39,7 +95,7 @@ void AreaView::changeListenerCallback(juce::ChangeBroadcaster*)
     if (selected_ && !doc_.patch().area(location_).find(selected_))
         selected_ = 0;
     updateSize();
-    repaint();
+    repaintModules();
 }
 
 void AreaView::updateSize()
@@ -55,7 +111,7 @@ void AreaView::updateSize()
 
 ModuleContext AreaView::context(const g2::Module& m) const
 {
-    return {doc_.patch(), location_, m, doc_.variation(), ModulePainter::panelFor(m)};
+    return {doc_.patch(), location_, m, doc_.variation(), ModulePainter::panelFor(m), currentLook()};
 }
 
 juce::Point<int> AreaView::gridCell(juce::Point<int> p) const
@@ -136,11 +192,15 @@ juce::String AreaView::describe(const Hit& h) const
 
 void AreaView::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colour(0xff3c3f44));
-    g.setColour(juce::Colour(0xff45484e));
+    const bool modern = currentLook() == Look::Modern;
+    g.fillAll(modern ? juce::Colour(0xff33363c) : juce::Colour(0xff3c3f44));
+    g.setColour(modern ? juce::Colour(0xff3a3d44) : juce::Colour(0xff45484e));
     for (int x = kModuleWidth; x < getWidth(); x += kModuleWidth)
         g.drawVerticalLine(x, 0.0f, static_cast<float>(getHeight()));
+}
 
+void AreaView::paintModules(juce::Graphics& g)
+{
     for (const auto& m : doc_.patch().area(location_).modules) {
         const auto b = ModulePainter::moduleBounds(m);
         if (!g.clipRegionIntersects(b))
@@ -154,48 +214,91 @@ void AreaView::paint(juce::Graphics& g)
         }
         if (m.index == selected_) {
             g.setColour(juce::Colours::white);
-            g.drawRect(b, 2);
+            if (c.look == Look::Modern)
+                g.drawRoundedRectangle(b.toFloat().reduced(0.5f), 6.0f, 2.0f);
+            else
+                g.drawRect(b, 2);
         }
     }
+}
 
+void AreaView::paintOverlay(juce::Graphics& g)
+{
     if (drag_ == Drag::Module) {
         if (const auto* m = doc_.patch().area(location_).find(dragHit_.module)) {
             const auto cell = gridCell(dragPos_ - dragOffset_ + juce::Point<int>(kModuleWidth / 2, 0));
             const auto b = ModulePainter::moduleBounds(*m);
-            g.setColour(juce::Colours::white.withAlpha(0.35f));
-            g.fillRect(b.withPosition(cell.x * kModuleWidth, cell.y * kRowHeight));
+            g.setColour(juce::Colours::white.withAlpha(0.3f));
+            g.fillRoundedRectangle(b.withPosition(cell.x * kModuleWidth, cell.y * kRowHeight).toFloat(), 5.0f);
         }
     }
     if (dropCell_) {
-        g.setColour(juce::Colours::white.withAlpha(0.35f));
-        g.fillRect(dropCell_->x * kModuleWidth, dropCell_->y * kRowHeight, kModuleWidth, 2 * kRowHeight);
+        g.setColour(juce::Colours::white.withAlpha(0.3f));
+        g.fillRoundedRectangle(juce::Rectangle<int>(dropCell_->x * kModuleWidth, dropCell_->y * kRowHeight, kModuleWidth,
+                                                    2 * kRowHeight).toFloat(), 5.0f);
     }
     paintCables(g);
 }
 
-void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<float> b, juce::Colour c)
+void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<float> b, juce::Colour c, bool flowing)
 {
-    const float sag = 10.0f + 0.25f * a.getDistanceFrom(b);
+    const float distance = a.getDistanceFrom(b);
+    if (currentLook() == Look::Classic) {
+        const float sag = 10.0f + 0.25f * distance;
+        juce::Path path;
+        path.startNewSubPath(a);
+        path.quadraticTo((a + b) * 0.5f + juce::Point<float>(0.0f, sag), b);
+        g.setColour(juce::Colours::black.withAlpha(0.6f));
+        g.strokePath(path, juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.setColour(c);
+        g.strokePath(path, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        return;
+    }
+    // Modern: a hanging cable (cubic curve with gravity), soft shadow, a
+    // glossy tube, and pulses flowing from the source to the destination.
+    const float sag = std::min(90.0f, 12.0f + 0.22f * distance);
     juce::Path path;
     path.startNewSubPath(a);
-    path.quadraticTo((a + b) * 0.5f + juce::Point<float>(0.0f, sag), b);
-    g.setColour(juce::Colours::black.withAlpha(0.6f));
-    g.strokePath(path, juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    g.setColour(c);
-    g.strokePath(path, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    path.cubicTo(a + juce::Point<float>((b.x - a.x) * 0.15f, sag), b + juce::Point<float>((a.x - b.x) * 0.15f, sag), b);
+    const juce::PathStrokeType tube(3.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
+    g.setColour(juce::Colours::black.withAlpha(0.28f));
+    g.strokePath(path, juce::PathStrokeType(4.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
+                 juce::AffineTransform::translation(0.8f, 1.8f));
+    g.setColour(c.darker(0.25f));
+    g.strokePath(path, tube);
+    g.setColour(c.brighter(0.45f).withAlpha(0.55f));
+    g.strokePath(path, juce::PathStrokeType(1.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
+                 juce::AffineTransform::translation(-0.4f, -0.6f));
+    // Plugs at both ends.
+    for (auto p : {a, b}) {
+        g.setColour(c.darker(0.5f));
+        g.fillEllipse(p.x - 3.0f, p.y - 3.0f, 6.0f, 6.0f);
+    }
+    if (!flowing)
+        return;
+    const float length = path.getLength();
+    constexpr float spacing = 36.0f;
+    g.setColour(juce::Colours::white.withAlpha(0.85f));
+    for (float d = std::fmod(flowPhase_, spacing); d < length; d += spacing) {
+        const auto p = path.getPointAlongPath(d);
+        g.fillEllipse(p.x - 2.0f, p.y - 2.0f, 4.0f, 4.0f);
+    }
 }
 
 void AreaView::paintCables(juce::Graphics& g)
 {
+    const bool flowing = cableAnimation() && currentLook() == Look::Modern;
     for (const auto& cable : doc_.patch().area(location_).cables) {
+        // Signals flow from the "from" end (an output, or the first input of
+        // a link) to the input at the "to" end.
         const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});
         const auto b = jackCentre({cable.toModule, cable.toConn, false});
         if (a && b)
-            paintCable(g, *a, *b, ModulePainter::cableColour(cable.color));
+            paintCable(g, *a, *b, ModulePainter::cableColour(cable.color), flowing);
     }
     if (drag_ == Drag::Cable && cableFrom_)
         if (const auto a = jackCentre(*cableFrom_))
-            paintCable(g, *a, dragPos_.toFloat(), juce::Colours::white);
+            paintCable(g, *a, dragPos_.toFloat(), juce::Colours::white, false);
 }
 
 void AreaView::mouseMove(const juce::MouseEvent& e)
@@ -203,7 +306,7 @@ void AreaView::mouseMove(const juce::MouseEvent& e)
     const auto h = hitAt(e.getPosition());
     if (h.module != hover_.module || h.element != hover_.element) {
         hover_ = h;
-        repaint();
+        modules_->repaint();
     }
     status(describe(h));
 }
@@ -211,7 +314,7 @@ void AreaView::mouseMove(const juce::MouseEvent& e)
 void AreaView::mouseExit(const juce::MouseEvent&)
 {
     hover_ = {};
-    repaint();
+    modules_->repaint();
 }
 
 void AreaView::mouseDown(const juce::MouseEvent& e)
@@ -222,7 +325,7 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
     drag_ = Drag::None;
     if (!dragHit_.module) {
         selected_ = 0;
-        repaint();
+        repaintModules();
         return;
     }
     if (e.mods.isPopupMenu()) {
@@ -231,7 +334,7 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
                 showJackMenu(*jack);
         } else {
             selected_ = dragHit_.module;
-            repaint();
+            repaintModules();
             showModuleMenu(dragHit_.module);
         }
         return;
@@ -251,7 +354,7 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
     if (const auto* m = doc_.patch().area(location_).find(dragHit_.module))
         dragOffset_ = e.getPosition() - ModulePainter::moduleBounds(*m).getPosition();
     drag_ = Drag::Module;
-    repaint();
+    repaintModules();
 }
 
 void AreaView::mouseDrag(const juce::MouseEvent& e)
@@ -270,7 +373,7 @@ void AreaView::mouseDrag(const juce::MouseEvent& e)
     }
     case Drag::Module:
     case Drag::Cable:
-        repaint();
+        overlay_->repaint();
         if (drag_ == Drag::Cable)
             if (const auto target = jackAt(dragPos_))
                 status(describe(hitAt(dragPos_)));
@@ -301,7 +404,7 @@ void AreaView::mouseUp(const juce::MouseEvent& e)
                 }, &error))
                 status("Cannot connect: " + error);
         }
-        repaint();
+        overlay_->repaint();
         return;
     }
     if (drag == Drag::Module && e.getDistanceFromDragStart() > 3) {
@@ -514,13 +617,13 @@ bool AreaView::isInterestedInDragSource(const SourceDetails& d)
 void AreaView::itemDragMove(const SourceDetails& d)
 {
     dropCell_ = gridCell(d.localPosition);
-    repaint();
+    overlay_->repaint();
 }
 
 void AreaView::itemDragExit(const SourceDetails&)
 {
     dropCell_.reset();
-    repaint();
+    overlay_->repaint();
 }
 
 void AreaView::itemDropped(const SourceDetails& d)
