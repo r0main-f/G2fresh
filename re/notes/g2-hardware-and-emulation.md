@@ -432,6 +432,38 @@ with quirks users rely on.
    * Approach 2 is not recommended as a primary path. It needs the most reverse engineering for the least
      authenticity gain over 1.
 
+## 3.5 Proof of concept: Clavia's DSP code on the emulated DSP56300 (2026-10-09)
+
+`emu/` (built with `-DG2_BUILD_EMU=ON`; fetches Gearmulator's `dsp56300` at commit 1238043, GPL-3.0) and
+`tools/firmware/g2frags.py` (exports the fragments from the user's own firmware into `original/firmware/fragments/`).
+
+**What a fragment needs to run** (established by running them [C]):
+* Fragments are straight-line DSP56300 code: no calls, no returns.
+* They reach their own state through **`r3` (their X block) and `r4` (their Y block)**: parameters and coefficients
+  in X, filter/oscillator state in Y. Linking a module instance mostly means pointing `r3`/`r4` at its memory.
+* Cables are **short absolute addresses** (6-bit `aa`), left as `x:$0` / `y:$0` in the OS and patched when the synth
+  links a patch: loads are inputs, stores outputs. So signals live in a zero page of X memory, which is what the
+  editor's "ZP 128" resource (`patch-load.md`) counts.
+* Some fragments write results through a pointer kept in their X block (`move x:(r3)+,r1` … `move b,x:(r1)+`).
+
+**Results.**
+* `0x300F2772`, a **5-pole lowpass** (five cascaded one-poles `y += k·(x − y)`, k in X[0], state in Y[0..4]),
+  input `x:$10`, output `x:$11`: a 220 Hz saw through it, 96 000 samples, matches a double-precision model of the
+  same filter within 2.2·10⁻⁶ (about −113 dB; the expected 24-bit fixed-point difference), output at 219.5 Hz.
+  `0x300F279A` is the 6-pole version.
+* `0x300F9FCC` computes filter coefficients from a cutoff parameter (π/4, 2/π, √½ constants; output independent of
+  the audio input): a control-rate helper.
+* `0x300EDF0C` is a two-input rotation/filter stage writing its result into its X block.
+* **No sine yet.** An automated run of every fragment ≤ 200 words with neutral settings found no free-running pitched
+  oscillator. The likely reason: oscillators take their pitch and waveforms from **shared tables in DSP memory**
+  (exponential pitch table, waveform tables) that the OS sets up at boot, and that are not in any fragment's data
+  (the large X blocks of `0x3010079E`/`0x300FF8E6` are delay lines, mostly zeros). Those tables come with the DSP
+  boot images.
+
+**Next step:** step 2 of 3.4, running the ColdFire OS with stubbed hardware and logging what it writes to the DSP
+host ports, gives the boot images (kernel, tables) and, with the OS's module→fragment links, the way to build a whole
+patch. The emulator side is proven: Clavia's module code runs unchanged and exactly.
+
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source
    is unknown. The 56.620363 MHz oscillator, the PCTL ×4 and the cycle budget need reconciling. Read the board markings
