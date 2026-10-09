@@ -64,6 +64,8 @@ public:
     void settingsChanged();
     // Live LED and meter values to show (the synth connection), or nullptr.
     void setLiveLeds(const LiveLeds* leds);
+    // The LED source started or stopped delivering values.
+    void liveLedsChanged();
     // The area always covers at least this size (unzoomed pixels), so it fills
     // its viewport at any zoom.
     void setMinimumSize(int width, int height);
@@ -177,6 +179,7 @@ private:
     std::optional<g2::Cable> highlighted_;
     const LiveLeds* liveLeds_ = nullptr;
     std::uint32_t ledGeneration_ = 0;
+    juce::Rectangle<int> cableBounds_; // what the cables covered at the last paint
     // DrumSynth preset selectors' state (last preset), per module, as the original keeps it.
     std::map<std::uint8_t, g2::special::DrumPresetSelector> drumSelectors_;
     std::optional<juce::Point<int>> dropCell_; // browser drag-over preview

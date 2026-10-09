@@ -45,6 +45,9 @@ public:
     virtual std::optional<int> ledValue(g2::Location location, std::uint8_t module, int group) const = 0;
     // Changes whenever values may have changed (the views repaint then).
     virtual std::uint32_t ledGeneration() const = 0;
+    // Values are coming in (connected and bound): the views watch for changes
+    // only then.
+    virtual bool ledsLive() const = 0;
 };
 
 } // namespace g2ui

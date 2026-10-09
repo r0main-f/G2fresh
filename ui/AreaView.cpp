@@ -102,8 +102,10 @@ void AreaView::settingsChanged()
 
 void AreaView::updateTimer()
 {
-    // The flow animation, the pulsing rings of a highlighted cable, live LEDs.
-    if (cableAnimation() || highlighted_ || liveLeds_ != nullptr) {
+    // Only while something moves: the flow animation (with cables to animate),
+    // the pulsing rings of a highlighted cable, live LEDs.
+    const bool animating = cableAnimation() && !doc_.patch().area(location_).cables.empty();
+    if (animating || highlighted_ || (liveLeds_ != nullptr && liveLeds_->ledsLive())) {
         if (!isTimerRunning())
             startTimerHz(30);
     } else {
@@ -120,13 +122,19 @@ void AreaView::repaintModules()
 void AreaView::setLiveLeds(const LiveLeds* leds)
 {
     liveLeds_ = leds;
+    liveLedsChanged();
+}
+
+void AreaView::liveLedsChanged()
+{
     updateTimer();
     overlay_->repaint();
 }
 
 void AreaView::timerCallback()
 {
-    if (!isShowing())
+    // Nobody watches a hidden view or an app in the background.
+    if (!isShowing() || !juce::Process::isForegroundProcess())
         return;
     if (liveLeds_ != nullptr && liveLeds_->ledGeneration() != ledGeneration_) {
         ledGeneration_ = liveLeds_->ledGeneration();
@@ -136,7 +144,11 @@ void AreaView::timerCallback()
         return;
     // Pulses move at a steady 48 px/s, whatever the frame rate.
     flowPhase_ = static_cast<float>(std::fmod(juce::Time::getMillisecondCounterHiRes() * 0.048, 36.0 * 1000.0));
-    overlay_->repaint();
+    // Only where the cables are (a highlighted cable also has labels around it).
+    if (highlighted_ || cableBounds_.isEmpty())
+        overlay_->repaint();
+    else
+        overlay_->repaint(cableBounds_);
 }
 
 void AreaView::changeListenerCallback(juce::ChangeBroadcaster*)
@@ -147,8 +159,8 @@ void AreaView::changeListenerCallback(juce::ChangeBroadcaster*)
         const auto& cables = doc_.patch().area(location_).cables;
         const auto it = std::find_if(cables.begin(), cables.end(), [&](const g2::Cable& c) { return sameEnds(c, *highlighted_); });
         highlighted_ = it != cables.end() ? std::optional<g2::Cable>(*it) : std::nullopt;
-        updateTimer();
     }
+    updateTimer(); // the first or last cable starts or stops the animation
     updateSize();
     repaintModules();
 }
@@ -558,6 +570,7 @@ void AreaView::paintCables(juce::Graphics& g)
 {
     const bool flowing = cableAnimation();
     const auto& visible = doc_.patch().header.cablesVisible;
+    juce::Rectangle<float> covered;
     // With a highlighted cable, the others are dimmed and it is drawn last.
     if (highlighted_)
         g.beginTransparencyLayer(0.25f);
@@ -570,9 +583,14 @@ void AreaView::paintCables(juce::Graphics& g)
         // a link) to the input at the "to" end.
         const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});
         const auto b = jackCentre({cable.toModule, cable.toConn, false});
-        if (a && b)
+        if (a && b) {
             paintCable(g, *a, *b, ModulePainter::cableColour(cable.color), flowing, cable.bend);
+            // The animation repaints only this area (shadow and plugs included).
+            const auto r = cablePath(*a, *b, cable.bend).getBounds().expanded(8.0f);
+            covered = covered.isEmpty() ? r : covered.getUnion(r);
+        }
     }
+    cableBounds_ = covered.getSmallestIntegerContainer();
     if (highlighted_) {
         g.endTransparencyLayer();
         if (const auto current = highlightedCable())

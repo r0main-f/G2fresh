@@ -57,7 +57,9 @@ void MidiForwarder::run()
             }
             pending_.erase(pending_.begin(), due);
         }
-        wait(1);
+        // Millisecond timing only while there is somewhere to send to; with no
+        // port selected the thread just checks now and then (no idle wake-ups).
+        wait(!pending_.empty() ? 1 : active_.load(std::memory_order_relaxed) ? 2 : 100);
     }
 }
 

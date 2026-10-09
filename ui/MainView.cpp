@@ -626,6 +626,8 @@ void MainView::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
     updateSynthStatus();
     if (source == synth_) {
+        va_.liveLedsChanged();
+        fx_.liveLedsChanged();
         updateLoad();
         menuItemsChanged(); // slot names, connection state
         return;
