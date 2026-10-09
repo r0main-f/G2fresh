@@ -32,7 +32,15 @@ G2EditorProcessor::~G2EditorProcessor()
 
 void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster*)
 {
-    auto bytes = encodeState(document_);
+    // Runs from the message loop, where an exception would end the app: if the
+    // patch cannot be encoded, keep the last state that could.
+    std::vector<std::uint8_t> bytes;
+    try {
+        bytes = encodeState(document_);
+    } catch (const std::exception& e) {
+        DBG("G2fresh: cannot encode the state: " << e.what());
+        return;
+    }
     const juce::SpinLock::ScopedLockType lock(stateLock_);
     stateBytes_ = std::move(bytes);
 }

@@ -65,9 +65,10 @@ bool PatchDocument::perform(const juce::String& name, const std::function<void(g
 {
     endCoalescing();
     g2::Patch next = patch();
+    // The edit works on a copy: whatever it throws leaves the document as it was.
     try {
         edit(next);
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::exception& e) {
         if (error)
             *error = e.what();
         return false;
@@ -91,7 +92,7 @@ bool PatchDocument::performCoalesced(const juce::String& key, const std::functio
     g2::Patch next = patch();
     try {
         edit(next);
-    } catch (const std::invalid_argument&) {
+    } catch (const std::exception&) {
         return false;
     }
     lastStep_->setAfter(next);

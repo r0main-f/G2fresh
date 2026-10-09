@@ -691,7 +691,14 @@ void MainView::loadFile(const juce::File& f, bool ignoreChecksum)
 void MainView::save(bool saveAs)
 {
     auto write = [this](const juce::File& f) {
-        const auto bytes = doc_.saveBytes();
+        std::vector<std::uint8_t> bytes;
+        try {
+            bytes = doc_.saveBytes();
+        } catch (const std::exception& e) {
+            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Cannot save patch",
+                                                   e.what(), {}, this);
+            return;
+        }
         if (f.replaceWithData(bytes.data(), bytes.size())) {
             const auto name = doc_.name();
             doc_.setFile(f);

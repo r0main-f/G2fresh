@@ -148,8 +148,13 @@ void resolveOverlaps(Patch& patch, Location loc, u8 keep)
             moved = false;
             for (const Module* p : placed)
                 if (p->col == m->col && m->row < p->row + heightOf(*p) && p->row < m->row + heightOf(*m)) {
-                    m->row = static_cast<u8>(std::min(127, p->row + heightOf(*p)));
-                    moved = true;
+                    // Rows stop at 127: a module that cannot go lower stays
+                    // where it is, overlapping, rather than looping forever.
+                    const auto below = static_cast<u8>(std::min(127, p->row + heightOf(*p)));
+                    moved = below != m->row;
+                    m->row = below;
+                    if (!moved)
+                        break;
                 }
         }
         placed.push_back(m);

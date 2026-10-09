@@ -47,8 +47,14 @@ public:
     void write(std::uint32_t value, unsigned count);
     void writeSigned(std::int32_t value, unsigned count);
     unsigned padBits() const { return (8 - (bitPos_ & 7)) & 7; }
-    // Pads to the next byte boundary with the given bits (normally zero).
-    void align(std::uint32_t padValue = 0) { write(padValue, padBits()); }
+    // Pads to the next byte boundary with the given bits (normally zero). Pad
+    // bits kept from a loaded file only fit while the layout is unchanged:
+    // after an edit moves the boundary, zeros are written, as Clavia's writer does.
+    void align(std::uint32_t padValue = 0)
+    {
+        const unsigned n = padBits();
+        write(padValue < (1u << n) ? padValue : 0, n);
+    }
     void u8(std::uint8_t value);
     void u16(std::uint16_t value);
     void bytes(std::span<const std::uint8_t> data);

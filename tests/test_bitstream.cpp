@@ -46,3 +46,16 @@ TEST_CASE("crc16 matches the CRC-16/XMODEM check value")
     const auto* p = reinterpret_cast<const std::uint8_t*>(check.data());
     CHECK(g2::crc16({p, check.size()}) == 0x31C3);
 }
+
+TEST_CASE("kept pad bits that no longer fit are written as zeros")
+{
+    g2::BitWriter keep;
+    keep.write(1, 3);
+    keep.align(0x1F); // 5 pad bits: kept
+    CHECK(keep.data() == std::vector<std::uint8_t>{0x3F});
+
+    g2::BitWriter moved;
+    moved.write(1, 3);
+    moved.align(0x7F); // the pad of a longer layout: zeros
+    CHECK(moved.data() == std::vector<std::uint8_t>{0x20});
+}

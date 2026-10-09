@@ -222,3 +222,27 @@ TEST_CASE("copy a variation, copy and paste modules")
     const auto bytes = savePatch(p);
     CHECK(savePatch(loadPatch(bytes)) == bytes);
 }
+
+TEST_CASE("an edited patch saves although its file had non-zero pad bits")
+{
+    // Some files pad sections and cable lists with ones; an edit that changes
+    // a section's length must not keep pad bits that no longer fit.
+    Patch p = loadPatch(g2test::readBytes(G2_CORPUS_DIR "/pch2csd/test_3osc.pch2"));
+    p.sectionPad.fill(0x7F);
+    p.va.cablePad = 0x7F;
+    p.fx.cablePad = 0x7F;
+    const auto clip = edit::copyModules(p, Location::Va, {p.va.modules.front().index});
+    edit::pasteModules(p, Location::Va, clip, 0, 0);
+    std::vector<u8> bytes;
+    REQUIRE_NOTHROW(bytes = savePatch(p));
+    CHECK(loadPatch(bytes).va.modules.size() == p.va.modules.size());
+}
+
+TEST_CASE("modules pushed past the last row stop there")
+{
+    Patch p = Patch::makeDefault();
+    edit::addModule(p, Location::Va, kOscB, 0, 127);
+    const u8 b = edit::addModule(p, Location::Va, kOscB, 0, 127); // resolves overlaps: must not hang
+    edit::resolveOverlaps(p, Location::Va, b);
+    CHECK(p.va.find(b)->row == 127);
+}
