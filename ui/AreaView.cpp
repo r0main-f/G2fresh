@@ -1,10 +1,12 @@
 #include "AreaView.h"
 
 #include "ModuleBrowser.h"
+#include "SpecialControls.h"
 
 #include "g2/edit.hpp"
 #include "g2/param_text.hpp"
 #include "g2/replace.hpp"
+#include "g2/special.hpp"
 
 namespace g2ui {
 namespace {
@@ -13,7 +15,15 @@ const juce::String kModuleDragPrefix = "g2module:";
 
 bool isEditable(const PanelElement& e)
 {
-    return ModulePainter::isControl(e);
+    return ModulePainter::isControl(e) || SpecialControls::isSpecial(e);
+}
+
+// The editor's generator for the special controls' "Rnd" (seeded once, as the
+// original seeds Rnd_GetC at start-up).
+g2::special::EditorRandom& editorRandom()
+{
+    static g2::special::EditorRandom rng(static_cast<std::uint32_t>(juce::Time::currentTimeMillis()));
+    return rng;
 }
 
 const char* cableColourName(g2::CableColor c)
@@ -243,6 +253,8 @@ juce::String AreaView::describe(const Hit& h) const
         return name + (def && def->longName ? "  (" + juce::String(def->longName) + ")" : juce::String());
     const auto& e = *h.element;
     const auto c = context(*m);
+    if (SpecialControls::isSpecial(e))
+        return SpecialControls::describe(c, e, SpecialControls::partAt(e, h.local - ModulePainter::elementBounds(e).getPosition()));
     if (ModulePainter::isJack(e)) {
         const auto& list = e.kind == "Output" ? def->outputs : def->inputs;
         const juce::String conn = def && juce::isPositiveAndBelow(e.codeRef, static_cast<int>(list.size()))
@@ -567,6 +579,14 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
         const auto* m = doc_.patch().area(location_).find(dragHit_.module);
         dragStartValue_ = m ? ModulePainter::value(context(*m), *dragHit_.element).value_or(0) : 0;
         drag_ = dragHit_.element->kind == "Knob" ? Drag::Value : Drag::None;
+        // A note sequencer step jumps to the note clicked (CPnlSeqSlider::OnClick),
+        // then drags from there.
+        if (m && SpecialControls::isSeqSlider(*dragHit_.element) && !e.mods.isAltDown()) {
+            const int y = dragHit_.local.y - ModulePainter::elementBounds(*dragHit_.element).getY();
+            dragStartValue_ = SpecialControls::seqSliderValueAt(context(*m), y);
+            setValue(dragHit_, dragStartValue_, true);
+            status(describe(dragHit_));
+        }
         // Alt-drag a knob: set its morph range in the current variation.
         if (drag_ == Drag::Value && e.mods.isAltDown() && m) {
             const auto morph = g2::edit::morphOf(doc_.patch(), static_cast<std::uint8_t>(doc_.variation()), location_,
@@ -600,7 +620,10 @@ void AreaView::mouseDrag(const juce::MouseEvent& e)
         if (!m)
             return;
         const int max = ModulePainter::maxValue(context(*m), *dragHit_.element);
-        const int steps = (e.getMouseDownY() - e.y) / pixelsPerStep(max, e.mods.isShiftDown());
+        const int perStep = SpecialControls::isSeqSlider(*dragHit_.element)
+            ? SpecialControls::seqSliderPixelsPerValue(context(*m)) * (e.mods.isShiftDown() ? 4 : 1)
+            : pixelsPerStep(max, e.mods.isShiftDown());
+        const int steps = (e.getMouseDownY() - e.y) / perStep;
         setValue(dragHit_, juce::jlimit(0, max, dragStartValue_ + steps), true);
         status(describe(dragHit_));
         break;
@@ -767,6 +790,74 @@ void AreaView::setValue(const Hit& h, int value, bool coalesce)
         doc_.perform("Change value", edit);
 }
 
+void AreaView::clickSpecial(const Hit& h, SpecialControls::Hit part)
+{
+    namespace sp = g2::special;
+    const auto loc = location_;
+    const auto module = h.module;
+    const auto variation = static_cast<std::uint8_t>(doc_.variation());
+    touch(module);
+    using Part = SpecialControls::Part;
+    switch (part.part) {
+    case Part::VocoderButton: {
+        const auto op = static_cast<sp::VocoderOp>(part.index);
+        doc_.perform(juce::String("Vocoder bands ") + sp::vocoderOpLabel(op), [&](g2::Patch& p) {
+            sp::vocoderPreset(p, loc, module, variation, op, &editorRandom());
+        });
+        break;
+    }
+    case Part::Zoom:
+    case Part::OffsetLeft:
+    case Part::OffsetRight: {
+        auto view = sp::noteSeqView(doc_.patch(), loc, module);
+        if (part.part == Part::Zoom)
+            view.zoom = sp::nextNoteSeqZoom(view.zoom);
+        else
+            view.offset = sp::stepNoteSeqOffset(view.offset, part.part == Part::OffsetRight);
+        if (view == sp::noteSeqView(doc_.patch(), loc, module))
+            break; // already at the end of the range
+        doc_.perform(part.part == Part::Zoom ? "Note sequencer zoom" : "Note sequencer octave",
+                     [&](g2::Patch& p) { sp::setNoteSeqView(p, loc, module, view); });
+        break;
+    }
+    case Part::DrumUp:
+    case Part::DrumDown: {
+        auto& selector = drumSelectors_[module];
+        selector.update(doc_.patch(), loc, module, variation);
+        if (const auto preset = selector.step(part.part == Part::DrumUp))
+            doc_.perform(juce::String("Drum preset ") + sp::drumPresetName(*preset),
+                         [&](g2::Patch& p) { sp::applyDrumPreset(p, loc, module, variation, *preset); });
+        break;
+    }
+    case Part::DrumName: {
+        const auto current = sp::drumPresetIndex(doc_.patch(), loc, module, variation);
+        juce::PopupMenu menu;
+        for (int i = 0; i < sp::kDrumPresets; ++i)
+            menu.addItem(i + 1, sp::drumPresetName(i), true, current && *current == i);
+        const auto* m = doc_.patch().area(loc).find(module);
+        if (!m)
+            break;
+        const auto target = localAreaToGlobal(ModulePainter::elementBounds(*h.element)
+                                                  .translated(ModulePainter::moduleBounds(*m).getX(),
+                                                              ModulePainter::moduleBounds(*m).getY()));
+        menu.showMenuAsync(juce::PopupMenu::Options().withTargetScreenArea(target),
+                           [safe = juce::Component::SafePointer<AreaView>(this), loc, module, variation](int result) {
+                               if (!safe || result <= 0)
+                                   return;
+                               const int preset = result - 1;
+                               auto& selector = safe->drumSelectors_[module];
+                               selector.index = preset;
+                               selector.matched = true;
+                               safe->doc_.perform(juce::String("Drum preset ") + sp::drumPresetName(preset),
+                                                  [&](g2::Patch& p) { sp::applyDrumPreset(p, loc, module, variation, preset); });
+                           });
+        break;
+    }
+    case Part::None:
+        break;
+    }
+}
+
 void AreaView::clickControl(const Hit& h)
 {
     const auto* m = doc_.patch().area(location_).find(h.module);
@@ -779,6 +870,10 @@ void AreaView::clickControl(const Hit& h)
     const auto r = ModulePainter::elementBounds(e);
     const auto local = h.local - r.getPosition();
 
+    if (SpecialControls::isSpecial(e)) {
+        clickSpecial(h, SpecialControls::partAt(e, local));
+        return;
+    }
     if (e.kind == "ButtonText" || e.kind == "TextEdit") {
         setValue(h, value ? 0 : std::min(1, max), false);
     } else if (e.kind == "ButtonFlat" || e.kind == "LevelShift") {

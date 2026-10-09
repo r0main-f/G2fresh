@@ -38,6 +38,7 @@ if(G2_BUILD_PLUGIN)
   set(G2_UI_SOURCES
     ${PROJECT_SOURCE_DIR}/ui/Skin.cpp
     ${PROJECT_SOURCE_DIR}/ui/ModulePainter.cpp
+    ${PROJECT_SOURCE_DIR}/ui/SpecialControls.cpp
     ${PROJECT_SOURCE_DIR}/ui/PatchDocument.cpp
     ${PROJECT_SOURCE_DIR}/ui/AreaView.cpp
     ${PROJECT_SOURCE_DIR}/ui/ModuleBrowser.cpp

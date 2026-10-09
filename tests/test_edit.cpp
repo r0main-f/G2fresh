@@ -2,6 +2,7 @@
 
 #include "g2/edit.hpp"
 #include "g2/param_text.hpp"
+#include "g2/special.hpp"
 #include "test_support.hpp"
 
 using namespace g2;
@@ -245,4 +246,15 @@ TEST_CASE("modules pushed past the last row stop there")
     const u8 b = edit::addModule(p, Location::Va, kOscB, 0, 127); // resolves overlaps: must not hang
     edit::resolveOverlaps(p, Location::Va, b);
     CHECK(p.va.find(b)->row == 127);
+}
+
+TEST_CASE("a new note sequencer gets the original's default view")
+{
+    Patch p = Patch::makeDefault();
+    const u8 seq = edit::addModule(p, Location::Va, special::kSeqNoteType, 0, 0);
+    REQUIRE(p.va.find(seq)->customData);
+    CHECK(*p.va.find(seq)->customData == std::vector<u8>{0, 1, 1, 0, 1, 5});
+    CHECK(special::noteSeqView(p, Location::Va, seq) == special::NoteSeqView{1, 5});
+    const Patch back = loadPatch(savePatch(p));
+    CHECK(special::noteSeqView(back, Location::Va, seq) == special::NoteSeqView{1, 5});
 }

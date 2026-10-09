@@ -4,8 +4,12 @@
 
 #include "ModulePainter.h"
 #include "PatchDocument.h"
+#include "SpecialControls.h"
+
+#include "g2/special.hpp"
 
 #include <functional>
+#include <map>
 #include <optional>
 
 namespace g2ui {
@@ -118,6 +122,7 @@ private:
 
     void setValue(const Hit& h, int value, bool coalesce);
     void clickControl(const Hit& h);
+    void clickSpecial(const Hit& h, SpecialControls::Hit part);
     void showModuleMenu(std::uint8_t module);
     void showJackMenu(const Jack& jack);
     void showControlMenu(const Hit& h);
@@ -153,6 +158,8 @@ private:
     // The cable clicked on its cord: drawn on top, the others dimmed, its two
     // ends ringed and labelled.
     std::optional<g2::Cable> highlighted_;
+    // DrumSynth preset selectors' state (last preset), per module, as the original keeps it.
+    std::map<std::uint8_t, g2::special::DrumPresetSelector> drumSelectors_;
     std::optional<juce::Point<int>> dropCell_; // browser drag-over preview
 
     std::unique_ptr<ModulesLayer> modules_;

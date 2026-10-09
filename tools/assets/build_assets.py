@@ -24,7 +24,7 @@ OUT = os.path.join(ROOT, "assets", "clavia")
 # Control sprites used by the module renderer, besides the module faces.
 CBMP_SPRITES = [199, 200, 201, 202, 203, 204, 205, 531, 532]
 JPEG_SPRITES = [115, 116, 117, 118, 212, 213, 214, 215, 216, 217, 240, 241, 242, 243, 244, 245,
-                246, 247, 248, 250, 251, 268, 269, 272, 273]
+                246, 247, 248, 250, 251, 268, 269, 272, 273, 874, 877]
 
 
 def main(argv):

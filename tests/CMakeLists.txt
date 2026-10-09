@@ -13,6 +13,7 @@ add_executable(g2tests
   test_file.cpp
   test_patch.cpp
   test_replace.cpp
+  test_special.cpp
   test_mutate.cpp
   test_patch_load.cpp
   test_uprate.cpp

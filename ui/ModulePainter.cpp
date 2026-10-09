@@ -1,5 +1,7 @@
 #include "ModulePainter.h"
 
+#include "SpecialControls.h"
+
 #include "g2/module_db.hpp"
 #include "g2/graphs.hpp"
 #include "g2/param_text.hpp"
@@ -239,7 +241,7 @@ juce::Rectangle<int> ModulePainter::elementBounds(const PanelElement& e)
 {
     if (e.kind == "Knob") {
         if (isSlider(e))
-            return {e.x, e.y, 11, e.type == "SeqSlider" ? 37 : 51};
+            return {e.x, e.y, 11, e.type == "SeqSlider" ? 75 : 51};
         const int s = knobSprite(e.type).size;
         return {e.x, e.y, s, s};
     }
@@ -411,6 +413,10 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
     const auto v = value(c, e);
     const int max = std::max(1, maxValue(c, e));
 
+    if (SpecialControls::isSeqSlider(e)) {
+        SpecialControls::paintSeqSlider(g, c, e, highlighted);
+        return;
+    }
     if (e.kind == "Knob") {
         const int val = v.value_or(0);
         if (isSlider(e)) {
@@ -537,6 +543,10 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
     if (e.kind == "MiniVU") {
         g.setColour(juce::Colour(0xff203020));
         g.fillRect(r);
+        return;
+    }
+    if (SpecialControls::isSpecial(e)) {
+        SpecialControls::paint(g, c, e, highlighted);
         return;
     }
     if (e.kind == "Graph") {
@@ -714,6 +724,10 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         return;
     }
 
+    if (SpecialControls::isSeqSlider(e)) {
+        SpecialControls::paintSeqSlider(g, c, e, highlighted);
+        return;
+    }
     if (e.kind == "Knob") {
         const int val = v.value_or(0);
         const int group = morphGroup(c, e.codeRef);
@@ -864,6 +878,10 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
     if (e.kind == "MiniVU") {
         g.setColour(juce::Colour(0xff2a2e35));
         g.fillRoundedRectangle(r, 2.0f);
+        return;
+    }
+    if (SpecialControls::isSpecial(e)) {
+        SpecialControls::paint(g, c, e, highlighted);
         return;
     }
     if (e.kind == "Graph") {

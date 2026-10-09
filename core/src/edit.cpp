@@ -1,6 +1,7 @@
 #include "g2/edit.hpp"
 
 #include "g2/patch_load.hpp"
+#include "g2/special.hpp"
 #include "g2/uprate.hpp"
 
 #include <algorithm>
@@ -85,6 +86,9 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
             values.push_back(p.defaultValue);
         m.params.assign(patch.variationCount, values);
     }
+    // The note sequencer's view (zoom, octave offset), as the original stores it.
+    if (type == special::kSeqNoteType)
+        m.customData = special::noteSeqCustomData({});
     area.modules.push_back(std::move(m));
     uprate::update(patch, loc);
     return index;
