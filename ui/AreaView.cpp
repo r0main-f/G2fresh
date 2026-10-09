@@ -102,8 +102,8 @@ void AreaView::settingsChanged()
 
 void AreaView::updateTimer()
 {
-    // The flow animation and the pulsing rings of a highlighted cable.
-    if (cableAnimation() || highlighted_) {
+    // The flow animation, the pulsing rings of a highlighted cable, live LEDs.
+    if (cableAnimation() || highlighted_ || liveLeds_ != nullptr) {
         if (!isTimerRunning())
             startTimerHz(30);
     } else {
@@ -117,9 +117,22 @@ void AreaView::repaintModules()
     overlay_->repaint();
 }
 
+void AreaView::setLiveLeds(const LiveLeds* leds)
+{
+    liveLeds_ = leds;
+    updateTimer();
+    overlay_->repaint();
+}
+
 void AreaView::timerCallback()
 {
-    if (!isShowing() || doc_.patch().area(location_).cables.empty())
+    if (!isShowing())
+        return;
+    if (liveLeds_ != nullptr && liveLeds_->ledGeneration() != ledGeneration_) {
+        ledGeneration_ = liveLeds_->ledGeneration();
+        overlay_->repaint();
+    }
+    if (doc_.patch().area(location_).cables.empty() || !(cableAnimation() || highlighted_))
         return;
     // Pulses move at a steady 48 px/s, whatever the frame rate.
     flowPhase_ = static_cast<float>(std::fmod(juce::Time::getMillisecondCounterHiRes() * 0.048, 36.0 * 1000.0));
@@ -332,7 +345,70 @@ void AreaView::paintOverlay(juce::Graphics& g)
         g.fillRoundedRectangle(juce::Rectangle<int>(dropCell_->x * kModuleWidth, dropCell_->y * kRowHeight, kModuleWidth,
                                                     2 * kRowHeight).toFloat(), 5.0f);
     }
+    paintLiveLeds(g);
     paintCables(g);
+}
+
+void AreaView::paintLiveLeds(juce::Graphics& g)
+{
+    if (liveLeds_ == nullptr)
+        return;
+    for (const auto& m : doc_.patch().area(location_).modules) {
+        const auto* panel = ModulePainter::panelFor(m);
+        if (!panel)
+            continue;
+        const auto origin = ModulePainter::moduleBounds(m).getPosition();
+        const auto groups = ledGroups(*panel);
+        std::vector<int> nth(groups.size(), 0); // position of each LED in its group
+        for (const auto& e : panel->elements) {
+            if (e.kind != "Led" && e.kind != "MiniVU")
+                continue;
+            if (!juce::isPositiveAndBelow(e.groupId, static_cast<int>(groups.size())))
+                continue;
+            const int index = nth[static_cast<std::size_t>(e.groupId)]++;
+            const auto value = liveLeds_->ledValue(location_, m.index, e.groupId);
+            if (!value)
+                continue;
+            const auto r = ModulePainter::elementBounds(e).translated(origin.x, origin.y).toFloat();
+            if (e.kind == "MiniVU") {
+                // Level 0..0x7E from the bottom (or left), green, then yellow, red when clipping.
+                const bool vertical = e.orientation != "Horizontal";
+                const float level = juce::jlimit(0.0f, 1.0f, static_cast<float>(*value) / 126.0f);
+                const auto bar = vertical ? r.reduced(1.5f).withTrimmedTop(r.reduced(1.5f).getHeight() * (1.0f - level))
+                                          : r.reduced(1.5f).withWidth(r.reduced(1.5f).getWidth() * level);
+                g.setColour(juce::Colour(0xff1b1d22));
+                g.fillRoundedRectangle(r, 2.0f);
+                g.setColour(*value > 0x7E ? juce::Colour(0xffff4040)
+                            : level > 0.8f ? juce::Colour(0xffffd23c) : juce::Colour(0xff4fe04f));
+                g.fillRect(bar);
+                continue;
+            }
+            bool lit = false;
+            float brightness = 1.0f;
+            if (groups[static_cast<std::size_t>(e.groupId)]) { // a strip
+                if (*value == 0xFFF)
+                    lit = true;
+                else if ((*value & 0x3000) == 0x3000)
+                    lit = ((*value >> index) & 1) != 0;
+                else
+                    lit = *value == index;
+            } else { // a single LED: 0 off, 1..3 on [I: what 1 and 2 mean is unverified]
+                lit = *value != 0;
+                brightness = 0.55f + 0.15f * static_cast<float>(*value);
+            }
+            const auto led = r.withSizeKeepingCentre(6.0f, 6.0f);
+            const auto colour = e.type == "Sequencer" ? juce::Colour(0xffffb020) : juce::Colour(0xff40ff40);
+            if (lit) {
+                g.setColour(colour.withAlpha(0.35f * brightness));
+                g.fillEllipse(led.expanded(3.0f));
+                g.setColour(colour.withMultipliedBrightness(brightness));
+                g.fillEllipse(led);
+            } else {
+                g.setColour(colour.darker(2.5f));
+                g.fillEllipse(led);
+            }
+        }
+    }
 }
 
 juce::Path AreaView::cablePath(juce::Point<float> a, juce::Point<float> b, std::optional<g2::CableBend> bend) const

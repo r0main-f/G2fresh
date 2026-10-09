@@ -1,10 +1,14 @@
 #include "SynthSync.h"
 
+#include "ModulePainter.h"
+
 #include "g2/bridge/bridge_link.hpp"
+#include "g2/proto/emulator.hpp"
 #include "g2/edit.hpp"
 #include "g2/proto/state.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <map>
 #include <tuple>
@@ -170,6 +174,7 @@ void SynthSync::sendPatch(int slot)
     binding_ = Binding::Patch;
     slot_ = slot;
     sent_[static_cast<std::size_t>(slot)] = doc_.patch();
+    ledMap_ = g2ui::ledMap(doc_.patch());
     sendChangeMessage();
 }
 
@@ -183,6 +188,7 @@ void SynthSync::sendPerformance()
     binding_ = Binding::Performance;
     for (int s = 0; s < 4; ++s)
         sent_[static_cast<std::size_t>(s)] = doc_.slotPatch(s);
+    ledMap_ = g2ui::ledMap(doc_.patch());
     sendChangeMessage();
 }
 
@@ -225,6 +231,8 @@ void SynthSync::unbind()
 
 void SynthSync::changeListenerCallback(juce::ChangeBroadcaster*)
 {
+    ledMap_ = g2ui::ledMap(doc_.patch());
+    ++ledGeneration_;
     if (!bound() || !ready())
         return;
     // A new or loaded document ends the binding: it is not what the synth has.
@@ -391,6 +399,7 @@ void SynthSync::timerCallback()
 {
     if (!link_)
         return;
+    animateVirtualLeds();
     link_->tick();
     if (ready() != wasReady_) {
         wasReady_ = ready();
@@ -439,6 +448,72 @@ void SynthSync::variationChanged(int slot, g2::u8 variation)
     fromSynth(slot, [variation](g2::Patch& p) { p.header.activeVariation = variation; });
     if (docSlotFor(slot) == doc_.slot() && variation < g2::kUserVariations)
         doc_.setVariation(variation);
+}
+
+void SynthSync::ledsChanged(int slot)
+{
+    if (docSlotFor(slot) == doc_.slot())
+        ++ledGeneration_;
+}
+
+std::optional<int> SynthSync::ledValue(g2::Location location, std::uint8_t module, int group) const
+{
+    if (!ready() || !bound())
+        return std::nullopt;
+    const int slot = synthSlotFor(doc_.slot());
+    if (slot < 0)
+        return std::nullopt;
+    const auto& s = link_->state().slots[static_cast<std::size_t>(slot)];
+    for (std::size_t i = 0; i < ledMap_.single.size(); ++i) {
+        const auto& g = ledMap_.single[i];
+        if (g.location == location && g.module == module && g.group == group)
+            return s.leds[i];
+    }
+    for (std::size_t i = 0; i < ledMap_.multi.size(); ++i) {
+        const auto& g = ledMap_.multi[i];
+        if (g.location == location && g.module == module && g.group == group)
+            return s.meters[i];
+    }
+    return std::nullopt;
+}
+
+void SynthSync::animateVirtualLeds()
+{
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    if (kind_ != Kind::Virtual || !ready() || !bound() || now - lastVirtualLeds_ < 50.0)
+        return;
+    lastVirtualLeds_ = now;
+    auto* local = dynamic_cast<g2::proto::LocalLink*>(link_.get());
+    auto* emulator = local != nullptr ? local->emulator() : nullptr;
+    const int slot = synthSlotFor(doc_.slot());
+    if (emulator == nullptr || slot < 0)
+        return;
+    const double t = now / 1000.0;
+    std::vector<std::uint8_t> leds(ledMap_.single.size());
+    for (std::size_t i = 0; i < leds.size(); ++i)
+        leds[i] = static_cast<std::uint8_t>(std::fmod(t * 2.0 + static_cast<double>(i) * 0.37, 1.0) < 0.5 ? 3 : 0);
+    std::vector<std::uint16_t> meters(ledMap_.multi.size());
+    for (std::size_t i = 0; i < meters.size(); ++i) {
+        const auto& g = ledMap_.multi[i];
+        const auto* m = doc_.patch().area(g.location).find(g.module);
+        const auto* panel = m ? ModulePainter::panelFor(*m) : nullptr;
+        int count = 0;
+        bool vu = false;
+        if (panel)
+            for (const auto& e : panel->elements)
+                if ((e.kind == "Led" || e.kind == "MiniVU") && e.groupId == g.group) {
+                    ++count;
+                    vu |= e.kind == "MiniVU";
+                }
+        if (vu) // a level swinging up to clip now and then
+            meters[i] = static_cast<std::uint16_t>(juce::jlimit(0.0, 130.0, 64.0 + 66.0 * std::sin(t * 2.2 + static_cast<double>(i))));
+        else    // a strip: the lit LED walks along
+            meters[i] = static_cast<std::uint16_t>(count > 0 ? static_cast<int>(t * 8.0) % count : 0);
+    }
+    if (!leds.empty())
+        emulator->sendLeds(static_cast<g2::u8>(slot), leds);
+    if (!meters.empty())
+        emulator->sendMeters(static_cast<g2::u8>(slot), meters);
 }
 
 void SynthSync::patchEdited(int slot, const g2::proto::Molecule& m)

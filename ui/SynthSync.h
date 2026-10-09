@@ -13,6 +13,7 @@
 // editor window.
 #pragma once
 
+#include "LiveLeds.h"
 #include "PatchDocument.h"
 
 #include "g2/proto/link.hpp"
@@ -27,6 +28,7 @@
 namespace g2ui {
 
 class SynthSync : public juce::ChangeBroadcaster,
+                  public LiveLeds,
                   private juce::Timer,
                   private juce::ChangeListener,
                   private g2::proto::SynthLink::Listener {
@@ -64,6 +66,10 @@ public:
     // A slot's patch name on the synth ("" when unknown).
     juce::String slotName(int slot) const;
 
+    // LiveLeds: the LEDs and meters of the slot shown, while bound.
+    std::optional<int> ledValue(g2::Location location, std::uint8_t module, int group) const override;
+    std::uint32_t ledGeneration() const override { return ledGeneration_; }
+
 private:
     enum class Binding { None, Patch, Performance };
 
@@ -88,6 +94,9 @@ private:
     void morphChanged(int slot, const g2::proto::MorphChange&) override;
     void variationChanged(int slot, g2::u8 variation) override;
     void patchEdited(int slot, const g2::proto::Molecule&) override;
+    void ledsChanged(int slot) override;
+    // The virtual G2 makes its LEDs and meters move, so they can be seen.
+    void animateVirtualLeds();
 
     PatchDocument& doc_;
     std::unique_ptr<g2::proto::SynthLink> link_;
@@ -97,6 +106,9 @@ private:
     int slot_ = 0; // Binding::Patch: the synth slot
     // What the synth has, per synth slot, as the document last sent or got it.
     std::array<std::optional<g2::Patch>, 4> sent_;
+    LedMap ledMap_; // of the document slot shown
+    std::uint32_t ledGeneration_ = 0;
+    double lastVirtualLeds_ = 0.0;
 };
 
 } // namespace g2ui

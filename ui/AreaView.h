@@ -4,6 +4,7 @@
 
 #include "ModulePainter.h"
 #include "PatchDocument.h"
+#include "LiveLeds.h"
 #include "SpecialControls.h"
 
 #include "g2/special.hpp"
@@ -61,6 +62,8 @@ public:
     void resized() override;
     // Re-reads the look and animation settings.
     void settingsChanged();
+    // Live LED and meter values to show (the synth connection), or nullptr.
+    void setLiveLeds(const LiveLeds* leds);
     // The area always covers at least this size (unzoomed pixels), so it fills
     // its viewport at any zoom.
     void setMinimumSize(int width, int height);
@@ -112,6 +115,7 @@ private:
     void paintModules(juce::Graphics& g);
     void paintOverlay(juce::Graphics& g);
     void paintCables(juce::Graphics& g);
+    void paintLiveLeds(juce::Graphics& g);
     void paintCable(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to, juce::Colour c, bool flowing,
                     std::optional<g2::CableBend> bend = std::nullopt);
     void paintHighlight(juce::Graphics& g, const g2::Cable& cable);
@@ -171,6 +175,8 @@ private:
     // The cable clicked on its cord: drawn on top, the others dimmed, its two
     // ends ringed and labelled.
     std::optional<g2::Cable> highlighted_;
+    const LiveLeds* liveLeds_ = nullptr;
+    std::uint32_t ledGeneration_ = 0;
     // DrumSynth preset selectors' state (last preset), per module, as the original keeps it.
     std::map<std::uint8_t, g2::special::DrumPresetSelector> drumSelectors_;
     std::optional<juce::Point<int>> dropCell_; // browser drag-over preview

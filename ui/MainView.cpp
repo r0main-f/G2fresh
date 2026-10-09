@@ -204,6 +204,8 @@ void MainView::setSynth(SynthSync* synth)
     if (synth_ != nullptr)
         synth_->addChangeListener(this);
     synthStatus_.setVisible(synth_ != nullptr);
+    va_.setLiveLeds(synth_);
+    fx_.setLiveLeds(synth_);
     updateSynthStatus();
     menuItemsChanged();
     resized();
