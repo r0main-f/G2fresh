@@ -12,6 +12,8 @@ add_executable(g2tests
   test_edit.cpp
   test_file.cpp
   test_patch.cpp
+  test_mutate.cpp
+  test_patch_load.cpp
   test_uprate.cpp
   test_param_text.cpp
   test_param_text_golden.cpp
@@ -30,6 +32,10 @@ catch_discover_tests(g2tests)
 # data/*.json, and the reference decoder round-trips the corpus.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
+  add_test(NAME mutate_param_classes_are_current
+    COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/mutate/gen_param_classes.py --check)
+  add_test(NAME patch_load_table_is_current
+    COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/patchload/gen_table.py --check)
   add_test(NAME module_db_generated_is_current
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/moduledb/gen_cpp.py --check)
   file(GLOB G2_CORPUS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/corpus/pch2csd/*.pch2)

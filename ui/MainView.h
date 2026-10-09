@@ -12,6 +12,8 @@
 #include "Theme.h"
 #include "ZoomHolder.h"
 
+#include "g2/mutate.hpp"
+
 #include <juce_gui_extra/juce_gui_extra.h>
 
 #include <functional>
@@ -77,6 +79,11 @@ private:
     void setLook(Look look);
     void setAnimation(bool on);
     AreaView* areaWithSelection();
+    AreaView& activeArea() { return activeArea_ ? *activeArea_ : va_; }
+    void copySelection(bool cut);
+    void pasteClipboard();
+    // Randomize (or mutate) the current variation, or only the selection.
+    void randomize(bool mutateOnly);
 
     PatchDocument& doc_;
     const bool standalone_;
@@ -89,7 +96,7 @@ private:
     juce::OwnedArray<juce::TextButton> variations_;
     juce::OwnedArray<juce::TextButton> slots_; // performance slots A-D
     juce::TextButton zoomOut_{"-"}, zoomReset_{"100%"}, zoomIn_{"+"};
-    juce::Label status_;
+    juce::Label status_, load_;
     PatchSettingsBar settings_{doc_};
     ModuleBrowser browser_;
     AreaView va_, fx_;
@@ -97,6 +104,8 @@ private:
     juce::Viewport vaPort_, fxPort_;
     AreaPane vaPane_{vaPort_, juce::Colour(0xff4a90d9)}, fxPane_{fxPort_, juce::Colour(0xffb36ad6)};
     float zoom_ = 1.0f;
+    AreaView* activeArea_ = nullptr; // last clicked area: target of Edit commands
+    g2::mutate::Random random_{static_cast<std::uint32_t>(juce::Time::currentTimeMillis())};
     juce::StretchableLayoutManager layout_;
     juce::StretchableLayoutResizerBar divider_{&layout_, 1, false};
     std::unique_ptr<juce::FileChooser> chooser_;

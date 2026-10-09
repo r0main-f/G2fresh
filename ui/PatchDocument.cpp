@@ -163,6 +163,35 @@ void PatchDocument::newPatch()
     sendChangeMessage();
 }
 
+void PatchDocument::newPerformance()
+{
+    resetHistory();
+    g2::Performance perf;
+    for (std::size_t i = 0; i < perf.slots.size(); ++i) {
+        perf.slots[i] = g2::Patch::makeDefault();
+        auto& slot = perf.header.slots[i];
+        slot.patchName = "New patch";
+        slot.enabled = 1;
+        slot.keyboard = i == 0 ? 1 : 0;
+        slot.midiChannel = static_cast<std::uint8_t>(i);
+    }
+    perf_ = std::move(perf);
+    slot_ = 0;
+    variation_ = 0;
+    file_ = juce::File();
+    dirty_ = false;
+    sendChangeMessage();
+}
+
+void PatchDocument::editPerformance(const std::function<void(g2::file::PerfHeader&)>& edit)
+{
+    if (!perf_)
+        return;
+    edit(perf_->header);
+    dirty_ = true;
+    sendChangeMessage();
+}
+
 void PatchDocument::loadBytes(const std::vector<std::uint8_t>& bytes, bool ignoreChecksum)
 {
     auto loaded = g2::load(bytes, {ignoreChecksum});

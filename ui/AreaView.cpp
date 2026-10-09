@@ -709,7 +709,7 @@ void AreaView::showModuleMenu(std::uint8_t module)
     const auto* m = doc_.patch().area(location_).find(module);
     if (!m)
         return;
-    enum { kRename = 1, kDuplicate, kCopy, kCut, kDelete, kColourBase = 100 };
+    enum { kRename = 1, kDuplicate, kCopy, kCut, kDelete, kLock, kColourBase = 100 };
     const bool many = selection_.size() > 1;
     juce::PopupMenu colours;
     for (int c : ModulePainter::moduleColourMenuOrder()) {
@@ -722,6 +722,7 @@ void AreaView::showModuleMenu(std::uint8_t module)
     juce::PopupMenu menu;
     menu.addItem(kRename, "Rename...", !many);
     menu.addSubMenu(many ? "Colour (selection)" : "Colour", colours);
+    menu.addItem(kLock, "Lock (keep when randomizing)", true, m->locked);
     menu.addSeparator();
     menu.addItem(kCopy, many ? "Copy Modules" : "Copy");
     menu.addItem(kCut, many ? "Cut Modules" : "Cut");
@@ -739,6 +740,15 @@ void AreaView::showModuleMenu(std::uint8_t module)
             self.doc_.perform("Change module colour", [&](g2::Patch& p) {
                 for (auto index : targets)
                     g2::edit::setModuleColor(p, loc, index, colour);
+            });
+        } else if (result == kLock) {
+            const auto targets = self.selection_.empty() ? std::vector<std::uint8_t>{module} : self.selection_;
+            const auto* first = self.doc_.patch().area(loc).find(module);
+            const bool lock = first && !first->locked;
+            self.doc_.perform(lock ? "Lock modules" : "Unlock modules", [&](g2::Patch& p) {
+                for (auto index : targets)
+                    if (auto* mod = p.area(loc).find(index))
+                        mod->locked = lock;
             });
         } else if (result == kRename) {
             self.rename(module);

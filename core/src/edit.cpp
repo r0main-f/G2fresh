@@ -1,5 +1,6 @@
 #include "g2/edit.hpp"
 
+#include "g2/patch_load.hpp"
 #include "g2/uprate.hpp"
 
 #include <algorithm>
@@ -50,6 +51,8 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
         throw std::invalid_argument("not a module type");
     if (col > 127 || row > 127)
         throw std::invalid_argument("position out of range");
+    if (!patchload::canAddModule(patch, loc, type))
+        throw std::invalid_argument("the patch is too big: the synth has no room for another module here");
 
     u8 index = 1;
     while (area.find(index))
@@ -195,6 +198,8 @@ Cable connect(Patch& patch, Location loc, Endpoint from, Endpoint to)
     connector(dst, to);
     if (from.module == to.module && from.conn == to.conn && !from.isOutput)
         throw std::invalid_argument("cannot link an input to itself");
+    if (!patchload::canAddCable(patch))
+        throw std::invalid_argument("the patch is too big: the synth has no room for another cable");
     Cable c{cableColor(patch, loc, from), from.module, from.conn, from.isOutput, to.module, to.conn};
     for (const auto& existing : area.cables)
         if (existing.fromModule == c.fromModule && existing.fromConn == c.fromConn
@@ -651,6 +656,9 @@ Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& i
 std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 row)
 {
     Area& area = areaFor(patch, loc);
+    if (!patchload::canPaste(patch, patchload::dynamicSize(clip.modules, clip.cables.size()))
+        || area.modules.size() + clip.modules.size() > 127)
+        throw std::invalid_argument("the patch is too big: the synth has no room for these modules");
     std::vector<std::pair<u8, u8>> remap; // old index -> new index
     std::vector<u8> added;
     for (const auto& src : clip.modules) {

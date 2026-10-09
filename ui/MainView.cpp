@@ -1,16 +1,23 @@
 #include "MainView.h"
 
+#include "Dialogs.h"
+
+#include "g2/patch_load.hpp"
+
 namespace g2ui {
 namespace {
 
 const juce::String kOpenPattern = "*.pch2;*.prf2";
 
 enum MenuId {
-    kNew = 1, kOpen, kSave, kSaveAs, kClearRecent,
-    kUndo, kRedo, kDelete, kRename,
+    kNew = 1, kOpen, kSave, kSaveAs, kClearRecent, kNewPerformance, kPerformanceSettings,
+    kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
+    kRandomize, kMutate,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings,
-    kRecentBase = 100, // + index into the recent files list
+    kRecentBase = 100,       // + index into the recent files list
+    kCopyVariationBase = 200, // + target variation (8 = init)
+    kCablesBase = 300,        // + cable colour
 };
 
 juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
@@ -106,6 +113,12 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     status_.setFont(theme::font());
     status_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
     addAndMakeVisible(status_);
+    load_.setFont(theme::font());
+    load_.setJustificationType(juce::Justification::centredRight);
+    load_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
+    load_.setTooltip("Patch load estimated from the original editor's module tables (cycles and the fullest "
+                     "memory, per area; the voice area for one voice). The synth reports the real figures.");
+    addAndMakeVisible(load_);
 
     settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
     settings_.onLayoutChanged = [this] { resized(); };
@@ -116,6 +129,12 @@ MainView::MainView(PatchDocument& doc, bool standalone)
 
     for (auto* area : {&va_, &fx_}) {
         area->onStatus = [this](const juce::String& s) { setStatus(s); };
+        area->onActivated = [this](AreaView* a) {
+            activeArea_ = a;
+            // One selection at a time: clicking an area clears the other's.
+            (a == &va_ ? fx_ : va_).clearSelection();
+            menuItemsChanged();
+        };
         area->onZoom = [this, area](float factor, juce::Point<int> where) { setZoom(zoom_ * factor, area, where); };
     }
     vaPort_.setViewedComponent(&vaZoom_, false);
@@ -172,6 +191,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
     juce::PopupMenu m;
     if (index == 0) {
         m.addItem(item(kNew, "New Patch", kCmd + "N"));
+        m.addItem(item(kNewPerformance, "New Performance"));
         m.addItem(item(kOpen, "Open...", kCmd + "O"));
         juce::PopupMenu recent;
         recent_.createPopupMenuItems(recent, kRecentBase, false, true);
@@ -183,19 +203,43 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
         m.addSeparator();
         m.addItem(item(kSave, "Save", kCmd + "S"));
         m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S"));
+        m.addSeparator();
+        m.addItem(item(kPerformanceSettings, "Performance Settings...", {}, doc_.isPerformance()));
     } else if (index == 1) {
         const auto& undo = doc_;
         m.addItem(item(kUndo, "Undo", kCmd + "Z", undo.canUndo()));
         m.addItem(item(kRedo, "Redo", kShift + kCmd + "Z", undo.canRedo()));
         m.addSeparator();
-        m.addItem(item(kDelete, "Delete Module", "Delete", va_.hasSelection() || fx_.hasSelection()));
+        const bool selected = va_.hasSelection() || fx_.hasSelection();
+        m.addItem(item(kCut, "Cut", kCmd + "X", selected));
+        m.addItem(item(kCopy, "Copy", kCmd + "C", selected));
+        m.addItem(item(kPaste, "Paste", kCmd + "V", !AreaView::clipboard().empty()));
+        m.addItem(item(kDuplicate, "Duplicate", kCmd + "D", selected));
+        m.addItem(item(kDelete, "Delete", "Delete", selected));
+        m.addItem(item(kSelectAll, "Select All", kCmd + "A"));
+        m.addSeparator();
+        juce::PopupMenu variations;
+        for (int v = 0; v < g2::kFileVariations; ++v)
+            variations.addItem(item(kCopyVariationBase + v, v < g2::kUserVariations ? "Variation " + juce::String(v + 1) : juce::String("Init"),
+                                    {}, v != doc_.variation()));
+        m.addSubMenu("Copy Variation " + juce::String(doc_.variation() + 1) + " To", variations);
+        const juce::String target = selected ? "Selected Modules" : "Variation " + juce::String(doc_.variation() + 1);
+        m.addItem(item(kRandomize, "Randomize " + target));
+        m.addItem(item(kMutate, "Mutate " + target));
+        m.addSeparator();
         m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
+        m.addItem(item(kPatchNotes, "Patch Notes..."));
     } else if (index == 2) {
         m.addItem(item(kZoomIn, "Zoom In", kCmd + "+", zoom_ < kMaxZoom));
         m.addItem(item(kZoomOut, "Zoom Out", kCmd + "-", zoom_ > kMinZoom));
         m.addItem(item(kZoomReset, "Actual Size", kCmd + "0"));
         m.addSeparator();
         m.addItem(item(kShowSettings, "Show Patch Settings", {}, true, !settings_.isCollapsed()));
+        juce::PopupMenu cables;
+        static const char* const names[7] = {"Red", "Blue", "Yellow", "Orange", "Green", "Purple", "White"};
+        for (int c = 0; c < 7; ++c)
+            cables.addItem(item(kCablesBase + c, names[c], {}, true, doc_.patch().header.cablesVisible[static_cast<std::size_t>(c)]));
+        m.addSubMenu("Show Cables", cables);
         m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic));
         m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation()));
     } else if (index == 3) {
@@ -206,6 +250,21 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
 
 void MainView::menuItemSelected(int id, int)
 {
+    if (id >= kCablesBase && id < kCablesBase + 7) {
+        const auto colour = static_cast<g2::CableColor>(id - kCablesBase);
+        const bool visible = !doc_.patch().header.cablesVisible[static_cast<std::size_t>(colour)];
+        doc_.perform(visible ? "Show cables" : "Hide cables",
+                     [&](g2::Patch& p) { g2::edit::setCablesVisible(p, colour, visible); });
+        return;
+    }
+    if (id >= kCopyVariationBase && id < kCopyVariationBase + g2::kFileVariations) {
+        const auto from = static_cast<std::uint8_t>(doc_.variation());
+        const auto to = static_cast<std::uint8_t>(id - kCopyVariationBase);
+        doc_.perform("Copy variation", [&](g2::Patch& p) { g2::edit::copyVariation(p, from, to); });
+        setStatus("Copied variation " + juce::String(from + 1) + " to "
+                  + (to < g2::kUserVariations ? "variation " + juce::String(to + 1) : juce::String("the init variation")));
+        return;
+    }
     if (id >= kRecentBase) {
         const auto f = recent_.getFile(id - kRecentBase);
         confirmDiscard([this, f] { openFile(f); });
@@ -213,6 +272,19 @@ void MainView::menuItemSelected(int id, int)
     }
     switch (id) {
     case kNew: newPatch(); break;
+    case kNewPerformance: confirmDiscard([this] { doc_.newPerformance(); }); break;
+    case kPerformanceSettings: showPerformanceSettings(doc_, this); break;
+    case kCut: copySelection(true); break;
+    case kCopy: copySelection(false); break;
+    case kPaste: pasteClipboard(); break;
+    case kDuplicate:
+        if (auto* a = areaWithSelection())
+            a->duplicateSelection();
+        break;
+    case kSelectAll: activeArea().selectAll(); break;
+    case kPatchNotes: showPatchNotes(doc_, this); break;
+    case kRandomize: randomize(false); break;
+    case kMutate: randomize(true); break;
     case kOpen: open(); break;
     case kSave: save(false); break;
     case kSaveAs: save(true); break;
@@ -243,7 +315,47 @@ void MainView::menuItemSelected(int id, int)
 
 AreaView* MainView::areaWithSelection()
 {
+    if (activeArea_ && activeArea_->hasSelection())
+        return activeArea_;
     return va_.hasSelection() ? &va_ : fx_.hasSelection() ? &fx_ : nullptr;
+}
+
+void MainView::copySelection(bool cut)
+{
+    if (auto* a = areaWithSelection()) {
+        AreaView::clipboard() = a->copySelection();
+        if (cut)
+            a->deleteSelected();
+        setStatus(juce::String(static_cast<int>(AreaView::clipboard().modules.size())) + " module(s) "
+                  + (cut ? "cut" : "copied"));
+        menuItemsChanged();
+    }
+}
+
+void MainView::randomize(bool mutateOnly)
+{
+    g2::mutate::Scope scope;
+    scope.variation = static_cast<std::uint8_t>(doc_.variation());
+    if (auto* a = areaWithSelection())
+        for (auto index : a->selection())
+            scope.modules.emplace_back(a->location(), index);
+    const g2::mutate::Settings settings; // the original dialog's defaults
+    auto& rng = random_;
+    doc_.perform(mutateOnly ? "Mutate" : "Randomize", [&](g2::Patch& p) {
+        if (mutateOnly)
+            g2::mutate::mutate(p, scope, settings, rng);
+        else
+            g2::mutate::randomize(p, scope, settings, rng);
+    });
+    setStatus(juce::String(mutateOnly ? "Mutated " : "Randomized ")
+              + (scope.modules.empty() ? "variation " + juce::String(doc_.variation() + 1)
+                                       : juce::String(static_cast<int>(scope.modules.size())) + " module(s)")
+              + " (locked modules and switches are kept)");
+}
+
+void MainView::pasteClipboard()
+{
+    activeArea().paste(AreaView::clipboard());
 }
 
 void MainView::setLook(Look look)
@@ -343,6 +455,15 @@ void MainView::updateToolbar()
     name_.setTooltip(perf ? "Slot patch name: double-click to rename (up to 16 characters)"
                           : "Patch name: double-click to rename (up to 16 characters). Save uses it as the file name.");
     edited_.setText(doc_.isDirty() ? "(edited)" : "", juce::dontSendNotification);
+    const auto load = g2::patchload::compute(doc_.patch());
+    auto pct = [](float f) { return juce::String(juce::roundToInt(f * 100.0f)) + "%"; };
+    load_.setText("Load (estimate)   VA " + pct(load.vaCycles) + " cycles, " + pct(load.vaMemory) + " memory   FX "
+                      + pct(load.fxCycles) + " cycles, " + pct(load.fxMemory) + " memory  ",
+                  juce::dontSendNotification);
+    const float worst = std::max({load.vaCycles, load.vaMemory, load.fxCycles, load.fxMemory});
+    load_.setColour(juce::Label::textColourId, worst > 1.0f    ? juce::Colour(0xffff5a5a)
+                                               : worst > 0.85f ? juce::Colour(0xffffb347)
+                                                               : juce::Colour(0xffa8adb6));
     const int voices = doc_.patch().header.voiceCount;
     vaPane_.setText("VOICE AREA",
                     "Polyphonic: the synth runs one copy per voice (" + juce::String(voices)
@@ -424,7 +545,11 @@ void MainView::resized()
 
     settings_.setBounds(r.removeFromTop(settings_.preferredHeight(r.getWidth())));
     browser_.setBounds(r.removeFromTop(62));
-    status_.setBounds(r.removeFromBottom(24));
+    {
+        auto bottom = r.removeFromBottom(24);
+        load_.setBounds(bottom.removeFromRight(std::min(560, bottom.getWidth() / 2)));
+        status_.setBounds(bottom);
+    }
     juce::Component* parts[] = {&vaPane_, &divider_, &fxPane_};
     layout_.layOutComponents(parts, 3, r.getX(), r.getY(), r.getWidth(), r.getHeight(), true, true);
     for (auto [port, area] : {std::pair{&vaPort_, &va_}, std::pair{&fxPort_, &fx_}})
@@ -447,6 +572,19 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return open(), true;
     if (key == juce::KeyPress('n', cmd, 0))
         return newPatch(), true;
+    if (key == juce::KeyPress('c', cmd, 0))
+        return copySelection(false), true;
+    if (key == juce::KeyPress('x', cmd, 0))
+        return copySelection(true), true;
+    if (key == juce::KeyPress('v', cmd, 0))
+        return pasteClipboard(), true;
+    if (key == juce::KeyPress('d', cmd, 0)) {
+        if (auto* a = areaWithSelection())
+            a->duplicateSelection();
+        return true;
+    }
+    if (key == juce::KeyPress('a', cmd, 0))
+        return activeArea().selectAll(), true;
     if (key == juce::KeyPress('=', cmd, 0) || key == juce::KeyPress('+', cmd, 0)
         || key == juce::KeyPress('=', cmd | juce::ModifierKeys::shiftModifier, 0))
         return setZoom(zoom_ * 1.25f), true;

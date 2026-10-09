@@ -47,6 +47,11 @@ public:
 
     // File handling. load* replace the document and clear the undo history.
     void newPatch();
+    // A new performance: four empty patches in slots A-D.
+    void newPerformance();
+    // Changes the performance's header (slot settings, master clock, ...).
+    // Not part of the undo history.
+    void editPerformance(const std::function<void(g2::file::PerfHeader&)>& edit);
     // Loads a patch or performance, whichever the bytes contain. Throws
     // g2::ChecksumError (unless ignoreChecksum) or g2::FormatError.
     void loadBytes(const std::vector<std::uint8_t>& bytes, bool ignoreChecksum = false);
