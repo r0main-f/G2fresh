@@ -114,6 +114,7 @@ private:
     std::unique_ptr<class BankBrowser> bankBrowser_;
     juce::Label synthStatus_;
     void updateSynthStatus();
+    void updateLoad();
     juce::PopupMenu synthMenu();
     void showMutator();
     juce::Label status_, load_;

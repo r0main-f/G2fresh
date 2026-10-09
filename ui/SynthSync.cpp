@@ -513,6 +513,30 @@ std::optional<int> SynthSync::ledValue(g2::Location location, std::uint8_t modul
     return std::nullopt;
 }
 
+std::optional<g2::patchload::Load> SynthSync::reportedLoad() const
+{
+    if (!ready() || !bound())
+        return std::nullopt;
+    const int slot = synthSlotFor(doc_.slot());
+    if (slot < 0)
+        return std::nullopt;
+    const auto& load = link_->state().slots[static_cast<std::size_t>(slot)].load;
+    if (!load[0] || !load[1])
+        return std::nullopt;
+    std::optional<g2::patchload::Report> areas[2];
+    for (int i = 0; i < 2; ++i) {
+        std::vector<std::uint8_t> payload{load[static_cast<std::size_t>(i)]->isVA};
+        payload.insert(payload.end(), load[static_cast<std::size_t>(i)]->counters.begin(),
+                       load[static_cast<std::size_t>(i)]->counters.end());
+        areas[i] = g2::patchload::parseReport(payload);
+    }
+    if (!areas[0] || !areas[1])
+        return std::nullopt;
+    const auto& va = areas[0]->area == g2::Location::Va ? areas[0] : areas[1];
+    const auto& fx = areas[0]->area == g2::Location::Va ? areas[1] : areas[0];
+    return g2::patchload::fromReports(va->spec, fx->spec);
+}
+
 void SynthSync::animateVirtualLeds()
 {
     const double now = juce::Time::getMillisecondCounterHiRes();

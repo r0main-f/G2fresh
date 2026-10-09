@@ -3,6 +3,8 @@
 #include "g2/proto/bubble.hpp"
 #include "g2/proto/sections.hpp"
 
+#include "g2/patch_load.hpp"
+
 #include <algorithm>
 #include <type_traits>
 
@@ -283,8 +285,15 @@ void Emulator::handle(u8 slot, bool sessionOk, const Molecule& molecule, std::ve
                 case id::CustomDataRequest: slotSection(file::kCustomData, m.location); break;
                 case id::CableListRequest: slotSection(file::kCableList, m.location); break;
                 case id::PatchLoadRequest:
-                    if (target)
-                        reply.push_back(PatchLoad{static_cast<u8>(m.location ? 1 : 0), {}});
+                    if (target) {
+                        // The area's resources as the editor computes them (a real synth
+                        // reports its own figures).
+                        const auto loc = m.location ? Location::Va : Location::Fx;
+                        const auto bytes = patchload::encodeReport({loc, patchload::areaTotal(target->patch.area(loc))});
+                        PatchLoad load{static_cast<u8>(m.location ? 1 : 0), {}};
+                        std::copy(bytes.begin() + 1, bytes.end(), load.counters.begin());
+                        reply.push_back(load);
+                    }
                     break;
                 default: break;
                 }

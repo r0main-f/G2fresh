@@ -2,6 +2,8 @@
 // See re/notes/patch-load.md for addresses and the reasoning.
 #include "g2/patch_load.hpp"
 
+#include <algorithm>
+
 namespace g2::patchload {
 
 ResourceSpec& ResourceSpec::operator+=(const ResourceSpec& o)
@@ -285,6 +287,31 @@ std::optional<Report> parseReport(std::span<const std::uint8_t> p)
     s.qMem = (hi << 16) | u16();
     s.rMem = u14();
     return r;
+}
+
+std::vector<std::uint8_t> encodeReport(const Report& r)
+{
+    std::vector<std::uint8_t> p;
+    auto u14 = [&](std::uint32_t v) {
+        v = std::min<std::uint32_t>(v, 0x3FFF);
+        p.push_back(static_cast<std::uint8_t>(v >> 7));
+        p.push_back(static_cast<std::uint8_t>(v & 0x7F));
+    };
+    const ResourceSpec& s = r.spec;
+    p.push_back(r.area == Location::Va ? 1 : 0);
+    u14(s.cyclesA);
+    u14(s.cyclesB);
+    p.push_back(s.zpMem);
+    u14(s.unused5);
+    for (const auto v : {s.xMemA, s.yMemA, s.pMemA, s.xMemB, s.yMemB, s.pMemB})
+        u14(v);
+    u14(s.dynRam);
+    for (const auto v : {s.qMem >> 16, s.qMem & 0xFFFF}) {
+        p.push_back(static_cast<std::uint8_t>(v >> 8));
+        p.push_back(static_cast<std::uint8_t>(v & 0xFF));
+    }
+    u14(s.rMem);
+    return p;
 }
 
 } // namespace g2::patchload

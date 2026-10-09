@@ -235,3 +235,23 @@ TEST_CASE("synth reports (molecule 72) decode to the same resource figures")
     CHECK(l.va.cycles == static_cast<float>((300 + 129 * 0.25) * 100.0 / 1371.0));
     CHECK(l.vaMemory == l.va.criticalPercent / 100.0f);
 }
+
+TEST_CASE("synth load reports encode and decode back")
+{
+    patchload::Report r;
+    r.area = Location::Va;
+    r.spec.cyclesA = 1234;
+    r.spec.cyclesB = 77;
+    r.spec.zpMem = 99;
+    r.spec.xMemA = 4000;
+    r.spec.pMemB = 12;
+    r.spec.dynRam = 9000;
+    r.spec.qMem = 200000;
+    r.spec.rMem = 33;
+    const auto bytes = patchload::encodeReport(r);
+    REQUIRE(bytes.size() == 28);
+    const auto back = patchload::parseReport(bytes);
+    REQUIRE(back);
+    CHECK(back->area == Location::Va);
+    CHECK(back->spec == r.spec);
+}

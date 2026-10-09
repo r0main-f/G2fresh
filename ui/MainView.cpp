@@ -212,6 +212,22 @@ void MainView::setSynth(SynthSync* synth)
     resized();
 }
 
+void MainView::updateLoad()
+{
+    // What the synth reports while the patch is live on it, else the estimate.
+    const auto reported = synth_ != nullptr ? synth_->reportedLoad() : std::nullopt;
+    const auto load = reported ? *reported : g2::patchload::compute(doc_.patch());
+    auto pct = [](float f) { return juce::String(juce::roundToInt(f * 100.0f)) + "%"; };
+    load_.setText(juce::String(reported ? "Load (synth)" : "Load (estimate)") + "   VA " + pct(load.vaCycles) + " cycles, "
+                      + pct(load.vaMemory) + " memory   FX " + pct(load.fxCycles) + " cycles, " + pct(load.fxMemory)
+                      + " memory  ",
+                  juce::dontSendNotification);
+    const float worst = std::max({load.vaCycles, load.vaMemory, load.fxCycles, load.fxMemory});
+    load_.setColour(juce::Label::textColourId, worst > 1.0f    ? juce::Colour(0xffff5a5a)
+                                               : worst > 0.85f ? juce::Colour(0xffffb347)
+                                                               : juce::Colour(0xffa8adb6));
+}
+
 void MainView::updateSynthStatus()
 {
     if (synth_ == nullptr)
@@ -591,6 +607,7 @@ void MainView::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
     updateSynthStatus();
     if (source == synth_) {
+        updateLoad();
         menuItemsChanged(); // slot names, connection state
         return;
     }
@@ -625,15 +642,7 @@ void MainView::updateToolbar()
     name_.setTooltip(perf ? "Slot patch name: double-click to rename (up to 16 characters)"
                           : "Patch name: double-click to rename (up to 16 characters). Save uses it as the file name.");
     edited_.setText(doc_.isDirty() ? "(edited)" : "", juce::dontSendNotification);
-    const auto load = g2::patchload::compute(doc_.patch());
-    auto pct = [](float f) { return juce::String(juce::roundToInt(f * 100.0f)) + "%"; };
-    load_.setText("Load (estimate)   VA " + pct(load.vaCycles) + " cycles, " + pct(load.vaMemory) + " memory   FX "
-                      + pct(load.fxCycles) + " cycles, " + pct(load.fxMemory) + " memory  ",
-                  juce::dontSendNotification);
-    const float worst = std::max({load.vaCycles, load.vaMemory, load.fxCycles, load.fxMemory});
-    load_.setColour(juce::Label::textColourId, worst > 1.0f    ? juce::Colour(0xffff5a5a)
-                                               : worst > 0.85f ? juce::Colour(0xffffb347)
-                                                               : juce::Colour(0xffa8adb6));
+    updateLoad();
     const int voices = doc_.patch().header.voiceCount;
     vaPane_.setText("VOICE AREA",
                     "Polyphonic: the synth runs one copy per voice (" + juce::String(voices)

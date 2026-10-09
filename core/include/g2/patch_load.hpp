@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <vector>
 
 namespace g2::patchload {
 
@@ -121,5 +122,9 @@ struct Report {
     ResourceSpec spec;
 };
 std::optional<Report> parseReport(std::span<const std::uint8_t> payload);
+// The reverse, for the virtual G2: fields wider than their encoding are
+// clipped (u14 to 0x3FFF; whether the synth scales dynamic RAM or Q memory
+// to fit is not known).
+std::vector<std::uint8_t> encodeReport(const Report& report);
 
 } // namespace g2::patchload

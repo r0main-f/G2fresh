@@ -16,6 +16,7 @@
 #include "LiveLeds.h"
 #include "PatchDocument.h"
 
+#include "g2/patch_load.hpp"
 #include "g2/proto/link.hpp"
 
 #include <juce_events/juce_events.h>
@@ -76,6 +77,9 @@ public:
     // LiveLeds: the LEDs and meters of the slot shown, while bound.
     std::optional<int> ledValue(g2::Location location, std::uint8_t module, int group) const override;
     std::uint32_t ledGeneration() const override { return ledGeneration_; }
+
+    // The patch load the synth reports for the slot shown, while bound.
+    std::optional<g2::patchload::Load> reportedLoad() const;
 
 private:
     enum class Binding { None, Patch, Performance };
