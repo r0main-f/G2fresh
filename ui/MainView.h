@@ -4,6 +4,7 @@
 #include "AreaView.h"
 #include "ModuleBrowser.h"
 #include "PatchDocument.h"
+#include "PatchSettingsBar.h"
 #include "ZoomHolder.h"
 
 namespace g2ui {
@@ -61,6 +62,7 @@ private:
     juce::ToggleButton classic_{"Classic look"};
     juce::ToggleButton animate_{"Animate cables"};
     juce::Label title_, status_;
+    PatchSettingsBar settings_{doc_};
     ModuleBrowser browser_;
     AreaView va_, fx_;
     ZoomHolder vaZoom_{va_}, fxZoom_{fx_};

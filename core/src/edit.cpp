@@ -1,6 +1,7 @@
 #include "g2/edit.hpp"
 
 #include <algorithm>
+#include <array>
 #include <stdexcept>
 
 namespace g2::edit {
@@ -236,6 +237,153 @@ std::string paramText(const Patch& patch, Location loc, u8 module, u8 param, u8 
     if (!m || !m->def() || variation >= m->params.size())
         return {};
     return db::formatParam(*m->def(), param, m->params[variation], m->modes);
+}
+
+// ---- Patch settings -----------------------------------------------------------
+
+namespace {
+
+constexpr std::array<std::pair<u8, u8>, 7> kSettingTypes{{
+    {1, 6}, {2, 95}, {3, 135}, {4, 137}, {5, 138}, {6, 136}, {7, 153},
+}};
+
+SettingsModule& settingsModule(Patch& patch, Setting s)
+{
+    const auto index = static_cast<u8>(s);
+    for (auto& m : patch.settings)
+        if (m.index == index)
+            return m;
+    throw std::invalid_argument("the patch has no such settings module");
+}
+
+// Morph group labels live in the settings custom data, module 1, as
+// [kind 1, len 8, param 8+group, 7 NUL-padded characters] records.
+std::vector<u8>* morphLabels(Patch& patch)
+{
+    for (auto& m : patch.settingsCustomData)
+        if (m.index == 1)
+            return &m.bytes;
+    return nullptr;
+}
+
+} // namespace
+
+const db::ModuleDef* settingDef(Setting s)
+{
+    for (const auto& [index, type] : kSettingTypes)
+        if (index == static_cast<u8>(s))
+            return db::find(type);
+    return nullptr;
+}
+
+u8 settingValue(const Patch& patch, Setting s, u8 param, u8 variation)
+{
+    for (const auto& m : patch.settings)
+        if (m.index == static_cast<u8>(s) && variation < m.params.size() && param < m.params[variation].size())
+            return m.params[variation][param];
+    return 0;
+}
+
+void setSetting(Patch& patch, Setting s, u8 param, u8 variation, u8 value)
+{
+    auto& m = settingsModule(patch, s);
+    const auto* def = settingDef(s);
+    if (!def || param >= def->params.size() || variation >= m.params.size() || param >= m.params[variation].size())
+        throw std::invalid_argument("no such setting");
+    const auto& p = def->params[param];
+    m.params[variation][param] = std::clamp(value, p.min, p.max);
+}
+
+std::string settingText(const Patch& patch, Setting s, u8 param, u8 variation)
+{
+    const auto* def = settingDef(s);
+    if (!def)
+        return {};
+    for (const auto& m : patch.settings)
+        if (m.index == static_cast<u8>(s) && variation < m.params.size())
+            return db::formatParam(*def, param, m.params[variation], {});
+    return {};
+}
+
+void setVoices(Patch& patch, VoiceMode mode, u8 polyVoices)
+{
+    // As the original editor's voice menu: choosing a count makes the patch
+    // poly; Mono and Legato keep the stored count.
+    patch.header.monoMode = static_cast<u8>(mode);
+    if (mode == VoiceMode::Poly) {
+        if (polyVoices < 1 || polyVoices > 32)
+            throw std::invalid_argument("a patch has 1 to 32 voices");
+        patch.header.voiceCount = polyVoices;
+    }
+}
+
+std::string voicesText(const Patch& patch)
+{
+    switch (patch.header.monoMode) {
+    case 1: return "Mono";
+    case 2: return "Legato";
+    default: return std::to_string(patch.header.voiceCount);
+    }
+}
+
+void setCategory(Patch& patch, u8 category)
+{
+    if (category > 15)
+        throw std::invalid_argument("no such category");
+    patch.header.category = category;
+}
+
+const char* categoryName(u8 category)
+{
+    static const char* const kNames[16] = {"No Cat", "Acoustic", "Sequencer", "Bass", "Classic", "Drum",
+                                           "Fantasy", "FX", "Lead", "Organ", "Pad", "Piano", "Synth",
+                                           "Audio In", "User 1", "User 2"};
+    return category < 16 ? kNames[category] : "";
+}
+
+std::string morphLabel(const Patch& patch, int group)
+{
+    for (const auto& m : patch.settingsCustomData) {
+        if (m.index != 1)
+            continue;
+        for (std::size_t i = 0; i + 2 <= m.bytes.size(); i += 2u + m.bytes[i + 1]) {
+            const u8 kind = m.bytes[i], len = m.bytes[i + 1];
+            if (i + 2 + len > m.bytes.size())
+                break;
+            if (kind == 1 && len >= 1 && m.bytes[i + 2] == 8 + group) {
+                std::string s(m.bytes.begin() + static_cast<std::ptrdiff_t>(i + 3),
+                              m.bytes.begin() + static_cast<std::ptrdiff_t>(i + 2 + len));
+                return s.substr(0, s.find('\0'));
+            }
+        }
+    }
+    const auto* def = settingDef(Setting::Morph);
+    return def && group >= 0 && group < 8 ? def->params[static_cast<std::size_t>(group)].name : std::string();
+}
+
+void setMorphLabel(Patch& patch, int group, const std::string& label)
+{
+    if (group < 0 || group > 7 || label.size() > 7 || label.find('\0') != std::string::npos)
+        throw std::invalid_argument("morph labels have at most 7 characters");
+    auto* bytes = morphLabels(patch);
+    if (!bytes) {
+        patch.settingsCustomData.push_back({1, {}});
+        bytes = &patch.settingsCustomData.back().bytes;
+    }
+    std::string padded = label;
+    padded.resize(7, '\0');
+    std::vector<u8> record{1, 8, static_cast<u8>(8 + group)};
+    record.insert(record.end(), padded.begin(), padded.end());
+    for (std::size_t i = 0; i + 2 <= bytes->size(); i += 2u + (*bytes)[i + 1]) {
+        if ((*bytes)[i] == 1 && (*bytes)[i + 1] >= 1 && i + 2 < bytes->size() && (*bytes)[i + 2] == 8 + group) {
+            const auto first = bytes->begin() + static_cast<std::ptrdiff_t>(i);
+            const auto last = first + 2 + (*bytes)[i + 1];
+            bytes->erase(first, last);
+            bytes->insert(bytes->begin() + static_cast<std::ptrdiff_t>(i), record.begin(), record.end());
+            return;
+        }
+    }
+    bytes->insert(bytes->end(), record.begin(), record.end());
 }
 
 } // namespace g2::edit

@@ -52,14 +52,14 @@ const ParamDef kParams6[] = {
     {"Ctrl.Pd", 0, 127, 0, false, 0, {255, 255}, nullptr},
     {"P.Stick", 0, 127, 0, false, 0, {255, 255}, nullptr},
     {"G.Wh 2", 0, 127, 0, false, 0, {255, 255}, nullptr},
-    {"Src Gr1", 0, 1, 1, false, 0, {255, 255}, nullptr},
-    {"Src Gr2", 0, 1, 1, false, 0, {255, 255}, nullptr},
-    {"Src Gr3", 0, 1, 1, false, 0, {255, 255}, nullptr},
-    {"Src Gr4", 0, 1, 1, false, 0, {255, 255}, nullptr},
-    {"Src Gr5", 0, 2, 1, false, 0, {255, 255}, nullptr},
-    {"Src Gr6", 0, 1, 1, false, 0, {255, 255}, nullptr},
-    {"Src Gr7", 0, 1, 1, false, 0, {255, 255}, nullptr},
-    {"Src Gr8", 0, 1, 1, false, 0, {255, 255}, nullptr},
+    {"Src Gr1", 0, 1, 1, false, 221, {255, 255}, nullptr},
+    {"Src Gr2", 0, 1, 1, false, 222, {255, 255}, nullptr},
+    {"Src Gr3", 0, 1, 1, false, 223, {255, 255}, nullptr},
+    {"Src Gr4", 0, 1, 1, false, 224, {255, 255}, nullptr},
+    {"Src Gr5", 0, 2, 1, false, 225, {255, 255}, nullptr},
+    {"Src Gr6", 0, 1, 1, false, 226, {255, 255}, nullptr},
+    {"Src Gr7", 0, 1, 1, false, 227, {255, 255}, nullptr},
+    {"Src Gr8", 0, 1, 1, false, 228, {255, 255}, nullptr},
 };
 const ConnectorDef kInputs7[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1174,8 +1174,8 @@ const ParamDef kParams94[] = {
     {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
 };
 const ParamDef kParams95[] = {
-    {"Level", 0, 127, 100, true, 0, {255, 255}, nullptr},
-    {"On/Off", 0, 1, 1, false, 0, {255, 255}, nullptr},
+    {"Level", 0, 127, 100, true, 118, {255, 255}, nullptr},
+    {"On/Off", 0, 1, 1, false, 7, {255, 255}, nullptr},
 };
 const ConnectorDef kInputs96[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1613,23 +1613,23 @@ const ModeDef kModes134[] = {
     {"SlopeMode", 0, 5, 0, 0, "HpLpSlopeMode"},
 };
 const ParamDef kParams135[] = {
-    {"Enable", 0, 2, 0, false, 0, {255, 255}, nullptr},
-    {"Rate", 0, 127, 28, false, 0, {255, 255}, nullptr},
+    {"Enable", 0, 2, 0, false, 116, {255, 255}, nullptr},
+    {"Rate", 0, 127, 28, false, 115, {255, 255}, nullptr},
 };
 const ParamDef kParams136[] = {
-    {"Run", 0, 1, 0, false, 0, {255, 255}, nullptr},
-    {"Rate", 0, 3, 3, false, 0, {255, 255}, nullptr},
-    {"Mode", 0, 3, 0, false, 0, {255, 255}, nullptr},
-    {"Range", 0, 3, 0, false, 0, {255, 255}, nullptr},
+    {"Run", 0, 1, 0, false, 3, {255, 255}, nullptr},
+    {"Rate", 0, 3, 3, false, 112, {255, 255}, nullptr},
+    {"Mode", 0, 3, 0, false, 113, {255, 255}, nullptr},
+    {"Range", 0, 3, 0, false, 111, {255, 255}, nullptr},
 };
 const ParamDef kParams137[] = {
-    {"Enable", 0, 1, 1, false, 0, {255, 255}, nullptr},
-    {"Range", 0, 23, 1, false, 0, {255, 255}, nullptr},
+    {"Enable", 0, 1, 1, false, 117, {255, 255}, nullptr},
+    {"Range", 0, 23, 1, false, 162, {255, 255}, nullptr},
 };
 const ParamDef kParams138[] = {
-    {"Enable", 0, 2, 0, false, 0, {255, 255}, nullptr},
-    {"Range", 0, 100, 50, false, 0, {255, 255}, nullptr},
-    {"Rate", 0, 127, 64, false, 0, {255, 255}, nullptr},
+    {"Enable", 0, 2, 0, false, 120, {255, 255}, nullptr},
+    {"Range", 0, 100, 50, false, 119, {255, 255}, nullptr},
+    {"Rate", 0, 127, 64, false, 171, {255, 255}, nullptr},
 };
 const ConnectorDef kInputs139[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1921,8 +1921,8 @@ const ParamDef kParams152[] = {
     {"Note D#", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
 };
 const ParamDef kParams153[] = {
-    {"OctShft", 0, 4, 2, false, 0, {255, 255}, nullptr},
-    {"Sustain", 0, 1, 1, false, 0, {255, 255}, nullptr},
+    {"OctShft", 0, 4, 2, false, 121, {255, 255}, nullptr},
+    {"Sustain", 0, 1, 1, false, 3, {255, 255}, nullptr},
 };
 const ConnectorDef kInputs154[] = {
     {"Ctrl", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},

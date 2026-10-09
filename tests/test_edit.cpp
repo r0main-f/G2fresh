@@ -111,3 +111,40 @@ TEST_CASE("moving a module onto others pushes them down its column")
     edit::resolveOverlaps(p, Location::Va);
     CHECK(osc->row == 5);            // already consistent: nothing moves
 }
+
+TEST_CASE("patch settings read and write like the original editor")
+{
+    Patch p = Patch::makeDefault();
+    using edit::Setting;
+    // Defaults and display text through the original display functions.
+    CHECK(edit::settingValue(p, Setting::Gain, 0, 0) == 100);
+    CHECK(edit::settingText(p, Setting::Gain, 0, 0) == paramtext::formatSingle(118, 100));
+    CHECK(edit::settingText(p, Setting::Bend, 1, 0) == paramtext::formatSingle(162, 1));
+
+    edit::setSetting(p, Setting::Glide, 1, 3, 90);
+    CHECK(edit::settingValue(p, Setting::Glide, 1, 3) == 90);
+    CHECK(edit::settingValue(p, Setting::Glide, 1, 0) == 28); // other variations untouched
+    edit::setSetting(p, Setting::Bend, 1, 0, 200);            // clamped to the range
+    CHECK(edit::settingValue(p, Setting::Bend, 1, 0) == 23);
+
+    edit::setVoices(p, edit::VoiceMode::Poly, 8);
+    CHECK(edit::voicesText(p) == "8");
+    edit::setVoices(p, edit::VoiceMode::Legato);
+    CHECK(edit::voicesText(p) == "Legato");
+    CHECK(p.header.voiceCount == 8); // kept for when the patch goes back to poly
+    CHECK_THROWS_AS(edit::setVoices(p, edit::VoiceMode::Poly, 33), std::invalid_argument);
+
+    edit::setCategory(p, 10);
+    CHECK(std::string(edit::categoryName(p.header.category)) == "Pad");
+
+    CHECK(edit::morphLabel(p, 0) == "Wheel");
+    edit::setMorphLabel(p, 0, "Bright");
+    CHECK(edit::morphLabel(p, 0) == "Bright");
+    CHECK(edit::morphLabel(p, 1) == "Vel");
+
+    const auto bytes = savePatch(p);
+    const Patch again = loadPatch(bytes);
+    CHECK(edit::morphLabel(again, 0) == "Bright");
+    CHECK(edit::settingValue(again, Setting::Glide, 1, 3) == 90);
+    CHECK(savePatch(again) == bytes);
+}

@@ -35,6 +35,20 @@ def cstr(s):
     return out + '"'
 
 
+# Display functions of the patch-settings pseudo modules, registered with
+# hard-coded ids by CBModuleToolbar::CBModuleToolbar @0x8e4f2 (see
+# re/notes/param-display.md section 2.1). Morph dials (params 0..7) use Default.
+SETTINGS_TEXT = {
+    6: {8 + i: 221 + i for i in range(8)},         # Morph: group sources
+    95: {0: 118, 1: 7},                            # Gain: master volume, mute
+    135: {0: 116, 1: 115},                         # Glide: type, time
+    137: {0: 117, 1: 162},                         # Bend: on/off, range
+    138: {0: 120, 1: 119, 2: 171},                 # Vibrato: mode, amount, rate
+    136: {0: 3, 1: 112, 2: 113, 3: 111},           # Arpeggiator: on, rate, mode, range
+    153: {0: 121, 1: 3},                           # Misc: octave shift, sustain
+}
+
+
 def dep_code(dep):
     """'param3' -> 3, 'mode0' -> 0x80 | 0 (same encoding as the module-info records)."""
     if dep.startswith("param"):
@@ -81,6 +95,8 @@ def generate():
                 b = bindings.get(t, {}).get(p["index"])
                 if b is not None:
                     func, deps = b["func_id"], [dep_code(d) for d in b["deps"]]
+                elif p["index"] in SETTINGS_TEXT.get(t, {}):
+                    func, deps = SETTINGS_TEXT[t][p["index"]], []
                 else:
                     func, deps = p.get("infoFunc") or 0, []
                 deps += [0xFF] * (2 - len(deps))

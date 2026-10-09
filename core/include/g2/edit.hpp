@@ -45,4 +45,24 @@ void setMode(Patch& patch, Location loc, u8 module, u8 mode, u8 value);
 // Display text of a parameter, as the original editor shows it.
 std::string paramText(const Patch& patch, Location loc, u8 module, u8 param, u8 variation);
 
+// ---- Patch settings -------------------------------------------------------
+
+// The patch-settings pseudo modules (file location 2), by index.
+enum class Setting : u8 { Morph = 1, Gain = 2, Glide = 3, Bend = 4, Vibrato = 5, Arpeggiator = 6, Misc = 7 };
+const db::ModuleDef* settingDef(Setting s);
+u8 settingValue(const Patch& patch, Setting s, u8 param, u8 variation);
+void setSetting(Patch& patch, Setting s, u8 param, u8 variation, u8 value);
+std::string settingText(const Patch& patch, Setting s, u8 param, u8 variation);
+
+// Voices: poly with 1..32 voices, or mono / legato (one voice).
+enum class VoiceMode : u8 { Poly = 0, Mono = 1, Legato = 2 };
+void setVoices(Patch& patch, VoiceMode mode, u8 polyVoices = 0); // count used for Poly
+std::string voicesText(const Patch& patch);                   // "Mono", "Legato" or the count
+void setCategory(Patch& patch, u8 category);                   // 0..15
+const char* categoryName(u8 category);
+
+// The 8 morph groups' names (at most 7 characters), e.g. "Wheel".
+std::string morphLabel(const Patch& patch, int group);
+void setMorphLabel(Patch& patch, int group, const std::string& label);
+
 } // namespace g2::edit

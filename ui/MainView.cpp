@@ -57,6 +57,8 @@ MainView::MainView(PatchDocument& doc)
     status_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
     addAndMakeVisible(status_);
 
+    settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
+    addAndMakeVisible(settings_);
     browser_.onAdd = [this](std::uint8_t type) { va_.addModule(type); };
     browser_.onStatus = [this](const juce::String& s) { setStatus(s); };
     addAndMakeVisible(browser_);
@@ -230,6 +232,7 @@ void MainView::resized()
     animate_.setBounds(bar.removeFromRight(130));
     title_.setBounds(bar);
 
+    settings_.setBounds(r.removeFromTop(78));
     browser_.setBounds(r.removeFromTop(56));
     status_.setBounds(r.removeFromBottom(22));
     juce::Component* parts[] = {&vaPane_, &divider_, &fxPane_};
