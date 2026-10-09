@@ -20,7 +20,7 @@ public:
     // Called when the bar collapses or expands (its height changes).
     std::function<void()> onLayoutChanged;
 
-    static constexpr int kHeaderHeight = 18;
+    static constexpr int kHeaderHeight = 26;
     // The height the bar needs at a given width (the morph cards move to a
     // second row when they don't fit beside the other settings).
     int preferredHeight(int width) const;
@@ -44,9 +44,12 @@ private:
     Control& add(Group& group, std::unique_ptr<Control> c);
 
     juce::String summary() const;
-    int settingsWidth() const;          // width of everything except the morph cards
-    static constexpr int kRowHeight = 72;
-    static constexpr int kMinCard = 58, kMaxCard = 84;
+    int groupWidth(const Group& group, int cardWidth) const;
+    // Positions the controls for `width` (if apply) and returns the height.
+    int layOut(int width, bool apply);
+    static constexpr int kRowHeight = 104;
+    static constexpr int kCaptionHeight = 20;
+    static constexpr int kCardWidth = 86;
 
     PatchDocument& doc_;
     juce::OwnedArray<Control> controls_;

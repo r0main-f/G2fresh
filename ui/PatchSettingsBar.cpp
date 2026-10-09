@@ -2,9 +2,10 @@
 
 #include "ModulePainter.h"
 #include "Skin.h"
+#include "Theme.h"
+#include "g2/param_text.hpp"
 
 #include <cstdlib>
-#include "g2/param_text.hpp"
 
 namespace g2ui {
 
@@ -31,7 +32,7 @@ public:
     std::function<void(const juce::String&)> status;
     std::function<juce::Colour()> colour;  // optional knob colour
 
-    int preferredWidth() const { return kind == Kind::Knob ? 46 : 58; }
+    int preferredWidth() const { return kind == Kind::Knob ? 60 : kind == Kind::Toggle ? 72 : 84; }
 
     void paint(juce::Graphics& g) override
     {
@@ -49,18 +50,18 @@ public:
             g.setColour(hovered_ ? juce::Colour(0xffff8c1a) : juce::Colour(0xff555a64));
             g.drawRoundedRectangle(box.reduced(0.5f), 4.0f, 1.0f);
             g.setColour(v != 0 ? juce::Colour(0xff1d1f24) : kInk);
-            g.setFont(juce::FontOptions(10.5f));
+            g.setFont(theme::font());
             g.drawFittedText(text(v), box.toNearestInt(), juce::Justification::centred, 1, 0.7f);
             return;
         }
         g.setColour(kDim);
-        g.setFont(juce::FontOptions(10.5f));
-        g.drawFittedText(name, r.removeFromTop(13.0f).toNearestInt(), juce::Justification::centred, 1, 0.8f);
+        g.setFont(theme::font());
+        g.drawFittedText(name, r.removeFromTop(kNameHeight).toNearestInt(), juce::Justification::centred, 1, 0.8f);
         const int v = get(), m = std::max(1, max());
         if (kind == Kind::Knob) {
-            auto area = r.removeFromTop(r.getHeight() - 12.0f).withSizeKeepingCentre(24.0f, 24.0f);
+            auto area = r.removeFromTop(r.getHeight() - kNameHeight).withSizeKeepingCentre(28.0f, 28.0f);
             const auto c = area.getCentre();
-            const float radius = 11.0f, start = juce::degreesToRadians(-135.0f);
+            const float radius = 13.0f, start = juce::degreesToRadians(-135.0f);
             const float angle = start + juce::degreesToRadians(270.0f) * static_cast<float>(v) / static_cast<float>(m);
             juce::Path track, arc;
             track.addCentredArc(c.x, c.y, radius, radius, 0.0f, start, -start, true);
@@ -70,28 +71,28 @@ public:
             g.setColour(hovered_ ? juce::Colour(0xffff8c1a) : colour ? colour() : kAccent);
             g.strokePath(arc, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
             g.setColour(juce::Colour(0xffd9dce2));
-            g.fillEllipse(c.x - 7.0f, c.y - 7.0f, 14.0f, 14.0f);
+            g.fillEllipse(c.x - 9.0f, c.y - 9.0f, 18.0f, 18.0f);
             g.setColour(juce::Colour(0xff2b2d33));
-            g.drawLine(c.x + 2.0f * std::sin(angle), c.y - 2.0f * std::cos(angle), c.x + 6.0f * std::sin(angle),
-                       c.y - 6.0f * std::cos(angle), 1.8f);
+            g.drawLine(c.x + 2.5f * std::sin(angle), c.y - 2.5f * std::cos(angle), c.x + 8.0f * std::sin(angle),
+                       c.y - 8.0f * std::cos(angle), 2.0f);
             g.setColour(kInk);
-            g.setFont(juce::FontOptions(10.5f));
+            g.setFont(theme::font());
             g.drawFittedText(text(v), r.toNearestInt(), juce::Justification::centred, 1, 0.75f);
             return;
         }
-        auto box = r.reduced(2.0f, 3.0f).withHeight(18.0f).withY(r.getY() + 4.0f);
+        auto box = r.reduced(3.0f, 0.0f).withSizeKeepingCentre(r.getWidth() - 6.0f, kBoxHeight);
         const bool on = kind == Kind::Toggle && v != 0;
         g.setColour(on ? kAccent : juce::Colour(0xff3a3d44));
         g.fillRoundedRectangle(box, 4.0f);
         g.setColour(hovered_ ? juce::Colour(0xffff8c1a) : juce::Colour(0xff555a64));
         g.drawRoundedRectangle(box.reduced(0.5f), 4.0f, 1.0f);
         g.setColour(on ? juce::Colours::white : kInk);
-        g.setFont(juce::FontOptions(11.0f));
+        g.setFont(theme::font());
         if (kind == Kind::Menu) {
-            g.drawFittedText(text(v), box.withTrimmedRight(9.0f).toNearestInt(), juce::Justification::centred, 1, 0.7f);
+            g.drawFittedText(text(v), box.withTrimmedRight(12.0f).toNearestInt(), juce::Justification::centred, 1, 0.7f);
             juce::Path p;
-            const float x = box.getRight() - 7.0f, y = box.getCentreY();
-            p.addTriangle(x - 3.0f, y - 1.5f, x + 3.0f, y - 1.5f, x, y + 2.0f);
+            const float x = box.getRight() - 8.0f, y = box.getCentreY();
+            p.addTriangle(x - 3.5f, y - 2.0f, x + 3.5f, y - 2.0f, x, y + 2.5f);
             g.fillPath(p);
         } else {
             g.drawFittedText(text(v), box.toNearestInt(), juce::Justification::centred, 1, 0.7f);
@@ -163,7 +164,7 @@ public:
 
     void mouseDoubleClick(const juce::MouseEvent& e) override
     {
-        if (onRename && e.y < 14)
+        if (onRename && e.y < kBarTop)
             onRename();
     }
 
@@ -175,11 +176,15 @@ public:
     }
 
 private:
-    static constexpr int kBarTop = 15; // the bar starts below the name row
+public:
+    static constexpr float kNameHeight = 18.0f;
+    static constexpr float kBoxHeight = 24.0f;
+    static constexpr int kBarTop = 20; // the bar starts below the name row
 
+private:
     juce::Rectangle<float> barArea() const
     {
-        return getLocalBounds().toFloat().withTrimmedTop(static_cast<float>(kBarTop)).withHeight(14.0f).reduced(2.0f, 0.0f);
+        return getLocalBounds().toFloat().withTrimmedTop(static_cast<float>(kBarTop)).withHeight(18.0f).reduced(2.0f, 0.0f);
     }
 
     void setFromBar(int x, bool coalesce)
@@ -195,10 +200,10 @@ private:
         // Name row: colour chip and name.
         auto row = r.removeFromTop(static_cast<float>(kBarTop)).reduced(2.0f, 2.0f);
         g.setColour(tint);
-        g.fillRoundedRectangle(row.removeFromLeft(8.0f).withSizeKeepingCentre(8.0f, 8.0f), 2.0f);
-        row.removeFromLeft(4.0f);
+        g.fillRoundedRectangle(row.removeFromLeft(10.0f).withSizeKeepingCentre(10.0f, 10.0f), 2.5f);
+        row.removeFromLeft(5.0f);
         g.setColour(kInk);
-        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+        g.setFont(theme::font(true));
         g.drawFittedText(name, row.toNearestInt(), juce::Justification::centredLeft, 1, 0.8f);
         // Value bar.
         const auto bar = barArea();
@@ -210,7 +215,7 @@ private:
         g.setColour(hovered_ ? juce::Colour(0xffff8c1a) : juce::Colour(0xff555a64));
         g.drawRoundedRectangle(bar.reduced(0.5f), 4.0f, 1.0f);
         g.setColour(t > 0.55f ? juce::Colour(0xff1d1f24) : kInk);
-        g.setFont(juce::FontOptions(10.0f));
+        g.setFont(theme::font());
         g.drawText(text(get()), bar.reduced(5.0f, 0.0f).toNearestInt(), juce::Justification::centredRight, false);
     }
 
@@ -343,7 +348,8 @@ PatchSettingsBar::PatchSettingsBar(PatchDocument& doc) : doc_(doc)
         source.colour = [i] { return ModulePainter::morphColour(i); };
     }
 
-    collapsed_ = userSettings().getBoolValue("settingsCollapsed", false);
+    // Starts collapsed; expanding lasts for the session.
+    collapsed_ = true;
     if (const char* env = std::getenv("G2_SETTINGS_COLLAPSED")) // for g2render snapshots
         collapsed_ = juce::String(env) == "1";
     for (auto* c : controls_)
@@ -393,7 +399,6 @@ juce::String PatchSettingsBar::summary() const
 void PatchSettingsBar::setCollapsed(bool collapsed)
 {
     collapsed_ = collapsed;
-    userSettings().setValue("settingsCollapsed", collapsed);
     for (auto* c : controls_)
         c->setVisible(!collapsed);
     if (onLayoutChanged)
@@ -414,94 +419,98 @@ void PatchSettingsBar::paint(juce::Graphics& g)
     auto header = getLocalBounds().removeFromTop(kHeaderHeight);
     {
         juce::Path chevron;
-        const float cx = 12.0f, cy = static_cast<float>(header.getCentreY());
+        const float cx = 14.0f, cy = static_cast<float>(header.getCentreY());
         if (collapsed_)
-            chevron.addTriangle(cx - 2.5f, cy - 4.0f, cx - 2.5f, cy + 4.0f, cx + 3.0f, cy);
+            chevron.addTriangle(cx - 3.0f, cy - 5.0f, cx - 3.0f, cy + 5.0f, cx + 4.0f, cy);
         else
-            chevron.addTriangle(cx - 4.0f, cy - 2.5f, cx + 4.0f, cy - 2.5f, cx, cy + 3.0f);
+            chevron.addTriangle(cx - 5.0f, cy - 3.0f, cx + 5.0f, cy - 3.0f, cx, cy + 4.0f);
         g.setColour(kDim);
         g.fillPath(chevron);
     }
     g.setColour(kInk);
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText("PATCH SETTINGS", header.withTrimmedLeft(22).withWidth(110), juce::Justification::centredLeft);
-    if (collapsed_) {
-        g.setColour(kDim);
-        g.setFont(juce::FontOptions(11.0f));
-        g.drawText(summary(), header.withTrimmedLeft(140).reduced(4, 0), juce::Justification::centredLeft, true);
+    g.setFont(theme::font(true));
+    const int titleWidth = juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), "Patch settings") + 16;
+    g.drawText("Patch settings", header.withTrimmedLeft(26).withWidth(titleWidth), juce::Justification::centredLeft);
+    g.setColour(kDim);
+    g.setFont(theme::font());
+    g.drawText(collapsed_ ? summary() : "Variation " + juce::String(doc_.variation() + 1),
+               header.withTrimmedLeft(26 + titleWidth).reduced(4, 0), juce::Justification::centredLeft, true);
+    if (collapsed_)
         return;
-    }
-    g.setColour(kDim.withAlpha(0.7f));
-    g.setFont(juce::FontOptions(10.5f));
-    g.drawText("variation " + juce::String(doc_.variation() + 1), header.withTrimmedLeft(140).reduced(4, 0),
-               juce::Justification::centredLeft, true);
 
-    g.setFont(juce::FontOptions(9.5f, juce::Font::bold));
+    g.setFont(theme::font(true));
     for (const auto& group : groups_) {
         if (group.controls.empty())
             continue;
         juce::Rectangle<int> area = group.controls.front()->getBounds();
         for (const auto* c : group.controls)
             area = area.getUnion(c->getBounds());
-        const auto frame = area.withTop(area.getY() - 12).withBottom(area.getY() - 12 + kRowHeight - 2)
-                               .expanded(4, 0).toFloat();
+        const auto frame = area.withTop(area.getY() - kCaptionHeight).expanded(5, 3).toFloat();
         g.setColour(juce::Colour(0xff32353b));
-        g.fillRoundedRectangle(frame, 5.0f);
-        g.setColour(kDim.withAlpha(0.8f));
-        g.drawText(group.title.toUpperCase(), frame.withHeight(12.0f).translated(5.0f, 1.0f).toNearestInt(),
+        g.fillRoundedRectangle(frame, 6.0f);
+        g.setColour(kDim);
+        g.drawText(group.title, frame.withHeight(static_cast<float>(kCaptionHeight)).translated(7.0f, 2.0f).toNearestInt(),
                    juce::Justification::centredLeft, false);
     }
 }
 
-int PatchSettingsBar::settingsWidth() const
+int PatchSettingsBar::groupWidth(const Group& group, int cardWidth) const
 {
-    int x = 10;
-    for (const auto& group : groups_) {
-        if (&group == &groups_.back())
-            break;
-        for (const auto* c : group.controls)
-            x += c->preferredWidth();
-        x += 12;
+    if (&group == &groups_.back())
+        return 8 * cardWidth;
+    int w = 0;
+    for (const auto* c : group.controls)
+        w += c->preferredWidth();
+    return w;
+}
+
+int PatchSettingsBar::layOut(int width, bool apply)
+{
+    // Groups flow left to right and wrap to a new row when they don't fit.
+    constexpr int margin = 12, gap = 16;
+    const int controlHeight = kRowHeight - kCaptionHeight - 12;
+    int x = margin, row = 0;
+    for (auto& group : groups_) {
+        const bool isMorph = &group == &groups_.back();
+        const int w = groupWidth(group, kCardWidth);
+        if (x > margin && x + w > width - margin) {
+            x = margin;
+            ++row;
+        }
+        const int top = kHeaderHeight + row * kRowHeight + kCaptionHeight + 6;
+        if (apply) {
+            if (isMorph) {
+                // Cards: value bar (with the group name) above, source below.
+                for (int i = 0; i < 8; ++i) {
+                    group.controls[static_cast<std::size_t>(i)]->setBounds(x + i * kCardWidth, top, kCardWidth - 6,
+                                                                           Control::kBarTop + 20);
+                    group.controls[static_cast<std::size_t>(8 + i)]->setBounds(
+                        x + i * kCardWidth + 1, top + Control::kBarTop + 24, kCardWidth - 8, controlHeight - Control::kBarTop - 24);
+                }
+            } else {
+                int cx = x;
+                for (auto* c : group.controls) {
+                    c->setBounds(cx, top, c->preferredWidth(), controlHeight);
+                    cx += c->preferredWidth();
+                }
+            }
+        }
+        x += w + gap;
     }
-    return x;
+    return kHeaderHeight + (row + 1) * kRowHeight + 4;
 }
 
 int PatchSettingsBar::preferredHeight(int width) const
 {
     if (collapsed_)
         return kHeaderHeight + 2;
-    const bool wrap = (width - settingsWidth() - 10) / 8 < kMinCard;
-    return kHeaderHeight + (wrap ? 2 : 1) * kRowHeight + 4;
+    return const_cast<PatchSettingsBar*>(this)->layOut(width, false);
 }
 
 void PatchSettingsBar::resized()
 {
-    if (collapsed_)
-        return;
-    const bool wrap = (getWidth() - settingsWidth() - 10) / 8 < kMinCard;
-    int x = 10;
-    int top = kHeaderHeight + 13;
-    const int height = kRowHeight - 17;
-    for (auto& group : groups_) {
-        if (&group == &groups_.back()) {
-            // Morph cards: bar (with name) above, source button below.
-            if (wrap) {
-                x = 10;
-                top += kRowHeight;
-            }
-            const int w = juce::jlimit(kMinCard, kMaxCard, (getWidth() - x - 14) / 8);
-            for (int i = 0; i < 8; ++i) {
-                group.controls[static_cast<std::size_t>(i)]->setBounds(x + i * w, top, w - 4, 31);
-                group.controls[static_cast<std::size_t>(8 + i)]->setBounds(x + i * w + 2, top + 33, w - 8, 18);
-            }
-            continue;
-        }
-        for (auto* c : group.controls) {
-            c->setBounds(x, top, c->preferredWidth(), height);
-            x += c->preferredWidth();
-        }
-        x += 12;
-    }
+    if (!collapsed_)
+        layOut(getWidth(), true);
 }
 
 } // namespace g2ui

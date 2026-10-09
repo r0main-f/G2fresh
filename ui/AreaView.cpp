@@ -69,7 +69,7 @@ void AreaView::resized()
 
 void AreaView::settingsChanged()
 {
-    if (cableAnimation() && currentLook() == Look::Modern)
+    if (cableAnimation())
         startTimerHz(30);
     else
         stopTimer();
@@ -86,7 +86,8 @@ void AreaView::timerCallback()
 {
     if (!isShowing() || doc_.patch().area(location_).cables.empty())
         return;
-    flowPhase_ = std::fmod(flowPhase_ + 1.6f, 36.0f * 100.0f);
+    // Pulses move at a steady 48 px/s, whatever the frame rate.
+    flowPhase_ = static_cast<float>(std::fmod(juce::Time::getMillisecondCounterHiRes() * 0.048, 36.0 * 1000.0));
     overlay_->repaint();
 }
 
@@ -107,6 +108,13 @@ void AreaView::updateSize()
         rows = std::max(rows, b.getBottom() / kRowHeight + 20);
     }
     setSize(std::max(cols * kModuleWidth, minWidth_), std::max(rows * kRowHeight, minHeight_));
+}
+
+std::optional<juce::Point<int>> AreaView::focusPoint() const
+{
+    if (const auto* m = touched_ ? doc_.patch().area(location_).find(touched_) : nullptr)
+        return ModulePainter::moduleBounds(*m).getCentre();
+    return std::nullopt;
 }
 
 void AreaView::setMinimumSize(int width, int height)
@@ -254,42 +262,41 @@ void AreaView::paintOverlay(juce::Graphics& g)
 void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<float> b, juce::Colour c, bool flowing)
 {
     const float distance = a.getDistanceFrom(b);
+    juce::Path path;
+    path.startNewSubPath(a);
     if (currentLook() == Look::Classic) {
-        const float sag = 10.0f + 0.25f * distance;
-        juce::Path path;
-        path.startNewSubPath(a);
-        path.quadraticTo((a + b) * 0.5f + juce::Point<float>(0.0f, sag), b);
+        // The original editor's style: a simple sagging curve with an outline.
+        path.quadraticTo((a + b) * 0.5f + juce::Point<float>(0.0f, 10.0f + 0.25f * distance), b);
         g.setColour(juce::Colours::black.withAlpha(0.6f));
         g.strokePath(path, juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         g.setColour(c);
         g.strokePath(path, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        return;
-    }
-    // Modern: a hanging cable (cubic curve with gravity), soft shadow, a
-    // glossy tube, and pulses flowing from the source to the destination.
-    const float sag = std::min(90.0f, 12.0f + 0.22f * distance);
-    juce::Path path;
-    path.startNewSubPath(a);
-    path.cubicTo(a + juce::Point<float>((b.x - a.x) * 0.15f, sag), b + juce::Point<float>((a.x - b.x) * 0.15f, sag), b);
-    const juce::PathStrokeType tube(3.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-    g.setColour(juce::Colours::black.withAlpha(0.28f));
-    g.strokePath(path, juce::PathStrokeType(4.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
-                 juce::AffineTransform::translation(0.8f, 1.8f));
-    g.setColour(c.darker(0.25f));
-    g.strokePath(path, tube);
-    g.setColour(c.brighter(0.45f).withAlpha(0.55f));
-    g.strokePath(path, juce::PathStrokeType(1.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
-                 juce::AffineTransform::translation(-0.4f, -0.6f));
-    // Plugs at both ends.
-    for (auto p : {a, b}) {
-        g.setColour(c.darker(0.5f));
-        g.fillEllipse(p.x - 3.0f, p.y - 3.0f, 6.0f, 6.0f);
+    } else {
+        // Modern: a hanging cable (cubic curve with gravity), soft shadow, a
+        // glossy tube and plugs.
+        const float sag = std::min(90.0f, 12.0f + 0.22f * distance);
+        path.cubicTo(a + juce::Point<float>((b.x - a.x) * 0.15f, sag), b + juce::Point<float>((a.x - b.x) * 0.15f, sag), b);
+        g.setColour(juce::Colours::black.withAlpha(0.28f));
+        g.strokePath(path, juce::PathStrokeType(4.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
+                     juce::AffineTransform::translation(0.8f, 1.8f));
+        g.setColour(c.darker(0.25f));
+        g.strokePath(path, juce::PathStrokeType(3.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.setColour(c.brighter(0.45f).withAlpha(0.55f));
+        g.strokePath(path, juce::PathStrokeType(1.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
+                     juce::AffineTransform::translation(-0.4f, -0.6f));
+        for (auto p : {a, b}) {
+            g.setColour(c.darker(0.5f));
+            g.fillEllipse(p.x - 3.0f, p.y - 3.0f, 6.0f, 6.0f);
+        }
     }
     if (!flowing)
         return;
+    // Pulses flowing from the source to the destination; dark on light cables
+    // (white, yellow) so they stay visible.
     const float length = path.getLength();
     constexpr float spacing = 36.0f;
-    g.setColour(juce::Colours::white.withAlpha(0.85f));
+    g.setColour(c.getPerceivedBrightness() > 0.7f ? juce::Colours::black.withAlpha(0.6f)
+                                                  : juce::Colours::white.withAlpha(0.85f));
     for (float d = std::fmod(flowPhase_, spacing); d < length; d += spacing) {
         const auto p = path.getPointAlongPath(d);
         g.fillEllipse(p.x - 2.0f, p.y - 2.0f, 4.0f, 4.0f);
@@ -298,7 +305,7 @@ void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<f
 
 void AreaView::paintCables(juce::Graphics& g)
 {
-    const bool flowing = cableAnimation() && currentLook() == Look::Modern;
+    const bool flowing = cableAnimation();
     for (const auto& cable : doc_.patch().area(location_).cables) {
         // Signals flow from the "from" end (an output, or the first input of
         // a link) to the input at the "to" end.
@@ -362,6 +369,7 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
         return;
     }
     selected_ = dragHit_.module;
+    touch(dragHit_.module);
     if (const auto* m = doc_.patch().area(location_).find(dragHit_.module))
         dragOffset_ = e.getPosition() - ModulePainter::moduleBounds(*m).getPosition();
     drag_ = Drag::Module;
@@ -410,6 +418,7 @@ void AreaView::mouseUp(const juce::MouseEvent& e)
                 std::swap(src, dst);
             juce::String error;
             const auto loc = location_;
+            touch(dst.module);
             if (!doc_.perform("Connect", [&](g2::Patch& p) {
                     g2::edit::connect(p, loc, {src.module, src.conn, src.isOutput}, {dst.module, dst.conn, dst.isOutput});
                 }, &error))
@@ -480,6 +489,7 @@ bool AreaView::keyPressed(const juce::KeyPress& key)
 
 void AreaView::setValue(const Hit& h, int value, bool coalesce)
 {
+    touch(h.module);
     const auto loc = location_;
     const auto module = h.module;
     const auto ref = static_cast<std::uint8_t>(h.element->codeRef);
@@ -625,9 +635,10 @@ void AreaView::addModule(std::uint8_t type, std::optional<juce::Point<int>> wher
     if (doc_.perform("Add module", [&](g2::Patch& p) {
             added = g2::edit::addModule(p, loc, type, static_cast<std::uint8_t>(cell.x), static_cast<std::uint8_t>(cell.y));
             g2::edit::resolveOverlaps(p, loc, added);
-        }, &error))
+        }, &error)) {
         selected_ = added;
-    else
+        touch(added);
+    } else
         status("Cannot add module: " + error);
 }
 

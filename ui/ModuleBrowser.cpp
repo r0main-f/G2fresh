@@ -70,7 +70,7 @@ void ModuleBrowser::showCategory(int index)
 void ModuleBrowser::resized()
 {
     auto r = getLocalBounds();
-    tabs_.setBounds(r.removeFromTop(24));
+    tabs_.setBounds(r.removeFromTop(28));
     r.reduce(2, 2);
     int x = r.getX();
     for (auto* b : buttons_) {

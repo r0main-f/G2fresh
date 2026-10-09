@@ -30,6 +30,11 @@ public:
     // Adds a module at the first free row of the first column, or at `where`.
     void addModule(std::uint8_t type, std::optional<juce::Point<int>> where = std::nullopt);
 
+    // The module last added, moved, selected or edited here, and when (for
+    // zooming onto it). nullopt if none, or if it was deleted.
+    std::optional<juce::Point<int>> focusPoint() const;
+    juce::uint32 lastTouchTime() const { return touchTime_; }
+
     void paint(juce::Graphics&) override;
     void resized() override;
     // Re-reads the look and animation settings.
@@ -90,6 +95,11 @@ private:
     void showModuleMenu(std::uint8_t module);
     void showJackMenu(const Jack& jack);
     void status(const juce::String& s) { if (onStatus) onStatus(s); }
+    void touch(std::uint8_t module)
+    {
+        touched_ = module;
+        touchTime_ = juce::Time::getMillisecondCounter();
+    }
 
     PatchDocument& doc_;
     g2::Location location_;
@@ -109,6 +119,8 @@ private:
     std::unique_ptr<Overlay> overlay_;
     float flowPhase_ = 0.0f; // pixels the pulses have travelled
     int minWidth_ = 0, minHeight_ = 0;
+    std::uint8_t touched_ = 0;
+    juce::uint32 touchTime_ = 0;
 };
 
 } // namespace g2ui

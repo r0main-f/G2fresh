@@ -8,6 +8,7 @@ const juce::String kOpenPattern = "*.pch2;*.prf2";
 MainView::MainView(PatchDocument& doc)
     : doc_(doc), va_(doc, g2::Location::Va), fx_(doc, g2::Location::Fx)
 {
+    setLookAndFeel(&lookAndFeel_.get());
     for (auto* b : {&new_, &open_, &save_, &saveAs_, &undo_, &redo_})
         addAndMakeVisible(b);
     new_.onClick = [this] { newPatch(); };
@@ -52,7 +53,8 @@ MainView::MainView(PatchDocument& doc)
         fx_.settingsChanged();
     };
     addAndMakeVisible(animate_);
-    title_.setFont(juce::FontOptions(15.0f, juce::Font::bold));
+    title_.setFont(theme::font(true));
+    status_.setFont(theme::font());
     addAndMakeVisible(title_);
     status_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
     addAndMakeVisible(status_);
@@ -103,16 +105,31 @@ void MainView::setZoom(float zoom, const AreaView* area, std::optional<juce::Poi
     if (std::abs(zoom - 1.0f) < 0.03f)
         zoom = 1.0f; // snap to 100%
     const float old = zoom_;
+    // Without a mouse anchor, focus on the module last added or edited.
+    const AreaView* focusArea = nullptr;
+    std::optional<juce::Point<int>> focus;
+    if (!anchor) {
+        for (const AreaView* a : {&va_, &fx_})
+            if (const auto fp = a->focusPoint(); fp && (!focusArea || a->lastTouchTime() > focusArea->lastTouchTime())) {
+                focusArea = a;
+                focus = fp;
+            }
+    }
     struct Pane { juce::Viewport& port; ZoomHolder& holder; const AreaView& view; };
     for (Pane p : {Pane{vaPort_, vaZoom_, va_}, Pane{fxPort_, fxZoom_, fx_}}) {
-        // The content point that should stay at the same place in the viewport.
         const auto viewSize = juce::Point<float>(static_cast<float>(p.port.getViewWidth()), static_cast<float>(p.port.getViewHeight()));
+        p.holder.setZoom(zoom);
+        const_cast<AreaView&>(p.view).setMinimumSize(juce::roundToInt(viewSize.x / zoom), juce::roundToInt(viewSize.y / zoom));
+        if (focus && focusArea == &p.view) {
+            // Centre the focused module in its view.
+            p.port.setViewPosition((focus->toFloat() * zoom - viewSize * 0.5f).roundToInt());
+            continue;
+        }
+        // Keep the mouse anchor (or the top-left corner) in place.
         juce::Point<float> inView;
         if (anchor && area == &p.view)
             inView = anchor->toFloat() * old - p.port.getViewPosition().toFloat();
         const auto content = (p.port.getViewPosition().toFloat() + inView) / old;
-        p.holder.setZoom(zoom);
-        const_cast<AreaView&>(p.view).setMinimumSize(juce::roundToInt(viewSize.x / zoom), juce::roundToInt(viewSize.y / zoom));
         p.port.setViewPosition((content * zoom - inView).roundToInt());
     }
     zoom_ = zoom;
@@ -125,6 +142,7 @@ void MainView::setZoom(float zoom, const AreaView* area, std::optional<juce::Poi
 
 MainView::~MainView()
 {
+    setLookAndFeel(nullptr);
     doc_.removeChangeListener(this);
 }
 
@@ -187,22 +205,22 @@ void MainView::AreaPane::setText(const juce::String& title, const juce::String& 
 
 void MainView::AreaPane::resized()
 {
-    port_.setBounds(getLocalBounds().withTrimmedTop(22));
+    port_.setBounds(getLocalBounds().withTrimmedTop(26));
 }
 
 void MainView::AreaPane::paint(juce::Graphics& g)
 {
-    auto bar = getLocalBounds().removeFromTop(22);
+    auto bar = getLocalBounds().removeFromTop(26);
     g.setColour(juce::Colour(0xff25272b));
     g.fillRect(bar);
     g.setColour(marker_);
     g.fillRoundedRectangle(bar.removeFromLeft(10).reduced(3, 5).toFloat(), 2.0f);
     g.setColour(juce::Colours::white);
-    g.setFont(juce::FontOptions(12.5f, juce::Font::bold));
+    g.setFont(theme::font(true));
     const int titleWidth = juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), title_) + 12;
     g.drawText(title_, bar.removeFromLeft(titleWidth), juce::Justification::centredLeft);
     g.setColour(juce::Colour(0xffa8adb6));
-    g.setFont(juce::FontOptions(12.0f));
+    g.setFont(theme::font());
     g.drawText(subtitle_, bar.reduced(4, 0), juce::Justification::centredLeft, true);
 }
 
@@ -234,7 +252,7 @@ void MainView::resized()
     title_.setBounds(bar);
 
     settings_.setBounds(r.removeFromTop(settings_.preferredHeight(r.getWidth())));
-    browser_.setBounds(r.removeFromTop(56));
+    browser_.setBounds(r.removeFromTop(62));
     status_.setBounds(r.removeFromBottom(22));
     juce::Component* parts[] = {&vaPane_, &divider_, &fxPane_};
     layout_.layOutComponents(parts, 3, r.getX(), r.getY(), r.getWidth(), r.getHeight(), true, true);

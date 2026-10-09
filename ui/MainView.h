@@ -5,6 +5,7 @@
 #include "ModuleBrowser.h"
 #include "PatchDocument.h"
 #include "PatchSettingsBar.h"
+#include "Theme.h"
 #include "ZoomHolder.h"
 
 namespace g2ui {
@@ -27,7 +28,9 @@ public:
     static constexpr float kMinZoom = 0.5f, kMaxZoom = 2.0f;
     float zoom() const { return zoom_; }
     // Sets the zoom of both areas. `anchor` (in `area`'s local coordinates)
-    // stays under the mouse; without one, the top-left of each view stays put.
+    // stays under the mouse. Without one, the view centres on the module last
+    // added or edited (in the area where that happened); other views keep
+    // their top-left corner.
     // `remember` saves the zoom in the user's settings.
     void setZoom(float zoom, const AreaView* area = nullptr, std::optional<juce::Point<int>> anchor = std::nullopt,
                  bool remember = true);
@@ -54,6 +57,7 @@ private:
     void confirmDiscard(std::function<void()> then);
 
     PatchDocument& doc_;
+    juce::SharedResourcePointer<theme::LookAndFeel> lookAndFeel_;
     juce::TextButton new_{"New"}, open_{"Open..."}, save_{"Save"}, saveAs_{"Save As..."};
     juce::TextButton undo_{"Undo"}, redo_{"Redo"};
     juce::OwnedArray<juce::TextButton> variations_;
