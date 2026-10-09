@@ -10,8 +10,14 @@
 //   g2p_take_out        the next bulk-OUT frame for the device (0 if none)
 //   g2p_tick            advance the client's clock (ms) and run it
 //   g2p_send_patch      upload a .pch2 file into a slot
+//   g2p_send_module_patch  build and upload a patch with one module (+ an output)
+//   g2p_set_param / g2p_set_mode / g2p_play_note   live edits (tools/firmware/g2catalog.py)
+//   g2p_module_cost     the editor's resource estimate of a module type (core/patch_load)
+#include "g2/edit.hpp"
 #include "g2/file.hpp"
+#include "g2/module_db.hpp"
 #include "g2/patch.hpp"
+#include "g2/patch_load.hpp"
 #include "g2/proto/client.hpp"
 #include "g2/proto/transport.hpp"
 
@@ -132,5 +138,99 @@ extern "C"
 			return 2;
 		}
 		return 0;
+	}
+
+	// Builds a patch with one module of `type` in area `loc` (0 FX, 1 VA) and, when
+	// `withOutput` and the module has outputs, a 2-Out fed by its first output(s),
+	// so that the OS keeps the module. type 0: only the 2-Out (the baseline).
+	// Returns the module's index, or -1 when the patch cannot be built.
+	int g2p_send_module_patch(void* h, int slot, int loc, int type, int withOutput)
+	{
+		try
+		{
+			Patch patch = Patch::makeDefault();
+			const auto area = loc ? Location::Va : Location::Fx;
+			const db::ModuleDef* out = nullptr;
+			for(const auto& m : db::modules())
+				if(std::string(m.shortName) == "2-Out") out = &m;
+			int index = 0;
+			if(type)
+				index = edit::addModule(patch, area, std::uint8_t(type), 0, 0);
+			const auto* def = type ? db::find(std::uint8_t(type)) : nullptr;
+			if(out && withOutput && (!type || !def->outputs.empty()))
+			{
+				const auto o = edit::addModule(patch, area, out->typeId, 1, 0);
+				if(type)
+				{
+					const auto n = def->outputs.size();
+					edit::connect(patch, area, {std::uint8_t(index), 0, true}, {o, 0, false});
+					edit::connect(patch, area, {std::uint8_t(index), std::uint8_t(n > 1 ? 1 : 0), true}, {o, 1, false});
+				}
+				if(!type) index = o;
+			}
+			static_cast<Handle*>(h)->client->sendPatch(slot, patch, type ? def->shortName : "Out");
+			return index;
+		}
+		catch(const std::exception& e)
+		{
+			std::fprintf(stderr, "proto: cannot build a patch with type %d: %s\n", type, e.what());
+			return -1;
+		}
+	}
+	// A source module's first output feeding input `input` (-1: every input) of the module, the module's
+	// output(s) feeding a 2-Out: for response measurements. Returns the module's index.
+	int g2p_send_chain_patch(void* h, int slot, int loc, int srcType, int type, int input)
+	{
+		try
+		{
+			Patch patch = Patch::makeDefault();
+			const auto area = loc ? Location::Va : Location::Fx;
+			const db::ModuleDef* out = nullptr;
+			for(const auto& m : db::modules())
+				if(std::string(m.shortName) == "2-Out") out = &m;
+			const auto src = edit::addModule(patch, area, std::uint8_t(srcType), 0, 0);
+			const auto mod = edit::addModule(patch, area, std::uint8_t(type), 1, 0);
+			const auto* def = db::find(std::uint8_t(type));
+			if(input >= 0)
+				edit::connect(patch, area, {src, 0, true}, {mod, std::uint8_t(input), false});
+			else  // every input
+				for(std::size_t i = 0; i < def->inputs.size(); ++i)
+					edit::connect(patch, area, {src, 0, true}, {mod, std::uint8_t(i), false});
+			if(out && !def->outputs.empty())
+			{
+				const auto o = edit::addModule(patch, area, out->typeId, 2, 0);
+				const auto n = def->outputs.size();
+				edit::connect(patch, area, {mod, 0, true}, {o, 0, false});
+				edit::connect(patch, area, {mod, std::uint8_t(n > 1 ? 1 : 0), true}, {o, 1, false});
+			}
+			static_cast<Handle*>(h)->client->sendPatch(slot, patch, def->shortName);
+			return mod;
+		}
+		catch(const std::exception& e)
+		{
+			std::fprintf(stderr, "proto: cannot build a chain patch for type %d: %s\n", type, e.what());
+			return -1;
+		}
+	}
+	void g2p_set_param(void* h, int slot, int loc, int module, int param, int value, int variation)
+	{
+		static_cast<Handle*>(h)->client->setParam(slot, loc ? Location::Va : Location::Fx, std::uint8_t(module),
+		                                          std::uint8_t(param), std::uint8_t(value), std::uint8_t(variation));
+	}
+	void g2p_set_mode(void* h, int slot, int loc, int module, int mode, int value)
+	{
+		static_cast<Handle*>(h)->client->setMode(slot, loc ? Location::Va : Location::Fx, std::uint8_t(module),
+		                                         std::uint8_t(mode), std::uint8_t(value));
+	}
+	void g2p_play_note(void* h, int note, int on) { static_cast<Handle*>(h)->client->playNote(std::uint8_t(note), on != 0); }
+	// cyclesA, cyclesB, zp, xA, yA, pA, xB, yB, pB, dynRam, qMem, rMem; 0 if the type is unknown
+	int g2p_module_cost(int type, int uprate, std::uint32_t* out)
+	{
+		if(!patchload::moduleSpec(std::uint8_t(type))) return 0;
+		const auto r = patchload::moduleCost(std::uint8_t(type), uprate != 0);
+		const std::uint32_t v[12] = {r.cyclesA, r.cyclesB, r.zpMem, r.xMemA, r.yMemA, r.pMemA, r.xMemB, r.yMemB, r.pMemB,
+		                            r.dynRam, r.qMem, r.rMem};
+		std::memcpy(out, v, sizeof v);
+		return 1;
 	}
 }
