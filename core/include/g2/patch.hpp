@@ -50,13 +50,29 @@ struct Module {
     const db::ModuleDef* def() const { return db::find(type); }
 };
 
+// Where the user pulled a cable's middle: an offset in pixels (at 100% zoom)
+// from the midpoint of the straight line between its two jacks, so the bend
+// follows when modules move.
+struct CableBend {
+    std::int16_t dx = 0, dy = 0;
+    bool operator==(const CableBend&) const = default;
+};
+
 struct Cable {
     CableColor color = CableColor::Red;
     u8 fromModule = 0, fromConn = 0;
     bool fromIsOutput = true; // false: an input-to-input link
     u8 toModule = 0, toConn = 0;
+    // Editor-only shape, not part of the .pch2 format (G2fresh keeps it in a
+    // layout file beside the patch). Not compared by ==: a cable is its
+    // colour and its two ends.
+    std::optional<CableBend> bend;
 
-    bool operator==(const Cable&) const = default;
+    bool operator==(const Cable& o) const
+    {
+        return color == o.color && fromModule == o.fromModule && fromConn == o.fromConn
+            && fromIsOutput == o.fromIsOutput && toModule == o.toModule && toConn == o.toConn;
+    }
 };
 
 struct Area {

@@ -209,7 +209,7 @@ Cable connect(Patch& patch, Location loc, Endpoint from, Endpoint to)
         throw std::invalid_argument("cannot link an input to itself");
     if (!patchload::canAddCable(patch))
         throw std::invalid_argument("the patch is too big: the synth has no room for another cable");
-    Cable c{cableColor(patch, loc, from), from.module, from.conn, from.isOutput, to.module, to.conn};
+    Cable c{cableColor(patch, loc, from), from.module, from.conn, from.isOutput, to.module, to.conn, std::nullopt};
     for (const auto& existing : area.cables)
         if (existing.fromModule == c.fromModule && existing.fromConn == c.fromConn
             && existing.fromIsOutput == c.fromIsOutput && existing.toModule == c.toModule
@@ -600,6 +600,34 @@ void setParamLabel(Patch& patch, Location loc, u8 module, u8 param, const std::s
 void setModuleColor(Patch& patch, Location loc, u8 module, u8 color)
 {
     moduleAt(patch, loc, module).color = color;
+}
+
+void setCableBend(Patch& patch, Location loc, const Cable& cable, std::optional<CableBend> bend)
+{
+    Area& area = areaFor(patch, loc);
+    const auto it = std::find_if(area.cables.begin(), area.cables.end(), [&](const Cable& c) {
+        return c.fromModule == cable.fromModule && c.fromConn == cable.fromConn && c.fromIsOutput == cable.fromIsOutput
+            && c.toModule == cable.toModule && c.toConn == cable.toConn;
+    });
+    if (it == area.cables.end())
+        throw std::invalid_argument("no such cable");
+    it->bend = bend;
+}
+
+void clearCableBends(Patch& patch)
+{
+    for (Area* area : {&patch.va, &patch.fx})
+        for (auto& c : area->cables)
+            c.bend.reset();
+}
+
+bool hasCableBends(const Patch& patch)
+{
+    for (const Area* area : {&patch.va, &patch.fx})
+        for (const auto& c : area->cables)
+            if (c.bend)
+                return true;
+    return false;
 }
 
 void setCableColor(Patch& patch, Location loc, const Cable& cable, CableColor color)

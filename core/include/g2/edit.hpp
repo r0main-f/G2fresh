@@ -94,6 +94,12 @@ void setParamLabel(Patch& patch, Location loc, u8 module, u8 param, const std::s
 void setModuleColor(Patch& patch, Location loc, u8 module, u8 color);
 void setCableColor(Patch& patch, Location loc, const Cable& cable, CableColor color);
 void setCablesVisible(Patch& patch, CableColor color, bool visible);
+// The editor-only shape of a cable (the cable with the same two ends);
+// nullopt returns it to the automatic curve.
+void setCableBend(Patch& patch, Location loc, const Cable& cable, std::optional<CableBend> bend);
+// Returns every cable of both areas to the automatic curve.
+void clearCableBends(Patch& patch);
+bool hasCableBends(const Patch& patch);
 
 // Copies every value of a variation (modules, settings, morphs) to another.
 // Variation 8 is the "init" variation.

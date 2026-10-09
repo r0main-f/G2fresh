@@ -57,6 +57,10 @@ public:
     void loadBytes(const std::vector<std::uint8_t>& bytes, bool ignoreChecksum = false);
     std::vector<std::uint8_t> saveBytes() const;
     juce::String fileExtension() const { return perf_ ? ".prf2" : ".pch2"; }
+    // The cable shapes of every patch (see CableLayout.h), or "" if none.
+    juce::String layoutJson() const;
+    // Applies saved cable shapes after loading; not an undoable edit.
+    void applyLayoutJson(const juce::String& json);
     juce::File file() const { return file_; }
     // Remembers the file the document was loaded from or saved to; a patch
     // takes its name from the file name (that's how the G2 names patches).

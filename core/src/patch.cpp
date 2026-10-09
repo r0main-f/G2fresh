@@ -71,7 +71,7 @@ void readArea(Area& a, const ModuleList& list, const CableList& cables, const Pa
     a.cables.clear();
     for (const auto& c : cables.cables)
         a.cables.push_back({static_cast<CableColor>(std::min<u8>(c.color, 6)), c.fromModule, c.fromConn,
-                            c.fromIsOutput != 0, c.toModule, c.toConn});
+                            c.fromIsOutput != 0, c.toModule, c.toConn, std::nullopt});
     a.paramOrder.clear();
     a.customOrder.clear();
     a.nameOrder.clear();

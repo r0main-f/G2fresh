@@ -1,5 +1,7 @@
 #include "MainView.h"
 
+#include "CableLayout.h"
+
 #include "Dialogs.h"
 
 #include "g2/patch_load.hpp"
@@ -14,7 +16,7 @@ enum MenuId {
     kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
-    kAudioSettings,
+    kAudioSettings, kRemoveBendPoints,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -248,6 +250,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
         for (int c = 0; c < 7; ++c)
             cables.addItem(item(kCablesBase + c, names[c], {}, true, doc_.patch().header.cablesVisible[static_cast<std::size_t>(c)]));
         m.addSubMenu("Show Cables", cables);
+        m.addItem(item(kRemoveBendPoints, "Remove All Bend Points", {}, g2::edit::hasCableBends(doc_.patch())));
         m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic));
         m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation()));
     } else if (index == 3) {
@@ -290,6 +293,9 @@ void MainView::menuItemSelected(int id, int)
             a->duplicateSelection();
         break;
     case kSelectAll: activeArea().selectAll(); break;
+    case kRemoveBendPoints:
+        doc_.perform("Remove all bend points", [](g2::Patch& p) { g2::edit::clearCableBends(p); });
+        break;
     case kPatchNotes: showPatchNotes(doc_, this); break;
     case kRandomize: randomize(false); break;
     case kMutate: randomize(true); break;
@@ -668,6 +674,9 @@ void MainView::loadFile(const juce::File& f, bool ignoreChecksum)
         const auto* p = static_cast<const std::uint8_t*>(mb.getData());
         doc_.loadBytes(std::vector<std::uint8_t>(p, p + mb.getSize()), ignoreChecksum);
         doc_.setFile(f);
+        // Cable shapes, kept beside the patch (see CableLayout.h).
+        if (const auto layout = cablelayout::fileFor(f); layout.existsAsFile())
+            doc_.applyLayoutJson(layout.loadFileAsString());
         recent_.addFile(f);
         userSettings().setValue("recentFiles", recent_.toString());
         setStatus("Opened " + f.getFileName() + (ignoreChecksum ? " (checksum ignored)" : ""));
@@ -700,6 +709,13 @@ void MainView::save(bool saveAs)
             return;
         }
         if (f.replaceWithData(bytes.data(), bytes.size())) {
+            // Cable shapes go to the layout file beside the patch; without
+            // bent cables an old layout file is removed.
+            const auto layout = cablelayout::fileFor(f);
+            if (const auto json = doc_.layoutJson(); json.isNotEmpty())
+                layout.replaceWithText(json);
+            else if (layout.existsAsFile())
+                layout.deleteFile();
             const auto name = doc_.name();
             doc_.setFile(f);
             if (doc_.isPerformance())

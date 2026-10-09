@@ -12,6 +12,7 @@ static std::vector<std::uint8_t> encodeState(const g2ui::PatchDocument& doc)
     state.setProperty("name", doc.name(), nullptr);
     state.setProperty("file", doc.file().getFullPathName(), nullptr);
     state.setProperty("data", data.toBase64Encoding(), nullptr);
+    state.setProperty("layout", doc.layoutJson(), nullptr); // cable shapes
     juce::MemoryOutputStream out;
     state.writeToStream(out);
     const auto* p = static_cast<const std::uint8_t*>(out.getData());
@@ -101,6 +102,7 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         if (file.isNotEmpty() && juce::File::isAbsolutePath(file))
             document_.setFile(juce::File(file));
         document_.setName(state["name"].toString());
+        document_.applyLayoutJson(state["layout"].toString());
         document_.markSaved();
     } catch (const std::exception& e) {
         DBG("G2fresh: could not restore the patch from the host: " << e.what());

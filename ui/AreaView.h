@@ -112,10 +112,13 @@ private:
     void paintModules(juce::Graphics& g);
     void paintOverlay(juce::Graphics& g);
     void paintCables(juce::Graphics& g);
-    void paintCable(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to, juce::Colour c, bool flowing);
+    void paintCable(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to, juce::Colour c, bool flowing,
+                    std::optional<g2::CableBend> bend = std::nullopt);
     void paintHighlight(juce::Graphics& g, const g2::Cable& cable);
     // Shows (or, with nullopt, clears) a cable clicked on its cord.
     void highlightCable(std::optional<g2::Cable> cable);
+    // The highlighted cable as it is in the patch now (its bend may have changed).
+    std::optional<g2::Cable> highlightedCable() const;
     void updateTimer();
     void timerCallback() override;
     void repaintModules();
@@ -128,7 +131,16 @@ private:
     void showControlMenu(const Hit& h);
     void showCableMenu(const g2::Cable& cable);
     std::optional<g2::Cable> cableAt(juce::Point<int> p) const;
-    juce::Path cablePath(juce::Point<float> a, juce::Point<float> b) const;
+    // A cable's curve; with a bend it passes through the point the user pulled.
+    juce::Path cablePath(juce::Point<float> a, juce::Point<float> b, std::optional<g2::CableBend> bend = std::nullopt) const;
+    // Both ends of a cable, or nullopt if a module is missing.
+    std::optional<std::pair<juce::Point<float>, juce::Point<float>>> cableEnds(const g2::Cable& c) const;
+    // A cable's bend point (where its curve passes), or nullopt if it has none.
+    std::optional<juce::Point<float>> bendPoint(const g2::Cable& c) const;
+    // The bent cable whose bend point is under p.
+    std::optional<g2::Cable> bendPointAt(juce::Point<int> p) const;
+    // Double-click on a cord: adds a bend point at `where`, or removes the cable's one.
+    void toggleBendPoint(const g2::Cable& cable, juce::Point<float> where);
     bool isSelected(std::uint8_t module) const;
     void select(std::uint8_t module, bool toggle);
     void rename(std::uint8_t module);
@@ -146,7 +158,8 @@ private:
 
     // Value: knob drag; Range: Alt-drag sets the knob's morph range;
     // Module: moves the selection; Cable: patching; Band: rubber-band selection.
-    enum class Drag { None, Value, Range, Module, Cable, Band };
+    // Bend: pulling a cable into shape.
+    enum class Drag { None, Value, Range, Module, Cable, Band, Bend };
     Drag drag_ = Drag::None;
     Hit dragHit_;
     int dragStartValue_ = 0;

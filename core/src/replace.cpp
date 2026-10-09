@@ -191,7 +191,7 @@ End toOf(const Cable& c) { return {c.toModule, c.toConn, false}; }
 
 Cable makeCable(CableColor color, End from, End to)
 {
-    return {color, from.module, from.conn, from.isOutput, to.module, to.conn};
+    return {color, from.module, from.conn, from.isOutput, to.module, to.conn, std::nullopt};
 }
 
 // CPatchData::GetFreeNameIndex @ 000e6cf8: the smallest positive number not

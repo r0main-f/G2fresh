@@ -335,11 +335,24 @@ void AreaView::paintOverlay(juce::Graphics& g)
     paintCables(g);
 }
 
-juce::Path AreaView::cablePath(juce::Point<float> a, juce::Point<float> b) const
+juce::Path AreaView::cablePath(juce::Point<float> a, juce::Point<float> b, std::optional<g2::CableBend> bend) const
 {
     const float distance = a.getDistanceFrom(b);
     juce::Path path;
     path.startNewSubPath(a);
+    if (bend) {
+        // Two curves meeting at the bend point, like a cord over a hook: each
+        // leaves its jack towards the point with a little sag, and they cross
+        // the point along the jack-to-jack direction with a short tangent, so
+        // a point pulled far away gives a U, not a loop.
+        const auto m = (a + b) * 0.5f + juce::Point<float>(bend->dx, bend->dy);
+        const float ha = a.getDistanceFrom(m), hb = b.getDistanceFrom(m);
+        const auto t = distance > 0.5f ? (b - a) / distance : juce::Point<float>(1.0f, 0.0f);
+        const float tangent = std::min(0.25f * distance, 0.35f * std::min(ha, hb));
+        path.cubicTo(a + (m - a) * 0.3f + juce::Point<float>(0.0f, std::min(25.0f, 0.2f * ha)), m - t * tangent, m);
+        path.cubicTo(m + t * tangent, b + (m - b) * 0.3f + juce::Point<float>(0.0f, std::min(25.0f, 0.2f * hb)), b);
+        return path;
+    }
     if (currentLook() == Look::Classic) {
         path.quadraticTo((a + b) * 0.5f + juce::Point<float>(0.0f, 10.0f + 0.25f * distance), b);
     } else {
@@ -360,16 +373,67 @@ std::optional<g2::Cable> AreaView::cableAt(juce::Point<int> p) const
         if (!a || !b)
             continue;
         juce::Point<float> nearest;
-        cablePath(*a, *b).getNearestPoint(p.toFloat(), nearest);
+        cablePath(*a, *b, it->bend).getNearestPoint(p.toFloat(), nearest);
         if (nearest.getDistanceFrom(p.toFloat()) < 5.0f)
             return *it;
     }
     return std::nullopt;
 }
 
-void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<float> b, juce::Colour c, bool flowing)
+std::optional<std::pair<juce::Point<float>, juce::Point<float>>> AreaView::cableEnds(const g2::Cable& c) const
 {
-    juce::Path path = cablePath(a, b);
+    const auto a = jackCentre({c.fromModule, c.fromConn, c.fromIsOutput});
+    const auto b = jackCentre({c.toModule, c.toConn, false});
+    if (!a || !b)
+        return std::nullopt;
+    return std::make_pair(*a, *b);
+}
+
+std::optional<juce::Point<float>> AreaView::bendPoint(const g2::Cable& c) const
+{
+    const auto ends = cableEnds(c);
+    if (!ends || !c.bend)
+        return std::nullopt;
+    return (ends->first + ends->second) * 0.5f + juce::Point<float>(c.bend->dx, c.bend->dy);
+}
+
+std::optional<g2::Cable> AreaView::bendPointAt(juce::Point<int> p) const
+{
+    const auto& visible = doc_.patch().header.cablesVisible;
+    const auto& cables = doc_.patch().area(location_).cables;
+    // The highlighted cable's point first, then the topmost.
+    if (const auto h = highlightedCable())
+        if (const auto b = bendPoint(*h); b && b->getDistanceFrom(p.toFloat()) <= 8.0f)
+            return h;
+    for (auto it = cables.rbegin(); it != cables.rend(); ++it)
+        if (visible[static_cast<std::size_t>(it->color)])
+            if (const auto b = bendPoint(*it); b && b->getDistanceFrom(p.toFloat()) <= 6.0f)
+                return *it;
+    return std::nullopt;
+}
+
+void AreaView::toggleBendPoint(const g2::Cable& cable, juce::Point<float> where)
+{
+    const auto ends = cableEnds(cable);
+    if (!ends)
+        return;
+    const auto loc = location_;
+    std::optional<g2::CableBend> bend;
+    if (!cable.bend) {
+        // The curve will pass through the point double-clicked.
+        const auto offset = where - (ends->first + ends->second) * 0.5f;
+        bend = g2::CableBend{static_cast<std::int16_t>(juce::roundToInt(offset.x)),
+                             static_cast<std::int16_t>(juce::roundToInt(offset.y))};
+    }
+    doc_.perform(bend ? "Add bend point" : "Remove bend point",
+                 [&](g2::Patch& p) { g2::edit::setCableBend(p, loc, cable, bend); });
+    highlightCable(cable);
+}
+
+void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<float> b, juce::Colour c, bool flowing,
+                          std::optional<g2::CableBend> bend)
+{
+    juce::Path path = cablePath(a, b, bend);
     if (currentLook() == Look::Classic) {
         // The original editor's style: a simple sagging curve with an outline.
         g.setColour(juce::Colours::black.withAlpha(0.6f));
@@ -391,6 +455,14 @@ void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<f
             g.setColour(c.darker(0.5f));
             g.fillEllipse(p.x - 3.0f, p.y - 3.0f, 6.0f, 6.0f);
         }
+    }
+    // A bent cable shows its bend point, which can be dragged.
+    if (bend) {
+        const auto m = (a + b) * 0.5f + juce::Point<float>(bend->dx, bend->dy);
+        g.setColour(juce::Colours::white);
+        g.fillEllipse(m.x - 3.5f, m.y - 3.5f, 7.0f, 7.0f);
+        g.setColour(c.darker(0.4f));
+        g.drawEllipse(m.x - 3.5f, m.y - 3.5f, 7.0f, 7.0f, 1.5f);
     }
     if (!flowing)
         return;
@@ -423,11 +495,12 @@ void AreaView::paintCables(juce::Graphics& g)
         const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});
         const auto b = jackCentre({cable.toModule, cable.toConn, false});
         if (a && b)
-            paintCable(g, *a, *b, ModulePainter::cableColour(cable.color), flowing);
+            paintCable(g, *a, *b, ModulePainter::cableColour(cable.color), flowing, cable.bend);
     }
     if (highlighted_) {
         g.endTransparencyLayer();
-        paintHighlight(g, *highlighted_);
+        if (const auto current = highlightedCable())
+            paintHighlight(g, *current);
     }
     if (drag_ == Drag::Cable && cableFrom_)
         if (const auto a = jackCentre(*cableFrom_))
@@ -442,12 +515,24 @@ void AreaView::paintHighlight(juce::Graphics& g, const g2::Cable& cable)
         return;
     const auto colour = ModulePainter::cableColour(cable.color);
     // A soft glow under the cable, then the cable itself.
-    const auto path = cablePath(*a, *b);
+    const auto path = cablePath(*a, *b, cable.bend);
     g.setColour(colour.withAlpha(0.35f));
     g.strokePath(path, juce::PathStrokeType(11.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     g.setColour(juce::Colours::white.withAlpha(0.5f));
     g.strokePath(path, juce::PathStrokeType(6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    paintCable(g, *a, *b, colour, cableAnimation());
+    paintCable(g, *a, *b, colour, cableAnimation(), cable.bend);
+
+    // The bend point, larger: drag it to move it, double-click to remove it.
+    if (const auto h = bendPoint(cable)) {
+        juce::Path diamond;
+        diamond.addPolygon(*h, 4, 6.5f, 0.0f);
+        g.setColour(juce::Colours::black.withAlpha(0.35f));
+        g.fillPath(diamond, juce::AffineTransform::translation(0.6f, 1.2f));
+        g.setColour(juce::Colours::white);
+        g.fillPath(diamond);
+        g.setColour(colour.darker(0.3f));
+        g.strokePath(diamond, juce::PathStrokeType(1.5f));
+    }
 
     // Both ends: a pulsing ring and a label naming the module and connector.
     const auto pulse = static_cast<float>(0.5 + 0.5 * std::sin(juce::Time::getMillisecondCounterHiRes() * 0.006));
@@ -480,6 +565,16 @@ void AreaView::paintHighlight(juce::Graphics& g, const g2::Cable& cable)
     }
 }
 
+std::optional<g2::Cable> AreaView::highlightedCable() const
+{
+    if (!highlighted_)
+        return std::nullopt;
+    for (const auto& c : doc_.patch().area(location_).cables)
+        if (sameEnds(c, *highlighted_))
+            return c;
+    return std::nullopt;
+}
+
 void AreaView::highlightCable(std::optional<g2::Cable> cable)
 {
     if (!cable && !highlighted_)
@@ -498,12 +593,18 @@ void AreaView::mouseMove(const juce::MouseEvent& e)
         hover_ = h;
         modules_->repaint();
     }
+    if (const auto bent = bendPointAt(e.getPosition())) {
+        setMouseCursor(juce::MouseCursor::DraggingHandCursor);
+        status(describeCable(*bent) + "  (drag the bend point to move it, double-click to remove it)");
+        return;
+    }
     // Cables are drawn over the modules: over a cord (but not over a jack or
     // a control) the cord is what a click picks.
     const bool onControl = h.element && (ModulePainter::isJack(*h.element) || isEditable(*h.element));
     if (const auto cable = onControl ? std::nullopt : cableAt(e.getPosition())) {
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
-        status(describeCable(*cable) + "  (click to highlight)");
+        status(describeCable(*cable) + (cable->bend ? "  (click to highlight, double-click to remove the bend point)"
+                                                    : "  (click to highlight, double-click to add a bend point)"));
         return;
     }
     setMouseCursor(juce::MouseCursor::NormalCursor);
@@ -524,14 +625,24 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
     dragPos_ = e.getPosition();
     dragHit_ = hitAt(e.getPosition());
     drag_ = Drag::None;
+    // Bend points come first: drag one to move it.
+    if (const auto bent = bendPointAt(e.getPosition())) {
+        highlightCable(bent);
+        dragHit_ = {};
+        if (e.mods.isPopupMenu())
+            showCableMenu(*bent);
+        else
+            drag_ = Drag::Bend;
+        return;
+    }
     // A click on a cord (cables are drawn over modules, but not over jacks
     // and controls) highlights that cable; a right-click opens its menu.
     const bool onControl = dragHit_.element && (ModulePainter::isJack(*dragHit_.element) || isEditable(*dragHit_.element));
     if (const auto cable = onControl ? std::nullopt : cableAt(e.getPosition())) {
         highlightCable(cable);
+        dragHit_ = {};
         if (e.mods.isPopupMenu())
             showCableMenu(*cable);
-        dragHit_ = {};
         return;
     }
     highlightCable(std::nullopt);
@@ -646,6 +757,25 @@ void AreaView::mouseDrag(const juce::MouseEvent& e)
                + juce::String(juce::roundToInt(range * 100.0 / 127.0)) + "%");
         break;
     }
+    case Drag::Bend: {
+        if (!highlighted_ || e.getDistanceFromDragStart() < 3)
+            break;
+        const auto ends = cableEnds(*highlighted_);
+        if (!ends)
+            break;
+        // The curve passes through the mouse: the bend is its offset from
+        // the middle of the jacks, in unzoomed pixels.
+        const auto offset = e.position - (ends->first + ends->second) * 0.5f;
+        const g2::CableBend bend{static_cast<std::int16_t>(juce::roundToInt(offset.x)),
+                                 static_cast<std::int16_t>(juce::roundToInt(offset.y))};
+        const auto cable = *highlighted_;
+        const auto loc = location_;
+        doc_.performCoalesced("bend:" + juce::String(cable.fromModule) + ":" + juce::String(cable.fromConn) + ":"
+                                  + juce::String(cable.toModule) + ":" + juce::String(cable.toConn),
+                              [&](g2::Patch& p) { g2::edit::setCableBend(p, loc, cable, bend); });
+        setMouseCursor(juce::MouseCursor::DraggingHandCursor);
+        break;
+    }
     case Drag::Band:
     case Drag::Module:
     case Drag::Cable:
@@ -712,7 +842,18 @@ void AreaView::mouseUp(const juce::MouseEvent& e)
 
 void AreaView::mouseDoubleClick(const juce::MouseEvent& e)
 {
+    // On a bend point: remove it. On a cord: add a bend point there, or
+    // remove the cable's one.
+    if (const auto bent = bendPointAt(e.getPosition())) {
+        toggleBendPoint(*bent, e.position);
+        return;
+    }
     const auto h = hitAt(e.getPosition());
+    const bool onControl = h.element && (ModulePainter::isJack(*h.element) || isEditable(*h.element));
+    if (const auto cable = onControl ? std::nullopt : cableAt(e.getPosition())) {
+        toggleBendPoint(*cable, e.position);
+        return;
+    }
     if (!h.element || h.element->kind != "Knob")
         return;
     const auto* m = doc_.patch().area(location_).find(h.module);
@@ -1132,7 +1273,7 @@ void AreaView::showControlMenu(const Hit& h)
 
 void AreaView::showCableMenu(const g2::Cable& cable)
 {
-    enum { kDelete = 1, kColourBase = 100 };
+    enum { kDelete = 1, kBendPoint, kColourBase = 100 };
     juce::PopupMenu colours;
     for (int c = 0; c < 7; ++c) {
         juce::PopupMenu::Item item(cableColourName(static_cast<g2::CableColor>(c)));
@@ -1143,6 +1284,7 @@ void AreaView::showCableMenu(const g2::Cable& cable)
     }
     juce::PopupMenu menu;
     menu.addSubMenu("Cable Colour", colours);
+    menu.addItem(kBendPoint, cable.bend ? "Remove Bend Point" : "Add Bend Point");
     menu.addItem(kDelete, "Delete Cable");
     menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), cable](int r) {
         if (!safe || r <= 0)
@@ -1150,6 +1292,15 @@ void AreaView::showCableMenu(const g2::Cable& cable)
         const auto loc = safe->location_;
         if (r == kDelete)
             safe->doc_.perform("Delete cable", [&](g2::Patch& p) { g2::edit::disconnect(p, loc, cable); });
+        else if (r == kBendPoint) {
+            // Added from the menu: at the middle of the current curve.
+            juce::Point<float> where;
+            if (const auto ends = safe->cableEnds(cable)) {
+                const auto path = safe->cablePath(ends->first, ends->second, cable.bend);
+                where = path.getPointAlongPath(path.getLength() * 0.5f);
+            }
+            safe->toggleBendPoint(cable, where);
+        }
         else
             safe->doc_.perform("Change cable colour", [&](g2::Patch& p) {
                 g2::edit::setCableColor(p, loc, cable, static_cast<g2::CableColor>(r - kColourBase));

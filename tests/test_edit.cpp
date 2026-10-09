@@ -258,3 +258,28 @@ TEST_CASE("a new note sequencer gets the original's default view")
     const Patch back = loadPatch(savePatch(p));
     CHECK(special::noteSeqView(back, Location::Va, seq) == special::NoteSeqView{1, 5});
 }
+
+TEST_CASE("cable bend points are editor-only")
+{
+    Patch p = loadPatch(g2test::readBytes(G2_CORPUS_DIR "/pch2csd/test_3osc.pch2"));
+    REQUIRE(!p.va.cables.empty());
+    const auto original = savePatch(p);
+    const Cable cable = p.va.cables.front();
+    CHECK_FALSE(edit::hasCableBends(p));
+
+    edit::setCableBend(p, Location::Va, cable, CableBend{40, -25});
+    REQUIRE(p.va.cables.front().bend);
+    CHECK(*p.va.cables.front().bend == CableBend{40, -25});
+    CHECK(p.va.cables.front() == cable); // a cable is its colour and ends
+    CHECK(edit::hasCableBends(p));
+    CHECK(savePatch(p) == original);     // nothing reaches the .pch2
+
+    // Copy/paste and colour changes keep the bend; removing it restores the curve.
+    edit::setCableColor(p, Location::Va, cable, CableColor::White);
+    CHECK(p.va.cables.front().bend);
+    edit::clearCableBends(p);
+    CHECK_FALSE(edit::hasCableBends(p));
+    CHECK_THROWS_AS(edit::setCableBend(p, Location::Fx, Cable{CableColor::Red, 99, 0, true, 98, 0, std::nullopt},
+                                       std::nullopt),
+                    std::invalid_argument);
+}

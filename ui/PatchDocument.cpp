@@ -1,5 +1,7 @@
 #include "PatchDocument.h"
 
+#include "CableLayout.h"
+
 #include <stdexcept>
 
 namespace g2ui {
@@ -210,6 +212,28 @@ void PatchDocument::loadBytes(const std::vector<std::uint8_t>& bytes, bool ignor
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch().header.activeVariation));
     dirty_ = false;
     sendChangeMessage();
+}
+
+juce::String PatchDocument::layoutJson() const
+{
+    std::vector<std::pair<int, const g2::Patch*>> patches;
+    if (perf_)
+        for (int i = 0; i < 4; ++i)
+            patches.emplace_back(i, &perf_->slots[static_cast<std::size_t>(i)]);
+    else
+        patches.emplace_back(0, &patch_);
+    return cablelayout::toJson(patches);
+}
+
+void PatchDocument::applyLayoutJson(const juce::String& json)
+{
+    const int shaped = cablelayout::apply(json, [this](int slot) -> g2::Patch* {
+        if (perf_)
+            return juce::isPositiveAndBelow(slot, 4) ? &perf_->slots[static_cast<std::size_t>(slot)] : nullptr;
+        return slot == 0 ? &patch_ : nullptr;
+    });
+    if (shaped > 0)
+        sendChangeMessage();
 }
 
 std::vector<std::uint8_t> PatchDocument::saveBytes() const
