@@ -4,7 +4,7 @@ A modern, native editor for the Clavia **Nord Modular G2**, for macOS (Apple Sil
 
 Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a proprietary kernel driver on Windows, so it no longer runs on current systems. G2fresh is a rewrite. Ghidra analysis of the original editor serves as the specification, cross-checked against Bruno Verhue's open-source editor.
 
-**Status:** 0.2, an offline patch editor. It opens, edits and saves G2 patches and performances; every public G2 file we know of loads (5,589 files from Clavia's banks and the community archives). It runs as a stand-alone app and as a VST3/AU plugin that stores the patch in your DAW project. Not yet: talking to the synth over USB, the patch-settings panel, and the small module graphs.
+**Status:** 0.2, an offline patch editor. It opens, edits and saves G2 patches and performances; every public G2 file we know of loads (5,589 files from Clavia's banks and the community archives). It runs as a stand-alone app and as a VST3/AU plugin that stores the patch in your DAW project. It has the full patch settings (voices, glide, bend, vibrato, arpeggiator, morph groups) and the modules' live graphs, a modern look and the original Classic look, zoom, and animated cables. Not yet: talking to the synth over USB.
 
 ## Layout
 

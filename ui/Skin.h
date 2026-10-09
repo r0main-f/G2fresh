@@ -19,6 +19,7 @@ struct PanelElement {
     int width = 0, height = 0;
     int codeRef = -1;    // parameter index (controls), connector index (jacks), mode index (PartSelector)
     int infoFunc = 0;
+    int graphFunc = 0;   // Graph "Graph Func"
     int textFunc = 0;    // TextField "Text Func"
     int masterRef = -1;  // TextField: parameter shown
     juce::String type;   // knob size, jack signal, button behaviour, ...

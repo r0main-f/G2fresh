@@ -54,4 +54,7 @@ private:
     static void paintModernElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted);
 };
 
+void paintClassicGraph(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, juce::Rectangle<int> r);
+void paintModernGraph(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, juce::Rectangle<float> r);
+
 } // namespace g2ui

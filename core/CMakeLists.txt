@@ -7,6 +7,7 @@ add_library(g2core STATIC
   src/crc.cpp
   src/edit.cpp
   src/param_text.cpp
+  src/graphs.cpp
 )
 target_include_directories(g2core PUBLIC include)
 # Linked into plugin shared objects too.

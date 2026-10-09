@@ -14,6 +14,7 @@ add_executable(g2tests
   test_patch.cpp
   test_param_text.cpp
   test_param_text_golden.cpp
+  test_graphs.cpp
 )
 target_link_libraries(g2tests PRIVATE g2core Catch2::Catch2WithMain)
 target_compile_definitions(g2tests PRIVATE

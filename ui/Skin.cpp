@@ -54,6 +54,7 @@ PanelElement element(const juce::var& v)
     e.codeRef = v.getProperty("CodeRef", -1);
     e.infoFunc = v.getProperty("InfoFunc", 0);
     e.textFunc = v.getProperty("Text Func", 0);
+    e.graphFunc = v.getProperty("Graph Func", 0);
     e.masterRef = v.getProperty("MasterRef", -1);
     e.type = v.getProperty("Type", {}).toString();
     e.style = v.getProperty("Style", {}).toString();

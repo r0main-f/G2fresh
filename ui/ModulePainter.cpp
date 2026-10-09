@@ -1,6 +1,7 @@
 #include "ModulePainter.h"
 
 #include "g2/module_db.hpp"
+#include "g2/graphs.hpp"
 #include "g2/param_text.hpp"
 
 namespace g2ui {
@@ -42,6 +43,26 @@ int morphGroup(const ModuleContext& c, int param)
     return -1;
 }
 
+const std::vector<std::uint8_t>* params(const ModuleContext& c);
+
+// Values named by a PANL "Dependencies" string ("0,3,S0"): parameter values
+// of the current variation, or mode values for "S<n>"/"s<n>".
+std::vector<std::uint8_t> dependencyValues(const ModuleContext& c, const juce::String& dependencies)
+{
+    juce::StringArray deps;
+    deps.addTokens(dependencies, ",", "");
+    deps.removeEmptyStrings();
+    std::vector<std::uint8_t> out;
+    const auto* p = params(c);
+    for (const auto& d : deps) {
+        const bool isMode = d.startsWithIgnoreCase("S");
+        const int i = (isMode ? d.substring(1) : d).getIntValue();
+        const std::vector<std::uint8_t>* src = isMode ? &c.module.modes : p;
+        out.push_back(src && i >= 0 && static_cast<std::size_t>(i) < src->size() ? (*src)[static_cast<std::size_t>(i)] : 0);
+    }
+    return out;
+}
+
 const std::vector<std::uint8_t>* params(const ModuleContext& c)
 {
     if (c.module.params.empty())
@@ -78,6 +99,95 @@ void drawLabel(juce::Graphics& g, juce::Rectangle<int> r, const juce::String& te
 }
 
 } // namespace
+
+namespace {
+
+juce::Colour inkColour(g2::graphs::Ink ink)
+{
+    const auto rgb = g2::graphs::color(ink);
+    return juce::Colour(rgb.r, rgb.g, rgb.b);
+}
+
+void drawGraphText(juce::Graphics& g, const g2::graphs::Drawing& d, juce::Point<int> origin, juce::Colour colour,
+                   float size)
+{
+    for (const auto& op : d.ops)
+        if (op.kind == g2::graphs::Op::Kind::Text) {
+            g.setColour(colour);
+            g.setFont(juce::Font(juce::FontOptions(size)));
+            g.drawSingleLineText(juce::String(op.text), origin.x + op.x0, origin.y + op.y0);
+        }
+}
+
+} // namespace
+
+// The original's graph, pixel for pixel.
+void paintClassicGraph(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, juce::Rectangle<int> r)
+{
+    if (!g2::graphs::isGraph(e.graphFunc) || r.isEmpty())
+        return;
+    const auto d = g2::graphs::render(e.graphFunc, dependencyValues(c, e.dependencies), r.getWidth(), r.getHeight());
+    const auto pixels = g2::graphs::rasterize(d);
+    if (pixels.size() != static_cast<std::size_t>(d.width * d.height))
+        return;
+    juce::Image img(juce::Image::RGB, d.width, d.height, false);
+    for (int y = 0; y < d.height; ++y)
+        for (int x = 0; x < d.width; ++x)
+            img.setPixelAt(x, y, inkColour(pixels[static_cast<std::size_t>(y * d.width + x)]));
+    g.drawImageAt(img, r.getX(), r.getY());
+    drawGraphText(g, d, r.getPosition(), inkColour(g2::graphs::Ink::Text), 9.0f);
+}
+
+// The graph as vectors, in the modern palette.
+void paintModernGraph(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, juce::Rectangle<float> r)
+{
+    using g2::graphs::Ink;
+    if (!g2::graphs::isGraph(e.graphFunc) || r.isEmpty())
+        return;
+    const auto values = dependencyValues(c, e.dependencies);
+    const auto lines = g2::graphs::draw(e.graphFunc, values, r.getWidth(), r.getHeight());
+    auto modern = [](Ink ink) {
+        switch (ink) {
+        case Ink::Back: return juce::Colour(0xff1f262d);
+        case Ink::BackLine: return juce::Colour(0xff4c5865);
+        case Ink::Border: return juce::Colour(0xff7fd8ff);
+        case Ink::Single: return juce::Colour(0xff6ee7a8);
+        case Ink::Base: return juce::Colour(0xffffc65c);
+        case Ink::Shade: return juce::Colour(0xff34404b);
+        case Ink::Fill: return juce::Colour(0x557fd8ff);
+        case Ink::EnvFill: return juce::Colour(0x446ee7a8);
+        case Ink::Text: return juce::Colour(0xffffc65c);
+        case Ink::Frame: return juce::Colour(0x00000000);
+        }
+        return juce::Colours::grey;
+    };
+    juce::Graphics::ScopedSaveState state(g);
+    juce::Path clip;
+    clip.addRoundedRectangle(r, 3.0f);
+    g.setColour(modern(Ink::Back));
+    g.fillPath(clip);
+    g.reduceClipRegion(clip);
+    for (const auto& line : lines) {
+        if (line.points.empty() || line.ink == Ink::Frame || line.ink == Ink::Back)
+            continue;
+        juce::Path p;
+        p.startNewSubPath(r.getX() + line.points[0].first, r.getY() + line.points[0].second);
+        for (std::size_t i = 1; i < line.points.size(); ++i)
+            p.lineTo(r.getX() + line.points[i].first, r.getY() + line.points[i].second);
+        if (line.closed)
+            p.closeSubPath();
+        g.setColour(modern(line.ink));
+        if (line.filled)
+            g.fillPath(p);
+        else if (line.points.size() == 1)
+            g.fillRect(r.getX() + line.points[0].first - 0.5f, r.getY() + line.points[0].second - 0.5f, 1.0f, 1.0f);
+        else
+            g.strokePath(p, juce::PathStrokeType(line.ink == Ink::BackLine ? 1.0f : 1.4f, juce::PathStrokeType::curved,
+                                                 juce::PathStrokeType::rounded));
+    }
+    const auto d = g2::graphs::render(e.graphFunc, values, juce::roundToInt(r.getWidth()), juce::roundToInt(r.getHeight()));
+    drawGraphText(g, d, r.getPosition().toInt(), modern(Ink::Text), 9.0f);
+}
 
 const PanelDef* ModulePainter::panelFor(const g2::Module& m)
 {
@@ -174,18 +284,8 @@ juce::String ModulePainter::valueText(const ModuleContext& c, const PanelElement
     }
     if (!p)
         return {};
-    if (e.kind == "TextField" && e.dependencies.isNotEmpty()) {
-        juce::StringArray deps;
-        deps.addTokens(e.dependencies, ",", "");
-        std::vector<std::uint8_t> args;
-        for (const auto& d : deps) {
-            const bool isMode = d.startsWithIgnoreCase("S");
-            const int i = (isMode ? d.substring(1) : d).getIntValue();
-            const auto& src = isMode ? c.module.modes : *p;
-            args.push_back(i >= 0 && static_cast<std::size_t>(i) < src.size() ? src[static_cast<std::size_t>(i)] : 0);
-        }
-        return g2::paramtext::format(e.textFunc, args);
-    }
+    if (e.kind == "TextField" && e.dependencies.isNotEmpty())
+        return g2::paramtext::format(e.textFunc, dependencyValues(c, e.dependencies));
     const int ref = e.kind == "TextField" ? e.masterRef : e.codeRef;
     if (ref < 0)
         return {};
@@ -394,8 +494,11 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
         g.fillRect(r);
         return;
     }
-    // Text, Line, Symbol, Bitmap are part of the face bitmap; Graph is not
-    // drawn yet.
+    if (e.kind == "Graph") {
+        paintClassicGraph(g, c, e, r);
+        return;
+    }
+    // Text, Line, Symbol and Bitmap are part of the face bitmap.
 }
 
 // ---- Modern look: everything drawn as vectors -------------------------------
@@ -711,6 +814,10 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
     if (e.kind == "MiniVU") {
         g.setColour(juce::Colour(0xff2a2e35));
         g.fillRoundedRectangle(r, 2.0f);
+        return;
+    }
+    if (e.kind == "Graph") {
+        paintModernGraph(g, c, e, r);
         return;
     }
 }
