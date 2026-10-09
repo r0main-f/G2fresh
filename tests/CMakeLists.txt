@@ -12,6 +12,7 @@ add_executable(g2tests
   test_edit.cpp
   test_file.cpp
   test_patch.cpp
+  test_replace.cpp
   test_mutate.cpp
   test_patch_load.cpp
   test_uprate.cpp
@@ -34,6 +35,8 @@ find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
   add_test(NAME mutate_param_classes_are_current
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/mutate/gen_param_classes.py --check)
+  add_test(NAME replace_tables_are_current
+    COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/moduledb/gen_replace.py --check)
   add_test(NAME patch_load_table_is_current
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/patchload/gen_table.py --check)
   add_test(NAME module_db_generated_is_current

@@ -4,6 +4,7 @@
 
 #include "g2/edit.hpp"
 #include "g2/param_text.hpp"
+#include "g2/replace.hpp"
 
 namespace g2ui {
 namespace {
@@ -709,7 +710,7 @@ void AreaView::showModuleMenu(std::uint8_t module)
     const auto* m = doc_.patch().area(location_).find(module);
     if (!m)
         return;
-    enum { kRename = 1, kDuplicate, kCopy, kCut, kDelete, kLock, kColourBase = 100 };
+    enum { kRename = 1, kDuplicate, kCopy, kCut, kDelete, kLock, kColourBase = 100, kReplaceBase = 1000 };
     const bool many = selection_.size() > 1;
     juce::PopupMenu colours;
     for (int c : ModulePainter::moduleColourMenuOrder()) {
@@ -719,8 +720,13 @@ void AreaView::showModuleMenu(std::uint8_t module)
         item.isTicked = m->color == c;
         colours.addItem(std::move(item));
     }
+    // Replace: the modules of the same group, as the original's Replace button offers.
+    juce::PopupMenu replace;
+    for (const auto& item : g2::replace::menu(m->type, location_))
+        replace.addItem(kReplaceBase + item.type, item.label, item.enabled, item.type == m->type);
     juce::PopupMenu menu;
     menu.addItem(kRename, "Rename...", !many);
+    menu.addSubMenu("Replace With", replace, !many && replace.getNumItems() > 1);
     menu.addSubMenu(many ? "Colour (selection)" : "Colour", colours);
     menu.addItem(kLock, "Lock (keep when randomizing)", true, m->locked);
     menu.addSeparator();
@@ -734,7 +740,19 @@ void AreaView::showModuleMenu(std::uint8_t module)
             return;
         auto& self = *safe;
         const auto loc = self.location_;
-        if (result >= kColourBase) {
+        if (result >= kReplaceBase) {
+            const auto newType = static_cast<std::uint8_t>(result - kReplaceBase);
+            std::uint8_t replaced = 0;
+            juce::String error;
+            if (self.doc_.perform("Replace module", [&](g2::Patch& p) {
+                    replaced = g2::replace::replaceModule(p, loc, module, newType);
+                }, &error)) {
+                self.selection_ = {replaced};
+                self.touch(replaced);
+            } else {
+                self.status("Cannot replace: " + error);
+            }
+        } else if (result >= kColourBase) {
             const auto colour = static_cast<std::uint8_t>(result - kColourBase);
             const auto targets = self.selection_.empty() ? std::vector<std::uint8_t>{module} : self.selection_;
             self.doc_.perform("Change module colour", [&](g2::Patch& p) {
