@@ -107,6 +107,54 @@ void moveModule(Patch& patch, Location loc, u8 index, u8 col, u8 row)
     Module& m = moduleAt(patch, loc, index);
     m.col = col;
     m.row = row;
+    resolveOverlaps(patch, loc, index);
+}
+
+namespace {
+int heightOf(const Module& m)
+{
+    const auto* def = m.def();
+    return def && def->height > 0 ? def->height : 1;
+}
+} // namespace
+
+void resolveOverlaps(Patch& patch, Location loc, u8 keep)
+{
+    Area& area = areaFor(patch, loc);
+    // Per column: the kept module first, then the others top to bottom; each
+    // one goes no higher than it was, below anything placed that it overlaps.
+    std::vector<Module*> order;
+    for (auto& m : area.modules)
+        order.push_back(&m);
+    std::stable_sort(order.begin(), order.end(), [&](const Module* a, const Module* b) {
+        if (a->col != b->col)
+            return a->col < b->col;
+        if ((a->index == keep) != (b->index == keep))
+            return a->index == keep;
+        return a->row < b->row;
+    });
+    std::vector<const Module*> placed;
+    for (Module* m : order) {
+        bool moved = true;
+        while (moved) {
+            moved = false;
+            for (const Module* p : placed)
+                if (p->col == m->col && m->row < p->row + heightOf(*p) && p->row < m->row + heightOf(*m)) {
+                    m->row = static_cast<u8>(std::min(127, p->row + heightOf(*p)));
+                    moved = true;
+                }
+        }
+        placed.push_back(m);
+    }
+}
+
+u8 freeRow(const Patch& patch, Location loc, u8 col)
+{
+    int row = 0;
+    for (const auto& m : patch.area(loc).modules)
+        if (m.col == col)
+            row = std::max(row, m.row + heightOf(m));
+    return static_cast<u8>(std::min(row, 127));
 }
 
 void renameModule(Patch& patch, Location loc, u8 index, const std::string& name)

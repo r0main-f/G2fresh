@@ -21,7 +21,13 @@ struct Endpoint {
 // (references into the module list are invalidated by later additions).
 u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row);
 void removeModule(Patch& patch, Location loc, u8 index);
+// Moves a module, then pushes any module it now overlaps down its column (as
+// the original editor does).
 void moveModule(Patch& patch, Location loc, u8 index, u8 col, u8 row);
+// Pushes modules down so none overlap; `keep` (if non-zero) stays in place.
+void resolveOverlaps(Patch& patch, Location loc, u8 keep = 0);
+// The first free row in a column, below every module already there.
+u8 freeRow(const Patch& patch, Location loc, u8 col);
 void renameModule(Patch& patch, Location loc, u8 index, const std::string& name);
 
 // The colour the editor gives a cable leaving `from`: the connector's colour,

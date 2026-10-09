@@ -12,9 +12,13 @@ Bruno Verhue, used under the GNU GPL version 2 or (at your option) any later
 version.
 
 Nord Modular, Nord and Clavia are trademarks of Clavia DMI AB. This project is
-not affiliated with or endorsed by Clavia DMI AB. No Clavia software or
-artwork is distributed with this project; the optional "Classic" skin is
-generated locally from the user's own copy of the original editor.
+not affiliated with or endorsed by Clavia DMI AB.
+
+The module panel layouts and graphics in assets/clavia/ were extracted from
+Clavia's Nord Modular G2 Editor v1.62 (a free download from nordkeyboards.com)
+with tools/assets/build_assets.py. They remain the property of Clavia DMI AB
+and are included only so that owners of the instrument get the original
+editor's look. They are not covered by this project's license.
 
 This program uses JUCE (https://juce.com), licensed under the GNU Affero
 General Public License version 3, and the Steinberg VST3 SDK (MIT License).

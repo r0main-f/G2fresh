@@ -91,3 +91,23 @@ TEST_CASE("removing a module removes everything that refers to it")
     const auto bytes = savePatch(p);
     CHECK(savePatch(loadPatch(bytes)) == bytes);
 }
+
+TEST_CASE("moving a module onto others pushes them down its column")
+{
+    Patch p = Patch::makeDefault();
+    const u8 a = edit::addModule(p, Location::Va, kOscB, 0, 0);    // rows 0-4
+    const u8 b = edit::addModule(p, Location::Va, kOut2, 0, 5);    // rows 5-6
+    const u8 c = edit::addModule(p, Location::Va, kKeyboard, 1, 0);
+    CHECK(edit::freeRow(p, Location::Va, 0) == 7);
+
+    edit::moveModule(p, Location::Va, c, 0, 3); // drop the keyboard into OscB
+    const auto* osc = p.va.find(a);
+    const auto* kb = p.va.find(c);
+    const auto* out = p.va.find(b);
+    CHECK(kb->col == 0);
+    CHECK(kb->row == 3);             // the moved module stays where it was dropped
+    CHECK(osc->row == 5);            // OscB pushed below the keyboard (rows 3-4)
+    CHECK(out->row == 10);           // and 2-Out below OscB
+    edit::resolveOverlaps(p, Location::Va);
+    CHECK(osc->row == 5);            // already consistent: nothing moves
+}

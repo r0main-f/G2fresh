@@ -24,7 +24,26 @@ if(G2_BUILD_PLUGIN)
     GIT_TAG 9.0.3
     GIT_SHALLOW TRUE)
   FetchContent_MakeAvailable(JUCE)
+
+  # The bundled Clavia skin (see NOTICE), compiled in as binary data.
+  file(GLOB G2_SKIN_FILES CONFIGURE_DEPENDS
+    ${PROJECT_SOURCE_DIR}/assets/clavia/panels.json
+    ${PROJECT_SOURCE_DIR}/assets/clavia/cbmp/*.png
+    ${PROJECT_SOURCE_DIR}/assets/clavia/jpeg/*.jpg)
+  juce_add_binary_data(G2SkinData HEADER_NAME G2SkinData.h NAMESPACE G2SkinData SOURCES ${G2_SKIN_FILES})
+  set_target_properties(G2SkinData PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+  # UI sources shared by the plugin/app and the render tool.
+  set(G2_UI_SOURCES
+    ${PROJECT_SOURCE_DIR}/ui/Skin.cpp
+    ${PROJECT_SOURCE_DIR}/ui/ModulePainter.cpp
+    ${PROJECT_SOURCE_DIR}/ui/PatchDocument.cpp
+    ${PROJECT_SOURCE_DIR}/ui/AreaView.cpp
+    ${PROJECT_SOURCE_DIR}/ui/ModuleBrowser.cpp
+    ${PROJECT_SOURCE_DIR}/ui/MainView.cpp)
+
   add_subdirectory(plugin)
+  add_subdirectory(tools/render)
 endif()
 
 if(G2_BUILD_TESTS)

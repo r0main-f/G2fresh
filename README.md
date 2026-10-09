@@ -14,6 +14,7 @@ Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a 
 | `re/notes/` | Recovered specifications (file format, USB protocol, resources, parameter display) |
 | `tools/rsrc/` | Extractors for the original editor's resources (`rsrc.py`, `panl.py`) |
 | `core/` | `libg2core`: `.pch2`/`.prf2` codec (`file.hpp`), patch model (`patch.hpp`), edit operations (`edit.hpp`), module database (`module_db.hpp`), parameter display text (`param_text.hpp`) |
+| `assets/clavia/` | Original module layouts and graphics, bundled into the app (Clavia's property, see NOTICE) |
 | `data/` | Module and parameter database (JSON), compiled into the core by `tools/moduledb/gen_cpp.py` |
 | `plugin/` | JUCE target: stand-alone app, VST3, AU |
 | `tests/` | Catch2 tests; `tests/corpus/` holds freely licensed patch files. Set `G2_EXTRA_CORPUS=<dir>` to also test your own patches |
@@ -28,7 +29,7 @@ cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 
 ## Reverse-engineering setup
 
-You need your own copy of the original editor: the "Nord Modular G2 OS v1.62 Update" DMG from nordkeyboards.com. Nothing from it is committed. Everything derived from it lives under the gitignored `original/`, `re/ghidra-db/` and `re/out/` directories.
+You need your own copy of the original editor: the "Nord Modular G2 OS v1.62 Update" DMG from nordkeyboards.com. The binary, the Ghidra database and the decompiled output stay in the gitignored `original/`, `re/ghidra-db/` and `re/out/` directories. Only the module layouts and graphics the UI needs are committed, in `assets/clavia/` (see NOTICE); `tools/assets/build_assets.py` regenerates them.
 
 ```sh
 lipo "Nord Modular G2 Editor.app/Contents/MacOS/Nord Modular G2 Editor" -thin i386 -output original/mac/G2Editor_i386

@@ -1,13 +1,17 @@
 #pragma once
 
+#include "PatchDocument.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
-// The G2 makes its own sound: this processor outputs silence. Its jobs are to
-// carry the patch in the host's project state and, later, to forward
-// automation and MIDI to the synth through g2bridge.
-class G2EditorProcessor final : public juce::AudioProcessor {
+// The G2 makes its own sound: this processor outputs silence. It owns the
+// patch being edited and stores it in the host's project, so the patch is
+// recalled with the project. (Automation and sending to the synth come with
+// the USB bridge.)
+class G2EditorProcessor final : public juce::AudioProcessor, private juce::ChangeListener {
 public:
     G2EditorProcessor();
+    ~G2EditorProcessor() override;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -32,9 +36,16 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    // Raw .pch2/.prf2 bytes saved with the host project.
-    juce::MemoryBlock patchData;
+    g2ui::PatchDocument& document() { return document_; }
 
 private:
+    void changeListenerCallback(juce::ChangeBroadcaster*) override;
+    void loadState(std::vector<std::uint8_t> bytes);
+
+    g2ui::PatchDocument document_;
+    juce::SpinLock stateLock_;
+    std::vector<std::uint8_t> stateBytes_; // the patch as a .pch2, for the host
+    std::shared_ptr<int> alive_ = std::make_shared<int>(0); // guards deferred state loads
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(G2EditorProcessor)
 };

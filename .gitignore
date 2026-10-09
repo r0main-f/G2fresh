@@ -8,3 +8,6 @@ build-*/
 .DS_Store
 __pycache__/
 *.pyc
+
+# Downloaded third-party patch libraries (local testing only)
+corpus-external/

@@ -22,7 +22,9 @@ juce_add_plugin(G2Editor
 
 target_sources(G2Editor PRIVATE
   Source/PluginProcessor.cpp
-  Source/PluginEditor.cpp)
+  Source/PluginEditor.cpp
+  ${G2_UI_SOURCES})
+target_include_directories(G2Editor PRIVATE ${PROJECT_SOURCE_DIR}/ui)
 
 target_compile_definitions(G2Editor PUBLIC
   JUCE_WEB_BROWSER=0
@@ -33,6 +35,7 @@ target_compile_definitions(G2Editor PUBLIC
 target_link_libraries(G2Editor
   PRIVATE
     g2core
+    G2SkinData
     juce::juce_audio_utils
   PUBLIC
     juce::juce_recommended_config_flags

@@ -1,16 +1,16 @@
 #pragma once
 
+#include "MainView.h"
 #include "PluginProcessor.h"
 
 class G2EditorView final : public juce::AudioProcessorEditor {
 public:
     explicit G2EditorView(G2EditorProcessor&);
 
-    void paint(juce::Graphics&) override;
-    void resized() override {}
+    void resized() override { main_.setBounds(getLocalBounds()); }
 
 private:
-    G2EditorProcessor& g2processor;
+    g2ui::MainView main_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(G2EditorView)
 };
