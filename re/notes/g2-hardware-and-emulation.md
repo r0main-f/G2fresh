@@ -52,6 +52,13 @@ extraction tool `tools/firmware/g2os.py` and this note. No Clavia bytes are comm
 * Native C++ re-implementation (approach 3) stays the long-term option for a light, portable engine. Fragments run in
   the harness become its golden reference.
 
+**Update (§3.6, same day): the host side runs.**
+* The user's OS 1.62 boots on Unicorn (ColdFire V4e) with four emulated DSP56367s on its host ports.
+* G2fresh's own protocol client connects to it through an emulated ISP1181 and syncs.
+* An uploaded patch is compiled by Clavia's OS onto a DSP. Its OscA, run frame by frame, gives a 1000.34 Hz sine
+  for the "1 kHz reference" patch.
+* What remains for real-time sound: inter-DSP audio links (they pace the frames) and speed.
+
 ## 1. Hardware (Part A)
 
 ### 1.1 Summary table
@@ -464,6 +471,296 @@ with quirks users rely on.
 host ports, gives the boot images (kernel, tables) and, with the OS's module→fragment links, the way to build a whole
 patch. The emulator side is proven: Clavia's module code runs unchanged and exactly.
 
+## 3.6 Host-side emulation: the ColdFire OS on Unicorn, driving 4 emulated DSPs (2026-10-09)
+
+**Tools.**
+* `tools/firmware/g2hostemu.py` runs the user's own `CODE_30000400.bin`, `SRAM_20000800.bin` and boot `Loader`
+  (read at run time) on Unicorn 2.1.4 (QEMU m68k, `UC_CPU_M68K_CFV4E`). It needs a venv with `pip install unicorn`.
+* `emu/dspbridge/g2dspbridge.cpp` (CMake target `g2dspbridge`, a shared library loaded with ctypes) provides 4 DSP56367s
+  (dsp56300, `Peripherals56362` + `Peripherals56367`). The host-port bytes the OS reads and writes go to their HDI08s.
+* `emu/protobridge/g2protobridge.cpp` (target `g2protobridge`) puts G2fresh's own `proto::Client` behind a C
+  interface. The emulated USB chip talks to it (3.6.6).
+* `emu/dspframe/g2dspframe.cpp` (target `g2dspframe`) runs one DSP's frame program offline from the memories
+  dumped after a patch upload (3.6.6).
+* Build: `cmake --build build --target g2dspbridge g2protobridge g2dspframe` (with `-DG2_BUILD_EMU=ON`).
+* Output: `--out` (default `original/firmware/dsp-boot/`, gitignored).
+  * **Naming.** `dspN` is the DSP on chip-select line A(3+N), which is OS DSP 3−N on a base unit.
+  * **Per DSP:**
+    * `dspN.events`: the host-port stream;
+    * `dspN_boot_P.bin`: the program loaded through the boot ROM;
+    * `dspN_{X,Y}.bin`: images read back from the emulated DSP over the ranges the OS wrote, as records of
+      address (u32), count (u32) and 24-bit words;
+    * `summary.json`.
+  * The copy in `original/firmware/dsp-boot/` also has the disassemblies `dspN_boot_P.asm` and
+    `dspN_frame_P_000235.{bin,asm}`.
+* Typical run: `g2hostemu.py --steps 2000000000 --progress 5000`.
+
+### 3.6.1 CPU emulation: Unicorn works, with four workarounds
+
+**ISA used by the OS** [C] (opcode census of `code68k.asm`):
+* Plain ColdFire ISA_A: `muls.l`, but no hardware divide (gcc library calls), no MAC/EMAC, no `mov3q`/`mvs`/`mvz`.
+* The `.byte` entries in the listing are switch tables.
+* Eleven `MOVEC`: CACR, ACR0, VBR = `0x30000000`, RAMBAR0/1 (`0x20000001`, `0x20000801`, …).
+* QEMU's ColdFire model executes all of it.
+
+The four workarounds, each found by a failure:
+1. **MOVEC to RAMBAR/MBAR** (`$C04/$C05/$C0F`) is not in QEMU. Code hooks on those addresses skip it. CACR/ACR/VBR run
+   natively.
+2. **Unicorn performs no m68k exception, not even RTE.**
+   * QEMU raises `EXCP_RTE` (0x100) for `rte`. Unicorn passes it to `UC_HOOK_INTR` and does nothing else; without a hook
+     the run aborts.
+   * The hook pops the ColdFire frame (format/vector/SR, PC) itself.
+3. **Reading SR through Unicorn corrupts the condition codes.**
+   * After a stop, and even in a block hook, `reg_read(SR)` evaluates the lazy CCR wrongly and writes it back. A
+     `tst`/`beq` around the read then branches wrongly.
+   * Found as one lost word in a DSP boot stream: the OS's send loop skipped it.
+   * Writing SR is safe. So interrupts are entered through a guest-code stub (`STUB_BASE`, `interrupt()`): the return
+     PC is pushed, then `move.w sr,d0` captures SR exactly. If the mask is too high it returns untouched; otherwise it
+     builds the ColdFire frame, raises the IPL and jumps through the VBR vector.
+4. **Slices must end at translation-block boundaries.**
+   * Stopping by wall clock (`timeout`) re-executed MMIO writes: about 1.5% of host commands came out doubled.
+   * Stopping by instruction count (`count`) stops mid-block, where QEMU has not stored its lazy condition-code
+     state. Seen once in about 10,000 slices: the stop fell between `cmp` and `bcc` at `0x3002725E`, an interrupt was
+     taken there, the `bcc` went the wrong way, a slot counter reached 4, and the OS crashed later on a garbage
+     slot-object pointer.
+   * So a block hook counts about one instruction per 3 bytes and calls `emu_stop()` at a block start: 20,000
+     "instructions" per slice. Timers, interrupts, the USB host and logging run between slices.
+
+**Speed.**
+* About 5 M ColdFire instructions/s on average: 10⁹ instructions (50,000 timer ticks) take 3 minutes on an
+  8-core Apple Silicon Mac.
+* It is slower while the OS polls the host ports, since each access is one Python callback.
+* The four DSP interpreter threads run alongside, about 500% CPU in total.
+
+**Gearmulator's ColdFire V2 core and QEMU system emulation were not needed.**
+
+### 3.6.2 Hardware stubs and models (what the OS needed to get this far)
+
+| Address | Model | Why / finding |
+|---|---|---|
+| MBAR `0x10000000` SIM | IMR/IPR/ICR/AVCR registers; IMR bit = 8 + ICR index (TIMER0 9, TIMER1 10, I2C 11, UART0 12) [manual] | the OS unmasks TIMER1 (ICR2 = `0x84`, autovector level 1 → vector 25, the 128-slot tick scheduler at `0x30001894`), UART0 (vector 66) and external IRQ3 (AVCR bit 3, autovector 27 = the ISP1181 handler `0x30053C38`) [C] |
+| MBAR timers | TMR/TRR/TCN/TER, timer 1 fires every slice (TRR 50, prescaler 128 ≈ 6.5k bus clocks per tick on the hardware) | timer 0 free-running (`TMR 0x2B`) for timing |
+| MBAR UART0/1 | always ready, TX logged | nothing printed by OS 1.62 |
+| MBAR I2C | master that every slave acknowledges; data reads return `0x80` (stub, see 3.6.3 step 5) | device `0xCA/0xCB` (7-bit `0x65`): `CA AA`, `CA 0D` at boot, then an interrupt/tick-driven read loop (`0x30056536`) [C] |
+| CS1 `0x11000000` | 8 HDI08 ports (A3..A10 one-hot, active low, A0–A2 register), word/long accesses split into byte cycles (the OS writes words as `move.l d,4(a0)` → bytes 4..7) [C] | see 3.6.3 |
+| CS2 `0x12000000` | 8 MB AMD-style flash, **CFI**, erased | the OS identifies the chip by CFI (`0x98` at word `0x55`, "QRY", then command set 1 = Intel 64×128 KB or 2 = AMD 128×64 KB) [C] `0x300042E6`; anything else gives "FLASH FAILURE / UNKNOWN CHIP" and a halt. We answer 2. Which chip the G2 has is not known |
+| CS3 `0x13000000` | ISP1181 model (`Isp1181`): command port `+0x10`, data port `+0`, IRQ3 | standard ISP1181 command set used [C]: `B0` unlock (`AA37`), `B2/B3`, `B4`, `B5` chip ID, `B6/B7` address, `B8/B9` mode, `BA/BB` hardware config, `C0` interrupt register (4 bytes), `C2/C3` interrupt enable, `F0–F3` DMA, `F4` ack setup, `F6` reset, endpoint index i: `0x00+i` write / `0x10+i` read (LE16 length, data) / `0x20+i` config / `0x50+i` status / `0x60+i` validate / `0x70+i` clear. The OS configures index 2 = `E1` (IN, 16 B: interrupt-IN 0x81), 3 = `E3` (IN, 64 B: bulk-IN 0x82), 4 = `83` (OUT, 64 B: bulk-OUT 0x03) and enables interrupts `0x1F07`; the IRQ3 handler `0x30053C38` dispatches bit 8 → EP0 OUT, 9 → EP0 IN, 10+ → handlers at `0x30119C62` (registered by `0x300553C2`: bulk-OUT handler `0x30055D36` reads the LE16-prefixed buffer, gathers a frame by its BE16 length and posts it for parsing) [C] |
+| CS4 `0x14000000`, CS5 `0x15000000` | latches, read 0 | panel scanning (`CS4 +0` ← `7FFF/BFFF/DFFF…`), LEDs/LCD (`CS5 +0..7`) (inferred) |
+
+### 3.6.3 How the OS boots the DSPs [C]
+
+All of this was observed in the emulator, with the emulated DSPs answering for real.
+
+1. **Port table.** `0x300391E8` builds the base-unit table: OS DSP 0..3 = `0x7B8, 0x7D8, 0x7E8, 0x7F0`, i.e. chip
+   selects A6, A5, A4, A3. Broadcast is `0x780`.
+2. **Reset.** For each DSP: ICR = `0x80` (INIT); then wait for INIT to clear.
+3. **Stage 1 through the boot ROM.** Per DSP: count `0x23D`, address 0, then 573 P words. The sender
+   (`0x30058D40`) polls TXDE with a 400-tick timeout and **drops the word on timeout**.
+4. **The stage-1 program.** About 573 words of hand-written DSP code; it is the same on all DSPs except the serial
+   set-up.
+   * **Init** (`P:$13B`, or `$12D` on A3):
+     * PCTL `$1D000A`, OMR `$20038F`.
+     * ESAI and ESAI_1 in network mode. TX slots 8 (`TCCR TDC=7`), RX 2 or 8.
+     * Port C/E pin functions.
+     * DMA 2..5 set up between ESAI and X:`$1C00–$1FFF`. Channels 4/5 restart from their done interrupts
+       (`P:$20/$22`).
+     * Timer 0.
+     * AAR0 = `$800031`: external SRAM at `$800000` shared by X and Y; stage 1 clears X:`$800800–$83FFFF`.
+     * HCR = HCIE.
+     * `r6 = $1BC0`, `n2 = $18FC`, `n5 = $19C0`, `m0 = m3 = -1`. The module fragments use these (3.5).
+   * **Main loop** (`P:$222`): spin. The ESAI_1 receive-last-slot interrupt (`P:$76: jsr $236`) counts frames in
+     X:`$43`.
+   * **HF0 handshake** (`P:$F4`). When the host sets HF0, the DSP:
+     * clears the DMA buffers and X/Y `$0–$3F`;
+     * sets HF2 and waits for HF0 to clear;
+     * then writes **DOR0 into `P:$77`**, the target of the per-frame `jsr`.
+     * (inferred) So the OS starts a patch program by setting DOR0 (host command `$A0`) and toggling HF0: from then on
+       the patch code runs once per frame.
+   * **Host-command vectors `P:$80–$B6` are memory primitives**:
+
+     | Vector | Effect |
+     |---|---|
+     | `$9A` | `r0 = HORX` |
+     | `$80/$82/$84` | X/Y/P:(r0)+ = HORX |
+     | `$86/$88/$8A` | X/Y/P:(r0) = HORX |
+     | `$8C/$8E` | read X/Y:(r0) back, then write |
+     | `$90..$96` | read P/X/Y back |
+     | `$98` | LA |
+     | `$A0/$A2/$A4` | DOR0, DOR1, DCO1 |
+     | `$AA` | TLR0 |
+     | `$AC` | HOTX = r0 |
+     | `$AE` | echo |
+     | `$B0..$B6` | EP register |
+
+5. **Three variants of stage 1.**
+   * **A4 and A5** are identical.
+   * **A6** differs only in clocking: it drives the ESAI transmit clock and frame sync.
+   * **A3** (OS DSP 3, the last one) differs in 277 words. It is a frame-sync slave on ESAI receive, waits for RFS
+     before enabling its transmitters, and starts timer 0 (TIO0).
+   * **The A3 timer is calibrated** [C] `0x30055F28`. The OS reprograms that timer (TLR0 via `$AA`, `0x3005C0F0`) in
+     a servo loop of up to 10 × 100 I2C-ADC samples until a 256-bin histogram peaks near the middle. **(inferred)**:
+     the A3 timer output feeds something the ADC sees.
+6. **Then data only.** About 6,400 host commands write tables, identical on the 4 DSPs. **No P code** is loaded at
+   power-on: with an erased flash there is no patch to compile.
+
+   | Range | Words | Content |
+   |---|---|---|
+   | X:`$40` | 1 | 0 |
+   | X:`$14EF–$1737` | 585 | rising curve from 0 (exponential/envelope) |
+   | X:`$173A–$173D` | 4 | 0.5 |
+   | X:`$173F–$19BF` | 641 | falling curve from 0.1395 |
+   | X:`$1A40–$1BBF` | 384 | includes 1/12, decay series, and at X:`$1AC0` **0.5·2^(n/12)** (semitone ratios) |
+   | Y:`$1140–$1BBF` | 2,688 | starts with the same 4-tap coefficients, then further curves |
+   | Y:`$800000–$8007FF` (external SRAM) | 2,048 | **512 × 4 cubic interpolation coefficients**: [0,1,0,0], …, at ½ [−1/16, 9/16, 9/16, −1/16] |
+
+7. **After the I2C calibration and a flash format, a frame program** [C, emulated].
+   * The OS treats the blank flash as corrupt: it erases every sector and writes a fresh layout using AMD unlock
+     bypass (`AA 55 20`, then `A0`+word, exit `90 00`).
+   * Then it loads each DSP's **per-frame program** for the empty patch at P:`$235`:
+     * 71 words on A4/A5, 91 on A3, 106 on A6;
+     * DOR0 = `$236` (the entry), LA = `$235`, DOR1 = DCO1 = `$50`.
+   * Through the HF0 handshake, that entry becomes the target of the per-frame interrupt.
+   * **What the frame program does:**
+     * saves all registers on the r6 stack;
+     * swaps the double-buffer pointers at L:`$45..`;
+     * waits for DMA 2/3 (DSTR), drains the ESAI receivers and re-arms DMA 2/3 on the next buffers;
+     * increments the frame counter, restores, `rti`.
+   * **A3's version also scales the output buffer** by a level read from X:`$1739` (`mpy -x1,y0`, `asl #3`). So A3,
+     OS DSP 3, is the output DSP **(inferred)**.
+   * **(inferred)** The patch compiler inserts module code into this frame.
+8. **Patch-time upload.** Inferred from the code first; seen running in 3.6.6. The OS uses `$9A` (set r0) at 909 sites, single X/Y/P
+   word writes `$86/$88/$8A` at 320/204/149 sites (parameter and address patching), and streaming P (`$84`) at 5 sites:
+   * `0x300327C8` streams a fragment's P words straight from its descriptor (the patch linker);
+   * `0x30038D3C` streams a 258-byte (86-word) blob from `0x301095A6`;
+   * DOR0 (`$A0`) at 7 sites.
+
+### 3.6.4 The DSP side (g2dspbridge)
+
+**How the DSPs run.** Each DSP runs free on its own thread with the dsp56300 interpreter, as Gearmulator's boards do.
+Two reasons:
+* asmjit's JIT and Unicorn's JIT in one thread crash with SIGBUS on Apple Silicon: both switch the thread's `MAP_JIT`
+  write protection.
+* The dsp56300 JIT never left the stage-1 poll `brset #TFS,x:SAISR,*` here (aarch64), while the interpreter did.
+  The interpreter runs a whole DO FOREVER inside one step, so time slicing is not possible.
+
+**Host side.** It uses only the library's thread-safe parts:
+* the RX queue (the host may write ahead, order kept);
+* `setPendingHostFlags01` for HF0/HF1;
+* `injectHostCommand` for HC. The host still sees HC set while the command is pending.
+* The HOTX queue for reads.
+
+**Boot ROM.** Emulated on the DSP thread from the RX queue (count, address, words via `DspBoot`). A jump to
+`$FF0000` re-enters it.
+
+**ESAI receivers** get zeros; transmit frames can be captured (`g2dsp_capture`, `g2dsp_tx_take`).
+
+**Result** [C, emulated]:
+* All 4 DSPs boot, answer the HF0/HF2 handshake and the read-back commands (`$AC`, `$AE`, `$B6`), consume every word
+  (RX queue empty at the end), and sit in their main loop counting ESAI_1 frames.
+* Reading their memories back gives exactly what the stream wrote (X/Y ranges 100%; external Y after the bridging fix).
+* The default EXTAL of 12 MHz gives a 66 MHz core with PCTL `$1D000A` (MF = 11, PD = 3?). The real EXTAL is still open
+  (§4.1).
+
+### 3.6.5 Status, and what is not done
+
+**How far the OS boots** [C, emulated]:
+* reset and C runtime set-up, caches/SRAM/VBR, chip selects;
+* UART0, timers, I2C codec/ADC set-up, flash identification (CFI);
+* **all four DSPs booted and loaded with their tables**;
+* the ISP1181 initialised;
+* the DSP-timer/ADC calibration (about 7,500 ticks with the ADC stub);
+* the flash formatted;
+* the empty-patch frame programs loaded and started;
+* then the normal main loop with the 128-slot tick scheduler, stable for 50,000 ticks (10⁹ instructions, nothing
+  failing).
+
+The panel (LCD, buttons, knobs on CS4/CS5) is unmodelled: reads give 0, and the OS does not wait on it.
+
+**Stubbed** (so results that depend on them are not authentic):
+* I2C slaves (always ACK, ADC reads `0x80`);
+* panel latches;
+* UART RX;
+* ESAI receive data (zeros, no inter-DSP audio links);
+* the DSP clock (dsp56300's default EXTAL gives 66 MHz);
+* timer rate (one tick per 20,000 instructions);
+* the second (expansion) DSP bank: A7–A10 answer as stubs.
+
+**Not done:**
+* inter-DSP audio routing (ESAI/ESAI_1 links between the four DSPs and to the DACs; all four now transmit frames
+  that go nowhere);
+* the expansion board;
+* the DSP JIT (blocked by the TFS poll and the thread clash; the interpreter does about 110 M DSP instructions/s per
+  thread);
+* frames at real rate (below).
+
+### 3.6.6 Our editor talks to the emulated G2 over USB; a patch compiles and its oscillator sounds (2026-10-09)
+
+`g2hostemu.py --patch FILE.pch2` (about 2½ minutes in all).
+
+**USB set-up.**
+1. It boots.
+2. At slice 11,000 it "plugs in" the cable: bus reset, then SET_ADDRESS and SET_CONFIGURATION as EP0 SETUP packets
+   50 ticks later.
+3. 100 ticks after that, G2fresh's own `proto::Client` (`emu/protobridge`) starts.
+
+**Two traps** [emulator]:
+* The OS's bus-reset handler clears the endpoint buffers, so anything sent together with the reset is lost. The OS
+  then parses the empty buffer as a 0-length frame and answers `7E 01`.
+* A host polls bulk-IN only after an extended announcement: zero-length packets the OS leaves there must not
+  complete by themselves.
+
+**What happens** [C, emulated]:
+* **Version reply** `80 0A 00 00 00 1C 00 A2 00 12 …`: model `0A`, firmware `0x00A2` = 1.62, protocol `0x0012`.
+  The client goes to **Connected**.
+* **Full sync.** Synth settings, performance "New Performance", the four slots, flash names: 61 frames out,
+  187 in, about 300 ticks.
+* **Upload.** The client's `sendPatch` uploads `1khz_ref.pch2` (from `corpus-external/datanoisetv-…`; OscA → 4-Out)
+  into slot A, and the OS acknowledges it.
+* **The OS compiles the patch onto the DSP on A6 (OS DSP 0)** [C, emulated]:
+  * the frame program grows to P:`$235–$351` (285 words): DOR0 → `$23E`, LA `$23D`, DOR1 `$5D`, DCO1 `$5B`;
+  * module data: X:`$50–$5E`, Y:`$50–$5B`;
+  * cables in the zero page X:`$0–$2`.
+  * **OscA** is linked at P:`$293` with r3/r4 = X/Y:`$50`. It has its waveform branches (a polynomial sine at
+    `$2D8`) and writes its output to **X:`$2`**.
+  * Two output blocks copy X:`$2` into the double-buffered output area through `x:$45`.
+  * **The pitch arrives as a phase increment.** X:`$51` = `0x02AAE4` = 1000.33 Hz at 96 kHz (`0x02AAAA` would be
+    exactly 1 kHz).
+  * Afterwards the OS polls the DSP continuously with read-back host commands (`$8C`/`$8E`, about 45,000 in 800
+    ticks): meters and LEDs (inferred).
+* **Frame rate is the gap.** In the full machine the oscillator's phase advances, but only a few frames run per
+  second. The frame program waits for DMA 2/3, which stage 1 triggers from ESAI and ESAI_1 *receive* data
+  (DCR2 DRS = `$0B`, DCR3 DRS = `$15`), and in this machine nothing sends that data at the real rate.
+* **The samples.** `emu/dspframe/g2dspframe` takes the emulated DSP's memories after the upload
+  (`dspN_live_*.bin`), removes the two DMA-done polls and runs the frame program once per sample.
+  * X:`$2` over 96,000 frames is a **sine at 1000.34 Hz**, amplitude 0.250, DC −0.00004.
+  * Harmonics: H3 −106 dB, H5 −82 dB, even harmonics below −170 dB. These are the marks of the polynomial sine.
+  * Files: `original/firmware/dsp-boot/patch-1khz-ref/` (`dsp3_oscA_X2_1s.wav`, `dsp3_patch_P_000235.asm`, the
+    streams, the live memories, `usb_traffic.txt`).
+
+**This is Clavia's whole chain, emulated:** OS compiler, linker, parameter → pitch conversion, upload, and DSP
+module code. It is driven by our own editor protocol, and only the frame pacing is bypassed.
+
+### 3.6.7 Next steps (recommended order) and risks
+
+1. **Frame pacing and audio links.** Model what really clocks the ESAI receivers: an inter-DSP TDM ring with A6 as
+   clock master per its TCCR/RCCR, and A3 as the output DSP feeding the codec.
+   * Wire each DSP's ESAI/ESAI_1 transmit frames to the next DSP's receivers.
+   * Then frames run at the emulated sample rate, and A3's transmit slots are the audio out.
+   * Risk: slot mapping and DMA modes need care (dsp56300 has the ESAI DMA sources; the TDM order is
+     undocumented).
+2. **Speed.** Python MMIO callbacks and four interpreter threads are fine for analysis, not for real time.
+   * Port the host side to C++: Unicorn's C API, or Gearmulator's ColdFire core extended to V4, which would also
+     remove the Unicorn workarounds.
+   * Get the dsp56300 JIT to run the stage-1 TFS poll. Then a real-time engine is plausible (§3.1 estimate).
+3. **Panel and flash persistence.** Keep the flash image between runs so that patches and settings persist.
+4. **Patch-compiler RE for approach 3** is now much cheaper. Every module's linked code, data layout and parameter
+   conversion can be captured by uploading one-module patches and diffing the streams.
+
+**Risks still open:**
+* The DSP EXTAL/sample rate (the pitch math assumes 96 kHz, and so does this check).
+* The ADC calibration stub (if the real ADC feeds something audible, e.g. the input level, this matters).
+* Unicorn quirks beyond the four found.
+
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source
    is unknown. The 56.620363 MHz oscillator, the PCTL ×4 and the cycle budget need reconciling. Read the board markings
@@ -473,8 +770,8 @@ patch. The emulator side is proven: Clavia's module code runs unchanged and exac
    what slot format. The "24-sample latency" between slots suggests block buffering.
 4. **The DSP kernel:** where it lives (the 1,156-word FE/0x20 fragment?), its per-sample cycle overhead, how
    parameters, morphs, LEDs and meters are exchanged over HDI08.
-5. **ColdFire ISA subset** used by the OS (ISA_A only, or ISA_B/EMAC instructions?), and MCF5407 vs MCF5307
-   confirmation. The CACR branch-cache bits point to V4.
+5. **ColdFire ISA subset.** Answered in §3.6.1: ISA_A only (no MAC/EMAC, no hardware divide), and QEMU's
+   ColdFire V4e model runs it. MCF5407 vs MCF5307 is still unconfirmed; the CACR branch-cache bits point to V4.
 6. **The 12 OS fragments not found in the Demo:** modules missing from the Demo, or OS 1.62 changes after Demo 1.40?
    Mapping descriptors to module types would answer this and is needed for approach 3 anyway.
 7. **The Windows updater payload** (Wise) is not extracted. The Mac copy is enough, but users on Windows will have the

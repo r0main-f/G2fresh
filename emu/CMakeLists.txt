@@ -23,3 +23,23 @@ add_executable(g2dsppoc dsppoc/g2dsppoc.cpp)
 target_include_directories(g2dsppoc PRIVATE ${dsp56300_SOURCE_DIR}/source)
 target_link_libraries(g2dsppoc PRIVATE dsp56kEmu)
 target_compile_features(g2dsppoc PRIVATE cxx_std_17)
+
+# g2dspbridge: a C interface to emulated DSP56367s for tools/firmware/g2hostemu.py
+# (the ColdFire OS in Unicorn drives them through their HDI08 host ports).
+add_library(g2dspbridge SHARED dspbridge/g2dspbridge.cpp)
+target_include_directories(g2dspbridge PRIVATE ${dsp56300_SOURCE_DIR}/source)
+target_link_libraries(g2dspbridge PRIVATE dsp56kEmu)
+target_compile_features(g2dspbridge PRIVATE cxx_std_17)
+
+# g2protobridge: G2fresh's protocol client (proto/) behind a C interface, so that
+# g2hostemu.py can connect it to the emulated G2's USB chip.
+add_library(g2protobridge SHARED protobridge/g2protobridge.cpp)
+target_link_libraries(g2protobridge PRIVATE g2proto)
+target_compile_features(g2protobridge PRIVATE cxx_std_20)
+
+# g2dspframe: runs one DSP's per-frame program offline from the memories
+# g2hostemu.py dumps after a patch upload, one sample per frame.
+add_executable(g2dspframe dspframe/g2dspframe.cpp)
+target_include_directories(g2dspframe PRIVATE ${dsp56300_SOURCE_DIR}/source)
+target_link_libraries(g2dspframe PRIVATE dsp56kEmu)
+target_compile_features(g2dspframe PRIVATE cxx_std_17)
