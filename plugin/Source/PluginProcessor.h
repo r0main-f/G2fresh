@@ -3,6 +3,7 @@
 #include "AutomationBank.h"
 #include "MidiForwarder.h"
 #include "PatchDocument.h"
+#include "SynthSync.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -42,6 +43,7 @@ public:
 
     g2ui::PatchDocument& document() { return document_; }
     MidiForwarder& midiOutput() { return midiOut_; }
+    g2ui::SynthSync& synth() { return synth_; }
 
 private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
@@ -52,6 +54,7 @@ private:
     g2ui::PatchDocument document_;
     MidiForwarder midiOut_;
     std::unique_ptr<AutomationBank> automation_;
+    g2ui::SynthSync synth_{document_}; // the G2 connection outlives the editor window
     juce::SpinLock stateLock_;
     std::vector<std::uint8_t> stateBytes_; // the patch as a .pch2, for the host
     std::shared_ptr<int> alive_ = std::make_shared<int>(0); // guards deferred state loads

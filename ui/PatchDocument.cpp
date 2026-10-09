@@ -114,6 +114,48 @@ bool PatchDocument::performLive(const std::function<void(g2::Patch&)>& edit)
     return true;
 }
 
+bool PatchDocument::performLiveOnSlot(int slot, const std::function<void(g2::Patch&)>& edit)
+{
+    if (!perf_ || slot == slot_)
+        return performLive(edit);
+    if (!juce::isPositiveAndBelow(slot, 4))
+        return false;
+    g2::Patch next = perf_->slots[static_cast<std::size_t>(slot)];
+    try {
+        edit(next);
+    } catch (const std::exception&) {
+        return false;
+    }
+    perf_->slots[static_cast<std::size_t>(slot)] = std::move(next);
+    dirty_ = true;
+    sendChangeMessage();
+    return true;
+}
+
+void PatchDocument::loadPatch(const g2::Patch& patch, const juce::String& name)
+{
+    resetHistory();
+    perf_.reset();
+    patch_ = patch;
+    slot_ = 0;
+    file_ = juce::File();
+    name_ = name.substring(0, kMaxNameLength);
+    variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch_.header.activeVariation));
+    dirty_ = false;
+    sendChangeMessage();
+}
+
+void PatchDocument::loadPerformance(const g2::Performance& perf)
+{
+    resetHistory();
+    perf_ = perf;
+    slot_ = juce::jlimit(0, 3, static_cast<int>(perf_->header.focusedSlot));
+    file_ = juce::File();
+    variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch().header.activeVariation));
+    dirty_ = false;
+    sendChangeMessage();
+}
+
 bool PatchDocument::undo()
 {
     endCoalescing();

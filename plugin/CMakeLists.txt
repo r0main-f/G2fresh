@@ -37,10 +37,36 @@ target_compile_definitions(G2Editor PUBLIC
 
 target_link_libraries(G2Editor
   PRIVATE
-    g2core
+    g2bridgelib # with g2proto and g2core
     G2SkinData
     juce::juce_audio_utils
   PUBLIC
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
+
+# The g2bridge executable goes with the app (next to its executable) and in
+# each plugin bundle's Resources, where SynthSync looks for it.
+if(TARGET g2bridge)
+  foreach(format ${G2_PLUGIN_FORMATS})
+    set(target G2Editor_${format})
+    if(NOT TARGET ${target})
+      continue()
+    endif()
+    add_dependencies(${target} g2bridge)
+    get_target_property(artefact ${target} JUCE_PLUGIN_ARTEFACT_FILE)
+    if(format STREQUAL "Standalone")
+      if(APPLE)
+        set(dest "${artefact}/Contents/MacOS")
+      else()
+        get_filename_component(dest "${artefact}" DIRECTORY)
+      endif()
+    else()
+      set(dest "${artefact}/Contents/Resources")
+    endif()
+    add_custom_command(TARGET ${target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${dest}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:g2bridge>" "${dest}/"
+      VERBATIM)
+  endforeach()
+endif()

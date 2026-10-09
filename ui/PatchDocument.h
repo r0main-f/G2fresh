@@ -40,6 +40,13 @@ public:
     // by DAW automation, or (later) a knob turned on the synth. Returns false
     // if the edit throws.
     bool performLive(const std::function<void(g2::Patch&)>& edit);
+    // The same on a given slot of a performance (the slot shown is unchanged).
+    bool performLiveOnSlot(int slot, const std::function<void(g2::Patch&)>& edit);
+    // The patch of a slot (a patch document has only slot 0).
+    const g2::Patch& slotPatch(int slot) const
+    {
+        return perf_ ? perf_->slots[static_cast<std::size_t>(juce::jlimit(0, 3, slot))] : patch_;
+    }
 
     bool undo();
     bool redo();
@@ -60,6 +67,10 @@ public:
     // g2::ChecksumError (unless ignoreChecksum) or g2::FormatError.
     void loadBytes(const std::vector<std::uint8_t>& bytes, bool ignoreChecksum = false);
     std::vector<std::uint8_t> saveBytes() const;
+    // Replace the document with a patch or performance received from the
+    // synth (no file; clears the undo history).
+    void loadPatch(const g2::Patch& patch, const juce::String& name);
+    void loadPerformance(const g2::Performance& perf);
     juce::String fileExtension() const { return perf_ ? ".prf2" : ".pch2"; }
     // The cable shapes of every patch (see CableLayout.h), or "" if none.
     juce::String layoutJson() const;

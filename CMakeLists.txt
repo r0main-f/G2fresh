@@ -46,6 +46,7 @@ if(G2_BUILD_PLUGIN)
     ${PROJECT_SOURCE_DIR}/ui/ModulePainter.cpp
     ${PROJECT_SOURCE_DIR}/ui/SpecialControls.cpp
     ${PROJECT_SOURCE_DIR}/ui/CableLayout.cpp
+    ${PROJECT_SOURCE_DIR}/ui/SynthSync.cpp
     ${PROJECT_SOURCE_DIR}/ui/PatchDocument.cpp
     ${PROJECT_SOURCE_DIR}/ui/AreaView.cpp
     ${PROJECT_SOURCE_DIR}/ui/ModuleBrowser.cpp

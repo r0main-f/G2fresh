@@ -22,6 +22,9 @@ enum MenuId {
     kCablesBase = 300,        // + cable colour
     kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
     kMidiChannelBase = 600,   // + channel (0: as played)
+    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind,
+    kSendPatchBase = 710,     // + slot
+    kGetPatchBase = 720,      // + slot
 };
 
 juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
@@ -123,6 +126,10 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     load_.setTooltip("Patch load estimated from the original editor's module tables (cycles and the fullest "
                      "memory, per area; the voice area for one voice). The synth reports the real figures.");
     addAndMakeVisible(load_);
+    synthStatus_.setFont(theme::font());
+    synthStatus_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
+    synthStatus_.setTooltip("The connection to the G2 (Synth menu). \"live\": edits go to the synth as you make them.");
+    addChildComponent(synthStatus_);
 
     settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
     settings_.onLayoutChanged = [this] { resized(); };
@@ -185,6 +192,72 @@ MainView::~MainView()
 #endif
     setLookAndFeel(nullptr);
     doc_.removeChangeListener(this);
+    if (synth_ != nullptr)
+        synth_->removeChangeListener(this);
+}
+
+void MainView::setSynth(SynthSync* synth)
+{
+    if (synth_ != nullptr)
+        synth_->removeChangeListener(this);
+    synth_ = synth;
+    if (synth_ != nullptr)
+        synth_->addChangeListener(this);
+    synthStatus_.setVisible(synth_ != nullptr);
+    updateSynthStatus();
+    menuItemsChanged();
+    resized();
+}
+
+void MainView::updateSynthStatus()
+{
+    if (synth_ == nullptr)
+        return;
+    juce::String text = synth_->statusText();
+    if (synth_->boundSlot() >= 0)
+        text << "  |  live: slot " << juce::String::charToString(static_cast<juce::juce_wchar>('A' + synth_->boundSlot()));
+    else if (synth_->performanceBound())
+        text << "  |  live: performance";
+    synthStatus_.setText(text, juce::dontSendNotification);
+    const auto colour = synth_->ready() ? (synth_->bound() ? juce::Colour(0xff6fd06f) : juce::Colour(0xffd0d0d0))
+                                        : juce::Colour(0xff9a9ea6);
+    synthStatus_.setColour(juce::Label::textColourId, colour);
+}
+
+juce::PopupMenu MainView::synthMenu()
+{
+    juce::PopupMenu m;
+    if (synth_ == nullptr)
+        return m;
+    using Kind = SynthSync::Kind;
+    m.addItem(item(kSynthG2, "Connect to G2 (USB)", {}, synth_->kind() != Kind::G2, synth_->kind() == Kind::G2));
+    m.addItem(item(kSynthVirtual, "Connect to Virtual G2 (no hardware)", {}, synth_->kind() != Kind::Virtual,
+                   synth_->kind() == Kind::Virtual));
+    m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
+    m.addSeparator();
+    const bool ready = synth_->ready();
+    auto slotLabel = [this](int s) {
+        const auto name = synth_->slotName(s);
+        return "Slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + s))
+             + (name.isNotEmpty() ? "  (" + name + ")" : juce::String());
+    };
+    if (doc_.isPerformance()) {
+        m.addItem(item(kSendPerformance, "Send Performance to G2", {}, ready));
+    } else {
+        juce::PopupMenu send;
+        for (int s = 0; s < 4; ++s)
+            send.addItem(item(kSendPatchBase + s, slotLabel(s), {}, ready, synth_->boundSlot() == s));
+        m.addSubMenu("Send Patch to Slot", send, ready);
+    }
+    juce::PopupMenu get;
+    for (int s = 0; s < 4; ++s)
+        get.addItem(item(kGetPatchBase + s, slotLabel(s), {}, ready));
+    m.addSubMenu("Get Patch from Slot", get, ready);
+    m.addItem(item(kGetPerformance, "Get Performance from G2", {}, ready));
+    m.addSeparator();
+    m.addItem(item(kUnbind, synth_->bound() ? "Stop Live Editing" : "Live Editing (send or get a patch first)", {},
+                   synth_->bound(), synth_->bound()));
+    return m;
 }
 
 // ---- Menus ----------------------------------------------------------------------
@@ -192,13 +265,17 @@ MainView::~MainView()
 juce::StringArray MainView::getMenuBarNames()
 {
     juce::StringArray names{"File", "Edit", "View"};
+    if (synth_ != nullptr)
+        names.add("Synth");
     if (onAudioSettings || midiOut_ != nullptr)
         names.add("Options");
     return names;
 }
 
-juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
+juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
 {
+    if (name == "Synth")
+        return synthMenu();
     juce::PopupMenu m;
     if (index == 0) {
         m.addItem(item(kNew, "New Patch", kCmd + "N"));
@@ -255,7 +332,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
         m.addItem(item(kRemoveBendPoints, "Remove All Bend Points", {}, g2::edit::hasCableBends(doc_.patch())));
         m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic));
         m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation()));
-    } else if (index == 3) {
+    } else if (name == "Options") {
         if (onAudioSettings)
             m.addItem(item(kAudioSettings, "Audio/MIDI Settings..."));
         if (midiOut_ != nullptr) {
@@ -283,6 +360,25 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
 
 void MainView::menuItemSelected(int id, int)
 {
+    if (synth_ != nullptr && id >= kSynthG2 && id < kGetPatchBase + 4) {
+        if (id == kSynthG2)
+            synth_->connectG2();
+        else if (id == kSynthVirtual)
+            synth_->connectVirtual();
+        else if (id == kSynthDisconnect)
+            synth_->disconnect();
+        else if (id == kSendPerformance)
+            synth_->sendPerformance();
+        else if (id == kGetPerformance)
+            confirmDiscard([this] { synth_->getPerformance(); });
+        else if (id == kUnbind)
+            synth_->unbind();
+        else if (id >= kGetPatchBase)
+            confirmDiscard([this, slot = id - kGetPatchBase] { synth_->getPatch(slot); });
+        else if (id >= kSendPatchBase)
+            synth_->sendPatch(id - kSendPatchBase);
+        return;
+    }
     if (midiOut_ != nullptr && id >= kMidiOutOff && id < kMidiChannelBase) {
         const auto devices = midiOut_->availableDevices();
         const int i = id - kMidiOutBase;
@@ -479,8 +575,13 @@ void MainView::setZoom(float zoom, const AreaView* area, std::optional<juce::Poi
 
 // ---- Toolbar and layout -------------------------------------------------------------
 
-void MainView::changeListenerCallback(juce::ChangeBroadcaster*)
+void MainView::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
+    updateSynthStatus();
+    if (source == synth_) {
+        menuItemsChanged(); // slot names, connection state
+        return;
+    }
     updateToolbar();
     menuItemsChanged(); // undo/redo state
 }
@@ -609,6 +710,8 @@ void MainView::resized()
     {
         auto bottom = r.removeFromBottom(24);
         load_.setBounds(bottom.removeFromRight(std::min(560, bottom.getWidth() / 2)));
+        if (synth_ != nullptr)
+            synthStatus_.setBounds(bottom.removeFromRight(std::min(300, bottom.getWidth() / 2)));
         status_.setBounds(bottom);
     }
     juce::Component* parts[] = {&vaPane_, &divider_, &fxPane_};

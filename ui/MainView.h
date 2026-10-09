@@ -7,6 +7,7 @@
 
 #include "AreaView.h"
 #include "MidiOutputTarget.h"
+#include "SynthSync.h"
 #include "ModuleBrowser.h"
 #include "MutatorWindow.h"
 #include "PatchDocument.h"
@@ -39,6 +40,8 @@ public:
         midiOut_ = target;
         menuItemsChanged();
     }
+    // The connection to the G2 (nullptr: no Synth menu).
+    void setSynth(SynthSync* synth);
 
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -107,6 +110,10 @@ private:
     juce::TextButton randomizeButton_{"Randomize"}, mutatorButton_{"Mutator..."};
     std::unique_ptr<MutatorWindow> mutator_;
     MidiOutputTarget* midiOut_ = nullptr;
+    SynthSync* synth_ = nullptr;
+    juce::Label synthStatus_;
+    void updateSynthStatus();
+    juce::PopupMenu synthMenu();
     void showMutator();
     juce::Label status_, load_;
     PatchSettingsBar settings_{doc_};
