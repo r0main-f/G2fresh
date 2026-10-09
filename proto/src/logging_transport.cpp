@@ -1,6 +1,7 @@
 #include "g2/proto/logging_transport.hpp"
 
 #include "g2/proto/frame.hpp"
+#include "g2/proto/molecules.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -45,6 +46,14 @@ std::string hex(std::span<const std::uint8_t> bytes)
     return s;
 }
 
+std::uint32_t fnv1a(std::span<const std::uint8_t> bytes)
+{
+    std::uint32_t h = 2166136261u;
+    for (const auto b : bytes)
+        h = (h ^ b) * 16777619u;
+    return h;
+}
+
 std::string byteText(unsigned v)
 {
     char buf[8];
@@ -54,11 +63,69 @@ std::string byteText(unsigned v)
 
 } // namespace
 
-LoggingTransport::LoggingTransport(std::unique_ptr<Transport> inner, std::string path, std::uint64_t maxBytes)
-    : inner_(std::move(inner)), path_(std::move(path)), maxBytes_(maxBytes)
+bool isPrivateMolecule(std::uint8_t m)
+{
+    switch (m) {
+    case id::SynthData:            // the synth's name
+    case id::PerfHeader:           // slot patch names
+    case id::FlashData:            // bank name lists
+    case id::FlashRawData:         // stored files
+    case id::CompletePerformance:
+    case id::PatchHeader:
+    case id::PatchName:
+    case id::PerfName:
+    case id::ModuleNew:            // with the module's name
+    case id::ModuleName:
+    case id::DumpDestination:      // with the patch name
+    case id::CustomData:           // parameter labels
+    case id::ModuleList:
+    case id::ParamList:
+    case id::CableList:
+    case id::ModuleNames:
+    case id::CustomDataDump:
+    case id::GlobalKnobMap:
+    case id::CtrlMap:
+    case id::KnobMap:
+    case id::MorphMap:
+    case id::CurrentNotes:
+    case id::Textpad:
+        return true;
+    default:
+        return false;
+    }
+}
+
+LoggingTransport::LoggingTransport(std::unique_ptr<Transport> inner, std::string path, LogData data, std::uint64_t maxBytes)
+    : inner_(std::move(inner)), path_(std::move(path)), data_(data), maxBytes_(maxBytes)
 {
     inner_->setSink(this);
     open();
+    note(data_ == LogData::Full ? "full log: patch contents included"
+                                : "redacted log: patch contents replaced by their id, length and fingerprint");
+}
+
+std::string LoggingTransport::render(std::span<const std::uint8_t> bytes, std::size_t bodyStart) const
+{
+    if (data_ == LogData::Full || bytes.size() < bodyStart + 2)
+        return hex(bytes);
+    const auto body = bytes.subspan(bodyStart, bytes.size() - bodyStart - 2);
+    std::string s = hex(bytes.first(bodyStart));
+    for (const auto& m : decode(body)) {
+        std::vector<std::uint8_t> one;
+        encode(m, one);
+        if (one.empty())
+            continue;
+        s += ' ';
+        if (isPrivateMolecule(one[0])) {
+            char buf[64];
+            std::snprintf(buf, sizeof buf, "<%s %zu bytes #%08x>", byteText(one[0]).c_str(), one.size(),
+                          static_cast<unsigned>(fnv1a(one)));
+            s += buf;
+        } else {
+            s += hex(one);
+        }
+    }
+    return s + ' ' + hex(bytes.last(2));
 }
 
 LoggingTransport::~LoggingTransport()
@@ -79,7 +146,7 @@ void LoggingTransport::open()
         written_ = 0;
 }
 
-void LoggingTransport::line(const char* tag, std::span<const std::uint8_t> bytes, const std::string& detail)
+void LoggingTransport::line(const char* tag, const std::string& bytes, const std::string& detail)
 {
     if (!out_)
         return;
@@ -87,7 +154,7 @@ void LoggingTransport::line(const char* tag, std::span<const std::uint8_t> bytes
     if (!detail.empty())
         text += "  [" + detail + "]";
     if (!bytes.empty())
-        text += "  " + hex(bytes);
+        text += "  " + bytes;
     text += '\n';
     out_ << text;
     out_.flush();
@@ -116,7 +183,9 @@ bool LoggingTransport::send(std::span<const std::uint8_t> frame)
             detail += " id " + byteText(f->molecules[0]);
     }
     const bool ok = inner_->send(frame);
-    line(ok ? "OUT " : "OUT (not sent)", frame, detail);
+    // [len16][01][hdr][session] molecules [crc16]
+    const bool message = frame.size() > 5 && frame[2] == 0x01;
+    line(ok ? "OUT " : "OUT (not sent)", message ? render(frame, 5) : hex(frame), detail);
     return ok;
 }
 
@@ -141,7 +210,13 @@ void LoggingTransport::deviceRemoved()
 
 void LoggingTransport::interruptPacket(std::span<const std::uint8_t> packet)
 {
-    line("INT ", packet);
+    // An embedded message [01 hdr session molecules crc] follows the first byte.
+    const auto i = parseInterrupt(packet);
+    if (i.kind == Interrupt::Kind::Embedded && i.message.size() > 3 && i.message[0] == 0x01 && packet.size() > i.message.size())
+        line("INT ", hex(packet.first(1)) + ' ' + render(i.message, 3) + ' '
+                         + hex(packet.subspan(1 + i.message.size())));
+    else
+        line("INT ", hex(packet));
     if (sink_)
         sink_->interruptPacket(packet);
 }
@@ -154,7 +229,8 @@ void LoggingTransport::bulkIn(std::span<const std::uint8_t> data)
         if (!m->body.empty())
             detail += " id " + byteText(m->body[0]);
     }
-    line("BULK", data, detail);
+    // [01][hdr][session] molecules [crc16]
+    line("BULK", !data.empty() && data[0] == 0x01 ? render(data, 3) : hex(data), detail);
     if (sink_)
         sink_->bulkIn(data);
 }

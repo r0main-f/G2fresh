@@ -44,7 +44,7 @@ Everything above is built from the original editor's code and tested against a v
 
 1. Connect it by USB (see the notes above for Windows and Linux), start G2fresh and choose **Synth > Connect to G2 (USB)**. The status bar shows "Looking for a G2...", then the synth's version.
 2. Try **Get Patch from Slot A**, edit a knob (live editing), **Send Patch to Slot B**, **Synth Memory (Banks)...**, and watch the LEDs and meters.
-3. Whatever happens, choose **Synth > Show USB Log** and send `usb.log` (and `usb.log.1` if present) with a short description to the project's [issues](https://github.com/r0main-f/G2fresh/issues). The log holds the USB traffic and nothing else, but that includes the patches and performances exchanged (data and names).
+3. Whatever happens, choose **Synth > Show USB Log** and send `usb.log` (and `usb.log.1` if present) with a short description to the project's [issues](https://github.com/r0main-f/G2fresh/issues). The log holds the USB traffic and nothing else, and by default it leaves your patches out: patch and performance contents and names (and the synth's memory lists) appear only as their size and a fingerprint. If we ask for more detail on a specific problem, **Synth > Full USB Log** includes them (best done with a factory patch).
 
 ## Build
 

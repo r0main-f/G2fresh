@@ -2,10 +2,12 @@
 // include/g2/bridge/server.hpp). Started on demand by an editor; exits a few
 // seconds after the last one leaves.
 //
-//   g2bridge [--emulator] [--stay] [--socket PATH] [--idle-exit MS] [--log PATH | --no-log] [--verbose]
+//   g2bridge [--emulator] [--stay] [--socket PATH] [--idle-exit MS] [--log PATH | --no-log] [--log-full]
+//            [--verbose]
 //
 // With a real G2 the USB traffic is logged to proto::defaultUsbLogPath()
-// (two files of 5 MB at most), so that a tester can send it to us.
+// (two files of 5 MB at most), so that a tester can send it to us; patch
+// contents are left out unless --log-full (see logging_transport.hpp).
 
 #include "g2/bridge/server.hpp"
 #include "g2/proto/logging_transport.hpp"
@@ -30,7 +32,7 @@ extern "C" void onSignal(int) { stopRequested = true; }
 void usage()
 {
     std::fprintf(stderr, "usage: g2bridge [--emulator] [--stay] [--socket PATH] [--idle-exit MS] [--log PATH | --no-log] "
-                         "[--verbose]\n");
+                         "[--log-full] [--verbose]\n");
 }
 
 } // namespace
@@ -39,7 +41,7 @@ int main(int argc, char** argv)
 {
     using namespace g2;
     bridge::BridgeServer::Options options;
-    bool emulator = false, verbose = false, logging = true;
+    bool emulator = false, verbose = false, logging = true, logFull = false;
     std::string logPath;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
@@ -57,6 +59,8 @@ int main(int argc, char** argv)
             logPath = argv[++i];
         else if (a == "--no-log")
             logging = false;
+        else if (a == "--log-full")
+            logFull = true;
         else {
             usage();
             return 2;
@@ -76,8 +80,9 @@ int main(int argc, char** argv)
         usbTransport = usb.get();
         std::unique_ptr<proto::Transport> transport = std::move(usb);
         if (logging) {
-            auto logged = std::make_unique<proto::LoggingTransport>(std::move(transport),
-                                                                    logPath.empty() ? proto::defaultUsbLogPath() : logPath);
+            auto logged = std::make_unique<proto::LoggingTransport>(
+                std::move(transport), logPath.empty() ? proto::defaultUsbLogPath() : logPath,
+                logFull ? proto::LogData::Full : proto::LogData::Redacted);
             log = logged.get();
             log->note(std::string("g2bridge started, libusb ") + (usbTransport->available() ? "ready" : "NOT available"));
             transport = std::move(logged);

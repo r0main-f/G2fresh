@@ -53,12 +53,48 @@ TEST_CASE("the USB log records a whole sync and rotates")
     const auto small = dir / "small.log";
     {
         Emulator e;
-        LoggingTransport tiny(std::make_unique<EmulatorTransport>(e), small.string(), 512);
+        LoggingTransport tiny(std::make_unique<EmulatorTransport>(e), small.string(), LogData::Redacted, 512);
         for (int i = 0; i < 40; ++i)
             tiny.note("line " + std::to_string(i));
     }
     CHECK(std::filesystem::exists(small.string() + ".1"));
     CHECK(std::filesystem::file_size(small) < 512 + 128);
     CHECK(readAll(small).find("log closed") != std::string::npos);
+    std::filesystem::remove_all(dir, ec);
+}
+
+TEST_CASE("the USB log leaves patch contents out unless asked")
+{
+    const auto dir = std::filesystem::temp_directory_path() / "g2fresh-log-privacy";
+    std::error_code ec;
+    std::filesystem::remove_all(dir, ec);
+    // "Secret Lead" in hex, as it travels in a name molecule.
+    const std::string secret = "53 65 63 72 65 74 20 4C 65 61 64";
+
+    auto run = [&](LogData data, const std::filesystem::path& path) {
+        Emulator emulator;
+        emulator.state().slots[0].name = "Secret Lead";
+        auto inner = std::make_unique<EmulatorTransport>(emulator);
+        auto* emulated = inner.get();
+        LoggingTransport log(std::move(inner), path.string(), data);
+        ManualClock clock;
+        Client client(log, clock);
+        emulated->plugIn();
+        for (int i = 0; i < 2000 && !client.synced(); ++i)
+            client.tick();
+        REQUIRE(client.synced());
+        CHECK(client.state().slots[0].name == "Secret Lead"); // the conversation itself is unchanged
+    };
+    run(LogData::Redacted, dir / "redacted.log");
+    run(LogData::Full, dir / "full.log");
+
+    const auto redacted = readAll(dir / "redacted.log");
+    const auto full = readAll(dir / "full.log");
+    CHECK(redacted.find(secret) == std::string::npos);
+    CHECK(redacted.find("<27 ") != std::string::npos);  // the name molecule, as id, length, fingerprint
+    CHECK(redacted.find("<4A ") != std::string::npos);  // the module list
+    CHECK(redacted.find("redacted log") != std::string::npos);
+    CHECK(full.find(secret) != std::string::npos);
+    CHECK(full.find("<27 ") == std::string::npos);
     std::filesystem::remove_all(dir, ec);
 }

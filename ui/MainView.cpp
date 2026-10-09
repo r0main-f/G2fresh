@@ -25,7 +25,7 @@ enum MenuId {
     kCablesBase = 300,        // + cable colour
     kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
     kMidiChannelBase = 600,   // + channel (0: as played)
-    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog,
+    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
 };
@@ -281,6 +281,7 @@ juce::PopupMenu MainView::synthMenu()
                    synth_->bound(), synth_->bound()));
     m.addSeparator();
     m.addItem(item(kShowUsbLog, "Show USB Log (for bug reports)"));
+    m.addItem(item(kFullUsbLog, "Full USB Log (includes patch data)", {}, true, SynthSync::fullUsbLog()));
     return m;
 }
 
@@ -404,6 +405,12 @@ void MainView::menuItemSelected(int id, int)
                 log.revealToUser();
             else
                 setStatus("No USB log yet: it is written while G2fresh talks to a real G2 (" + log.getFullPathName() + ")");
+        }
+        else if (id == kFullUsbLog) {
+            SynthSync::setFullUsbLog(!SynthSync::fullUsbLog());
+            setStatus(SynthSync::fullUsbLog()
+                          ? juce::String("The USB log will include patch contents (from the next connection to a G2)")
+                          : juce::String("The USB log will leave patch contents out (from the next connection to a G2)"));
         }
         else if (id == kSynthMemory) {
             if (!bankBrowser_)

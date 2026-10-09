@@ -1,6 +1,7 @@
 #include "SynthSync.h"
 
 #include "ModulePainter.h"
+#include "Skin.h"
 
 #include "g2/bridge/bridge_link.hpp"
 #include "g2/proto/emulator.hpp"
@@ -103,11 +104,23 @@ void SynthSync::startLink(std::unique_ptr<g2::proto::SynthLink> link, Kind kind)
     sendChangeMessage();
 }
 
+bool SynthSync::fullUsbLog()
+{
+    return userSettings().getBoolValue("fullUsbLog", false);
+}
+
+void SynthSync::setFullUsbLog(bool on)
+{
+    userSettings().setValue("fullUsbLog", on);
+}
+
 void SynthSync::connectG2()
 {
     g2::bridge::BridgeLink::Options options;
     if (const auto bridge = findBridge(); bridge.existsAsFile())
         options.bridgeExecutable = bridge.getFullPathName().toStdString();
+    if (fullUsbLog())
+        options.bridgeArguments.push_back("--log-full");
     startLink(std::make_unique<g2::bridge::BridgeLink>(options), Kind::G2);
 }
 

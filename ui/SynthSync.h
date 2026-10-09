@@ -40,6 +40,10 @@ public:
     enum class Kind { None, G2, Virtual };
     // A G2 on USB, through the g2bridge process (started if needed).
     void connectG2();
+    // Whether the bridge's USB log includes patch contents (off: redacted).
+    // Saved in the user's settings; applies when the bridge next starts.
+    static bool fullUsbLog();
+    static void setFullUsbLog(bool on);
     // The virtual G2: try the synth features without hardware.
     void connectVirtual();
     void disconnect();
