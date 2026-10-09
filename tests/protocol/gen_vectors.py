@@ -205,8 +205,12 @@ def init_sequence():
     reply(in_body(0x0C, VOID1, [0x36, 0x04, 0x05]), " -- 0x36 CMSessionNumberDump slot 4 session 5")
     req(SYS_REQ, VOID1, [0x02], "4. CMSynthDataRequest")
     reply(in_body(0x0C, VOID1, [0x03] + list(str16("G2 Engine")) +
-                  [0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x0F, 0x10, 0x80, 0x01, 0x01, 0x00, 0x00, 0x00,
-                   0x00, 0x00, 0x00, 0x40, 0x00] + [0x00] * 16),
+                  # sort modes (2), focus bank, prog, memory protect, MIDI channels A-D, global, sysex id,
+                  # local on, program change / controller modes, clock bits, tune, octave shift enable,
+                  # octave shift, transpose, vibrato rate?, pedal bits, pedal gain (CSynthMap::WriteStream
+                  # @0x120410: 38 bytes after the name)
+                  [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x0F, 0x10, 0x80, 0x01, 0x01, 0x00, 0x00,
+                   0x00, 0x00, 0x00, 0x00, 0x40, 0x00] + [0x00] * 16),
           " -- 0x03 CMSynthDataDump (CSynthMap): name, flags, bank/prog, protect, MIDI ch A-D 0..3, global 15, "
           "sysex id 16, local on, ... 16 reserved zero bytes. Field values illustrative")
     req(SYS_REQ, VOID1, [0x81], "5. CMMidiLearnRequest")

@@ -63,14 +63,14 @@
     {
       "dir": "device->host",
       "endpoint": "interrupt_in",
-      "hex": "01 00 35 00 00 00 00 00 00 00 00 00 00 00 00 00",
-      "annotation": "extended announcement, len=53 -- 0x03 CMSynthDataDump (CSynthMap): name, flags, bank/prog, protect, MIDI ch A-D 0..3, global 15, sysex id 16, local on, ... 16 reserved zero bytes. Field values illustrative",
+      "hex": "01 00 36 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "annotation": "extended announcement, len=54 -- 0x03 CMSynthDataDump (CSynthMap): name, flags, bank/prog, protect, MIDI ch A-D 0..3, global 15, sysex id 16, local on, ... 16 reserved zero bytes. Field values illustrative",
       "provenance": "synthetic"
     },
     {
       "dir": "device->host",
       "endpoint": "bulk_in",
-      "hex": "01 0C 41 03 47 32 20 45 6E 67 69 6E 65 00 00 00 00 00 00 01 02 03 0F 10 80 01 01 00 00 00 00 00 00 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 DD D7",
+      "hex": "01 0C 41 03 47 32 20 45 6E 67 69 6E 65 00 00 00 00 00 00 00 01 02 03 0F 10 80 01 01 00 00 00 00 00 00 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 DA C1",
       "annotation": "extended message body -- 0x03 CMSynthDataDump (CSynthMap): name, flags, bank/prog, protect, MIDI ch A-D 0..3, global 15, sysex id 16, local on, ... 16 reserved zero bytes. Field values illustrative",
       "provenance": "synthetic"
     },

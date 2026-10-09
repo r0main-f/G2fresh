@@ -16,6 +16,7 @@ else()
 endif()
 
 add_subdirectory(core)
+add_subdirectory(proto)
 add_subdirectory(tools/g2tool)
 
 if(G2_BUILD_PLUGIN)

@@ -14,6 +14,7 @@ Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a 
 | `re/notes/` | Recovered specifications (file format, USB protocol, resources, parameter display) |
 | `tools/rsrc/` | Extractors for the original editor's resources (`rsrc.py`, `panl.py`) |
 | `core/` | `libg2core`: `.pch2`/`.prf2` codec (`file.hpp`), patch model (`patch.hpp`), edit operations (`edit.hpp`), module database (`module_db.hpp`), parameter display text (`param_text.hpp`) |
+| `proto/` | `libg2proto`: the USB protocol (framing, molecules, the client's handshake / sync / edits) and a virtual G2 for tests (`emulator.hpp`); spec in `re/notes/usb-protocol.md` |
 | `assets/clavia/` | Original module layouts and graphics, bundled into the app (Clavia's property, see NOTICE) |
 | `data/` | Module and parameter database (JSON), compiled into the core by `tools/moduledb/gen_cpp.py` |
 | `plugin/` | JUCE target: stand-alone app, VST3, AU |

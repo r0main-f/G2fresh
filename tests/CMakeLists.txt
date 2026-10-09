@@ -20,8 +20,11 @@ add_executable(g2tests
   test_param_text.cpp
   test_param_text_golden.cpp
   test_graphs.cpp
+  test_proto_framing.cpp
+  test_proto_messages.cpp
+  test_proto_session.cpp
 )
-target_link_libraries(g2tests PRIVATE g2core Catch2::Catch2WithMain)
+target_link_libraries(g2tests PRIVATE g2proto Catch2::Catch2WithMain) # g2core comes with g2proto
 target_compile_definitions(g2tests PRIVATE
   G2_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus"
   G2_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
@@ -40,6 +43,8 @@ if(Python3_FOUND)
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/moduledb/gen_replace.py --check)
   add_test(NAME patch_load_table_is_current
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/patchload/gen_table.py --check)
+  add_test(NAME protocol_vectors_are_current
+    COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/protocol/gen_cpp.py --check)
   add_test(NAME module_db_generated_is_current
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/moduledb/gen_cpp.py --check)
   file(GLOB G2_CORPUS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/corpus/pch2csd/*.pch2)

@@ -874,3 +874,40 @@ expected value).
 Provenance per step: `verhue-capture` (bytes found in Verhue's sources), `clavia-derived` (encoded with the Clavia
 serializer rules above), `verhue-derived`, `synthetic` (device replies with invented but layout-correct values).
 **No vector comes from a capture of the real G2**; the captured ones come from Verhue's notes about the original editor.
+
+`tests/protocol/gen_cpp.py` turns the JSON into `tests/protocol/vectors.inc` for the C++ tests (checked by the
+`protocol_vectors_are_current` test). The synthetic `03` reply in `init_sequence.json` was corrected to the 38 bytes
+after the name that `CSynthMap::WriteStream` 0x120410 writes (it lacked the memory-protect byte).
+
+---------------------------------------------------------------------------------------------------
+
+## 16. Hardware checklist (`proto/`: what to verify first on a real G2)
+
+`libg2proto` (`proto/include/g2/proto/`) implements this spec; its emulator and client make these choices where the
+spec says [I] or lists an open question. Check them in this order on the first hardware session (with a USB log).
+
+1. **Handshake.** The version reply's length and bytes 10..35 (the emulator sends 35 bytes after `0x80`, extended);
+   the model ids for G2 / G2X / Engine; that no keep-alive is needed.
+2. **Replies.** Which requests get a bare `7F`, and whether a dump reply also ends with `7F` (the client accepts both);
+   that every request message gets exactly one reply message (the client never reassembles a reply).
+3. **Uploads.** That the synth accepts 10 variations in `4D` and `65` with the 10th written as zeros (Verhue), and what
+   it sends as the 10th on download (the client drops it); that a patch upload is followed by `38 slot newSession`
+   (the client then reads the slot again) and a performance upload by `1F`; whether a `03` perf-mode toggle must precede
+   a performance upload (not sent).
+4. **Sessions.** What the synth does with a stale session (the emulator discards the edit and still acks; the client
+   adopts the session of any reply to a slot request, and re-reads a slot whose unsolicited traffic carries another
+   session); the header and session of `38`, `1F` and other synth-level news (the emulator sends them on hdr 4 with
+   session `0x40`; the client accepts any session at synth level).
+5. **LEDs and meters.** The `0x3A` word byte order: read as big-endian (Verhue's "second byte is the value", the
+   vectors' generator), against Clavia's raw little-endian i386 read; the LED rate; whether `70` makes the synth resend
+   everything. LED messages are accepted only after both `72` replies of the slot (as Clavia).
+6. **Flash.** The name-list chunk size and tags (the emulator sends 16 names per `16`); `17` -> `18 code` then `19`
+   (the emulator sends code 0); `19`'s size counting the data bytes after the version byte (Clavia's ReadStream).
+7. **Realtime order.** A deliberate deviation: Clavia sends realtime messages (`40`, `2F`, dragging `43`) at once; the
+   client does too, unless acknowledged edits are still queued, in which case they keep their place behind them so the
+   synth applies edits in the order they were made.
+8. **Timeouts.** 10 s reply timeout, no retry (Clavia's `kErrorRetry` = 0); `Client::Options::retries` allows resends.
+9. **Errors.** Which `7E` codes appear and when (the client ends the connection like Clavia unless
+   `Options::exceptionsAreFatal` is off; the emulator answers a bad CRC with `7E 4`).
+10. **Unknowns still open:** `3F` scope semantics (applied only for scope `0xFF`), `56` polyphony and velocity, `7D`'s
+    effect on the panel, the meaning of the `72` counters.
