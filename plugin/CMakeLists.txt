@@ -23,6 +23,7 @@ juce_add_plugin(G2Editor
 target_sources(G2Editor PRIVATE
   Source/PluginProcessor.cpp
   Source/PluginEditor.cpp
+  Source/StandaloneApp.cpp
   ${G2_UI_SOURCES})
 target_include_directories(G2Editor PRIVATE ${PROJECT_SOURCE_DIR}/ui)
 
@@ -30,7 +31,7 @@ target_compile_definitions(G2Editor PUBLIC
   JUCE_WEB_BROWSER=0
   JUCE_USE_CURL=0
   JUCE_VST3_CAN_REPLACE_VST2=0
-  JUCE_DISPLAY_SPLASH_SCREEN=0)
+  JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1)
 
 target_link_libraries(G2Editor
   PRIVATE

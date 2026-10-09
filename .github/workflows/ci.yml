@@ -63,11 +63,30 @@ jobs:
           $run ./$bin --strictness-level 5 --validate-in-process \
             --validate build/plugin/G2Editor_artefacts/Release/VST3/G2fresh.vst3
 
+      - name: Package (macOS bundles ad-hoc signed; archives keep file permissions)
+        shell: bash
+        run: |
+          cd build/plugin/G2Editor_artefacts/Release
+          mkdir -p pkg
+          case "$RUNNER_OS" in
+            macOS)
+              for b in Standalone/G2fresh.app VST3/G2fresh.vst3 AU/G2fresh.component; do
+                codesign --force --deep -s - "$b"
+              done
+              cp -R Standalone/G2fresh.app VST3/G2fresh.vst3 AU/G2fresh.component pkg/
+              (cd pkg && ditto -c -k --sequesterRsrc . ../G2fresh-macOS-universal.zip) ;;
+            Windows)
+              cp -R Standalone/G2fresh.exe VST3/G2fresh.vst3 pkg/
+              (cd pkg && 7z a -tzip ../G2fresh-Windows-x64.zip . > /dev/null) ;;
+            Linux)
+              cp -R Standalone/G2fresh VST3/G2fresh.vst3 pkg/
+              (cd pkg && tar czf ../G2fresh-Linux-x64.tar.gz .) ;;
+          esac
+
       - uses: actions/upload-artifact@v4
         with:
           name: G2fresh-${{ runner.os }}
           path: |
-            build/plugin/G2Editor_artefacts/Release/Standalone
-            build/plugin/G2Editor_artefacts/Release/VST3
-            build/plugin/G2Editor_artefacts/Release/AU
-          if-no-files-found: ignore
+            build/plugin/G2Editor_artefacts/Release/G2fresh-*.zip
+            build/plugin/G2Editor_artefacts/Release/G2fresh-*.tar.gz
+          if-no-files-found: error

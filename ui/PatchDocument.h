@@ -53,7 +53,16 @@ public:
     std::vector<std::uint8_t> saveBytes() const;
     juce::String fileExtension() const { return perf_ ? ".prf2" : ".pch2"; }
     juce::File file() const { return file_; }
-    void setFile(const juce::File& f) { file_ = f; }
+    // Remembers the file the document was loaded from or saved to; a patch
+    // takes its name from the file name (that's how the G2 names patches).
+    void setFile(const juce::File& f);
+
+    // The name shown and edited in the toolbar: the patch's name, or in a
+    // performance the current slot's patch name (stored in the file). G2 names
+    // have at most 16 characters.
+    static constexpr int kMaxNameLength = 16;
+    juce::String name() const;
+    void setName(const juce::String& name);
     bool isDirty() const { return dirty_; }
     void markSaved() { dirty_ = false; sendChangeMessage(); }
 
@@ -70,6 +79,7 @@ private:
     Step* lastStep_ = nullptr; // the step a coalesced edit extends
     int variation_ = 0;
     juce::File file_;
+    juce::String name_ = "New patch"; // patch name (performances use slot names)
     bool dirty_ = false;
 };
 

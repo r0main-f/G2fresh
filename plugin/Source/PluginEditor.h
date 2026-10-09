@@ -8,6 +8,7 @@ public:
     explicit G2EditorView(G2EditorProcessor&);
 
     void resized() override { main_.setBounds(getLocalBounds()); }
+    g2ui::MainView& mainView() { return main_; }
 
 private:
     g2ui::MainView main_;

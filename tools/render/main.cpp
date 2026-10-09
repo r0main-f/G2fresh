@@ -111,7 +111,7 @@ int renderUi(const juce::File& in, const juce::File& out)
         doc.loadBytes(std::vector<std::uint8_t>(bytes, bytes + mb.getSize()));
         doc.setFile(in);
     }
-    MainView view(doc);
+    MainView view(doc, false);
     view.setSize(1400, 860);
     if (const char* z = std::getenv("G2_ZOOM"))
         view.setZoom(juce::String(z).getFloatValue(), nullptr, std::nullopt, false);

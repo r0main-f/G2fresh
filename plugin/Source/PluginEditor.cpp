@@ -1,7 +1,7 @@
 #include "PluginEditor.h"
 
 G2EditorView::G2EditorView(G2EditorProcessor& p)
-    : AudioProcessorEditor(p), main_(p.document())
+    : AudioProcessorEditor(p), main_(p.document(), p.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
 {
     addAndMakeVisible(main_);
     setResizable(true, true);

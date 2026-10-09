@@ -122,6 +122,34 @@ void PatchDocument::setVariation(int v)
     sendChangeMessage();
 }
 
+void PatchDocument::setFile(const juce::File& f)
+{
+    file_ = f;
+    if (!perf_ && f != juce::File())
+        name_ = f.getFileNameWithoutExtension().substring(0, kMaxNameLength);
+    sendChangeMessage();
+}
+
+juce::String PatchDocument::name() const
+{
+    if (perf_)
+        return juce::String(perf_->header.slots[static_cast<std::size_t>(slot_)].patchName);
+    return name_;
+}
+
+void PatchDocument::setName(const juce::String& name)
+{
+    const auto trimmed = name.trim().substring(0, kMaxNameLength);
+    if (trimmed.isEmpty() || trimmed == this->name())
+        return;
+    if (perf_)
+        perf_->header.slots[static_cast<std::size_t>(slot_)].patchName = trimmed.toStdString();
+    else
+        name_ = trimmed;
+    dirty_ = true;
+    sendChangeMessage();
+}
+
 void PatchDocument::newPatch()
 {
     resetHistory();
@@ -130,6 +158,7 @@ void PatchDocument::newPatch()
     slot_ = 0;
     variation_ = 0;
     file_ = juce::File();
+    name_ = "New patch";
     dirty_ = false;
     sendChangeMessage();
 }
@@ -145,6 +174,8 @@ void PatchDocument::loadBytes(const std::vector<std::uint8_t>& bytes, bool ignor
         perf_.reset();
         patch_ = std::move(std::get<g2::Patch>(loaded.content));
         slot_ = 0;
+        if (!loaded.embeddedName.empty())
+            name_ = juce::String(loaded.embeddedName).substring(0, kMaxNameLength);
     }
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch().header.activeVariation));
     dirty_ = false;

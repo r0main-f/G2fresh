@@ -2,27 +2,95 @@
 
 namespace g2ui {
 namespace {
+
 const juce::String kOpenPattern = "*.pch2;*.prf2";
+
+enum MenuId {
+    kNew = 1, kOpen, kSave, kSaveAs, kClearRecent,
+    kUndo, kRedo, kDelete, kRename,
+    kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
+    kAudioSettings,
+    kRecentBase = 100, // + index into the recent files list
+};
+
+juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
+                           bool ticked = false)
+{
+    juce::PopupMenu::Item i(text);
+    i.itemID = id;
+    i.shortcutKeyDescription = shortcut;
+    i.isEnabled = enabled;
+    i.isTicked = ticked;
+    return i;
 }
 
-MainView::MainView(PatchDocument& doc)
-    : doc_(doc), va_(doc, g2::Location::Va), fx_(doc, g2::Location::Fx)
+#if JUCE_MAC
+const juce::String kCmd = juce::String::fromUTF8("\xe2\x8c\x98");   // ⌘
+const juce::String kShift = juce::String::fromUTF8("\xe2\x87\xa7"); // ⇧
+#else
+const juce::String kCmd = "Ctrl+";
+const juce::String kShift = "Shift+";
+#endif
+
+} // namespace
+
+MainView::MainView(PatchDocument& doc, bool standalone)
+    : doc_(doc), standalone_(standalone), va_(doc, g2::Location::Va), fx_(doc, g2::Location::Fx)
 {
     setLookAndFeel(&lookAndFeel_.get());
-    for (auto* b : {&new_, &open_, &save_, &saveAs_, &undo_, &redo_})
-        addAndMakeVisible(b);
-    new_.onClick = [this] { newPatch(); };
-    open_.onClick = [this] { open(); };
-    save_.onClick = [this] { save(false); };
-    saveAs_.onClick = [this] { save(true); };
-    undo_.onClick = [this] { doc_.undo(); };
-    redo_.onClick = [this] { doc_.redo(); };
+    recent_.setMaxNumberOfItems(12);
+    recent_.restoreFromString(userSettings().getValue("recentFiles"));
 
+    if (standalone_) {
+#if JUCE_MAC
+        juce::MenuBarModel::setMacMainMenu(this);
+#else
+        menuBar_ = std::make_unique<juce::MenuBarComponent>(this);
+        addAndMakeVisible(*menuBar_);
+#endif
+    } else {
+        menuButton_.setTooltip("File, Edit and View commands");
+        menuButton_.onClick = [this] {
+            juce::PopupMenu menu;
+            const auto names = getMenuBarNames();
+            for (int i = 0; i < names.size(); ++i)
+                menu.addSubMenu(names[i], getMenuForIndex(i, names[i]));
+            menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&menuButton_),
+                               [safe = juce::Component::SafePointer<MainView>(this)](int id) {
+                                   if (safe && id > 0)
+                                       safe->menuItemSelected(id, 0);
+                               });
+        };
+        addAndMakeVisible(menuButton_);
+    }
+
+    // The patch name: double-click to edit (16 characters, as on the G2).
+    name_.setFont(theme::font(true));
+    name_.setEditable(false, true, false);
+    name_.setTooltip("Patch name: double-click to rename (up to 16 characters)");
+    name_.onEditorShow = [this] {
+        if (auto* editor = name_.getCurrentTextEditor())
+            editor->setInputRestrictions(PatchDocument::kMaxNameLength);
+    };
+    name_.onTextChange = [this] { doc_.setName(name_.getText()); };
+    slotPrefix_.setFont(theme::font());
+    slotPrefix_.setColour(juce::Label::textColourId, juce::Colour(0xffa8adb6));
+    edited_.setFont(theme::font());
+    edited_.setColour(juce::Label::textColourId, juce::Colour(0xffa8adb6));
+    for (auto* l : {&slotPrefix_, &name_, &edited_})
+        addAndMakeVisible(l);
+
+    variationLabel_.setFont(theme::font());
+    variationLabel_.setColour(juce::Label::textColourId, juce::Colour(0xffa8adb6));
+    variationLabel_.setJustificationType(juce::Justification::centredRight);
+    variationLabel_.setTooltip("A patch holds 8 variations: complete sets of knob and setting values, switchable "
+                               "live. Pick the one to see and edit (Cmd 1-8).");
+    addAndMakeVisible(variationLabel_);
     for (int i = 0; i < g2::kUserVariations; ++i) {
         auto* b = variations_.add(new juce::TextButton(juce::String(i + 1)));
         b->setClickingTogglesState(true);
         b->setRadioGroupId(1);
-        b->setTooltip("Variation " + juce::String(i + 1));
+        b->setTooltip("Variation " + juce::String(i + 1) + ": one of the patch's 8 sets of knob and setting values");
         b->setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffd08020));
         b->onClick = [this, i] { doc_.setVariation(i); };
         addAndMakeVisible(b);
@@ -35,27 +103,7 @@ MainView::MainView(PatchDocument& doc)
         b->onClick = [this, i] { doc_.setSlot(i); };
         addChildComponent(b);
     }
-    classic_.setToggleState(currentLook() == Look::Classic, juce::dontSendNotification);
-    classic_.setTooltip("Draw modules with the original editor's bitmaps");
-    classic_.onClick = [this] {
-        setCurrentLook(classic_.getToggleState() ? Look::Classic : Look::Modern);
-        va_.settingsChanged();
-        fx_.settingsChanged();
-        va_.repaint();
-        fx_.repaint();
-    };
-    addAndMakeVisible(classic_);
-    animate_.setToggleState(cableAnimation(), juce::dontSendNotification);
-    animate_.setTooltip("Show the signal flow along cables, from source to destination");
-    animate_.onClick = [this] {
-        setCableAnimation(animate_.getToggleState());
-        va_.settingsChanged();
-        fx_.settingsChanged();
-    };
-    addAndMakeVisible(animate_);
-    title_.setFont(theme::font(true));
     status_.setFont(theme::font());
-    addAndMakeVisible(title_);
     status_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
     addAndMakeVisible(status_);
 
@@ -75,7 +123,7 @@ MainView::MainView(PatchDocument& doc)
 
     zoomOut_.setTooltip("Zoom out (Cmd -)");
     zoomIn_.setTooltip("Zoom in (Cmd +)");
-    zoomReset_.setTooltip("Reset the zoom (Cmd 0). Cmd + scroll or pinch to zoom around the mouse");
+    zoomReset_.setTooltip("Actual size (Cmd 0). Cmd + scroll or pinch to zoom around the mouse");
     zoomOut_.onClick = [this] { setZoom(zoom_ / 1.25f); };
     zoomIn_.onClick = [this] { setZoom(zoom_ * 1.25f); };
     zoomReset_.onClick = [this] { setZoom(1.0f); };
@@ -98,6 +146,125 @@ MainView::MainView(PatchDocument& doc)
     updateToolbar();
     setZoom(static_cast<float>(userSettings().getDoubleValue("zoom", 1.0)), nullptr, std::nullopt, false);
 }
+
+MainView::~MainView()
+{
+#if JUCE_MAC
+    if (standalone_)
+        juce::MenuBarModel::setMacMainMenu(nullptr);
+#endif
+    setLookAndFeel(nullptr);
+    doc_.removeChangeListener(this);
+}
+
+// ---- Menus ----------------------------------------------------------------------
+
+juce::StringArray MainView::getMenuBarNames()
+{
+    juce::StringArray names{"File", "Edit", "View"};
+    if (onAudioSettings)
+        names.add("Options");
+    return names;
+}
+
+juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
+{
+    juce::PopupMenu m;
+    if (index == 0) {
+        m.addItem(item(kNew, "New Patch", kCmd + "N"));
+        m.addItem(item(kOpen, "Open...", kCmd + "O"));
+        juce::PopupMenu recent;
+        recent_.createPopupMenuItems(recent, kRecentBase, false, true);
+        if (recent.getNumItems() > 0) {
+            recent.addSeparator();
+            recent.addItem(item(kClearRecent, "Clear Menu"));
+        }
+        m.addSubMenu("Open Recent", recent, recent.getNumItems() > 0);
+        m.addSeparator();
+        m.addItem(item(kSave, "Save", kCmd + "S"));
+        m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S"));
+    } else if (index == 1) {
+        const auto& undo = doc_;
+        m.addItem(item(kUndo, "Undo", kCmd + "Z", undo.canUndo()));
+        m.addItem(item(kRedo, "Redo", kShift + kCmd + "Z", undo.canRedo()));
+        m.addSeparator();
+        m.addItem(item(kDelete, "Delete Module", "Delete", va_.hasSelection() || fx_.hasSelection()));
+        m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
+    } else if (index == 2) {
+        m.addItem(item(kZoomIn, "Zoom In", kCmd + "+", zoom_ < kMaxZoom));
+        m.addItem(item(kZoomOut, "Zoom Out", kCmd + "-", zoom_ > kMinZoom));
+        m.addItem(item(kZoomReset, "Actual Size", kCmd + "0"));
+        m.addSeparator();
+        m.addItem(item(kShowSettings, "Show Patch Settings", {}, true, !settings_.isCollapsed()));
+        m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic));
+        m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation()));
+    } else if (index == 3) {
+        m.addItem(item(kAudioSettings, "Audio/MIDI Settings..."));
+    }
+    return m;
+}
+
+void MainView::menuItemSelected(int id, int)
+{
+    if (id >= kRecentBase) {
+        const auto f = recent_.getFile(id - kRecentBase);
+        confirmDiscard([this, f] { openFile(f); });
+        return;
+    }
+    switch (id) {
+    case kNew: newPatch(); break;
+    case kOpen: open(); break;
+    case kSave: save(false); break;
+    case kSaveAs: save(true); break;
+    case kClearRecent:
+        recent_.clear();
+        userSettings().setValue("recentFiles", recent_.toString());
+        break;
+    case kUndo: doc_.undo(); break;
+    case kRedo: doc_.redo(); break;
+    case kDelete:
+        if (auto* a = areaWithSelection())
+            a->deleteSelected();
+        break;
+    case kRename: name_.showEditor(); break;
+    case kZoomIn: setZoom(zoom_ * 1.25f); break;
+    case kZoomOut: setZoom(zoom_ / 1.25f); break;
+    case kZoomReset: setZoom(1.0f); break;
+    case kShowSettings: settings_.setCollapsed(!settings_.isCollapsed()); break;
+    case kClassicLook: setLook(currentLook() == Look::Classic ? Look::Modern : Look::Classic); break;
+    case kAnimateCables: setAnimation(!cableAnimation()); break;
+    case kAudioSettings:
+        if (onAudioSettings)
+            onAudioSettings();
+        break;
+    default: break;
+    }
+}
+
+AreaView* MainView::areaWithSelection()
+{
+    return va_.hasSelection() ? &va_ : fx_.hasSelection() ? &fx_ : nullptr;
+}
+
+void MainView::setLook(Look look)
+{
+    setCurrentLook(look);
+    for (auto* a : {&va_, &fx_}) {
+        a->settingsChanged();
+        a->repaint();
+    }
+    menuItemsChanged();
+}
+
+void MainView::setAnimation(bool on)
+{
+    setCableAnimation(on);
+    va_.settingsChanged();
+    fx_.settingsChanged();
+    menuItemsChanged();
+}
+
+// ---- Zoom ----------------------------------------------------------------------
 
 void MainView::setZoom(float zoom, const AreaView* area, std::optional<juce::Point<int>> anchor, bool remember)
 {
@@ -138,23 +305,19 @@ void MainView::setZoom(float zoom, const AreaView* area, std::optional<juce::Poi
     zoomIn_.setEnabled(zoom < kMaxZoom);
     if (remember)
         userSettings().setValue("zoom", static_cast<double>(zoom));
+    menuItemsChanged();
 }
 
-MainView::~MainView()
-{
-    setLookAndFeel(nullptr);
-    doc_.removeChangeListener(this);
-}
+// ---- Toolbar and layout -------------------------------------------------------------
 
 void MainView::changeListenerCallback(juce::ChangeBroadcaster*)
 {
     updateToolbar();
+    menuItemsChanged(); // undo/redo state
 }
 
 void MainView::updateToolbar()
 {
-    undo_.setEnabled(doc_.canUndo());
-    redo_.setEnabled(doc_.canRedo());
     if (auto* b = variations_[doc_.variation()])
         b->setToggleState(true, juce::dontSendNotification);
     const auto* perf = doc_.performance();
@@ -167,15 +330,19 @@ void MainView::updateToolbar()
         }
         b->setToggleState(i == doc_.slot(), juce::dontSendNotification);
     }
-    const auto f = doc_.file();
-    juce::String title = f == juce::File() ? juce::String(perf ? "New performance" : "New patch")
-                                           : f.getFileNameWithoutExtension();
+    // In a performance: "<performance file>  A:" then the slot's patch name.
     if (perf) {
-        const auto slotName = juce::String(perf->header.slots[static_cast<std::size_t>(doc_.slot())].patchName);
-        title << "  -  " << juce::String::charToString(static_cast<juce::juce_wchar>('A' + doc_.slot()))
-              << (slotName.isNotEmpty() ? ": " + slotName : juce::String());
+        const auto f = doc_.file();
+        slotPrefix_.setText((f == juce::File() ? juce::String("New performance") : f.getFileNameWithoutExtension()) + "   "
+                                + juce::String::charToString(static_cast<juce::juce_wchar>('A' + doc_.slot())) + ":",
+                            juce::dontSendNotification);
     }
-    title_.setText(title + (doc_.isDirty() ? " *" : ""), juce::dontSendNotification);
+    slotPrefix_.setVisible(perf != nullptr);
+    if (!name_.isBeingEdited())
+        name_.setText(doc_.name(), juce::dontSendNotification);
+    name_.setTooltip(perf ? "Slot patch name: double-click to rename (up to 16 characters)"
+                          : "Patch name: double-click to rename (up to 16 characters). Save uses it as the file name.");
+    edited_.setText(doc_.isDirty() ? "(edited)" : "", juce::dontSendNotification);
     const int voices = doc_.patch().header.voiceCount;
     vaPane_.setText("VOICE AREA",
                     "Polyphonic: the synth runs one copy per voice (" + juce::String(voices)
@@ -227,33 +394,37 @@ void MainView::AreaPane::paint(juce::Graphics& g)
 void MainView::resized()
 {
     auto r = getLocalBounds();
-    auto bar = r.removeFromTop(32).reduced(4);
-    for (auto* b : {&new_, &open_, &save_, &saveAs_})
-        b->setBounds(bar.removeFromLeft(b == &saveAs_ || b == &open_ ? 76 : 52)), bar.removeFromLeft(2);
-    bar.removeFromLeft(10);
-    for (auto* b : {&undo_, &redo_})
-        b->setBounds(bar.removeFromLeft(52)), bar.removeFromLeft(2);
-    bar.removeFromLeft(14);
-    for (auto* b : variations_)
-        b->setBounds(bar.removeFromLeft(26)), bar.removeFromLeft(1);
-    bar.removeFromLeft(14);
-    if (doc_.isPerformance()) {
-        for (auto* b : slots_)
-            b->setBounds(bar.removeFromLeft(26)), bar.removeFromLeft(1);
-        bar.removeFromLeft(14);
+    if (menuBar_)
+        menuBar_->setBounds(r.removeFromTop(24));
+    auto bar = r.removeFromTop(34).reduced(6, 4);
+    if (!standalone_) {
+        menuButton_.setBounds(bar.removeFromLeft(64));
+        bar.removeFromLeft(10);
     }
-    classic_.setBounds(bar.removeFromRight(110));
-    bar.removeFromRight(6);
-    zoomIn_.setBounds(bar.removeFromRight(26));
-    zoomReset_.setBounds(bar.removeFromRight(50));
-    zoomOut_.setBounds(bar.removeFromRight(26));
-    bar.removeFromRight(8);
-    animate_.setBounds(bar.removeFromRight(130));
-    title_.setBounds(bar);
+    auto textWidth = [](const juce::Label& l) {
+        return juce::GlyphArrangement::getStringWidthInt(l.getFont(), l.getText()) + 12;
+    };
+    if (slotPrefix_.isVisible())
+        slotPrefix_.setBounds(bar.removeFromLeft(textWidth(slotPrefix_)));
+    name_.setBounds(bar.removeFromLeft(std::max(150, textWidth(name_))));
+    edited_.setBounds(bar.removeFromLeft(70));
+
+    zoomIn_.setBounds(bar.removeFromRight(28));
+    zoomReset_.setBounds(bar.removeFromRight(54));
+    zoomOut_.setBounds(bar.removeFromRight(28));
+    bar.removeFromRight(16);
+    if (doc_.isPerformance()) {
+        for (int i = slots_.size(); --i >= 0;)
+            slots_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
+        bar.removeFromRight(16);
+    }
+    for (int i = variations_.size(); --i >= 0;)
+        variations_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
+    variationLabel_.setBounds(bar.removeFromRight(textWidth(variationLabel_)));
 
     settings_.setBounds(r.removeFromTop(settings_.preferredHeight(r.getWidth())));
     browser_.setBounds(r.removeFromTop(62));
-    status_.setBounds(r.removeFromBottom(22));
+    status_.setBounds(r.removeFromBottom(24));
     juce::Component* parts[] = {&vaPane_, &divider_, &fxPane_};
     layout_.layOutComponents(parts, 3, r.getX(), r.getY(), r.getWidth(), r.getHeight(), true, true);
     for (auto [port, area] : {std::pair{&vaPort_, &va_}, std::pair{&fxPort_, &fx_}})
@@ -289,6 +460,8 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     return false;
 }
 
+// ---- Files ----------------------------------------------------------------------
+
 void MainView::confirmDiscard(std::function<void()> then)
 {
     if (!doc_.isDirty()) {
@@ -296,7 +469,7 @@ void MainView::confirmDiscard(std::function<void()> then)
         return;
     }
     juce::AlertWindow::showOkCancelBox(juce::MessageBoxIconType::QuestionIcon, "Discard changes?",
-                                       "The current patch has unsaved changes.", "Discard", "Cancel", this,
+                                       "\"" + doc_.name() + "\" has unsaved changes.", "Discard", "Cancel", this,
                                        juce::ModalCallbackFunction::create([then](int r) {
                                            if (r == 1)
                                                then();
@@ -315,9 +488,14 @@ void MainView::open()
         chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                               [this](const juce::FileChooser& fc) {
                                   if (fc.getResult() != juce::File())
-                                      loadFile(fc.getResult());
+                                      openFile(fc.getResult());
                               });
     });
+}
+
+void MainView::openFile(const juce::File& f)
+{
+    loadFile(f);
 }
 
 void MainView::loadFile(const juce::File& f, bool ignoreChecksum)
@@ -331,6 +509,8 @@ void MainView::loadFile(const juce::File& f, bool ignoreChecksum)
         const auto* p = static_cast<const std::uint8_t*>(mb.getData());
         doc_.loadBytes(std::vector<std::uint8_t>(p, p + mb.getSize()), ignoreChecksum);
         doc_.setFile(f);
+        recent_.addFile(f);
+        userSettings().setValue("recentFiles", recent_.toString());
         setStatus("Opened " + f.getFileName() + (ignoreChecksum ? " (checksum ignored)" : ""));
         updateToolbar();
     } catch (const g2::ChecksumError&) {
@@ -354,20 +534,33 @@ void MainView::save(bool saveAs)
     auto write = [this](const juce::File& f) {
         const auto bytes = doc_.saveBytes();
         if (f.replaceWithData(bytes.data(), bytes.size())) {
+            const auto name = doc_.name();
             doc_.setFile(f);
+            if (doc_.isPerformance())
+                doc_.setName(name);
             doc_.markSaved();
+            recent_.addFile(f);
+            userSettings().setValue("recentFiles", recent_.toString());
             setStatus("Saved " + f.getFileName());
         } else {
             setStatus("Cannot write " + f.getFullPathName());
         }
     };
-    if (!saveAs && doc_.file() != juce::File()) {
+    // A patch saved under a new name goes to a new file.
+    const bool renamed = !doc_.isPerformance() && doc_.file() != juce::File()
+                         && doc_.file().getFileNameWithoutExtension() != doc_.name();
+    if (!saveAs && !renamed && doc_.file() != juce::File()) {
         write(doc_.file());
         return;
     }
     const auto ext = doc_.fileExtension();
+    const auto folder = doc_.file() != juce::File() ? doc_.file().getParentDirectory()
+                                                    : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+    const auto suggested = doc_.isPerformance() && doc_.file() != juce::File()
+                               ? doc_.file()
+                               : folder.getChildFile(juce::File::createLegalFileName(doc_.name()) + ext);
     chooser_ = std::make_unique<juce::FileChooser>(doc_.isPerformance() ? "Save the G2 performance" : "Save the G2 patch",
-                                                   doc_.file(), "*" + ext);
+                                                   suggested, "*" + ext);
     chooser_->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
                               | juce::FileBrowserComponent::warnAboutOverwriting,
                           [write, ext](const juce::FileChooser& fc) {
