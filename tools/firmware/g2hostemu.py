@@ -5,6 +5,8 @@ optionally, talk to it over its USB chip with our own protocol client.
 
   g2hostemu.py [--steps N] [--progress N] [--out DIR]          boot and capture
   g2hostemu.py --patch FILE.pch2 [--usb-start SLICE] ...        then upload a patch
+      [--patch-to B:FILE ...] [--settle S] [--seconds S]        more slots; record the DACs (dac.wav, dac.json)
+  audio links between the DSPs: --chain, --ring-prefill, --link-queue, --no-links, --no-idle-skip, --throttle
   debugging: --break PC, --probe PC, --watch ADDR[:LEN], --trace-mmio, --debug-flash
 
 Needs a venv with `pip install unicorn` (2.1.x) and the libraries built by
@@ -38,6 +40,7 @@ import json
 import os
 import struct
 import sys
+import time
 
 os.environ.setdefault('UC_IGNORE_REG_BREAK', '1')
 from unicorn import Uc, UcError, UC_ARCH_M68K, UC_MODE_BIG_ENDIAN, UC_HOOK_CODE, UC_HOOK_MEM_UNMAPPED  # noqa: E402
@@ -94,7 +97,19 @@ class DspBridge:
                                 ('g2dsp_mem_read', u32, [vp, i, u32]), ('g2dsp_reg', u32, [vp, i]),
                                 ('g2dsp_disasm', i, [vp, u32, ctypes.c_char_p, i]),
                                 ('g2dsp_capture', None, [vp, i]), ('g2dsp_tx_frames', u64, [vp, i]),
-                                ('g2dsp_tx_take', u32, [vp, i, ctypes.POINTER(u32), u32])):
+                                ('g2dsp_tx_take', u32, [vp, i, ctypes.POINTER(u32), u32]),
+                                ('g2dsp_cycles', u64, [vp]), ('g2dsp_esai_reg', u32, [vp, i, i]),
+                                ('g2dsp_mem_write', None, [vp, i, u32, u32]),
+                                ('g2dsp_rx_frames', u64, [vp, i]), ('g2dsp_waited_ns', u64, [vp]),
+                                ('g2dsp_thread_cpu_ns', u64, [vp]), ('g2dsp_shutdown_all', None, []),
+                                ('g2dsp_clock', None, [vp, u32, u32, u32, u32, u32]),
+                                ('g2dsp_link', i, [vp, i, i, vp, i, u32, u32, u32]),
+                                ('g2dsp_link_stats', u64, [i, i]),
+                                ('g2dsp_sink_record', None, [vp, u64]),
+                                ('g2dsp_sink_take', u32, [vp, i, ctypes.POINTER(ctypes.c_int32), u32]),
+                                ('g2dsp_throttle', None, [vp, ctypes.c_double, u32]),
+                                ('g2dsp_idle_loop', None, [vp, u32, u32, u32, u32]),
+                                ('g2dsp_skipped', u64, [vp]), ('g2dsp_jit', None, [vp, i])):
             f = getattr(lib, name)
             f.restype, f.argtypes = res, args
         cls.lib = lib
@@ -1070,6 +1085,200 @@ class Emu:
         return True
 
 
+# --------------------------------------------------------------------------
+# Serial audio between the DSPs (re/notes/g2-hardware-and-emulation.md 3.7).
+# Index n here = the DSP on chip select A(3+n) = OS DSP 3-n. From the stage-1
+# programs [C]: A6 (n=3) is the clock master of the 8-slot frames and receives
+# the ADCs on its ESAI (2 slots of 32 bits); A3 (n=0) sends the DACs on its ESAI
+# (2 slots of 32 bits); every other ESAI side is an 8-slot, 24-bit TDM slave.
+# Every DSP passes the buffer it received on to its transmitters two frames
+# later, so the DSPs form a chain on ESAI (TX0/TX1 -> RX0/RX1), ending in A3's
+# DACs, and a ring on ESAI_1 (TX2/TX3 -> RX0/RX1), back to A6. The order of A5
+# and A4 along it is not given by the code: OS order is assumed (--chain).
+FRAME_RATE = 96000          # frames (samples) per second, as the OS's pitch tables assume
+CYCLES_PER_TICK = 192       # 1536 DSP clocks per frame / 8 slots [C]
+# Stage 1's background loop [C]: P:$222-$22A spins while the frame counter X:$43 <= 3
+# (every 4th frame it falls through into the patch's control-rate code). Same on all four.
+IDLE_LOOP = (0x222, 0x22A, 0x43, 3)
+
+
+def add_audio_args(ap):
+    ap.add_argument('--chain', default='3,2,1,0',
+                    help='DSP indexes (chip select A3+n) along the serial chain, first = clock master/ADC, '
+                         'last = DACs (default: OS order A6,A5,A4,A3)')
+    ap.add_argument('--no-links', action='store_true', help='no serial links (receivers get silence)')
+    ap.add_argument('--ring-prefill', type=int, default=4,
+                    help='frames of head start on the ESAI_1 line that closes the ring (last -> first DSP)')
+    ap.add_argument('--link-queue', type=int, default=8, help='frames a sender may run ahead of its receiver')
+    ap.add_argument('--link-batch', type=int, default=2,
+                    help='a receiver that finds its line empty waits for this many frames (or 0.5 ms)')
+    ap.add_argument('--throttle', type=float, default=0.0,
+                    help='limit the DACs to this many times real time (0: as fast as the DSPs go)')
+    ap.add_argument('--no-idle-skip', action='store_true',
+                    help='run the DSPs\' idle background loop instead of skipping to the next slot')
+    ap.add_argument('--jit', action='store_true', help='experimental, does not work yet: run the DSPs with dsp56300\'s JIT')
+
+
+def wire_audio(dsps, args):
+    """Clocks and links of the four DSPs; returns {name: link index}."""
+    lib = DspBridge.lib
+    chain = [int(x) for x in args.chain.split(',')]
+    first, last = chain[0], chain[-1]
+    for n, d in enumerate(dsps):
+        # the converters' ESAI sides have 2 slots per frame: 4 ticks per slot
+        lib.g2dsp_clock(d.h, CYCLES_PER_TICK, 3 if n == last else 0, 3 if n == first else 0, 0, 0)
+        if not args.no_idle_skip:
+            lib.g2dsp_idle_loop(d.h, *IDLE_LOOP)
+        if args.jit:
+            lib.g2dsp_jit(d.h, 1)
+    links = {}
+    if args.no_links:
+        return links
+    for a, b in zip(chain, chain[1:]):
+        links[f'esai {a}->{b}'] = lib.g2dsp_link(dsps[a].h, 0, 0, dsps[b].h, 0, 0, args.link_queue, args.link_batch)
+        links[f'esai1 {a}->{b}'] = lib.g2dsp_link(dsps[a].h, 1, 2, dsps[b].h, 1, 0, args.link_queue, args.link_batch)
+    links[f'esai1 {last}->{first}'] = lib.g2dsp_link(dsps[last].h, 1, 2, dsps[first].h, 1,
+                                                      args.ring_prefill, args.link_queue, args.link_batch)
+    if args.throttle > 0:
+        lib.g2dsp_throttle(dsps[last].h, args.throttle, FRAME_RATE)
+    return links
+
+
+class AudioRecorder:
+    """Records the DACs (the last DSP's ESAI transmit frames) and reports speed."""
+
+    def __init__(self, dsps, links, args, host_cpu=None):
+        self.dsps = dsps
+        self.links = links
+        self.last = [int(x) for x in args.chain.split(',')][-1]
+        self.host_cpu = host_cpu or (lambda: 0.0)
+        self.samples = []
+        self.report = {}
+
+    def frames(self):
+        return self.dsps[self.last].tx_frames(0)
+
+    def snapshot(self):
+        return {'wall': time.time(), 'host_cpu': self.host_cpu(), 'dac': self.frames(),
+                'dsp': [(d.instructions(), d.skipped(), d.thread_cpu_ns(), d.waited_ns()) for d in self.dsps]}
+
+    def start(self, frames):
+        self.t0 = self.snapshot()
+        self.want = frames
+        DspBridge.lib.g2dsp_sink_record(self.dsps[self.last].h, frames)
+
+    def poll(self):
+        """Collects recorded words; True once all frames are in."""
+        import ctypes
+        buf = (ctypes.c_int32 * 65536)()
+        while True:
+            n = DspBridge.lib.g2dsp_sink_take(self.dsps[self.last].h, 0, buf, 65536)
+            if not n:
+                break
+            self.samples.extend(buf[:n])
+        return len(self.samples) >= 4 * self.want
+
+    def stop(self):
+        t1 = self.snapshot()
+        t0 = self.t0
+        wall = t1['wall'] - t0['wall']
+        emulated = (t1['dac'] - t0['dac']) / FRAME_RATE
+        rep = {'wall_s': wall, 'emulated_s': emulated, 'speed': emulated / wall if wall else 0,
+               'host_cpu_s': t1['host_cpu'] - t0['host_cpu'], 'dsps': []}
+        for n, (a, b) in enumerate(zip(t0['dsp'], t1['dsp'])):
+            ins, skipped, cpu, wait = (y - x for x, y in zip(a, b))
+            frames = emulated * FRAME_RATE
+            rep['dsps'].append({'index': n, 'instructions': ins, 'skipped': skipped, 'cpu_s': cpu / 1e9,
+                                'waited_s': wait / 1e9, 'mips': (ins - skipped) / wall / 1e6 if wall else 0,
+                                'instructions_per_frame': ins / frames if frames else 0,
+                                'executed_per_frame': (ins - skipped) / frames if frames else 0})
+        rep['links'] = {k: {f: DspBridge.lib.g2dsp_link_stats(v, i) for i, f in enumerate(
+            ('sent', 'received', 'dropped', 'zeros', 'timeouts', 'queued', 'active'))} for k, v in self.links.items()}
+        self.report = rep
+        print(f'audio: {emulated:.3f} emulated s in {wall:.2f} wall s = {rep["speed"]:.3f}x real time; '
+              f'host thread CPU {rep["host_cpu_s"]:.2f} s', flush=True)
+        for d in rep['dsps']:
+            print(f'  A{3 + d["index"]}: {d["mips"]:.1f} M instr/s executed, {d["instructions_per_frame"]:.0f} '
+                  f'instr/frame of which {d["executed_per_frame"]:.0f} executed (rest: idle skipped), '
+                  f'thread CPU {d["cpu_s"]:.2f} s, waiting on links {d["waited_s"]:.2f} s', flush=True)
+        for k, v in rep['links'].items():
+            print(f'  link {k}: ' + ', '.join(f'{a} {b}' for a, b in v.items()), flush=True)
+
+    def run(self, settle, seconds, step=None):
+        """Waits `settle` emulated seconds, then records `seconds`. `step()` is called while
+        waiting (the host CPU's slices, in the full machine); without it this sleeps."""
+        target = self.frames() + int(settle * FRAME_RATE)
+        while self.frames() < target:
+            step() if step else time.sleep(0.01)
+        self.start(int(seconds * FRAME_RATE))
+        last = time.time()
+        while not self.poll():
+            step() if step else time.sleep(0.01)
+            if time.time() - last > 5:
+                last = time.time()
+                print(f'  recording: {len(self.samples) // 4}/{self.want} frames; ' + '; '.join(
+                    f'A{3 + n}: pc {d.pc():06x} tx {d.tx_frames(0)}/{d.tx_frames(1)} rx {d.rx_frames(0)}/{d.rx_frames(1)}'
+                    for n, d in enumerate(self.dsps)), flush=True)
+        self.stop()
+
+    def save(self, out, name='dac'):
+        """WAV of the 4 DAC channels (float32, 96 kHz) and a spectral check of each."""
+        import numpy as np
+        x = np.array(self.samples[:4 * self.want], dtype=np.float64).reshape(-1, 4) / 8388608.0
+        # word order per frame: slot 0 TX0, slot 0 TX1, slot 1 TX0, slot 1 TX1
+        # = DAC 1 left, DAC 2 left, DAC 1 right, DAC 2 right (inferred: outputs 1, 3, 2, 4)
+        chans = x[:, [0, 2, 1, 3]]
+        path = os.path.join(out, name + '.wav')
+        write_wav(path, chans.astype(np.float32), FRAME_RATE)
+        self.report['wav'] = path
+        self.report['outputs'] = [analyse(chans[:, c]) for c in range(4)]
+        for c, a in enumerate(self.report['outputs']):
+            print(f'  out {c + 1}: ' + ', '.join(f'{k} {v}' for k, v in a.items()), flush=True)
+        with open(os.path.join(out, name + '.json'), 'w') as f:
+            json.dump(self.report, f, indent=1)
+
+
+def write_wav(path, data, rate):
+    """float32 WAV (format 3), interleaved channels."""
+    n, ch = data.shape
+    with open(path, 'wb') as f:
+        f.write(b'RIFF' + struct.pack('<I', 36 + data.nbytes) + b'WAVEfmt ' +
+                struct.pack('<IHHIIHH', 16, 3, ch, rate, rate * 4 * ch, 4 * ch, 32) +
+                b'data' + struct.pack('<I', data.nbytes))
+        f.write(data.tobytes())
+
+
+def analyse(x):
+    """Peak, RMS, DC, the strongest frequency (parabolic peak of a Hann FFT) and its
+    harmonics 2..5 relative to it, in dB."""
+    import numpy as np
+    out = {'peak': round(float(np.max(np.abs(x))), 6) if len(x) else 0.0}
+    if len(x) < 1024 or out['peak'] < 1e-7:
+        return out
+    out['rms'] = round(float(np.sqrt(np.mean(x ** 2))), 6)
+    out['dc'] = round(float(np.mean(x)), 7)
+    w = np.hanning(len(x))
+    s = np.abs(np.fft.rfft((x - np.mean(x)) * w))
+    k = int(np.argmax(s[1:])) + 1
+    d = 0.0
+    if 1 <= k < len(s) - 1:
+        a, b, c = np.log(s[k - 1] + 1e-30), np.log(s[k] + 1e-30), np.log(s[k + 1] + 1e-30)
+        if a - 2 * b + c != 0:
+            d = 0.5 * (a - c) / (a - 2 * b + c)
+    f0 = (k + d) * FRAME_RATE / len(x)
+    out['freq_hz'] = round(float(f0), 3)
+
+    def level(f):
+        j = int(round(f * len(x) / FRAME_RATE))
+        lo, hi = max(1, j - 3), min(len(s), j + 4)
+        return float(np.max(s[lo:hi])) if lo < hi else 0.0
+    ref = level(f0)
+    for h in range(2, 6):
+        if h * f0 < FRAME_RATE / 2:
+            out[f'H{h}_db'] = round(20 * np.log10(level(h * f0) / ref + 1e-30), 1)
+    return out
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--fw', default=os.path.join(ROOT, 'original', 'firmware'))
@@ -1080,10 +1289,16 @@ def main(argv):
     ap.add_argument('--patch', help='after boot, connect our protocol client over the emulated USB and upload this .pch2')
     ap.add_argument('--usb-start', type=int, default=12000, help='slice at which the USB cable is plugged in')
     ap.add_argument('--ms-per-slice', type=float, default=0.125, help='client clock per slice (ms)')
-    ap.add_argument('--audio-slices', type=int, default=1000, help='slices to run after the upload')
+    ap.add_argument('--patch-to', action='append', default=[], metavar='SLOT:FILE',
+                    help='after the first patch, also upload FILE to slot A-D (repeatable)')
+    ap.add_argument('--audio-slices', type=int, default=1000,
+                    help='slices to run after the upload when nothing is recorded (--seconds 0)')
+    ap.add_argument('--seconds', type=float, default=0.5,
+                    help='after the upload, record this many emulated seconds of the DACs (0: none)')
+    ap.add_argument('--settle', type=float, default=0.05,
+                    help='emulated seconds to let the DSPs run after the upload before recording')
     ap.add_argument('--capture-esai', action='store_true',
-                    help='record the DSPs\' ESAI transmit slots after the upload (slow, and empty so far: '
-                         'the frame DMA is paced by ESAI receive data that nothing sends)')
+                    help='also record every DSP\'s ESAI transmit slots after the upload (slow)')
     ap.add_argument('--protobridge', default=os.path.join(ROOT, 'build', 'emu', 'libg2protobridge.dylib'))
     ap.add_argument('--break', dest='brk', action='append', help='stop at this PC (hex) and print a backtrace')
     ap.add_argument('--probe', action='append', help='print registers and 16 bytes at a2 when this PC (hex) runs')
@@ -1093,10 +1308,14 @@ def main(argv):
     ap.add_argument('--trace-mmio', action='store_true', help='log each MMIO access kind once per PC')
     ap.add_argument('--dsps', type=int, default=4, help='emulated DSPs on the host ports (0: stubs)')
     ap.add_argument('--bridge', default=os.path.join(ROOT, 'build', 'emu', 'libg2dspbridge.dylib'))
+    add_audio_args(ap)
     args = ap.parse_args(argv)
     if args.dsps:
         DspBridge.load(args.bridge)
     emu = Emu(args.fw, trace=args.trace_mmio, dsps=args.dsps)
+    emu.audio_links = {}
+    if args.dsps == 4:
+        emu.audio_links = wire_audio([p.dsp for p in emu.host.ports[:4]], args)
     hist = collections.Counter()
     emu.progress = args.progress
     for w in args.watch or []:
@@ -1110,6 +1329,8 @@ def main(argv):
     emu.start()
     if args.patch:
         usb_session(emu, args)
+        if args.dsps:
+            DspBridge.lib.g2dsp_shutdown_all()
         return 0
     else:
         emu.run(steps=args.steps, slice_instr=args.slice,
@@ -1126,11 +1347,14 @@ def words_bin(ws):
 
 
 def usb_session(emu, args):
-    """Boot, plug in our protocol client, wait for its sync, upload a patch to slot A,
-    then record the DSPs' ESAI transmit frames."""
+    """Boot, plug in our protocol client, wait for its sync, upload a patch to slot A (and
+    more with --patch-to), then let the DSPs run and record the DACs (--seconds)."""
     host = UsbHost(emu, args.protobridge)
     ms = args.ms_per_slice
     state = {'phase': 'boot', 'n': 0}
+    uploads = [('A', args.patch)] + [tuple(x.split(':', 1)) for x in args.patch_to]
+    dsps = [p.dsp for p in emu.host.ports if p.dsp is not None]
+    rec = AudioRecorder(dsps, emu.audio_links, args, host_cpu=time.thread_time) if len(dsps) == 4 else None
 
     def until(em):
         st = state
@@ -1140,36 +1364,54 @@ def usb_session(emu, args):
             host.start()
             st['phase'] = 'sync'
         host.step(ms)
-        if st['phase'] == 'sync' and host.lib.g2p_synced(host.h):
-            print(f'[slice {em.slices}] USB: synced, {host.status()}; sending {args.patch}', flush=True)
-            rc = host.lib.g2p_send_patch(host.h, 0, args.patch.encode(), os.path.basename(args.patch)[:-5].encode())
+        if (st['phase'] == 'sync' and host.lib.g2p_synced(host.h)) or (st['phase'] == 'upload' and
+                                                                     host.lib.g2p_idle(host.h) and uploads):
+            slot, path = uploads.pop(0)
+            print(f'[slice {em.slices}] USB: {host.status()}; sending {path} to slot {slot}', flush=True)
+            rc = host.lib.g2p_send_patch(host.h, 'ABCD'.index(slot.upper()), path.encode(),
+                                         os.path.basename(path)[:-5].encode())
             if rc:
                 print('USB: patch not sent', rc)
                 return True
             st['phase'] = 'upload'
         elif st['phase'] == 'upload' and host.lib.g2p_idle(host.h):
-            print(f'[slice {em.slices}] USB: upload done; running {args.audio_slices} more slices', flush=True)
             for p in em.host.ports:
                 if p.dsp is not None and args.capture_esai:
                     p.dsp.capture(1)
-            st['phase'] = 'audio'
-            st['audio_end'] = em.slices + args.audio_slices
+            if rec and args.seconds > 0:
+                st['phase'] = 'settle'
+                st['settle_end'] = rec.frames() + int(args.settle * FRAME_RATE)
+                print(f'[slice {em.slices}] USB: upload done; DACs at frame {rec.frames()}', flush=True)
+            else:
+                print(f'[slice {em.slices}] USB: upload done; running {args.audio_slices} more slices', flush=True)
+                st['phase'] = 'audio'
+                st['audio_end'] = em.slices + args.audio_slices
+        elif st['phase'] == 'settle' and rec.frames() >= st['settle_end']:
+            print(f'[slice {em.slices}] recording {args.seconds} s of the DACs', flush=True)
+            rec.start(int(args.seconds * FRAME_RATE))
+            st['phase'] = 'record'
+        elif st['phase'] == 'record' and st['n'] % 50 == 0 and rec.poll():
+            rec.stop()
+            return True
         elif st['phase'] == 'audio' and em.slices >= st['audio_end']:
             return True
         if em.slices % 2500 == 0:
             print(f'[slice {em.slices}] USB {st["phase"]}: {host.status()}, '
-                  f'{sum(1 for t in host.traffic if t[0] == "out")} out / {sum(1 for t in host.traffic if t[0] == "in")} in',
-                  flush=True)
+                  f'{sum(1 for t in host.traffic if t[0] == "out")} out / {sum(1 for t in host.traffic if t[0] == "in")} in'
+                  + (f'; DAC frames {rec.frames()}' if rec else ''), flush=True)
         return False
 
     emu.run(steps=args.steps, slice_instr=args.slice, dsp_instr=args.dsp_slice, until=until)
-    save(emu, args.out)
     os.makedirs(args.out, exist_ok=True)
+    if rec and rec.report:
+        rec.save(args.out)
+    save(emu, args.out)
     snapshot_buffers(emu, args.out)
     with open(os.path.join(args.out, 'usb_traffic.txt'), 'w') as f:
         for t in host.traffic:
             f.write(' '.join(str(x) for x in t) + '\n')
-    save_audio(emu, args.out)
+    if args.capture_esai:
+        save_audio(emu, args.out)
 
 
 def snapshot_buffers(emu, out, count=40):

@@ -59,6 +59,14 @@ extraction tool `tools/firmware/g2os.py` and this note. No Clavia bytes are comm
   for the "1 kHz reference" patch.
 * What remains for real-time sound: inter-DSP audio links (they pace the frames) and speed.
 
+**Update (§3.7): the inter-DSP audio links run.**
+* The DSPs form a serial chain A6 → A5 → A4 → A3 on ESAI (A6 is the frame-clock master and takes the ADCs, A3 sends
+  the DACs) and a ring on ESAI_1 (back from A3 to A6). One frame = one sample = 1536 DSP clocks on every interface.
+* In the full machine, the frame programs run paced by the emulated serial frames, and the G2's output is A3's DAC
+  transmitter: the 1 kHz patch gives 1000.33 Hz there (H3 −106 dB, H5 −82 dB). Patches the OS put on each of the
+  four DSPs, an FX send and an inter-slot bus (once around the ring) all reach the DACs.
+* Speed: 0.07–0.6 × real time on a loaded M1, with the interpreter.
+
 ## 1. Hardware (Part A)
 
 ### 1.1 Summary table
@@ -652,7 +660,8 @@ Two reasons:
 **Boot ROM.** Emulated on the DSP thread from the RX queue (count, address, words via `DspBoot`). A jump to
 `$FF0000` re-enters it.
 
-**ESAI receivers** get zeros; transmit frames can be captured (`g2dsp_capture`, `g2dsp_tx_take`).
+**ESAI receivers** got zeros here; transmit frames can be captured (`g2dsp_capture`, `g2dsp_tx_take`). Since §3.7 the
+ESAIs are linked between the DSPs.
 
 **Result** [C, emulated]:
 * All 4 DSPs boot, answer the HF0/HF2 handshake and the read-back commands (`$AC`, `$AE`, `$B6`), consume every word
@@ -680,14 +689,14 @@ The panel (LCD, buttons, knobs on CS4/CS5) is unmodelled: reads give 0, and the 
 * I2C slaves (always ACK, ADC reads `0x80`);
 * panel latches;
 * UART RX;
-* ESAI receive data (zeros, no inter-DSP audio links);
-* the DSP clock (dsp56300's default EXTAL gives 66 MHz);
+* ESAI receive data (zeros, no inter-DSP audio links; linked since §3.7);
+* the DSP clock (dsp56300's default EXTAL gives 66 MHz; §3.7 sets 1536 instructions per frame);
 * timer rate (one tick per 20,000 instructions);
 * the second (expansion) DSP bank: A7–A10 answer as stubs.
 
 **Not done:**
 * inter-DSP audio routing (ESAI/ESAI_1 links between the four DSPs and to the DACs; all four now transmit frames
-  that go nowhere);
+  that go nowhere): done in §3.7;
 * the expansion board;
 * the DSP JIT (blocked by the TFS poll and the thread clash; the interpreter does about 110 M DSP instructions/s per
   thread);
@@ -761,13 +770,194 @@ module code. It is driven by our own editor protocol, and only the frame pacing 
 * The ADC calibration stub (if the real ADC feeds something audible, e.g. the input level, this matters).
 * Unicorn quirks beyond the four found.
 
+Step 1 is done in §3.7.
+
+## 3.7 Inter-DSP audio links (2026-10-09)
+
+**Result.** The four emulated DSPs now exchange their serial audio frames, so their frame programs run at the
+emulated sample rate, paced by the serial frames, with no offline frame running. In the full machine (ColdFire OS on
+Unicorn, our editor's protocol over the emulated USB), the 1 kHz reference patch comes out of A3's DAC transmitter.
+Patches compiled onto each of the four DSPs all reach the DACs. Sources: the stage-1 programs
+(`original/firmware/dsp-boot/dspN_boot_P.asm`), the frame programs of the live dumps, and emulated runs (data in
+`original/firmware/esai-links/`, gitignored).
+
+### 3.7.1 ESAI configuration per DSP [C]
+
+Register values written by the stage-1 programs (the `movep`s at P:`$13B`, or `$12D` on A3). Bit fields per the
+DSP56367 ESAI (the layout of dsp56300's `esai.h`). `dspN` is chip select A(3+N) = OS DSP 3−N (§3.6).
+
+| | A6 (`dsp3`, OS DSP 0) | A5, A4 (`dsp2`, `dsp1`) | A3 (`dsp0`, OS DSP 3) |
+|---|---|---|---|
+| ESAI SAICR | `$0` (asynchronous) | `$40` (SYN: receiver on the transmitter's clocks) | `$0` |
+| ESAI TX | TCR `$7903`: TE0, TE1, network, 24-bit slot/24-bit word. TCCR `$F40F03`: **master** (SCKT, FST, HCKT outputs), 8 slots (TDC 7), bit clock Fsys/(2·4·1) = Fsys/8 | TCR `$7903`, TCCR `$940F03`: slave, 8 slots | TCR `$7D03` (TE0, TE1, **32-bit slot**/24-bit word), TSMA `$3`, TCCR `$F48303`: **master**, 2 slots, bit clock Fsys/24: **the DACs** |
+| ESAI RX | RCR `$7D03` (RE0, RE1, 32-bit slot), RSMA `$3`, RCCR `$F4C302`: **master**, 2 slots, bit clock Fsys/24: **the ADCs** | RCR `$7903` (RE0, RE1), RSMA `$FF`, 8 slots | RCR `$7903`, RSMA `$FF`, RCCR `$940F03`: slave, 8 slots |
+| ESAI_1 SAICR_1 | `$0` | `$40` | `$40` |
+| ESAI_1 TX | TCR_1 `$790C` (TE2, TE3), TCCR_1 `$840F03`: slave, 8 slots | same | same |
+| ESAI_1 RX | RCR_1 `$7903` (RE0, RE1), RCCR_1 `$848F03`: slave, 8 slots | RCCR_1 `$E40F03` | RCCR_1 `$840F03` |
+| pins | PCRC `$CFF` (SCKR, FSR, HCKR, SCKT, FST, HCKT, SDI0, SDI1, SDO1, SDO0); PCRE `$3DB` (SCKR_1, FSR_1, SCKT_1, FST_1, SDI0_1, SDI1_1, SDO3_1, SDO2_1); Y:`$FFFFAF` = `$C` | same | same |
+
+What this gives:
+* **One frame clock.** Every 8-slot side is 8 × 24 = 192 bits at Fsys/8: **1536 DSP clocks per frame**. The two
+  2-slot converter sides (A6's ADC receiver, A3's DAC transmitter) are 2 × 32 = 64 bits at Fsys/24: also 1536 clocks.
+  So one frame = one sample on every interface. At 96 kHz this is Fsys = 147.456 MHz; at the suspected 98.304 kHz it
+  would be 151 MHz, above the 56367's 150 MHz rating. With PCTL `$1D000A` (×11/2, external clock: XTLD) EXTAL would
+  be 26.81 MHz. The OS's pitch increments are exact for 96 kHz (§3.6.6), so 96 kHz is assumed (medium).
+* **A6 is the clock master** of the 8-slot frames (its ESAI transmitter drives SCKT/FST); every other 8-slot side is
+  a slave (inferred: they share A6's clock lines).
+* **A3 waits for its ESAI receive frame sync**, then 950 instructions (`rep #$3B6`), before it enables its
+  transmitters (TE0/TE1 to the DACs, TE2/TE3): it aligns the DAC frame to the TDM frame. It also starts timer 0
+  (`TCSR0` bit 0), the one the OS calibrates through the I2C ADC (§3.6.3).
+
+**DMA (all four)** [C], DCR decoded with dsp56300's `dma.cpp`:
+
+| Channel | Source → destination | Count (DCO, 2-D) | Trigger, mode |
+|---|---|---|---|
+| 2 | ESAI RX0/RX1 (`$FFFFA8`, DOR2 = −1: RX0, RX1, back) → X:buffer | `$7001`: 8 lines of 2 (A6: `$1001`, 2 lines, into buffer+4) | ESAI receive data (DRS `$0B`), line, DE cleared at the end |
+| 3 | ESAI_1 RX0/RX1 (Y:`$FFFF88`) → X:buffer+`$10` | `$7001` | ESAI_1 receive data (`$15`), line |
+| 4 | X:buffer → ESAI TX0/TX1 (`$FFFFA0`) | `$7001` (A3: `$1001`, the DACs) | ESAI transmit data (`$0C`), line; done interrupt P:`$20` reloads DSR4 from X:`$46` |
+| 5 | X:buffer+`$10` → ESAI_1 TX2/TX3 (Y:`$FFFF82`) | `$7001` | ESAI_1 transmit data (`$16`); P:`$22` reloads from Y:`$46` |
+
+So a 32-word buffer holds one frame: word 2k is line 0 (RX0/TX0, or TX2) of slot k, word 2k+1 line 1. Words
+`$0–$F` are ESAI, `$10–$1F` ESAI_1. Four buffers (X:`$1C00`, `$1D00`, `$1E00`, `$1F00`) rotate through X/Y:`$45..$48`
+once per frame (§3.6.3): the buffer received in frame k is processed in place in frame k+1 (as `$45`) and
+transmitted in frame k+2 (as `$46`). The frame interrupt is ESAI_1's receive-last-slot (P:`$76`). Every 4th frame
+the background loop runs the control-rate code (frame counter X:`$43` > 3).
+
+### 3.7.2 What travels in which slot [C, frame programs]
+
+* **A6 starts each frame** (§3.6.3 frame program): it clears ESAI words `$0–$3` and `$8–$F` and ESAI_1 words
+  `$10–$17`, keeps the ADC words `$4–$7` (DMA 2 writes them there; X:`$44` gets the first one), and moves ESAI_1
+  words `$18–$1B` to `$1C–$1F` (clearing the source).
+* **A5 and A4 pass the buffer through** untouched (their empty frame programs only rotate and re-arm).
+* **A3** multiplies ESAI words `$0–$3` of the buffer it is about to send by −X:`$1739` × 8 (`mpy -x1,y0`,
+  `asl #3`; X:`$1739` = 0.068 in our runs, a master level) and sends them to the DACs.
+* **Output modules add into the slots.** The 2-Out/4-Out fragment reads the slot word, `mac`s the input times its
+  level into it and writes it back (when the module is off, the OS clears the two `mac` opcodes' ALU bytes: the
+  1 kHz reference patch has its 4-Out **off** in variation 0, which is why its outputs were silent; the tests below
+  use a copy with it on). The word offsets are in the I/O modules' Y data (offset, then 2 for the right channel),
+  read from the live memories of the runs below.
+
+| Buffer words | Slots | Content |
+|---|---|---|
+| `$0, $2` | ESAI 0, 1 on line 0 (SDO0 → SDI0) | Out 1, Out 2: DAC 1 left/right on A3 [emulated] |
+| `$1, $3` | ESAI 0, 1 on line 1 (SDO1 → SDI1) | Out 3, Out 4: DAC 2 [emulated] |
+| `$4–$7` | ESAI 2, 3 | the 4 audio inputs (A6's ADC words), passed down the chain [C] |
+| `$8–$F` | ESAI 4–7 | cleared by A6; not used by these tests |
+| `$10, $12` | ESAI_1 0, 1 on line 0 | FX 1/2: written by a 2-Out (FX 1/2), read by the Fx-In of a DSP further down [emulated] |
+| `$11, $13–$17` | ESAI_1 0–3 | cleared by A6; FX 3/4 presumably `$11, $13` (not tested) |
+| `$18, $1A` | ESAI_1 4, 5 | Bus 1/2 as written by a 2-Out (Bus 1/2) [emulated] |
+| `$1C, $1E` | ESAI_1 6, 7 | Bus 1/2 as read by a 2-In (Bus 1/2): A6 moves `$18–$1B` here, so a bus is read **one ring turn** after it is written, wherever the two slots sit [emulated] |
+
+### 3.7.3 Wiring
+
+| Line | From → to | Basis | Confidence |
+|---|---|---|---|
+| ADCs | → A6 ESAI RX0/RX1 (2 × 32-bit slots) | A6's 2-slot master receiver, its words kept in slots 2–3 | high |
+| ESAI chain | A6 TX0/TX1 → A5 RX0/RX1 → A4 → A3 RX0/RX1 | only an ESAI→ESAI hop keeps a buffer word at the same offset, and A3 sends ESAI words `$0–$3` to the DACs; tested (below) | high (chain), medium (order of A5, A4) |
+| DACs | A3 ESAI TX0/TX1 (2 × 32-bit slots) | A3's 2-slot master transmitter | high |
+| ESAI_1 ring | A6 TX2/TX3 → A5 RX0/RX1 → A4 → A3 → back to A6 | same pass-through argument; A3's ESAI_1 transmitter and A6's ESAI_1 receiver have no other partner; a bus between two slots needs the A3 → A6 line (tested below) | high (ring), medium (order) |
+| Frame clock | A6 ESAI SCKT/FST → all 8-slot sides | only A6 drives them | medium-high |
+
+**The chain order** follows the OS's DSP numbering (A6, A5, A4, A3 = OS DSP 0–3). With the expansion board the OS
+numbers the 8 DSPs A6, A10, A9, A8, A7, A5, A4, A3 (§2.6): the expansion DSPs come between A6 and A5, which is what
+a chain that runs through the expansion connector between A6 and A5 would give (inferred). Whether A5 or A4 comes
+first does not change what reaches the DACs (both pass through), only the latency between them.
+
+### 3.7.4 The emulation (`emu/dspbridge`, `tools/firmware/g2hostemu.py`)
+
+* **Links.** `g2dsp_link` connects one DSP's ESAI or ESAI_1 transmitter pair (TX0/TX1 or TX2/TX3) to another's
+  receivers RX0/RX1, frame by frame, through a small queue. The library's ESAI hands frames over whole (at the end of
+  the last transmit slot, at the start of the first receive slot), as Gearmulator's Nord Lead 2x connects its two
+  DSPs (`source/claudia/n2x`, GPL-3; the approach is adapted, no code copied).
+  * A receiver blocks until its frame is there; a sender blocks when the receiver is `--link-queue` (8) frames
+    behind. Before both sides run (boot), a receiver gets silence and a sender's frames are dropped.
+  * The ring needs a head start: `--ring-prefill` (4) empty frames on A3 → A6 when that line starts.
+  * Each hop costs one frame more than on the board (frames are handed over whole), and the ring has the prefill on
+    top. The frame offset between two DSPs is fixed once their link runs, but set by the boot race, not by the board.
+* **Clock.** Each DSP's ESAI clock ticks once per slot, 192 per tick; the converter sides get divider 3 (2 slots per
+  frame). The clock counts **instructions**, not cycles: the library's interpreter does not count cycles in a build
+  that has the JIT (`DSP::execOp`, `if constexpr(!g_useJIT)`), so a clock on cycles stops after a few frames. The
+  frame program thus gets 1536 instructions per frame, a little more room than the chip's 1536 cycles.
+* **Idle skipping.** Stage 1's background loop (P:`$222–$22A`, spinning while X:`$43` ≤ 3) reads only; when a DSP
+  sits in it with no interrupt pending and HF0 clear, its clock moves to the next slot instead of running the loop
+  (`g2dsp_idle_loop`). It changes no state, and the DSPs then execute only the frame and control-rate code.
+* **Converters.** A3's ESAI transmitter is recorded as the G2's output (`g2dsp_sink_record`); A6's ADC receiver
+  gets silence. Options: `--chain`, `--no-links`, `--no-idle-skip`, `--throttle`, `--seconds`, `--settle`,
+  `--patch-to SLOT:FILE`.
+* **Bench.** `tools/firmware/g2dspreplay.py` replays recorded host-port streams into the four DSPs without the
+  ColdFire OS (seconds instead of minutes), for work on the links.
+
+### 3.7.5 Results [emulated]
+
+All in the full machine: boot, USB sync, upload with our `proto::Client`, then the DACs recorded: 0.5 s settle
+after the upload, then 1 s. The output level ramps up smoothly for about 1 s after an upload (seen in every run),
+so the first half of each recording still rises slightly. The test patches are variants of the 1 kHz reference
+patch made with `tools/pch2/pch2dump.py` (in `original/firmware/esai-links/test-patches/`, with the scripts that
+build them); each run's recording, streams and memories are in a directory next to them.
+
+| Test | Where the OS put it | DAC outputs |
+|---|---|---|
+| 1 kHz reference, 4-Out on | A6 | out 1–4: 1000.344 Hz, peak 0.0084 = 0.25 (OscA) × module level × 0.068 × 8; H3 −105.9 dB, H5 −82.3 dB, H2 −125 dB (the ramp). Last 0.5 s alone: 1000.35 Hz, H3 −107.9, H5 −82.2, H2/H4 −140 dB, as offline (§3.6.6). `original/firmware/esai-links/full-1khz-final/dac.wav` |
+| Same patch in slots A–D at 1 kHz, 2 kHz, 3 kHz, 250 Hz | all four on A6 | all four tones, within 0.9 dB |
+| Slots A–D: OscA → 14 × FltNord (open) → 2-Out (Out 1/2), one DSP each | A: A3, B: A4, C: A5, D: A6 | out 1/2: 1000.0, 2001.0, 2997.6 and 250.1 Hz within 1.3 dB (the 14 filters roll off a little); out 3/4 silent |
+| Bus and FX: slot A OscA 1 kHz → 2-Out (Bus 1/2); slot B 2-In (Bus 1/2) → 2-Out (Out 1/2); slot C VA OscA 3 kHz → 2-Out (FX 1/2), FX area Fx-In → 2-Out (Out 3/4) | A and B: A6; C (VA and FX): A5 | out 1/2: 1000.34 Hz: the bus left A6 at `$18` and came back to A6 at `$1C` **around the whole ring**; out 3/4: 2997.6 Hz via the FX area |
+| Same, each part made heavy (20 × FltNord) | A: A5, B: A3, C VA: A6, C FX: A4 | out 1/2: 1000.34 Hz (bus A5 → … → A3 → A6 → … → A3); out 3/4: 2997.6 Hz (FX A6 → A5 → A4) |
+
+So signals made on every DSP cross the chain to A3's DACs, Out 1/2 and Out 3/4 land on the two DAC lines, the FX
+sends travel down the ESAI_1 chain, a bus goes once around the ESAI_1 ring through A3 → A6, and a frame program fits:
+the heavy tests executed 834–1119 instructions per frame per DSP (of 1536).
+
+### 3.7.6 Speed [emulated, measured]
+
+Apple M1 (4 performance + 4 efficiency cores). **Caveat:** another emulator session (the module catalog) used about
+4.5 cores during all these measurements, so the coupled DSP threads were often descheduled.
+
+| Run | Emulated s per wall s | Notes |
+|---|---|---|
+| Replay bench, 1 kHz patch, interpreter, no idle skip | 0.59 | 87 M instructions/s per DSP thread, 1536 per frame each |
+| Replay bench, idle skip | 0.56–0.62 | 110–223 instructions per frame executed; threads wait on each other 35–60% of the time |
+| Replay bench, idle skip, no links | 1.9 | the DSPs alone, uncoupled |
+| Full machine, 1 kHz patch, no idle skip | 0.28 | host (Python + Unicorn) thread 100% busy; each DSP thread 41 M instr/s |
+| Full machine, 1 kHz patch, idle skip (final run) | 0.38 | host thread 88% busy; DSP threads 30–45% busy, 54–72% waiting on each other |
+| Full machine, four heavy slots | 0.16 | 834–1000 instructions per frame; host thread 75%, DSP threads ~55% busy |
+| Full machine, heavy bus/FX test | 0.07 | about 1,100 instructions per frame on each DSP; host thread 89% busy, DSP threads 30% busy, 68% waiting |
+
+What dominates:
+* **The interpreter**: about 87 M DSP instructions/s per thread when not starved. Real time needs 1536 × 96,000 =
+  147 M/s per DSP without idle skipping; with it, only the frame code (100–1,000 instructions per frame here).
+* **Per-frame overhead** that idle skipping does not remove: 8 slot ticks per frame, each running the library's
+  peripheral `exec` (ESAI clock, DMA transfers per slot, HDI08, timers). The DMA's `execTransfer` showed as much
+  time in a profile as the interpreter loop.
+* **Coupling**: the four threads hand frames to each other every frame; when one is descheduled the others wait. On a
+  loaded machine this costs more than the DSP code.
+* **The host**: the Python/Unicorn thread is busy all the time (it is the OS's own speed, §3.6.1).
+* **The JIT** (`--jit`) is not usable yet: on the replay bench the DSPs never answered the HF0 handshake and stayed
+  silent (not investigated further).
+
+### 3.7.7 What is not done
+
+* The A5/A4 order is inferred from the OS's numbering. The OS seems to place an FX area downstream of its voice
+  area (A6 → A4 above) and reads buses a ring turn late, so the tests pass either way. A test: compare the
+  inter-slot latency with a real G2 (24 samples reported, §1.1).
+* Latency is not the board's: +1 frame per hop, the ring prefill, and a boot-dependent offset between DSPs. On the
+  board a buffer spends 2 frames in each DSP (received, processed, sent), so a bus (one ring turn plus the hops to
+  its reader) takes roughly 8–16 frames (inferred); the reported 24 samples may be this plus the converters.
+* The clock counts instructions, not cycles: a patch the OS packs close to a DSP's limit may fit where the chip
+  would overrun, or the other way round.
+* The ADCs feed silence; there is no test signal input yet.
+* The expansion board's four DSPs (A7–A10) are stubs; with them the chain would run A6, A10…A7, A5, A4, A3.
+* Speed: about 0.15–0.6 × real time here. Next: run the four DSPs' links without per-frame thread hand-offs (larger
+  batches, or all four on one thread with the JIT), port the host to C++ (§3.6.7), fix the JIT.
+
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source
    is unknown. The 56.620363 MHz oscillator, the PCTL ×4 and the cycle budget need reconciling. Read the board markings
    from a high-resolution photo, or the oscillator net in the service manual's schematics if any.
 2. **Exact sample rate:** 96.000 kHz or about 98.3 kHz (as on the NL2X)? It matters for pitch accuracy in any engine.
-3. **Inter-DSP audio topology:** which ESAI/ESAI_1 (or other) links carry voices to the FX DSP and to the DACs, in
-   what slot format. The "24-sample latency" between slots suggests block buffering.
+   §3.7.1: a frame is 1536 DSP clocks [C], so the rate is the DSP clock / 1536; the OS's pitch increments are exact
+   at 96 kHz, which needs a 147.456 MHz DSP clock.
+3. **Inter-DSP audio topology:** answered in §3.7 (chain on ESAI, ring on ESAI_1, slot map). Still open: the order of
+   A5 and A4, and the latency on the board.
 4. **The DSP kernel:** where it lives (the 1,156-word FE/0x20 fragment?), its per-sample cycle overhead, how
    parameters, morphs, LEDs and meters are exchanged over HDI08.
 5. **ColdFire ISA subset.** Answered in §3.6.1: ISA_A only (no MAC/EMAC, no hardware divide), and QEMU's
