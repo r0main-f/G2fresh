@@ -1,5 +1,7 @@
 #include "AreaView.h"
 
+#include "ModuleBrowser.h"
+
 #include "g2/edit.hpp"
 #include "g2/param_text.hpp"
 
@@ -476,6 +478,15 @@ void AreaView::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelD
     const int v = ModulePainter::value(c, *h.element).value_or(0);
     setValue(h, juce::jlimit(0, ModulePainter::maxValue(c, *h.element), v + step), true);
     status(describe(h));
+}
+
+juce::String AreaView::getTooltip()
+{
+    // Only over the title strip, so tooltips don't get in the way of editing.
+    if (!hover_.module || hover_.element || hover_.local.y > 14)
+        return {};
+    const auto* m = doc_.patch().area(location_).find(hover_.module);
+    return m && m->def() ? moduleTooltip(*m->def()) : juce::String();
 }
 
 bool AreaView::keyPressed(const juce::KeyPress& key)

@@ -81,6 +81,7 @@ private:
     PatchDocument& doc_;
     const bool standalone_;
     juce::SharedResourcePointer<theme::LookAndFeel> lookAndFeel_;
+    juce::TooltipWindow tooltips_{this, 600};
     std::unique_ptr<juce::MenuBarComponent> menuBar_; // Windows/Linux stand-alone
     juce::TextButton menuButton_{"Menu"};              // plugin
     juce::Label slotPrefix_, name_, edited_;

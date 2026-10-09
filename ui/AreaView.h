@@ -12,6 +12,7 @@ namespace g2ui {
 
 class AreaView : public juce::Component,
                  public juce::DragAndDropTarget,
+                 public juce::TooltipClient,
                  private juce::ChangeListener,
                  private juce::Timer {
 public:
@@ -51,6 +52,8 @@ public:
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     void mouseMagnify(const juce::MouseEvent&, float scaleFactor) override;
     bool keyPressed(const juce::KeyPress&) override;
+    // Hovering a module's name shows its description.
+    juce::String getTooltip() override;
 
     bool isInterestedInDragSource(const SourceDetails&) override;
     void itemDragMove(const SourceDetails&) override;

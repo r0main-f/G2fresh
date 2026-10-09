@@ -101,6 +101,22 @@ int renderPatch(const juce::File& in, const juce::File& out)
     return 0;
 }
 
+int renderTooltip(int type, const juce::File& out)
+{
+    const auto* def = g2::db::find(static_cast<std::uint8_t>(type));
+    if (!def)
+        return 1;
+    theme::LookAndFeel lnf;
+    const auto text = moduleTooltip(*def);
+    const auto b = lnf.getTooltipBounds(text, {0, 0}, {0, 0, 2000, 2000});
+    juce::Image img(juce::Image::ARGB, b.getWidth(), b.getHeight(), true);
+    juce::Graphics g(img);
+    lnf.drawTooltip(g, text, b.getWidth(), b.getHeight());
+    writePng(img, out);
+    std::cout << text << "\n";
+    return 0;
+}
+
 int renderUi(const juce::File& in, const juce::File& out)
 {
     PatchDocument doc;
@@ -133,6 +149,8 @@ int main(int argc, char* argv[])
             types.removeRange(0, 2);
             return renderModules(juce::File::getCurrentWorkingDirectory().getChildFile(args[1]), types);
         }
+        if (args.size() == 3 && args[0] == "tooltip")
+            return renderTooltip(args[1].getIntValue(), juce::File::getCurrentWorkingDirectory().getChildFile(args[2]));
         if (args.size() == 3 && args[0] == "ui")
             return renderUi(juce::File::getCurrentWorkingDirectory().getChildFile(args[1]),
                             juce::File::getCurrentWorkingDirectory().getChildFile(args[2]));

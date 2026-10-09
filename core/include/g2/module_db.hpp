@@ -63,6 +63,7 @@ struct ModuleDef {
     std::span<const ConnectorDef> outputs;
     std::span<const ParamDef> params;
     std::span<const ModeDef> modes;
+    const char* description; // short summary from the original help, or nullptr
 };
 
 struct CategoryDef {

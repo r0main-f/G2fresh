@@ -6,7 +6,15 @@
 
 #include <functional>
 
+namespace g2::db {
+struct ModuleDef;
+}
+
 namespace g2ui {
+
+// A compact description of a module for tooltips: name and category on the
+// first line, then the summary from the original help and the connectors.
+juce::String moduleTooltip(const g2::db::ModuleDef& def);
 
 class ModuleBrowser : public juce::Component, private juce::ChangeListener {
 public:
@@ -24,6 +32,9 @@ private:
     void showCategory(int index);
 
     juce::TabbedButtonBar tabs_{juce::TabbedButtonBar::TabsAtTop};
+    // The module buttons scroll horizontally when they don't fit.
+    juce::Viewport strip_;
+    juce::Component stripContent_;
     juce::OwnedArray<ModuleButton> buttons_;
 };
 

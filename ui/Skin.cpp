@@ -173,32 +173,33 @@ juce::PropertiesFile& userSettings()
     return file;
 }
 
+// The look and the cable animation start at their defaults (modern, animated)
+// on every launch; the View menu changes them for the session.
 namespace {
-juce::PropertiesFile& settings() { return userSettings(); }
+Look sessionLook = Look::Modern;
+bool sessionAnimation = true;
 } // namespace
 
 Look currentLook()
 {
-    if (const char* env = std::getenv("G2_LOOK"))
+    if (const char* env = std::getenv("G2_LOOK")) // for g2render snapshots
         return juce::String(env).equalsIgnoreCase("classic") ? Look::Classic : Look::Modern;
-    return settings().getValue("look", "modern") == "classic" ? Look::Classic : Look::Modern;
+    return sessionLook;
 }
 
 void setCurrentLook(Look look)
 {
-    settings().setValue("look", look == Look::Classic ? "classic" : "modern");
-    settings().saveIfNeeded();
+    sessionLook = look;
 }
 
 bool cableAnimation()
 {
-    return settings().getBoolValue("animateCables", true);
+    return sessionAnimation;
 }
 
 void setCableAnimation(bool on)
 {
-    settings().setValue("animateCables", on);
-    settings().saveIfNeeded();
+    sessionAnimation = on;
 }
 
 } // namespace g2ui

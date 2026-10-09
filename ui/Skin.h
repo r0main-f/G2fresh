@@ -37,13 +37,14 @@ struct PanelElement {
 };
 
 enum class Look { Modern, Classic };
-// The look used to draw modules, saved in the user's settings.
+// The look used to draw modules: Modern at every launch, Classic on request
+// for the session.
 Look currentLook();
 void setCurrentLook(Look look);
 // The user's saved settings (look, cable animation, zoom...).
 juce::PropertiesFile& userSettings();
 
-// Whether cables show their signal flow with moving pulses (saved setting).
+// Whether cables show their signal flow with moving pulses (on at every launch).
 bool cableAnimation();
 void setCableAnimation(bool on);
 
