@@ -4,7 +4,7 @@ A modern, native editor for the Clavia **Nord Modular G2**, for macOS (Apple Sil
 
 Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a proprietary kernel driver on Windows, so it no longer runs on current systems. G2fresh is a rewrite. Ghidra analysis of the original editor serves as the specification, cross-checked against Bruno Verhue's open-source editor.
 
-**Status:** early. Specs for the patch format, module database, parameter display and USB protocol are in `re/notes/`. The C++ core loads, edits and saves patches and performances, reproducing original files byte for byte (milestone M2). The app and plugin are still an empty shell; the patch editor UI comes next.
+**Status:** 0.2, an offline patch editor. It opens, edits and saves G2 patches and performances; every public G2 file we know of loads (5,589 files from Clavia's banks and the community archives). It runs as a stand-alone app and as a VST3/AU plugin that stores the patch in your DAW project. Not yet: talking to the synth over USB, the patch-settings panel, and the small module graphs.
 
 ## Layout
 
@@ -19,6 +19,13 @@ Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a 
 | `plugin/` | JUCE target: stand-alone app, VST3, AU |
 | `tests/` | Catch2 tests; `tests/corpus/` holds freely licensed patch files. Set `G2_EXTRA_CORPUS=<dir>` to also test your own patches |
 | `third_party/nord_g2_editor` | Bruno Verhue's editor (GPL-2-or-later), used as a reference |
+
+## Download
+
+Builds for macOS (universal), Windows and Linux are attached to each [release](https://github.com/r0main-f/G2fresh/releases). They are not code-signed:
+- **macOS:** after unzipping, right-click the app (or plugin installer) and choose Open. If macOS says the app "is damaged", run `xattr -dr com.apple.quarantine G2fresh.app`. Copy `G2fresh.vst3` to `~/Library/Audio/Plug-Ins/VST3/` and `G2fresh.component` to `~/Library/Audio/Plug-Ins/Components/`.
+- **Windows:** SmartScreen may warn: choose "More info", then "Run anyway". Copy `G2fresh.vst3` to `C:\Program Files\Common Files\VST3\`.
+- **Linux:** copy `G2fresh.vst3` to `~/.vst3/`.
 
 ## Build
 
