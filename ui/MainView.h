@@ -7,6 +7,7 @@
 
 #include "AreaView.h"
 #include "ModuleBrowser.h"
+#include "MutatorWindow.h"
 #include "PatchDocument.h"
 #include "PatchSettingsBar.h"
 #include "Theme.h"
@@ -96,6 +97,9 @@ private:
     juce::OwnedArray<juce::TextButton> variations_;
     juce::OwnedArray<juce::TextButton> slots_; // performance slots A-D
     juce::TextButton zoomOut_{"-"}, zoomReset_{"100%"}, zoomIn_{"+"};
+    juce::TextButton randomizeButton_{"Randomize"}, mutatorButton_{"Mutator..."};
+    std::unique_ptr<MutatorWindow> mutator_;
+    void showMutator();
     juce::Label status_, load_;
     PatchSettingsBar settings_{doc_};
     ModuleBrowser browser_;

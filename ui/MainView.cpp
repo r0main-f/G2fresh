@@ -12,7 +12,7 @@ const juce::String kOpenPattern = "*.pch2;*.prf2";
 enum MenuId {
     kNew = 1, kOpen, kSave, kSaveAs, kClearRecent, kNewPerformance, kPerformanceSettings,
     kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
-    kRandomize, kMutate,
+    kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings,
     kRecentBase = 100,       // + index into the recent files list
@@ -148,6 +148,13 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     zoomReset_.onClick = [this] { setZoom(1.0f); };
     for (auto* b : {&zoomOut_, &zoomReset_, &zoomIn_})
         addAndMakeVisible(b);
+    randomizeButton_.setTooltip("Randomize the current variation (or the selected modules). Locked modules, "
+                                "switches and modes are kept. Undo to go back.");
+    randomizeButton_.onClick = [this] { randomize(false); };
+    mutatorButton_.setTooltip("Breed new versions of the current variation: randomize, mutate, cross, audition");
+    mutatorButton_.onClick = [this] { showMutator(); };
+    addAndMakeVisible(randomizeButton_);
+    addAndMakeVisible(mutatorButton_);
     vaPort_.setScrollBarsShown(true, true);
     fxPort_.setScrollBarsShown(true, true);
     addAndMakeVisible(vaPane_);
@@ -226,6 +233,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String&)
         const juce::String target = selected ? "Selected Modules" : "Variation " + juce::String(doc_.variation() + 1);
         m.addItem(item(kRandomize, "Randomize " + target));
         m.addItem(item(kMutate, "Mutate " + target));
+        m.addItem(item(kMutator, "Patch Mutator..."));
         m.addSeparator();
         m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
         m.addItem(item(kPatchNotes, "Patch Notes..."));
@@ -285,6 +293,7 @@ void MainView::menuItemSelected(int id, int)
     case kPatchNotes: showPatchNotes(doc_, this); break;
     case kRandomize: randomize(false); break;
     case kMutate: randomize(true); break;
+    case kMutator: showMutator(); break;
     case kOpen: open(); break;
     case kSave: save(false); break;
     case kSaveAs: save(true); break;
@@ -351,6 +360,14 @@ void MainView::randomize(bool mutateOnly)
               + (scope.modules.empty() ? "variation " + juce::String(doc_.variation() + 1)
                                        : juce::String(static_cast<int>(scope.modules.size())) + " module(s)")
               + " (locked modules and switches are kept)");
+}
+
+void MainView::showMutator()
+{
+    if (!mutator_)
+        mutator_ = std::make_unique<MutatorWindow>(doc_);
+    mutator_->setVisible(true);
+    mutator_->toFront(true);
 }
 
 void MainView::pasteClipboard()
@@ -539,6 +556,10 @@ void MainView::resized()
             slots_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
         bar.removeFromRight(16);
     }
+    mutatorButton_.setBounds(bar.removeFromRight(92));
+    bar.removeFromRight(4);
+    randomizeButton_.setBounds(bar.removeFromRight(92));
+    bar.removeFromRight(16);
     for (int i = variations_.size(); --i >= 0;)
         variations_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
     variationLabel_.setBounds(bar.removeFromRight(textWidth(variationLabel_)));

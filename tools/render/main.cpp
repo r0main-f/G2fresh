@@ -8,6 +8,7 @@
 // Set G2_LOOK=classic to draw with the original bitmaps instead of the modern look,
 // and G2_ZOOM=<factor> to render the editor window zoomed.
 #include "MainView.h"
+#include "MutatorWindow.h"
 #include "ModulePainter.h"
 
 #include "g2/edit.hpp"
@@ -117,6 +118,15 @@ int renderTooltip(int type, const juce::File& out)
     return 0;
 }
 
+int renderMutator(const juce::File& out)
+{
+    PatchDocument doc;
+    MutatorWindow w(doc);
+    auto* content = w.getContentComponent();
+    writePng(content->createComponentSnapshot(content->getLocalBounds(), true, 1.0f), out);
+    return 0;
+}
+
 int renderUi(const juce::File& in, const juce::File& out)
 {
     PatchDocument doc;
@@ -149,6 +159,8 @@ int main(int argc, char* argv[])
             types.removeRange(0, 2);
             return renderModules(juce::File::getCurrentWorkingDirectory().getChildFile(args[1]), types);
         }
+        if (args.size() == 2 && args[0] == "mutator")
+            return renderMutator(juce::File::getCurrentWorkingDirectory().getChildFile(args[1]));
         if (args.size() == 3 && args[0] == "tooltip")
             return renderTooltip(args[1].getIntValue(), juce::File::getCurrentWorkingDirectory().getChildFile(args[2]));
         if (args.size() == 3 && args[0] == "ui")
