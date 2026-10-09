@@ -22,20 +22,30 @@
 //   (1 when unconnected). Reset restarts the attack from 0 (inferred).
 #include "common.hpp"
 
+#include "g2/param_text.hpp"
+
+#include <array>
+#include <string>
+
 namespace g2::engine {
 namespace {
 
-// The editor's envelope time display (kEnvelopeTime), in milliseconds.
-constexpr float kEnvTimeMs[128] = {
-    0.5f, 0.6f, 0.7f, 0.9f, 1.1f, 1.3f, 1.5f, 1.8f, 2.1f, 2.5f, 3, 3.5f, 4, 4.7f, 5.5f, 6.3f, 7.3f, 8.4f, 9.7f,
-    11.1f, 12.7f, 14.5f, 16.5f, 18.7f, 21.2f, 24, 27.1f, 30.6f, 34.4f, 38.7f, 43.4f, 48.6f, 54.3f, 60.6f, 67.6f,
-    75.2f, 83.6f, 92.8f, 103, 114, 126, 139, 153, 169, 186, 204, 224, 246, 269, 295, 322, 352, 384, 419, 456, 496,
-    540, 586, 636, 690, 748, 810, 876, 947, 1020, 1100, 1190, 1280, 1380, 1490, 1600, 1720, 1850, 1990, 2130, 2280,
-    2450, 2620, 2810, 3000, 3210, 3430, 3660, 3910, 4170, 4450, 4740, 5050, 5370, 5720, 6080, 6470, 6870, 7300,
-    7750, 8220, 8720, 9250, 9800, 10400, 11000, 11600, 12300, 13000, 13800, 14600, 15400, 16200, 17100, 18100,
-    19100, 20100, 21200, 22400, 23500, 24800, 26100, 27500, 28900, 30400, 32000, 33600, 35300, 37100, 38900,
-    40900, 42900, 45000,
-};
+// The editor's envelope time display, in milliseconds: the core's display
+// table (g2::paramtext::EnvelopeTime, " 0.5m" .. "45.0s"), so the times are
+// the ones the editor shows.
+float envTimeMs(int v)
+{
+    static const auto table = [] {
+        std::array<float, 128> t{};
+        for (int i = 0; i < 128; ++i) {
+            const std::string s = paramtext::EnvelopeTime(static_cast<std::uint8_t>(i));
+            const float n = std::stof(s);
+            t[static_cast<std::size_t>(i)] = s.back() == 's' ? n * 1000.0f : n;
+        }
+        return t;
+    }();
+    return table[static_cast<std::size_t>(std::clamp(v, 0, 127))];
+}
 
 constexpr double kControlRate = kSampleRate / kControlDivider;
 constexpr double kShapeK = 2.795; // exponential attack: time constants per attack time
@@ -50,7 +60,7 @@ public:
     void update(const Module& m, std::uint8_t var) override
     {
         shape_ = param(m, var, 0);
-        auto ticksOf = [&](std::size_t p) { return kEnvTimeMs[std::clamp(param(m, var, p), 0, 127)] * 1e-3 * kControlRate; };
+        auto ticksOf = [&](std::size_t p) { return envTimeMs(param(m, var, p)) * 1e-3 * kControlRate; };
         const double ta = ticksOf(1), td = ticksOf(2), tr = ticksOf(4);
         const int s = param(m, var, 3);
         sustain_ = s >= 127 ? 1.0 : s / 128.0;
