@@ -2,6 +2,8 @@
 
 #include "g2/proto/emulator.hpp"
 
+#include <utility>
+
 namespace g2::proto {
 
 LocalLink::LocalLink(std::unique_ptr<Transport> transport, Client::Options options)

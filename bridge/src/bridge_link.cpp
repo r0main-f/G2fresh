@@ -1,6 +1,8 @@
 #include "g2/bridge/bridge_link.hpp"
 
+#include <algorithm>
 #include <array>
+#include <utility>
 
 namespace g2::bridge {
 
