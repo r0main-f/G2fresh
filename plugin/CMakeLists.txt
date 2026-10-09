@@ -56,13 +56,13 @@ if(TARGET g2bridge)
     add_dependencies(${target} g2bridge)
     get_target_property(artefact ${target} JUCE_PLUGIN_ARTEFACT_FILE)
     if(format STREQUAL "Standalone")
-      if(APPLE)
-        set(dest "${artefact}/Contents/MacOS")
-      else()
-        get_filename_component(dest "${artefact}" DIRECTORY)
-      endif()
-    else()
+      # On macOS the executable is in the .app's Contents/MacOS; elsewhere the
+      # app is the executable itself (JUCE leaves the artefact property unset).
+      set(dest "$<TARGET_FILE_DIR:${target}>")
+    elseif(artefact)
       set(dest "${artefact}/Contents/Resources")
+    else()
+      continue()
     endif()
     add_custom_command(TARGET ${target} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E make_directory "${dest}"
