@@ -159,8 +159,7 @@ juce::Image Skin::sprite(int resId, int frameWidth) const
 }
 juce::Image Skin::jpeg(int resId) const { return load(juce::String(resId) + ".jpg"); }
 
-namespace {
-juce::PropertiesFile& settings()
+juce::PropertiesFile& userSettings()
 {
     static juce::PropertiesFile file([] {
         juce::PropertiesFile::Options o;
@@ -172,6 +171,9 @@ juce::PropertiesFile& settings()
     }());
     return file;
 }
+
+namespace {
+juce::PropertiesFile& settings() { return userSettings(); }
 } // namespace
 
 Look currentLook()

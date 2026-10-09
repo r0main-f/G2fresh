@@ -20,6 +20,9 @@ public:
 
     // Shows hover/drag information (parameter values, connector names).
     std::function<void(const juce::String&)> onStatus;
+    // Asks to zoom by `factor` around `where` (local coordinates), from
+    // Cmd + scroll wheel or a trackpad pinch.
+    std::function<void(float factor, juce::Point<int> where)> onZoom;
 
     g2::Location location() const { return location_; }
     void deleteSelected();
@@ -31,6 +34,9 @@ public:
     void resized() override;
     // Re-reads the look and animation settings.
     void settingsChanged();
+    // The area always covers at least this size (unzoomed pixels), so it fills
+    // its viewport at any zoom.
+    void setMinimumSize(int width, int height);
     void mouseMove(const juce::MouseEvent&) override;
     void mouseExit(const juce::MouseEvent&) override;
     void mouseDown(const juce::MouseEvent&) override;
@@ -38,6 +44,7 @@ public:
     void mouseUp(const juce::MouseEvent&) override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    void mouseMagnify(const juce::MouseEvent&, float scaleFactor) override;
     bool keyPressed(const juce::KeyPress&) override;
 
     bool isInterestedInDragSource(const SourceDetails&) override;
@@ -101,6 +108,7 @@ private:
     std::unique_ptr<ModulesLayer> modules_;
     std::unique_ptr<Overlay> overlay_;
     float flowPhase_ = 0.0f; // pixels the pulses have travelled
+    int minWidth_ = 0, minHeight_ = 0;
 };
 
 } // namespace g2ui

@@ -106,7 +106,16 @@ void AreaView::updateSize()
         cols = std::max(cols, b.getRight() / kModuleWidth + 2);
         rows = std::max(rows, b.getBottom() / kRowHeight + 20);
     }
-    setSize(cols * kModuleWidth, rows * kRowHeight);
+    setSize(std::max(cols * kModuleWidth, minWidth_), std::max(rows * kRowHeight, minHeight_));
+}
+
+void AreaView::setMinimumSize(int width, int height)
+{
+    if (width == minWidth_ && height == minHeight_)
+        return;
+    minWidth_ = width;
+    minHeight_ = height;
+    updateSize();
 }
 
 ModuleContext AreaView::context(const g2::Module& m) const
@@ -192,9 +201,11 @@ juce::String AreaView::describe(const Hit& h) const
 
 void AreaView::paint(juce::Graphics& g)
 {
-    const bool modern = currentLook() == Look::Modern;
-    g.fillAll(modern ? juce::Colour(0xff33363c) : juce::Colour(0xff3c3f44));
-    g.setColour(modern ? juce::Colour(0xff3a3d44) : juce::Colour(0xff45484e));
+    // Slightly different tints tell the voice area and the FX area apart.
+    const bool fx = location_ == g2::Location::Fx;
+    const auto base = fx ? juce::Colour(0xff38333f) : juce::Colour(0xff313840);
+    g.fillAll(base);
+    g.setColour(base.brighter(0.08f));
     for (int x = kModuleWidth; x < getWidth(); x += kModuleWidth)
         g.drawVerticalLine(x, 0.0f, static_cast<float>(getHeight()));
 }
@@ -432,8 +443,19 @@ void AreaView::mouseDoubleClick(const juce::MouseEvent& e)
         setValue(h, def->params[static_cast<std::size_t>(h.element->codeRef)].defaultValue, false);
 }
 
+void AreaView::mouseMagnify(const juce::MouseEvent& e, float scaleFactor)
+{
+    if (onZoom)
+        onZoom(scaleFactor, e.getPosition());
+}
+
 void AreaView::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
 {
+    if (e.mods.isCommandDown()) {
+        if (onZoom && w.deltaY != 0.0f)
+            onZoom(w.deltaY > 0 ? 1.1f : 1.0f / 1.1f, e.getPosition());
+        return;
+    }
     const auto h = hitAt(e.getPosition());
     const auto* m = doc_.patch().area(location_).find(h.module);
     if (!m || !h.element || h.element->kind != "Knob") {

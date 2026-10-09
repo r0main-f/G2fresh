@@ -2,6 +2,7 @@
 // into the binary from assets/clavia/ (see tools/assets/build_assets.py).
 #pragma once
 
+#include <juce_data_structures/juce_data_structures.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <map>
@@ -38,6 +39,9 @@ enum class Look { Modern, Classic };
 // The look used to draw modules, saved in the user's settings.
 Look currentLook();
 void setCurrentLook(Look look);
+// The user's saved settings (look, cable animation, zoom...).
+juce::PropertiesFile& userSettings();
+
 // Whether cables show their signal flow with moving pulses (saved setting).
 bool cableAnimation();
 void setCableAnimation(bool on);

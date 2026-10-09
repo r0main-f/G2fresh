@@ -5,7 +5,8 @@
 //   g2render patch <file.pch2> <out.png>
 //   g2render ui <file.pch2> <out.png>        (the whole editor window)
 //
-// Set G2_LOOK=classic to draw with the original bitmaps instead of the modern look.
+// Set G2_LOOK=classic to draw with the original bitmaps instead of the modern look,
+// and G2_ZOOM=<factor> to render the editor window zoomed.
 #include "MainView.h"
 #include "ModulePainter.h"
 
@@ -13,6 +14,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <cstdlib>
 #include <iostream>
 
 using namespace g2ui;
@@ -111,6 +113,8 @@ int renderUi(const juce::File& in, const juce::File& out)
     }
     MainView view(doc);
     view.setSize(1400, 860);
+    if (const char* z = std::getenv("G2_ZOOM"))
+        view.setZoom(juce::String(z).getFloatValue(), nullptr, std::nullopt, false);
     const auto img = view.createComponentSnapshot(view.getLocalBounds(), true, 1.0f);
     writePng(img, out);
     std::cout << "rendered the editor window\n";
