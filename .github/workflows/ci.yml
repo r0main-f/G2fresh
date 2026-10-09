@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS universal
+            cmake_extra: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
+          - os: windows-latest
+            name: Windows x64
+            cmake_extra: ""
+          - os: ubuntu-24.04
+            name: Linux x64
+            cmake_extra: ""
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev libx11-dev libxrandr-dev \
+            libxinerama-dev libxcursor-dev libxcomposite-dev libfreetype-dev \
+            libfontconfig1-dev libgl1-mesa-dev xvfb
+
+      - name: macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_extra }}
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: pluginval (VST3)
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS)   asset=pluginval_macOS.zip;   bin=pluginval.app/Contents/MacOS/pluginval ;;
+            Windows) asset=pluginval_Windows.zip; bin=pluginval.exe ;;
+            Linux)   asset=pluginval_Linux.zip;   bin=pluginval ;;
+          esac
+          curl -fsSL -o pv.zip "https://github.com/Tracktion/pluginval/releases/download/v1.0.4/$asset"
+          unzip -q pv.zip
+          run=""; [ "$RUNNER_OS" = Linux ] && run="xvfb-run -a"
+          $run ./$bin --strictness-level 5 --validate-in-process \
+            --validate build/plugin/G2Editor_artefacts/Release/VST3/G2fresh.vst3
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: G2fresh-${{ runner.os }}
+          path: |
+            build/plugin/G2Editor_artefacts/Release/Standalone
+            build/plugin/G2Editor_artefacts/Release/VST3
+            build/plugin/G2Editor_artefacts/Release/AU
+          if-no-files-found: ignore

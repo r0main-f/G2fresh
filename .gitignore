@@ -1,0 +1,10 @@
+# Clavia material and derived artifacts are never committed
+original/
+re/ghidra-db/
+re/out/
+skins/classic/
+build/
+build-*/
+.DS_Store
+__pycache__/
+*.pyc

@@ -1,0 +1,3 @@
+[submodule "third_party/nord_g2_editor"]
+	path = third_party/nord_g2_editor
+	url = https://github.com/BVerhue/nord_g2_editor
