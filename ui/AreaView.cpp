@@ -16,6 +16,20 @@ bool isEditable(const PanelElement& e)
     return ModulePainter::isControl(e);
 }
 
+const char* cableColourName(g2::CableColor c)
+{
+    static const char* const names[7] = {"Red", "Blue", "Yellow", "Orange", "Green", "Purple", "White"};
+    const auto i = static_cast<std::size_t>(c);
+    return i < 7 ? names[i] : "";
+}
+
+// The same cable, whatever its colour.
+bool sameEnds(const g2::Cable& a, const g2::Cable& b)
+{
+    return a.fromModule == b.fromModule && a.fromConn == b.fromConn && a.fromIsOutput == b.fromIsOutput
+        && a.toModule == b.toModule && a.toConn == b.toConn;
+}
+
 int pixelsPerStep(int max, bool fine)
 {
     const int base = std::max(1, 200 / (max + 1));
@@ -72,11 +86,19 @@ void AreaView::resized()
 
 void AreaView::settingsChanged()
 {
-    if (cableAnimation())
-        startTimerHz(30);
-    else
-        stopTimer();
+    updateTimer();
     repaintModules();
+}
+
+void AreaView::updateTimer()
+{
+    // The flow animation and the pulsing rings of a highlighted cable.
+    if (cableAnimation() || highlighted_) {
+        if (!isTimerRunning())
+            startTimerHz(30);
+    } else {
+        stopTimer();
+    }
 }
 
 void AreaView::repaintModules()
@@ -97,6 +119,13 @@ void AreaView::timerCallback()
 void AreaView::changeListenerCallback(juce::ChangeBroadcaster*)
 {
     std::erase_if(selection_, [&](std::uint8_t m) { return !doc_.patch().area(location_).find(m); });
+    // Follow the highlighted cable (its colour may have changed); drop it once gone.
+    if (highlighted_) {
+        const auto& cables = doc_.patch().area(location_).cables;
+        const auto it = std::find_if(cables.begin(), cables.end(), [&](const g2::Cable& c) { return sameEnds(c, *highlighted_); });
+        highlighted_ = it != cables.end() ? std::optional<g2::Cable>(*it) : std::nullopt;
+        updateTimer();
+    }
     updateSize();
     repaintModules();
 }
@@ -178,6 +207,29 @@ std::optional<AreaView::Jack> AreaView::jackAt(juce::Point<int> p) const
     if (!h.element || !ModulePainter::isJack(*h.element) || h.element->codeRef < 0)
         return std::nullopt;
     return Jack{h.module, static_cast<std::uint8_t>(h.element->codeRef), h.element->kind == "Output"};
+}
+
+juce::String AreaView::jackName(const Jack& j) const
+{
+    const auto* m = doc_.patch().area(location_).find(j.module);
+    if (!m)
+        return {};
+    const auto* def = m->def();
+    juce::String conn(j.conn);
+    if (def) {
+        const auto& list = j.isOutput ? def->outputs : def->inputs;
+        if (j.conn < list.size())
+            conn = list[j.conn].name;
+    }
+    return juce::String(m->name) + " " + conn;
+}
+
+juce::String AreaView::describeCable(const g2::Cable& c) const
+{
+    const auto from = jackName({c.fromModule, c.fromConn, c.fromIsOutput});
+    const auto to = jackName({c.toModule, c.toConn, false});
+    return juce::String(cableColourName(c.color)) + " cable: " + from + juce::String(juce::CharPointer_UTF8(c.fromIsOutput ? "  \xe2\x86\x92  " : "  \xe2\x86\x94  "))
+        + to;
 }
 
 juce::String AreaView::describe(const Hit& h) const
@@ -346,9 +398,14 @@ void AreaView::paintCables(juce::Graphics& g)
 {
     const bool flowing = cableAnimation();
     const auto& visible = doc_.patch().header.cablesVisible;
+    // With a highlighted cable, the others are dimmed and it is drawn last.
+    if (highlighted_)
+        g.beginTransparencyLayer(0.25f);
     for (const auto& cable : doc_.patch().area(location_).cables) {
-        if (!visible[static_cast<std::size_t>(cable.color)])
+        if (!visible[static_cast<std::size_t>(cable.color)] && !(highlighted_ && sameEnds(cable, *highlighted_)))
             continue; // hidden colour (View > Cables)
+        if (highlighted_ && sameEnds(cable, *highlighted_))
+            continue;
         // Signals flow from the "from" end (an output, or the first input of
         // a link) to the input at the "to" end.
         const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});
@@ -356,9 +413,70 @@ void AreaView::paintCables(juce::Graphics& g)
         if (a && b)
             paintCable(g, *a, *b, ModulePainter::cableColour(cable.color), flowing);
     }
+    if (highlighted_) {
+        g.endTransparencyLayer();
+        paintHighlight(g, *highlighted_);
+    }
     if (drag_ == Drag::Cable && cableFrom_)
         if (const auto a = jackCentre(*cableFrom_))
             paintCable(g, *a, dragPos_.toFloat(), juce::Colours::white, false);
+}
+
+void AreaView::paintHighlight(juce::Graphics& g, const g2::Cable& cable)
+{
+    const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});
+    const auto b = jackCentre({cable.toModule, cable.toConn, false});
+    if (!a || !b)
+        return;
+    const auto colour = ModulePainter::cableColour(cable.color);
+    // A soft glow under the cable, then the cable itself.
+    const auto path = cablePath(*a, *b);
+    g.setColour(colour.withAlpha(0.35f));
+    g.strokePath(path, juce::PathStrokeType(11.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour(juce::Colours::white.withAlpha(0.5f));
+    g.strokePath(path, juce::PathStrokeType(6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    paintCable(g, *a, *b, colour, cableAnimation());
+
+    // Both ends: a pulsing ring and a label naming the module and connector.
+    const auto pulse = static_cast<float>(0.5 + 0.5 * std::sin(juce::Time::getMillisecondCounterHiRes() * 0.006));
+    const juce::Font font(juce::FontOptions(12.0f, juce::Font::bold));
+    const std::pair<juce::Point<float>, Jack> ends[2] = {
+        {*a, Jack{cable.fromModule, cable.fromConn, cable.fromIsOutput}},
+        {*b, Jack{cable.toModule, cable.toConn, false}},
+    };
+    for (const auto& [p, jack] : ends) {
+        const float r = 8.0f + 3.0f * pulse;
+        g.setColour(juce::Colours::white.withAlpha(0.9f));
+        g.drawEllipse(p.x - r, p.y - r, 2 * r, 2 * r, 2.0f);
+        g.setColour(colour.withAlpha(0.6f + 0.4f * pulse));
+        g.drawEllipse(p.x - r - 2.5f, p.y - r - 2.5f, 2 * r + 5.0f, 2 * r + 5.0f, 1.5f);
+
+        const auto text = jackName(jack);
+        const float w = juce::GlyphArrangement::getStringWidth(font, text) + 10.0f, h = 18.0f;
+        // Above the jack, kept inside the area.
+        auto tag = juce::Rectangle<float>(p.x - w / 2, p.y - r - 6.0f - h, w, h);
+        if (tag.getY() < 0)
+            tag.setY(p.y + r + 6.0f);
+        tag.setX(juce::jlimit(2.0f, std::max(2.0f, static_cast<float>(getWidth()) - w - 2.0f), tag.getX()));
+        g.setColour(juce::Colour(0xee1c1f24));
+        g.fillRoundedRectangle(tag, 5.0f);
+        g.setColour(colour);
+        g.drawRoundedRectangle(tag.reduced(0.5f), 5.0f, 1.0f);
+        g.setColour(juce::Colours::white);
+        g.setFont(font);
+        g.drawText(text, tag, juce::Justification::centred, false);
+    }
+}
+
+void AreaView::highlightCable(std::optional<g2::Cable> cable)
+{
+    if (!cable && !highlighted_)
+        return;
+    highlighted_ = cable;
+    updateTimer();
+    overlay_->repaint();
+    if (cable)
+        status(describeCable(*cable));
 }
 
 void AreaView::mouseMove(const juce::MouseEvent& e)
@@ -368,6 +486,15 @@ void AreaView::mouseMove(const juce::MouseEvent& e)
         hover_ = h;
         modules_->repaint();
     }
+    // Cables are drawn over the modules: over a cord (but not over a jack or
+    // a control) the cord is what a click picks.
+    const bool onControl = h.element && (ModulePainter::isJack(*h.element) || isEditable(*h.element));
+    if (const auto cable = onControl ? std::nullopt : cableAt(e.getPosition())) {
+        setMouseCursor(juce::MouseCursor::PointingHandCursor);
+        status(describeCable(*cable) + "  (click to highlight)");
+        return;
+    }
+    setMouseCursor(juce::MouseCursor::NormalCursor);
     status(describe(h));
 }
 
@@ -385,12 +512,20 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
     dragPos_ = e.getPosition();
     dragHit_ = hitAt(e.getPosition());
     drag_ = Drag::None;
+    // A click on a cord (cables are drawn over modules, but not over jacks
+    // and controls) highlights that cable; a right-click opens its menu.
+    const bool onControl = dragHit_.element && (ModulePainter::isJack(*dragHit_.element) || isEditable(*dragHit_.element));
+    if (const auto cable = onControl ? std::nullopt : cableAt(e.getPosition())) {
+        highlightCable(cable);
+        if (e.mods.isPopupMenu())
+            showCableMenu(*cable);
+        dragHit_ = {};
+        return;
+    }
+    highlightCable(std::nullopt);
     if (!dragHit_.module) {
-        if (e.mods.isPopupMenu()) {
-            if (const auto cable = cableAt(e.getPosition()))
-                showCableMenu(*cable);
+        if (e.mods.isPopupMenu())
             return;
-        }
         // Empty background: start a rubber-band selection.
         if (!e.mods.isShiftDown())
             clearSelection();
@@ -600,6 +735,10 @@ juce::String AreaView::getTooltip()
 
 bool AreaView::keyPressed(const juce::KeyPress& key)
 {
+    if (key == juce::KeyPress::escapeKey && highlighted_) {
+        highlightCable(std::nullopt);
+        return true;
+    }
     if ((key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey) && hasSelection()) {
         deleteSelected();
         return true;
@@ -899,10 +1038,9 @@ void AreaView::showControlMenu(const Hit& h)
 void AreaView::showCableMenu(const g2::Cable& cable)
 {
     enum { kDelete = 1, kColourBase = 100 };
-    static const char* const names[7] = {"Red", "Blue", "Yellow", "Orange", "Green", "Purple", "White"};
     juce::PopupMenu colours;
     for (int c = 0; c < 7; ++c) {
-        juce::PopupMenu::Item item(names[c]);
+        juce::PopupMenu::Item item(cableColourName(static_cast<g2::CableColor>(c)));
         item.itemID = kColourBase + c;
         item.colour = ModulePainter::cableColour(static_cast<g2::CableColor>(c));
         item.isTicked = static_cast<int>(cable.color) == c;

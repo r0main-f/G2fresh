@@ -95,6 +95,8 @@ private:
     std::optional<juce::Point<float>> jackCentre(const Jack& j) const;
     std::optional<Jack> jackAt(juce::Point<int> p) const;
     juce::String describe(const Hit& h) const;
+    juce::String jackName(const Jack& j) const;
+    juce::String describeCable(const g2::Cable& c) const;
     ModuleContext context(const g2::Module& m) const;
     juce::Point<int> gridCell(juce::Point<int> p) const;
 
@@ -107,6 +109,10 @@ private:
     void paintOverlay(juce::Graphics& g);
     void paintCables(juce::Graphics& g);
     void paintCable(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to, juce::Colour c, bool flowing);
+    void paintHighlight(juce::Graphics& g, const g2::Cable& cable);
+    // Shows (or, with nullopt, clears) a cable clicked on its cord.
+    void highlightCable(std::optional<g2::Cable> cable);
+    void updateTimer();
     void timerCallback() override;
     void repaintModules();
 
@@ -144,6 +150,9 @@ private:
     juce::Point<int> dragOffset_;   // module drag: mouse offset in the module
     juce::Point<int> dragPos_;      // current mouse position
     std::optional<Jack> cableFrom_;
+    // The cable clicked on its cord: drawn on top, the others dimmed, its two
+    // ends ringed and labelled.
+    std::optional<g2::Cable> highlighted_;
     std::optional<juce::Point<int>> dropCell_; // browser drag-over preview
 
     std::unique_ptr<ModulesLayer> modules_;
