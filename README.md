@@ -4,7 +4,7 @@ A modern, native editor for the Clavia **Nord Modular G2**, for macOS (Apple Sil
 
 Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a proprietary kernel driver on Windows, so it no longer runs on current systems. G2fresh is a rewrite. Ghidra analysis of the original editor serves as the specification, cross-checked against Bruno Verhue's open-source editor.
 
-**Status:** 0.5, an offline patch editor, with the USB protocol in progress. It opens, edits and saves G2 patches and performances; every public G2 file we know of loads (5,589 files from Clavia's banks and the community archives). It has the full patch settings, morph, knob and MIDI controller assignments, copy/paste and duplicate, module Replace, the randomizer and Patch Mutator, the original's special controls (vocoder band presets, note sequencer zoom and octave range, drum presets), the patch load meter, the modules' live graphs and descriptions, a modern look and the original Classic look, zoom, animated cables (click one to see where it goes, double-click to add a bend point) and native menus. As a VST3/AU plugin it stores the patch in your DAW project, exposes the patch's knobs, morph dials and variation for automation, and forwards its MIDI to a hardware port into the G2. The USB protocol library and a virtual G2 are done and tested; connecting to a real synth is next.
+**Status:** 0.6, an offline patch editor with an experimental USB connection. It opens, edits and saves G2 patches and performances; every public G2 file we know of loads (5,589 files from Clavia's banks and the community archives). It has the full patch settings, morph, knob and MIDI controller assignments, copy/paste and duplicate, module Replace, the randomizer and Patch Mutator, the original's special controls, the patch load meter, the modules' live graphs and descriptions, a modern look and the original Classic look, zoom, animated cables with bend points, and native menus. As a VST3/AU plugin it stores the patch in your DAW project, exposes the patch's knobs, morph dials and variation for automation, and forwards its MIDI to a hardware port into the G2. The Synth menu connects to a G2 over USB (through `g2bridge`) or to a virtual G2: send and get patches and performances, live editing both ways, the synth's memory banks, live LEDs and meters, the load the synth reports. **The USB connection has only been tested against the virtual G2**: see "Testing with a real G2" below.
 
 ## Layout
 
@@ -37,6 +37,14 @@ Only one program can hold the G2's USB connection, while you may run the stand-a
 - **macOS:** nothing to install.
 - **Windows:** libusb needs the WinUSB driver for the G2. Install it once with [Zadig](https://zadig.akeo.ie/): plug in the G2, choose "Options > List All Devices", select the Nord Modular G2, choose "WinUSB" and click "Replace Driver". (Clavia's own driver cannot be used; the original editor needs it, so switch back with Zadig to use that one.)
 - **Linux:** give your user access to the device with a udev rule, e.g. `/etc/udev/rules.d/50-nord-g2.rules` containing `SUBSYSTEM=="usb", ATTRS{idVendor}=="0ffc", ATTRS{idProduct}=="0002", MODE="0666"`, then `sudo udevadm control --reload` and replug the G2.
+
+### Testing with a real G2 (USB is experimental)
+
+Everything above is built from the original editor's code and tested against a virtual G2, not yet against a real synth. If you have a G2, you can help:
+
+1. Connect it by USB (see the notes above for Windows and Linux), start G2fresh and choose **Synth > Connect to G2 (USB)**. The status bar shows "Looking for a G2...", then the synth's version.
+2. Try **Get Patch from Slot A**, edit a knob (live editing), **Send Patch to Slot B**, **Synth Memory (Banks)...**, and watch the LEDs and meters.
+3. Whatever happens, choose **Synth > Show USB Log** and send `usb.log` (and `usb.log.1` if present) with a short description to the project's [issues](https://github.com/r0main-f/G2fresh/issues). The log holds the USB traffic and nothing else, but that includes the patches and performances exchanged (data and names).
 
 ## Build
 
