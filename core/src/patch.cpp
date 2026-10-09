@@ -18,8 +18,6 @@ const T& expect(const Section& s, u8 id)
 {
     if (s.id != id)
         throw FormatError("unexpected section order");
-    if (s.tailPad != 0 || !s.trailing.empty())
-        throw FormatError("unsupported data after a section's fields");
     const T* p = std::get_if<T>(&s.payload);
     if (!p)
         throw FormatError("section could not be decoded");
@@ -74,28 +72,53 @@ void readArea(Area& a, const ModuleList& list, const CableList& cables, const Pa
     for (const auto& c : cables.cables)
         a.cables.push_back({static_cast<CableColor>(std::min<u8>(c.color, 6)), c.fromModule, c.fromConn,
                             c.fromIsOutput != 0, c.toModule, c.toConn});
+    a.paramOrder.clear();
+    a.customOrder.clear();
+    a.nameOrder.clear();
+    a.emptyParamListVariations = params.modules.empty() ? params.variationCount : 0;
     for (const auto& pm : params.modules)
-        if (Module* m = a.find(pm.index))
+        if (Module* m = a.find(pm.index)) {
             m->params = valuesOf(pm);
+            a.paramOrder.push_back(pm.index);
+        }
     for (const auto& cm : custom.modules)
-        if (Module* m = a.find(cm.index))
+        if (Module* m = a.find(cm.index)) {
             m->customData = cm.bytes;
+            a.customOrder.push_back(cm.index);
+        }
     a.namesReserved = names.reserved;
     for (const auto& n : names.names)
-        if (Module* m = a.find(n.index))
+        if (Module* m = a.find(n.index)) {
             m->name = n.name;
+            a.nameOrder.push_back(n.index);
+        }
 }
 
+// Entries for the modules that `make` accepts: first in the recorded file
+// order, then any others in index order.
 template <class T, class F>
-std::vector<T> sortedByIndex(const std::vector<Module>& modules, F make)
+std::vector<T> inFileOrder(const std::vector<Module>& modules, const std::vector<u8>& order, F make)
 {
-    std::map<u8, T> sorted;
-    for (const auto& m : modules)
-        if (auto v = make(m))
-            sorted.emplace(m.index, std::move(*v));
     std::vector<T> out;
-    for (auto& [index, v] : sorted)
-        out.push_back(std::move(v));
+    std::vector<u8> done;
+    auto emit = [&](u8 index) {
+        if (std::find(done.begin(), done.end(), index) != done.end())
+            return;
+        auto it = std::find_if(modules.begin(), modules.end(), [&](const Module& m) { return m.index == index; });
+        if (it == modules.end())
+            return;
+        done.push_back(index);
+        if (auto v = make(*it))
+            out.push_back(std::move(*v));
+    };
+    for (u8 index : order)
+        emit(index);
+    std::vector<u8> rest;
+    for (const auto& m : modules)
+        rest.push_back(m.index);
+    std::sort(rest.begin(), rest.end());
+    for (u8 index : rest)
+        emit(index);
     return out;
 }
 
@@ -177,6 +200,10 @@ Patch Patch::fromSections(std::span<const Section> s)
     const auto& vaNames = expect<ModuleNames>(s[15], kModuleNames);
     const auto& fxNames = expect<ModuleNames>(s[16], kModuleNames);
     p.notes = expect<Textpad>(s[17], kTextpad).text;
+    for (std::size_t i = 0; i < 18; ++i) {
+        p.sectionPad[i] = s[i].tailPad;
+        p.sectionTrailing[i] = s[i].trailing;
+    }
 
     if (vaList.location != 1 || fxList.location != 0 || settings.location != 2 || settingsCustom.location != 2
         || vaCustom.location != 1 || fxCustom.location != 0)
@@ -238,18 +265,18 @@ std::vector<Section> Patch::toSections() const
     auto paramList = [this](const Area& a) {
         ParamList l;
         l.location = static_cast<u8>(a.location);
-        l.modules = sortedByIndex<ParamModule>(a.modules, [](const Module& m) -> std::optional<ParamModule> {
+        l.modules = inFileOrder<ParamModule>(a.modules, a.paramOrder, [](const Module& m) -> std::optional<ParamModule> {
             if (m.params.empty())
                 return std::nullopt;
             return paramModule(m.index, m.params);
         });
-        l.variationCount = l.modules.empty() ? 0 : variationCount;
+        l.variationCount = l.modules.empty() ? a.emptyParamListVariations : variationCount;
         return l;
     };
     auto customData = [](const Area& a) {
         CustomData d;
         d.location = static_cast<u8>(a.location);
-        d.modules = sortedByIndex<CustomModule>(a.modules, [](const Module& m) -> std::optional<CustomModule> {
+        d.modules = inFileOrder<CustomModule>(a.modules, a.customOrder, [](const Module& m) -> std::optional<CustomModule> {
             if (!m.customData)
                 return std::nullopt;
             return CustomModule{m.index, *m.customData};
@@ -260,7 +287,7 @@ std::vector<Section> Patch::toSections() const
         ModuleNames n;
         n.location = static_cast<u8>(a.location);
         n.reserved = a.namesReserved;
-        n.names = sortedByIndex<ModuleName>(a.modules, [](const Module& m) -> std::optional<ModuleName> {
+        n.names = inFileOrder<ModuleName>(a.modules, a.nameOrder, [](const Module& m) -> std::optional<ModuleName> {
             return ModuleName{m.index, m.name};
         });
         return n;
@@ -304,6 +331,10 @@ std::vector<Section> Patch::toSections() const
     s.push_back(section(kModuleNames, names(va)));
     s.push_back(section(kModuleNames, names(fx)));
     s.push_back(section(kTextpad, Textpad{notes}));
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        s[i].tailPad = sectionPad[i];
+        s[i].trailing = sectionTrailing[i];
+    }
     return s;
 }
 
@@ -350,12 +381,19 @@ File Performance::toFile() const
     return f;
 }
 
-Patch loadPatch(std::span<const u8> bytes)
+namespace {
+File readChecked(std::span<const u8> bytes, LoadOptions options)
 {
-    const File f = read(bytes);
-    if (!f.crcValid)
-        throw FormatError("checksum error: the file is damaged");
-    return Patch::fromFile(f);
+    File f = read(bytes);
+    if (!f.crcValid && !options.ignoreChecksum)
+        throw ChecksumError("checksum error: the file is damaged, or was written by another program");
+    return f;
+}
+} // namespace
+
+Patch loadPatch(std::span<const u8> bytes, LoadOptions options)
+{
+    return Patch::fromFile(readChecked(bytes, options));
 }
 
 std::vector<u8> savePatch(const Patch& patch)
@@ -363,17 +401,25 @@ std::vector<u8> savePatch(const Patch& patch)
     return write(patch.toFile());
 }
 
-Performance loadPerformance(std::span<const u8> bytes)
+Performance loadPerformance(std::span<const u8> bytes, LoadOptions options)
 {
-    const File f = read(bytes);
-    if (!f.crcValid)
-        throw FormatError("checksum error: the file is damaged");
-    return Performance::fromFile(f);
+    return Performance::fromFile(readChecked(bytes, options));
 }
 
 std::vector<u8> savePerformance(const Performance& perf)
 {
     return write(perf.toFile());
+}
+
+Loaded load(std::span<const u8> bytes, LoadOptions options)
+{
+    const File f = readChecked(bytes, options);
+    Loaded out{Patch{}, f.embeddedName.value_or(std::string())};
+    if (f.type == FileType::Performance)
+        out.content = Performance::fromFile(f);
+    else
+        out.content = Patch::fromFile(f);
+    return out;
 }
 
 } // namespace g2

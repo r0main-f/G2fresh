@@ -186,3 +186,65 @@ TEST_CASE("a damaged file is reported, not silently accepted")
         CHECK_THROWS_AS(read(std::vector<std::uint8_t>(junk.begin(), junk.end())), g2::FormatError);
     }
 }
+
+TEST_CASE("container variants found in real-world files load and re-save exactly")
+{
+    const auto plain = g2test::readBytes(G2_CORPUS_DIR "/pch2csd/test_3osc.pch2");
+    const File reference = read(plain);
+    std::ptrdiff_t bodyStart = 0; // length of the text header
+    for (const auto& line : reference.textHeader)
+        bodyStart += static_cast<std::ptrdiff_t>(line.size() + 2);
+
+    SECTION("MacBinary-wrapped")
+    {
+        std::vector<std::uint8_t> mb(128, 0);
+        const std::string name = "test_3osc.pch2";
+        mb[1] = static_cast<std::uint8_t>(name.size());
+        std::copy(name.begin(), name.end(), mb.begin() + 2);
+        const auto n = plain.size();
+        mb[83] = static_cast<std::uint8_t>(n >> 24);
+        mb[84] = static_cast<std::uint8_t>(n >> 16);
+        mb[85] = static_cast<std::uint8_t>(n >> 8);
+        mb[86] = static_cast<std::uint8_t>(n);
+        mb.insert(mb.end(), plain.begin(), plain.end());
+        mb.resize(mb.size() + 37, 0); // padding to the 128-byte boundary
+        const File f = read(mb);
+        CHECK(f.crcValid);
+        CHECK(f.macBinaryHeader.size() == 128);
+        CHECK(f.sections.size() == 18);
+        CHECK(write(f) == mb);
+    }
+    SECTION("zero-padded after the checksum")
+    {
+        auto padded = plain;
+        padded.resize(padded.size() + 91, 0);
+        const File f = read(padded);
+        CHECK(f.crcValid);
+        CHECK(f.zeroPadding == 91);
+        CHECK(f.unparsedTail.empty());
+        CHECK(write(f) == padded);
+    }
+    SECTION("patch name instead of the text header")
+    {
+        const std::string name = "Three Oscs";
+        std::vector<std::uint8_t> headerless(name.begin(), name.end());
+        headerless.push_back(0);
+        headerless.insert(headerless.end(), plain.begin() + bodyStart, plain.end());
+        const File f = read(headerless);
+        CHECK(f.crcValid);
+        REQUIRE(f.embeddedName);
+        CHECK(*f.embeddedName == name);
+        CHECK(f.sections.size() == 18);
+        CHECK(write(f) == headerless);
+    }
+    SECTION("files that are not G2 files get a clear message")
+    {
+        const std::string ableton = "\xab\x1e\x56\x78\x03\x28\x00\x00LiveDocument";
+        try {
+            read(std::vector<std::uint8_t>(ableton.begin(), ableton.end()));
+            FAIL("accepted a foreign file");
+        } catch (const g2::FormatError& e) {
+            CHECK(std::string(e.what()).find("Ableton") != std::string::npos);
+        }
+    }
+}

@@ -3,6 +3,8 @@
 #include "g2/crc.hpp"
 
 #include <algorithm>
+#include <iterator>
+#include <string_view>
 #include <stdexcept>
 
 namespace g2::file {
@@ -515,56 +517,139 @@ std::vector<u8> encodeSection(const Section& section)
     return out;
 }
 
+namespace {
+
+bool isSectionId(u8 id)
+{
+    switch (id) {
+    case kPerfHeader: case kPatchHeader: case kModuleList: case kParamList: case kCableList:
+    case kModuleNames: case kCustomData: case kGlobalKnobMap: case kCtrlMap: case kKnobMap:
+    case kMorphMap: case kCurrentNotes: case kTextpad:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool startsWith(std::span<const u8> d, std::string_view prefix)
+{
+    return d.size() >= prefix.size() && std::equal(prefix.begin(), prefix.end(), d.begin());
+}
+
+constexpr std::string_view kMagic = "Version=Nord Modular G2 File Format 1";
+
+// MacBinary (I/II/III): 128-byte header, data fork, then resource fork.
+std::optional<std::size_t> macBinaryDataLength(std::span<const u8> d)
+{
+    if (d.size() < 128 || d[0] != 0 || d[1] == 0 || d[1] > 63 || d[74] != 0 || d[82] != 0)
+        return std::nullopt;
+    const std::size_t len = (std::size_t{d[83]} << 24) | (std::size_t{d[84]} << 16) | (std::size_t{d[85]} << 8) | d[86];
+    if (len == 0 || 128 + len > d.size() || !startsWith(d.subspan(128), kMagic))
+        return std::nullopt;
+    return len;
+}
+
+std::string describeForeign(std::span<const u8> d)
+{
+    const std::string_view head(reinterpret_cast<const char*>(d.data()), std::min<std::size_t>(d.size(), 64));
+    if ((d.size() >= 2 && d[0] == 0xAB && d[1] == 0x1E) || head.find("LiveDocument") != std::string_view::npos)
+        return "not a Nord Modular G2 file (it looks like an Ableton Live document)";
+    if (head.starts_with("<") || head.starts_with("\xEF\xBB\xBF<"))
+        return "not a Nord Modular G2 file (it looks like a web page; the download may have failed)";
+    if (head.starts_with("Version=Nord Modular patch"))
+        return "this is a Nord Modular (G1) patch, not a G2 patch";
+    return "not a Nord Modular G2 patch or performance file";
+}
+
+} // namespace
+
 File read(std::span<const u8> data)
 {
     File f;
-    std::size_t p = 0;
-    // Text header: CRLF-terminated lines; the binary part starts with the
-    // version word, whose high byte is 0.
-    while (p < data.size() && data[p] != 0) {
-        std::size_t e = p;
-        while (e + 1 < data.size() && !(data[e] == '\r' && data[e + 1] == '\n'))
-            ++e;
-        if (e + 1 >= data.size())
-            throw FormatError("not a G2 file: unterminated text header");
-        f.textHeader.emplace_back(data.begin() + static_cast<std::ptrdiff_t>(p),
-                                  data.begin() + static_cast<std::ptrdiff_t>(e));
-        p = e + 2;
+    std::span<const u8> d = data;
+    if (const auto len = macBinaryDataLength(d)) {
+        f.macBinaryHeader.assign(d.begin(), d.begin() + 128);
+        f.macBinaryTail.assign(d.begin() + 128 + static_cast<std::ptrdiff_t>(*len), d.end());
+        d = d.subspan(128, *len);
     }
-    if (f.textHeader.empty() || f.textHeader[0] != "Version=Nord Modular G2 File Format 1")
-        throw FormatError("not a Nord Modular G2 patch or performance file");
-    if (p + 5 > data.size())
+
+    std::size_t p = 0;
+    if (startsWith(d, "Version=")) {
+        // Text header: CRLF-terminated lines; the binary part starts with the
+        // version word, whose high byte is 0.
+        while (p < d.size() && d[p] != 0) {
+            std::size_t e = p;
+            while (e + 1 < d.size() && !(d[e] == '\r' && d[e + 1] == '\n'))
+                ++e;
+            if (e + 1 >= d.size())
+                throw FormatError("not a G2 file: unterminated text header");
+            f.textHeader.emplace_back(d.begin() + static_cast<std::ptrdiff_t>(p), d.begin() + static_cast<std::ptrdiff_t>(e));
+            p = e + 2;
+        }
+        if (f.textHeader.empty() || f.textHeader[0] != kMagic)
+            throw FormatError(describeForeign(d));
+    } else {
+        // Headerless variant: the patch name (up to 16 bytes, NUL-terminated
+        // if shorter), then the binary part.
+        std::size_t n = 0;
+        while (n < 16 && n < d.size() && d[n] >= 0x20 && d[n] < 0x7F)
+            ++n;
+        std::size_t b = n < 16 && n < d.size() && d[n] == 0 ? n + 1 : n;
+        const bool plausible = n > 0 && b + 4 <= d.size() && d[b] == 0 && d[b + 1] >= 13 && d[b + 1] <= kCurrentVersion
+                               && d[b + 2] <= 1 && (d[b + 3] == kPatchHeader || d[b + 3] == kPerfHeader);
+        if (!plausible)
+            throw FormatError(describeForeign(d));
+        f.embeddedName = std::string(d.begin(), d.begin() + static_cast<std::ptrdiff_t>(n));
+        f.textHeader = defaultTextHeader(d[b + 2] ? FileType::Performance : FileType::Patch);
+        f.textHeader[2] = "Version=" + std::to_string(d[b + 1]);
+        p = b;
+    }
+    if (p + 5 > d.size())
         throw FormatError("file truncated");
     const std::size_t bodyStart = p;
-    f.version = readU16(data, p);
-    const u8 type = data[p + 2];
+    f.version = readU16(d, p);
+    const u8 type = d[p + 2];
     if (type > 1)
         throw FormatError("unknown file type");
     f.type = static_cast<FileType>(type);
     p += 3;
-    const std::size_t end = data.size() - 2;
-    while (p + 3 <= end) {
-        const u8 id = data[p];
-        const std::size_t len = readU16(data, p + 1);
+    const std::size_t end = d.size() - 2;
+    while (p + 3 <= end && isSectionId(d[p])) {
+        const u8 id = d[p];
+        const std::size_t len = readU16(d, p + 1);
         if (p + 3 + len > end)
             break;
-        f.sections.push_back(decodeSection(id, data.subspan(p + 3, len)));
+        f.sections.push_back(decodeSection(id, d.subspan(p + 3, len)));
         p += 3 + len;
     }
-    f.unparsedTail.assign(data.begin() + static_cast<std::ptrdiff_t>(p),
-                          data.begin() + static_cast<std::ptrdiff_t>(end));
-    f.storedCrc = readU16(data, end);
-    f.crcValid = crc16(data.subspan(bodyStart, end - bodyStart)) == f.storedCrc;
+    // CRC right after the last section, possibly followed by zero padding.
+    const auto rest = d.subspan(p);
+    const std::uint16_t crc = crc16(d.subspan(bodyStart, p - bodyStart));
+    if (rest.size() > 2 && readU16(d, p) == crc
+        && std::all_of(rest.begin() + 2, rest.end(), [](u8 b) { return b == 0; })) {
+        f.storedCrc = crc;
+        f.zeroPadding = rest.size() - 2;
+        return f;
+    }
+    f.unparsedTail.assign(d.begin() + static_cast<std::ptrdiff_t>(p), d.begin() + static_cast<std::ptrdiff_t>(end));
+    f.storedCrc = readU16(d, end);
+    f.crcValid = crc16(d.subspan(bodyStart, end - bodyStart)) == f.storedCrc;
     return f;
 }
 
 std::vector<u8> write(const File& file)
 {
-    std::vector<u8> out;
-    for (const auto& line : file.textHeader) {
-        out.insert(out.end(), line.begin(), line.end());
-        out.push_back('\r');
-        out.push_back('\n');
+    std::vector<u8> out = file.macBinaryHeader;
+    if (file.embeddedName) {
+        out.insert(out.end(), file.embeddedName->begin(), file.embeddedName->end());
+        if (file.embeddedName->size() < 16)
+            out.push_back(0);
+    } else {
+        for (const auto& line : file.textHeader) {
+            out.insert(out.end(), line.begin(), line.end());
+            out.push_back('\r');
+            out.push_back('\n');
+        }
     }
     const std::size_t bodyStart = out.size();
     out.push_back(static_cast<u8>(file.version >> 8));
@@ -585,6 +670,8 @@ std::vector<u8> write(const File& file)
         : file.storedCrc;
     out.push_back(static_cast<u8>(crc >> 8));
     out.push_back(static_cast<u8>(crc & 0xFF));
+    out.insert(out.end(), file.zeroPadding, u8{0});
+    out.insert(out.end(), file.macBinaryTail.begin(), file.macBinaryTail.end());
     return out;
 }
 

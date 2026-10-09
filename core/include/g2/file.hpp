@@ -209,11 +209,20 @@ struct File {
     std::vector<u8> unparsedTail;
     std::uint16_t storedCrc = 0;
     bool crcValid = true; // false: write() keeps storedCrc as found
+
+    // Container variants found in real-world files, kept so that write()
+    // reproduces them byte for byte.
+    std::vector<u8> macBinaryHeader;         // 128-byte MacBinary header, if wrapped
+    std::vector<u8> macBinaryTail;           // bytes after the MacBinary data fork
+    std::size_t zeroPadding = 0;             // zero bytes after the CRC (block padding)
+    std::optional<std::string> embeddedName; // headerless variant: the patch name replaces the text header
 };
 
 // Parses a whole file. Throws FormatError when the container is unreadable
 // (text header, lengths, CRC position). Sections that fail to decode become
-// RawSection; a bad CRC is reported through crcValid.
+// RawSection; a bad CRC is reported through crcValid. Also accepts files
+// wrapped in MacBinary, zero-padded after the CRC, or written with the patch
+// name instead of the text header.
 File read(std::span<const u8> data);
 std::vector<u8> write(const File& file);
 

@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "g2/patch.hpp"
+
+#include <algorithm>
 #include "test_support.hpp"
 
 using namespace g2;
@@ -87,4 +89,51 @@ TEST_CASE("damaged or foreign files are rejected with a clear error")
     bytes[bytes.size() - 1] ^= 0x01;
     CHECK_THROWS_AS(loadPatch(bytes), FormatError);
     CHECK_THROWS_AS(loadPerformance(g2test::readBytes(G2_CORPUS_DIR "/pch2csd/test_3osc.pch2")), FormatError);
+}
+
+TEST_CASE("the model keeps file details other writers produce")
+{
+    // A patch as the synth or other tools write it: non-zero padding bits,
+    // names in module-list order, an empty parameter list declaring 9 variations.
+    file::File f = file::read(g2test::readBytes(G2_CORPUS_DIR "/pch2csd/test_3osc.pch2"));
+    auto& vaNames = std::get<file::ModuleNames>(f.sections[15].payload);
+    std::reverse(vaNames.names.begin(), vaNames.names.end());
+    // Set a padding bit on the first section whose last byte has room for one.
+    bool padded = false;
+    for (auto& s : f.sections) {
+        s.tailPad = 1;
+        try {
+            file::encodeSection(s);
+            padded = true;
+            break;
+        } catch (const std::invalid_argument&) {
+            s.tailPad = 0;
+        }
+    }
+    REQUIRE(padded);
+    file::File g = f;
+    auto& fxParams = std::get<file::ParamList>(g.sections[8].payload);
+    fxParams.modules.clear();
+    fxParams.variationCount = 9;
+
+    for (const auto* variant : {&f, &g}) {
+        const auto bytes = file::write(*variant);
+        const Patch p = loadPatch(bytes);
+        CHECK(savePatch(p) == bytes);
+    }
+}
+
+TEST_CASE("load() goes by the file's content, not its name")
+{
+    const auto patchBytes = g2test::readBytes(G2_CORPUS_DIR "/pch2csd/test_3osc.pch2");
+    CHECK_FALSE(load(patchBytes).isPerformance());
+    Performance perf;
+    for (auto& slot : perf.slots)
+        slot = loadPatch(patchBytes);
+    CHECK(load(savePerformance(perf)).isPerformance());
+
+    auto damaged = patchBytes;
+    damaged.back() ^= 0x01;
+    CHECK_THROWS_AS(load(damaged), ChecksumError);
+    CHECK_NOTHROW(load(damaged, {true}));
 }

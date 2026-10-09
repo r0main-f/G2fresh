@@ -2,7 +2,7 @@
 
 namespace g2ui {
 namespace {
-const juce::String kPatchPattern = "*.pch2";
+const juce::String kOpenPattern = "*.pch2;*.prf2";
 }
 
 MainView::MainView(PatchDocument& doc)
@@ -25,6 +25,14 @@ MainView::MainView(PatchDocument& doc)
         b->setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffd08020));
         b->onClick = [this, i] { doc_.setVariation(i); };
         addAndMakeVisible(b);
+    }
+    for (int i = 0; i < 4; ++i) {
+        auto* b = slots_.add(new juce::TextButton(juce::String::charToString(static_cast<juce::juce_wchar>('A' + i))));
+        b->setClickingTogglesState(true);
+        b->setRadioGroupId(2);
+        b->setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff3070c0));
+        b->onClick = [this, i] { doc_.setSlot(i); };
+        addChildComponent(b);
     }
     title_.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     addAndMakeVisible(title_);
@@ -69,10 +77,26 @@ void MainView::updateToolbar()
     redo_.setEnabled(doc_.canRedo());
     if (auto* b = variations_[doc_.variation()])
         b->setToggleState(true, juce::dontSendNotification);
+    const auto* perf = doc_.performance();
+    for (int i = 0; i < slots_.size(); ++i) {
+        auto* b = slots_[i];
+        b->setVisible(perf != nullptr);
+        if (perf) {
+            const auto name = juce::String(perf->header.slots[static_cast<std::size_t>(i)].patchName);
+            b->setTooltip("Slot " + b->getButtonText() + (name.isNotEmpty() ? ": " + name : juce::String()));
+        }
+        b->setToggleState(i == doc_.slot(), juce::dontSendNotification);
+    }
     const auto f = doc_.file();
-    title_.setText((f == juce::File() ? juce::String("New patch") : f.getFileNameWithoutExtension())
-                       + (doc_.isDirty() ? " *" : ""),
-                   juce::dontSendNotification);
+    juce::String title = f == juce::File() ? juce::String(perf ? "New performance" : "New patch")
+                                           : f.getFileNameWithoutExtension();
+    if (perf) {
+        const auto slotName = juce::String(perf->header.slots[static_cast<std::size_t>(doc_.slot())].patchName);
+        title << "  -  " << juce::String::charToString(static_cast<juce::juce_wchar>('A' + doc_.slot()))
+              << (slotName.isNotEmpty() ? ": " + slotName : juce::String());
+    }
+    title_.setText(title + (doc_.isDirty() ? " *" : ""), juce::dontSendNotification);
+    resized();
 }
 
 void MainView::paint(juce::Graphics& g)
@@ -93,6 +117,11 @@ void MainView::resized()
     for (auto* b : variations_)
         b->setBounds(bar.removeFromLeft(26)), bar.removeFromLeft(1);
     bar.removeFromLeft(14);
+    if (doc_.isPerformance()) {
+        for (auto* b : slots_)
+            b->setBounds(bar.removeFromLeft(26)), bar.removeFromLeft(1);
+        bar.removeFromLeft(14);
+    }
     title_.setBounds(bar);
 
     browser_.setBounds(r.removeFromTop(56));
@@ -144,7 +173,7 @@ void MainView::newPatch()
 void MainView::open()
 {
     confirmDiscard([this] {
-        chooser_ = std::make_unique<juce::FileChooser>("Open a G2 patch", doc_.file(), kPatchPattern);
+        chooser_ = std::make_unique<juce::FileChooser>("Open a G2 patch or performance", doc_.file(), kOpenPattern);
         chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                               [this](const juce::FileChooser& fc) {
                                   if (fc.getResult() != juce::File())
@@ -153,7 +182,7 @@ void MainView::open()
     });
 }
 
-void MainView::loadFile(const juce::File& f)
+void MainView::loadFile(const juce::File& f, bool ignoreChecksum)
 {
     juce::MemoryBlock mb;
     if (!f.loadFileAsData(mb)) {
@@ -162,10 +191,20 @@ void MainView::loadFile(const juce::File& f)
     }
     try {
         const auto* p = static_cast<const std::uint8_t*>(mb.getData());
-        doc_.loadBytes(std::vector<std::uint8_t>(p, p + mb.getSize()));
+        doc_.loadBytes(std::vector<std::uint8_t>(p, p + mb.getSize()), ignoreChecksum);
         doc_.setFile(f);
-        setStatus("Opened " + f.getFileName());
+        setStatus("Opened " + f.getFileName() + (ignoreChecksum ? " (checksum ignored)" : ""));
         updateToolbar();
+    } catch (const g2::ChecksumError&) {
+        juce::AlertWindow::showOkCancelBox(
+            juce::MessageBoxIconType::WarningIcon, "Checksum error",
+            f.getFileName() + "'s checksum is wrong: the file may be damaged, or was written by another "
+                              "program. Open it anyway?",
+            "Open anyway", "Cancel", this,
+            juce::ModalCallbackFunction::create([safe = juce::Component::SafePointer<MainView>(this), f](int r) {
+                if (safe && r == 1)
+                    safe->loadFile(f, true);
+            }));
     } catch (const std::exception& e) {
         juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Cannot open patch",
                                                f.getFileName() + ": " + e.what(), {}, this);
@@ -188,14 +227,16 @@ void MainView::save(bool saveAs)
         write(doc_.file());
         return;
     }
-    chooser_ = std::make_unique<juce::FileChooser>("Save the G2 patch", doc_.file(), kPatchPattern);
+    const auto ext = doc_.fileExtension();
+    chooser_ = std::make_unique<juce::FileChooser>(doc_.isPerformance() ? "Save the G2 performance" : "Save the G2 patch",
+                                                   doc_.file(), "*" + ext);
     chooser_->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
                               | juce::FileBrowserComponent::warnAboutOverwriting,
-                          [write](const juce::FileChooser& fc) {
+                          [write, ext](const juce::FileChooser& fc) {
                               auto f = fc.getResult();
                               if (f == juce::File())
                                   return;
-                              write(f.hasFileExtension("pch2") ? f : f.withFileExtension("pch2"));
+                              write(f.hasFileExtension(ext) ? f : f.withFileExtension(ext));
                           });
 }
 

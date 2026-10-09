@@ -443,3 +443,33 @@ classes), not .pch2. Bank dumps (`Version=Nord Modular G2 Bank Dump`) were not s
 * No real .prf2 was available. The performance path is checked only against Clavia's code
   and a synthetic file (`pch2dump.py selftest`).
 * Patches with 10 variations (USB) are not in the corpus. The generic `4D` codec handles them.
+
+---
+
+## 9. Real-world files (5,593 public patches and performances)
+
+Checked with `g2tool check` against Clavia's factory bank v1.24, the Mutator and
+Richard Devine banks, the clavia.se v1.10 sets, the demo patches, and about 4,500
+community files (electro-music forum archive, GitHub). Every genuine G2 file
+loads. Variants the loader accepts (all kept, so re-saving is exact):
+
+* **MacBinary wrapping**: a 128-byte MacBinary header (type `PCH2`, creator `NORD`) before the file.
+* **Zero padding after the CRC**: e.g. a file padded with zeros to 3,584 bytes (7 × 512).
+* **Headerless**: the patch name (16 bytes, NUL-terminated if shorter) replaces the
+  text header. Seen in one third-party file, whose CRC is also wrong.
+* **Non-zero padding bits** at section ends, in the Mutator bank, ScratchIt_DLX and
+  synth-originated files. Clavia's reader skips them; Clavia's writer zeroes them.
+* **Names, parameters and custom data in module-list order** instead of index order (7 files).
+* **An empty `4D` list declaring 9 variations** instead of 0.
+* **Extensions that don't match the content** (a performance saved as `.pch2` and the
+  reverse): the file type byte decides.
+
+Answers to §8 from the 1,101 real performances:
+* `unknown_08`, `unknown_18` and the reserved bytes: always 0.
+* MIDI channel: 0–16; 16 occurs in 134 slots, so it most likely means "off".
+* Global pages = 1 in 91 files; keyboard range enabled = 1 in 65.
+* Keyboard morph assign: never non-zero. 10-variation patches: none found.
+* **`21` legacy fields are not always 0**: in 93 headers (synth-originated), the
+  first two hold the slot's keyboard range (e.g. Smoke1.prf2: 0–59 and 60–127),
+  and `legacy_b2` = `legacy_g1` = 1. The model keeps them as they are.
+* Mono mode: 0, 1 and 2 all occur.

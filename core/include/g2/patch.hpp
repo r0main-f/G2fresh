@@ -15,6 +15,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace g2 {
@@ -62,11 +63,24 @@ struct Area {
     Location location = Location::Va;
     std::vector<Module> modules; // creation order
     std::vector<Cable> cables;
-    u8 cablePad = 0;      // file detail: padding bits of the cable list
-    u8 namesReserved = 0; // file detail: 6 bits Clavia's writer leaves unset
+    // File details, kept so that unedited patches save byte for byte.
+    u8 cablePad = 0;      // padding bits of the cable list
+    u8 namesReserved = 0; // 6 bits Clavia's writer leaves unset
+    u8 emptyParamListVariations = 0; // variation count written when no module has parameters
+    // Order of module indices in the names, parameter and custom-data lists.
+    // Clavia writes them sorted; some files (e.g. sent from the synth) don't.
+    // Modules not listed are written after these, in index order.
+    std::vector<u8> nameOrder, paramOrder, customOrder;
 
     Module* find(u8 index);
     const Module* find(u8 index) const;
+
+    static Area of(Location loc)
+    {
+        Area a;
+        a.location = loc;
+        return a;
+    }
 };
 
 // A module of the patch-settings area (location 2): 1 morph, 2 gain,
@@ -87,8 +101,8 @@ struct MorphVariation {
 
 struct Patch {
     file::PatchHeader header;
-    Area va{Location::Va, {}, {}, 0, 0};
-    Area fx{Location::Fx, {}, {}, 0, 0};
+    Area va = Area::of(Location::Va);
+    Area fx = Area::of(Location::Fx);
     file::CurrentNotes currentNotes;
     u8 variationCount = kFileVariations;
     std::vector<SettingsModule> settings;
@@ -103,6 +117,8 @@ struct Patch {
     // File-level details kept for faithful saving.
     std::vector<std::string> textHeader = file::defaultTextHeader(file::FileType::Patch);
     std::uint16_t version = file::kCurrentVersion;
+    std::array<u8, 18> sectionPad{};                   // non-zero bits padding a section's last byte
+    std::array<std::vector<u8>, 18> sectionTrailing{};  // bytes after a section's fields
 
     Area& area(Location loc) { return loc == Location::Fx ? fx : va; }
     const Area& area(Location loc) const { return loc == Location::Fx ? fx : va; }
@@ -129,10 +145,29 @@ struct Performance {
     file::File toFile() const;
 };
 
+// Thrown by the loaders when the file's checksum is wrong (the file may be
+// damaged, or written by a program with a different checksum).
+struct ChecksumError : FormatError {
+    using FormatError::FormatError;
+};
+
+struct LoadOptions {
+    bool ignoreChecksum = false;
+};
+
 // Convenience: bytes <-> model.
-Patch loadPatch(std::span<const u8> bytes);
+Patch loadPatch(std::span<const u8> bytes, LoadOptions options = {});
 std::vector<u8> savePatch(const Patch& patch);
-Performance loadPerformance(std::span<const u8> bytes);
+Performance loadPerformance(std::span<const u8> bytes, LoadOptions options = {});
 std::vector<u8> savePerformance(const Performance& perf);
+
+// Loads a patch or a performance, whichever the file contains (regardless of
+// its name or extension). `name` gets the patch name a headerless file carries.
+struct Loaded {
+    std::variant<Patch, Performance> content;
+    std::string embeddedName;
+    bool isPerformance() const { return content.index() == 1; }
+};
+Loaded load(std::span<const u8> bytes, LoadOptions options = {});
 
 } // namespace g2

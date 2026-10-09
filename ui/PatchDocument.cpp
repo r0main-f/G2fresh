@@ -4,21 +4,23 @@
 
 namespace g2ui {
 
-// An undo step holds the whole patch before and after the edit: patches are
-// small, and snapshots can't get out of sync with the model.
+// An undo step holds the edited patch before and after the edit (and, in a
+// performance, its slot): patches are small, and snapshots can't get out of
+// sync with the model.
 class PatchDocument::Step : public juce::UndoableAction {
 public:
-    Step(PatchDocument& doc, g2::Patch before, g2::Patch after)
-        : doc_(doc), before_(std::move(before)), after_(std::move(after)) {}
+    Step(PatchDocument& doc, int slot, g2::Patch before, g2::Patch after)
+        : doc_(doc), slot_(slot), before_(std::move(before)), after_(std::move(after)) {}
 
-    bool perform() override { doc_.replace(after_); return true; }
-    bool undo() override { doc_.replace(before_); return true; }
+    bool perform() override { doc_.replace(slot_, after_); return true; }
+    bool undo() override { doc_.replace(slot_, before_); return true; }
     int getSizeInUnits() override { return 1; }
 
     void setAfter(g2::Patch after) { after_ = std::move(after); }
 
 private:
     PatchDocument& doc_;
+    int slot_;
     g2::Patch before_, after_;
 };
 
@@ -27,10 +29,34 @@ PatchDocument::PatchDocument()
 {
 }
 
-void PatchDocument::replace(const g2::Patch& p)
+void PatchDocument::replace(int slot, const g2::Patch& p)
 {
-    patch_ = p;
+    if (perf_) {
+        perf_->slots[static_cast<std::size_t>(slot)] = p;
+        slot_ = slot; // show the slot an undo/redo touched
+    } else {
+        patch_ = p;
+    }
     dirty_ = true;
+    sendChangeMessage();
+}
+
+void PatchDocument::resetHistory()
+{
+    undo_.clearUndoHistory();
+    endCoalescing();
+    lastStep_ = nullptr;
+}
+
+void PatchDocument::setSlot(int slot)
+{
+    if (!perf_)
+        return;
+    endCoalescing();
+    lastStep_ = nullptr;
+    slot_ = juce::jlimit(0, 3, slot);
+    perf_->header.focusedSlot = static_cast<std::uint8_t>(slot_);
+    variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch().header.activeVariation));
     sendChangeMessage();
 }
 
@@ -38,7 +64,7 @@ bool PatchDocument::perform(const juce::String& name, const std::function<void(g
                             juce::String* error)
 {
     endCoalescing();
-    g2::Patch next = patch_;
+    g2::Patch next = patch();
     try {
         edit(next);
     } catch (const std::invalid_argument& e) {
@@ -47,7 +73,7 @@ bool PatchDocument::perform(const juce::String& name, const std::function<void(g
         return false;
     }
     undo_.beginNewTransaction(name);
-    auto* step = new Step(*this, patch_, std::move(next));
+    auto* step = new Step(*this, slot_, patch(), std::move(next));
     if (!undo_.perform(step, name))
         return false;
     lastStep_ = step;
@@ -56,22 +82,20 @@ bool PatchDocument::perform(const juce::String& name, const std::function<void(g
 
 bool PatchDocument::performCoalesced(const juce::String& key, const std::function<void(g2::Patch&)>& edit)
 {
-    if (key != coalesceKey_ || !lastStep_ || !undo_.canUndo())
-        return [&] {
-            const bool ok = perform(key, edit);
-            coalesceKey_ = key;
-            return ok;
-        }();
+    if (key != coalesceKey_ || !lastStep_ || !undo_.canUndo()) {
+        const bool ok = perform(key, edit);
+        coalesceKey_ = key;
+        return ok;
+    }
     // Extend the last step: keep its "before", replace its "after".
-    g2::Patch next = patch_;
+    g2::Patch next = patch();
     try {
         edit(next);
     } catch (const std::invalid_argument&) {
         return false;
     }
-    if (lastStep_)
-        lastStep_->setAfter(next);
-    replace(next);
+    lastStep_->setAfter(next);
+    replace(slot_, next);
     return true;
 }
 
@@ -93,32 +117,43 @@ void PatchDocument::setVariation(int v)
 {
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, v);
     // The selected variation is saved with the patch, like in the original editor.
-    patch_.header.activeVariation = static_cast<std::uint8_t>(variation_);
+    auto& header = perf_ ? perf_->slots[static_cast<std::size_t>(slot_)].header : patch_.header;
+    header.activeVariation = static_cast<std::uint8_t>(variation_);
     sendChangeMessage();
 }
 
 void PatchDocument::newPatch()
 {
-    undo_.clearUndoHistory();
-    endCoalescing();
-    lastStep_ = nullptr;
+    resetHistory();
     patch_ = g2::Patch::makeDefault();
+    perf_.reset();
+    slot_ = 0;
     variation_ = 0;
     file_ = juce::File();
     dirty_ = false;
     sendChangeMessage();
 }
 
-void PatchDocument::loadBytes(const std::vector<std::uint8_t>& bytes)
+void PatchDocument::loadBytes(const std::vector<std::uint8_t>& bytes, bool ignoreChecksum)
 {
-    g2::Patch p = g2::loadPatch(bytes);
-    undo_.clearUndoHistory();
-    endCoalescing();
-    lastStep_ = nullptr;
-    patch_ = std::move(p);
-    variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch_.header.activeVariation));
+    auto loaded = g2::load(bytes, {ignoreChecksum});
+    resetHistory();
+    if (auto* perf = std::get_if<g2::Performance>(&loaded.content)) {
+        perf_ = std::move(*perf);
+        slot_ = juce::jlimit(0, 3, static_cast<int>(perf_->header.focusedSlot));
+    } else {
+        perf_.reset();
+        patch_ = std::move(std::get<g2::Patch>(loaded.content));
+        slot_ = 0;
+    }
+    variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch().header.activeVariation));
     dirty_ = false;
     sendChangeMessage();
+}
+
+std::vector<std::uint8_t> PatchDocument::saveBytes() const
+{
+    return perf_ ? g2::savePerformance(*perf_) : g2::savePatch(patch_);
 }
 
 } // namespace g2ui

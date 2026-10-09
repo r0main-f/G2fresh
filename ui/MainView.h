@@ -26,13 +26,14 @@ private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
     void updateToolbar();
     void setStatus(const juce::String& s) { status_.setText(s, juce::dontSendNotification); }
-    void loadFile(const juce::File& f);
+    void loadFile(const juce::File& f, bool ignoreChecksum = false);
     void confirmDiscard(std::function<void()> then);
 
     PatchDocument& doc_;
     juce::TextButton new_{"New"}, open_{"Open..."}, save_{"Save"}, saveAs_{"Save As..."};
     juce::TextButton undo_{"Undo"}, redo_{"Redo"};
     juce::OwnedArray<juce::TextButton> variations_;
+    juce::OwnedArray<juce::TextButton> slots_; // performance slots A-D
     juce::Label title_, status_;
     ModuleBrowser browser_;
     AreaView va_, fx_;
