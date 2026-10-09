@@ -1,11 +1,13 @@
 // How an editor talks to a G2. The editor codes against SynthLink; behind it
 // is either the connection itself (LocalLink: a Client on a transport in this
 // process) or the g2bridge process that owns the USB device and serves every
-// editor (the stand-alone app and each plugin instance) at once (BridgeLink).
+// editor (the stand-alone app and each plugin instance) at once (BridgeLink,
+// bridge/include/g2/bridge/bridge_link.hpp, in the g2bridgelib library).
 //
 // Like Client, a link is single-threaded: the editor calls tick() regularly
 // (e.g. 100 times a second) on its own thread, and listener callbacks come
-// from there.
+// from there. A LocalLink applies the editor's own edits to state() at once;
+// a BridgeLink's state() shows them after the next tick().
 #pragma once
 
 #include "g2/proto/client.hpp"

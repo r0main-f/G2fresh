@@ -82,6 +82,24 @@ public:
         virtual void error(u8 /*exceptionCode*/) {}
     };
 
+    // Told about every change to state(), in order: what g2bridge needs to keep
+    // its editors' mirrors equal to its own. Calls come from tick() and from
+    // the edit methods.
+    class Observer {
+    public:
+        virtual ~Observer() = default;
+        // A molecule applied to slot `target` (0..3) with applyToSlot, or to the
+        // synth and performance (kSlotSynth) with applyToSynth; at synth level
+        // also SessionNumber (a slot's or the performance's session),
+        // PerformanceRelease and MidiLearn, which the client applies itself.
+        virtual void applied(u8 target, const Molecule& m) = 0;
+        // A slot's patch (and name) replaced: a download, or sendPatch().
+        virtual void slotReplaced(int slot) = 0;
+        // Anything else may have changed (a new connection, a performance
+        // upload, new flash name lists): mirror the whole state again.
+        virtual void stateReplaced() = 0;
+    };
+
     using ReplyHandler = std::function<void(const std::vector<Molecule>&)>;
 
     Client(Transport& transport, Clock& clock);
@@ -91,6 +109,7 @@ public:
     Client& operator=(const Client&) = delete;
 
     void setListener(Listener* listener) { listener_ = listener; }
+    void setObserver(Observer* observer) { observer_ = observer; }
     // Polls the transport, handles timeouts, sends what is due.
     void tick();
 
@@ -189,6 +208,12 @@ private:
     Clock& clock_;
     Options options_;
     Listener* listener_ = nullptr;
+    Observer* observer_ = nullptr;
+    void applied(u8 target, const Molecule& m)
+    {
+        if (observer_)
+            observer_->applied(target, m);
+    }
 
     Status status_ = Status::NoDevice;
     bool devicePresent_ = false;

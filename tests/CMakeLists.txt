@@ -24,8 +24,15 @@ add_executable(g2tests
   test_proto_messages.cpp
   test_proto_session.cpp
   test_proto_link.cpp
+  test_bridge.cpp
 )
-target_link_libraries(g2tests PRIVATE g2proto Catch2::Catch2WithMain) # g2core comes with g2proto
+target_link_libraries(g2tests PRIVATE g2bridgelib Catch2::Catch2WithMain) # g2proto and g2core come with it
+target_compile_definitions(g2tests PRIVATE G2_BRIDGE_EXECUTABLE="$<TARGET_FILE:g2bridge>")
+add_dependencies(g2tests g2bridge)
+if(TARGET g2usb)
+  target_link_libraries(g2tests PRIVATE g2usb)
+  target_compile_definitions(g2tests PRIVATE G2_HAVE_USB=1)
+endif()
 target_compile_definitions(g2tests PRIVATE
   G2_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus"
   G2_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

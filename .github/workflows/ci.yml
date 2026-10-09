@@ -63,6 +63,9 @@ jobs:
           $run ./$bin --strictness-level 5 --validate-in-process \
             --validate build/plugin/G2Editor_artefacts/Release/VST3/G2fresh.vst3
 
+      # g2bridge (the process that owns the G2's USB connection) ships next to
+      # the stand-alone app's executable and in each plugin bundle's
+      # Contents/Resources, where the editors look for it.
       - name: Package (macOS bundles ad-hoc signed; archives keep file permissions)
         shell: bash
         run: |
@@ -70,16 +73,27 @@ jobs:
           mkdir -p pkg
           case "$RUNNER_OS" in
             macOS)
+              bridge=../../../bridge/g2bridge
+              cp "$bridge" Standalone/G2fresh.app/Contents/MacOS/
+              for b in VST3/G2fresh.vst3 AU/G2fresh.component; do
+                mkdir -p "$b/Contents/Resources" && cp "$bridge" "$b/Contents/Resources/"
+                codesign --force -s - "$b/Contents/Resources/g2bridge"
+              done
+              codesign --force -s - Standalone/G2fresh.app/Contents/MacOS/g2bridge
               for b in Standalone/G2fresh.app VST3/G2fresh.vst3 AU/G2fresh.component; do
                 codesign --force --deep -s - "$b"
               done
               cp -R Standalone/G2fresh.app VST3/G2fresh.vst3 AU/G2fresh.component pkg/
               (cd pkg && ditto -c -k --sequesterRsrc . ../G2fresh-macOS-universal.zip) ;;
             Windows)
-              cp -R Standalone/G2fresh.exe VST3/G2fresh.vst3 pkg/
+              bridge=../../../bridge/g2bridge.exe
+              mkdir -p VST3/G2fresh.vst3/Contents/Resources && cp "$bridge" VST3/G2fresh.vst3/Contents/Resources/
+              cp -R Standalone/G2fresh.exe "$bridge" VST3/G2fresh.vst3 pkg/
               (cd pkg && 7z a -tzip ../G2fresh-Windows-x64.zip . > /dev/null) ;;
             Linux)
-              cp -R Standalone/G2fresh VST3/G2fresh.vst3 pkg/
+              bridge=../../../bridge/g2bridge
+              mkdir -p VST3/G2fresh.vst3/Contents/Resources && cp "$bridge" VST3/G2fresh.vst3/Contents/Resources/
+              cp -R Standalone/G2fresh "$bridge" VST3/G2fresh.vst3 pkg/
               (cd pkg && tar czf ../G2fresh-Linux-x64.tar.gz .) ;;
           esac
 

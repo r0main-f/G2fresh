@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(G2_BUILD_PLUGIN "Build the JUCE editor (stand-alone, VST3, AU)" ON)
 option(G2_BUILD_TESTS "Build the unit tests" ON)
+option(G2_WITH_USB "Build the USB connection (libusb, built from source)" ON)
 
 if(MSVC)
   add_compile_options(/W4 /permissive-)
@@ -17,6 +18,10 @@ endif()
 
 add_subdirectory(core)
 add_subdirectory(proto)
+if(G2_WITH_USB)
+  add_subdirectory(usb)
+endif()
+add_subdirectory(bridge)
 add_subdirectory(tools/g2tool)
 
 if(G2_BUILD_PLUGIN)

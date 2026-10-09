@@ -326,6 +326,8 @@ void Client::enqueueFlashNames(u8 type, u8 bank, u8 prog, bool front)
                   }
                   state_.flash[type] = std::move(flashScratch_[type]);
                   flashScratch_[type].clear();
+                  if (observer_)
+                      observer_->stateReplaced();
                   if (listener_)
                       listener_->flashNamesChanged(type);
                   // The performance list follows, the last step before 7D 00.
@@ -435,6 +437,8 @@ void Client::handleVersion(const DeviceMessage& m)
     }
     state_ = SynthState{};
     state_.version = *v;
+    if (observer_)
+        observer_->stateReplaced();
     setStatus(Status::Connected);
     enqueueSync(true);
     sendNext();
@@ -478,6 +482,7 @@ void Client::handleReply(const DeviceMessage& m)
         auto& slot = state_.slots[m.slot()];
         slot.session = m.session & kSessionMask;
         slot.sessionKnown = true;
+        applied(kSlotSynth, SessionNumber{id::SessionDump, m.slot(), slot.session});
     }
     auto done = std::move(o);
     outstanding_.reset();
@@ -498,8 +503,10 @@ void Client::handleUnsolicited(const DeviceMessage& m)
             // arrived (CSynthPort::InterruptHandleBlinkData 0x1041ea).
             if (!s.load[0] || !s.load[1])
                 return;
-            for (const auto& b : molecules)
+            for (const auto& b : molecules) {
                 applyToSlot(s, b);
+                applied(slot, b);
+            }
             if (listener_)
                 listener_->ledsChanged(slot);
             return;
@@ -508,6 +515,7 @@ void Client::handleUnsolicited(const DeviceMessage& m)
         if (!m.voidSession() && (m.session & kSessionMask) != s.session) {
             s.session = m.session & kSessionMask;
             s.sessionKnown = true;
+            applied(kSlotSynth, SessionNumber{id::SessionDump, slot, s.session});
             resyncSlot(slot);
             return;
         }
@@ -530,6 +538,7 @@ void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromRep
                 continue;
             }
             applyToSlot(s, m);
+            applied(slot, m);
             if (fromReply || !listener_)
                 continue;
             if (const auto* p = std::get_if<ParamChange>(&m))
@@ -550,6 +559,8 @@ void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromRep
                 fail(Status::Corrupted);
                 return;
             }
+            if (observer_)
+                observer_->slotReplaced(slot);
             if (!fromReply && listener_)
                 listener_->slotChanged(slot);
         }
@@ -560,6 +571,7 @@ void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromRep
     bool synthNews = false, perfNews = false, resyncAll = false;
     for (const auto& m : molecules) {
         if (const auto* r = std::get_if<SessionNumber>(&m)) {
+            applied(kSlotSynth, m);
             if (r->slot < kSlots) {
                 auto& s = state_.slots[r->slot];
                 s.session = r->session & kSessionMask;
@@ -574,6 +586,7 @@ void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromRep
             continue;
         }
         if (const auto* r = std::get_if<PerformanceRelease>(&m)) {
+            applied(kSlotSynth, m);
             state_.perfSession = r->session & kSessionMask;
             state_.perfSessionKnown = true;
             resyncAll = !fromReply;
@@ -581,11 +594,13 @@ void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromRep
         }
         if (const auto* l = std::get_if<MidiLearn>(&m)) {
             state_.midiLearn = *l;
+            applied(kSlotSynth, m);
             if (!fromReply && listener_)
                 listener_->midiLearned(*l);
             continue;
         }
         if (applyToSynth(state_, m)) {
+            applied(kSlotSynth, m);
             const auto mid = idOf(m);
             (mid == id::SynthData || mid == id::Voices || mid == id::ClockInfo || mid == id::FlashUsage ? synthNews
                                                                                                         : perfNews) = true;
@@ -613,6 +628,8 @@ void Client::sendPatch(int slot, const Patch& patch, const std::string& name)
     auto& s = state_.slots[static_cast<std::size_t>(slot)];
     s.patch = patch;
     s.name = name;
+    if (observer_)
+        observer_->slotReplaced(slot);
     const auto bubble = patchUpload(static_cast<u8>(slot), patch, name);
     enqueueUser([bubble] { return bubble; });
 }
@@ -620,14 +637,18 @@ void Client::sendPatch(int slot, const Patch& patch, const std::string& name)
 void Client::sendPerformance(const Performance& perf, const std::string& name)
 {
     state_.setPerformance(perf, name);
+    if (observer_)
+        observer_->stateReplaced();
     const auto bubble = performanceUpload(perf, name);
     enqueueUser([bubble] { return bubble; });
 }
 
 void Client::applyEdit(int slot, const Molecule& m)
 {
-    if (slot >= 0 && slot < kSlots)
+    if (slot >= 0 && slot < kSlots) {
         applyToSlot(state_.slots[static_cast<std::size_t>(slot)], m);
+        applied(static_cast<u8>(slot), m);
+    }
 }
 
 void Client::editBubble(int slot, std::vector<Molecule> molecules)
@@ -711,6 +732,7 @@ void Client::selectSlot(int slot)
     if (slot < 0 || slot >= kSlots)
         return;
     state_.slotFocus = static_cast<u8>(slot);
+    applied(kSlotSynth, SlotFocus{static_cast<u8>(slot)});
     enqueueUser([this, slot] { return perfBubble({SlotFocus{static_cast<u8>(slot)}}); });
 }
 

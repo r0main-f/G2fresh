@@ -15,6 +15,8 @@ Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a 
 | `tools/rsrc/` | Extractors for the original editor's resources (`rsrc.py`, `panl.py`) |
 | `core/` | `libg2core`: `.pch2`/`.prf2` codec (`file.hpp`), patch model (`patch.hpp`), edit operations (`edit.hpp`), module database (`module_db.hpp`), parameter display text (`param_text.hpp`) |
 | `proto/` | `libg2proto`: the USB protocol (framing, molecules, the client's handshake / sync / edits) and a virtual G2 for tests (`emulator.hpp`); spec in `re/notes/usb-protocol.md` |
+| `usb/` | `libg2usb`: the USB connection through libusb (`LibusbTransport`); libusb is built from source |
+| `bridge/` | `g2bridge`, the process that owns the G2's USB connection and serves every editor over a local socket, and `BridgeLink`, an editor's link to it |
 | `assets/clavia/` | Original module layouts and graphics, bundled into the app (Clavia's property, see NOTICE) |
 | `data/` | Module and parameter database (JSON), compiled into the core by `tools/moduledb/gen_cpp.py` |
 | `plugin/` | JUCE target: stand-alone app, VST3, AU |
@@ -28,12 +30,22 @@ Builds for macOS (universal), Windows and Linux are attached to each [release](h
 - **Windows:** SmartScreen may warn: choose "More info", then "Run anyway". Copy `G2fresh.vst3` to `C:\Program Files\Common Files\VST3\`.
 - **Linux:** copy `G2fresh.vst3` to `~/.vst3/`.
 
+## Connecting a G2
+
+Only one program can hold the G2's USB connection, while you may run the stand-alone app and several plugin instances at once. So a small background program, `g2bridge`, owns the connection and serves every editor. The editors start it when needed, and it quits a few seconds after the last one closes. It ships next to the stand-alone app's executable and inside each plugin bundle (`Contents/Resources/`). `g2bridge --emulator` serves a virtual G2 instead, for trying things without hardware.
+
+- **macOS:** nothing to install.
+- **Windows:** libusb needs the WinUSB driver for the G2. Install it once with [Zadig](https://zadig.akeo.ie/): plug in the G2, choose "Options > List All Devices", select the Nord Modular G2, choose "WinUSB" and click "Replace Driver". (Clavia's own driver cannot be used; the original editor needs it, so switch back with Zadig to use that one.)
+- **Linux:** give your user access to the device with a udev rule, e.g. `/etc/udev/rules.d/50-nord-g2.rules` containing `SUBSYSTEM=="usb", ATTRS{idVendor}=="0ffc", ATTRS{idProduct}=="0002", MODE="0666"`, then `sudo udevadm control --reload` and replug the G2.
+
 ## Build
 
 ```sh
-brew install cmake ninja catch2 libusb   # macOS (JUCE is fetched by CMake)
+brew install cmake ninja   # macOS (JUCE, Catch2 and libusb are fetched by CMake)
 cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 ```
+
+`-DG2_WITH_USB=OFF` builds without libusb (the bridge then only serves the virtual G2).
 
 ## Reverse-engineering setup
 
