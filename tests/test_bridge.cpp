@@ -11,6 +11,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <system_error>
 #include <functional>
 #include <thread>
 
@@ -357,7 +358,11 @@ TEST_CASE("bridge: an editor starts the bridge executable on demand")
     bool gone = false;
     for (int i = 0; i < 400 && !gone; ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        gone = !std::filesystem::exists(o.socketPath);
+        // The non-throwing overload: on Windows, querying an AF_UNIX socket
+        // file fails ("cannot be accessed") instead of reporting it; that
+        // counts as still there.
+        std::error_code ec;
+        gone = !std::filesystem::exists(o.socketPath, ec) && !ec;
     }
     CHECK(gone);
 }
