@@ -911,3 +911,14 @@ spec says [I] or lists an open question. Check them in this order on the first h
    `Options::exceptionsAreFatal` is off; the emulator answers a bad CRC with `7E 4`).
 10. **Unknowns still open:** `3F` scope semantics (applied only for scope `0xFF`), `56` polyphony and velocity, `7D`'s
     effect on the panel, the meaning of the `72` counters.
+11. **LED mapping (editor, `ui/LiveLeds.cpp`).** A module's LED groups are taken in group order. Some PANL files list
+    them in another order (Gate, 2-In, 4-In, Mix4-1S), where a literal reading of `CPanel::GetLedGroupCnt` would
+    skip groups; Verhue's table, used with real synths, gives every group an entry in group order. Single-LED values
+    1..3 (`CPnlLed::SetValue` jumps through an unrecovered table): drawn as on, brighter with the value.
+12. **Load reports.** `72`'s dynamic RAM is a u14 (max 16383) while the editor's limit is 131072 words: whether the
+    synth scales it (or Q memory) is unknown; the editor shows the reported figures with the original's formulas.
+13. **Flash banks.** 32 patch banks and 8 performance banks of 128 programs are assumed for the browser (more are shown
+    if the synth lists them); a store is followed by a fresh name-list read (the synth was not seen to send one).
+
+The USB log (`g2bridge` writes `proto::defaultUsbLogPath()`, Synth > Show USB Log) records every frame both ways with
+its time, header, session and first molecule id: the material to check all of the above.

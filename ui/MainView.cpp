@@ -1,6 +1,8 @@
 #include "MainView.h"
 
 #include "BankBrowser.h"
+
+#include "g2/proto/logging_transport.hpp"
 #include "CableLayout.h"
 
 #include "Dialogs.h"
@@ -23,7 +25,7 @@ enum MenuId {
     kCablesBase = 300,        // + cable colour
     kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
     kMidiChannelBase = 600,   // + channel (0: as played)
-    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory,
+    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
 };
@@ -277,6 +279,8 @@ juce::PopupMenu MainView::synthMenu()
     m.addSeparator();
     m.addItem(item(kUnbind, synth_->bound() ? "Stop Live Editing" : "Live Editing (send or get a patch first)", {},
                    synth_->bound(), synth_->bound()));
+    m.addSeparator();
+    m.addItem(item(kShowUsbLog, "Show USB Log (for bug reports)"));
     return m;
 }
 
@@ -393,6 +397,14 @@ void MainView::menuItemSelected(int id, int)
             confirmDiscard([this] { synth_->getPerformance(); });
         else if (id == kUnbind)
             synth_->unbind();
+        else if (id == kShowUsbLog) {
+            // Written by g2bridge while it talks to a real G2.
+            const juce::File log{juce::String(g2::proto::defaultUsbLogPath())};
+            if (log.existsAsFile())
+                log.revealToUser();
+            else
+                setStatus("No USB log yet: it is written while G2fresh talks to a real G2 (" + log.getFullPathName() + ")");
+        }
         else if (id == kSynthMemory) {
             if (!bankBrowser_)
                 bankBrowser_ = std::make_unique<BankBrowser>(*synth_, [this](std::function<void()> then) {

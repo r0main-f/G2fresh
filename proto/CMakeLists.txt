@@ -9,6 +9,7 @@ add_library(g2proto STATIC
   src/client.cpp
   src/emulator.cpp
   src/link.cpp
+  src/logging_transport.cpp
 )
 target_include_directories(g2proto PUBLIC include)
 target_link_libraries(g2proto PUBLIC g2core)

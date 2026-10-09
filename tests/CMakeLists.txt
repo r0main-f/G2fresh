@@ -24,6 +24,7 @@ add_executable(g2tests
   test_proto_messages.cpp
   test_proto_session.cpp
   test_proto_link.cpp
+  test_proto_log.cpp
   test_bridge.cpp
 )
 target_link_libraries(g2tests PRIVATE g2bridgelib Catch2::Catch2WithMain) # g2proto and g2core come with it
