@@ -6,8 +6,8 @@
 // Time: one master clock, the DSPs' frame clock. A frame is one 96 kHz sample, 1536 DSP clocks [C]; per frame the
 // ColdFire runs 1687.5 of its cycles (162 MHz) and its timers 562.5 bus clocks (54 MHz) (§3.9.2).
 //
-// Threads: everything runs on the thread that calls run() (deterministic). The USB and MIDI queues may be fed from
-// other threads.
+// Threads: by default everything runs on the thread that calls run() (deterministic); Options::threads = 1 moves the
+// DSPs to a thread of their own. The USB and MIDI queues may be fed from other threads.
 #pragma once
 
 #include "g2emu/firmware.hpp"
@@ -27,16 +27,22 @@ public:
     struct Options {
         bool jit = true;               // the DSPs on dsp56300's JIT (the interpreter cannot be stepped: debugging)
         bool idleSkip = true;          // skip the DSPs' idle background loop (no state changes)
+        bool pollSkip = true;          // skip the ColdFire's loops that wait on a DSP's host port (single thread)
         double cfHz = 162e6;           // ColdFire core clock: cycles of the core's (V2) timing per second
         std::uint32_t ringPrefill = 16;  // frames of head start on the ESAI_1 line that closes the ring (A3 -> A6)
         std::uint32_t chainPrefill = 2;  // the same on each hop of the chain (absorbs the JIT's overshoot)
         std::uint32_t quantum = 1536;  // DSP clocks the ColdFire runs ahead of the DSPs at most (1 frame)
+        // 0: everything on the caller's thread, deterministic. 1: the four DSPs on a thread of their own, running
+        // alongside the ColdFire at most `skew` DSP clocks apart (not deterministic: when a host-port access meets
+        // the DSPs depends on the threads' timing, as on the board).
+        int threads = 0;
+        std::uint32_t skew = 2 * 1536;
         bool trace = false;            // log unusual events (unmapped accesses, exceptions) to stderr
     };
 
     struct Stats {
         std::uint64_t frames = 0;              // DAC frames produced
-        std::uint64_t cfInstructions = 0, cfCycles = 0, cfSkipped = 0;
+        std::uint64_t cfInstructions = 0, cfCycles = 0, cfSkipped = 0, cfPollSkipped = 0;
         std::uint64_t dspExecuted[4] = {}, dspSkipped[4] = {};
         std::uint64_t linkUnderruns = 0, linkOverruns = 0;
         std::uint64_t unmapped = 0, exceptions = 0, midiOverruns = 0;

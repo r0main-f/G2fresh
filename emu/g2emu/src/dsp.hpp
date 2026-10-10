@@ -2,6 +2,9 @@
 // seen from the ColdFire, its two ESAIs linked to the other DSPs, and stepping on the caller's thread, so that the
 // machine decides when each DSP runs and for how long (re/notes/g2-hardware-and-emulation.md §3.6.4, §3.7, §3.9).
 //
+// Threads: the host-port functions run on the ColdFire's thread, runTo() on the DSP's; they meet only in the
+// library's thread-safe parts of the HDI08 (its queues, host flags and host commands).
+//
 // Time: a DSP's instruction counter is its clock. The ESAI clock ticks once per slot every 192 counts, 1536 per
 // frame (§3.7.1); the machine runs every DSP to the same count, so their frames stay aligned. While a DSP waits in
 // its boot ROM, or idles in stage 1's background loop, its counter is moved on without running anything.
@@ -18,6 +21,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 namespace g2emu {
@@ -95,7 +99,7 @@ public:
     void setDividers(std::uint32_t tx0, std::uint32_t rx0, std::uint32_t tx1, std::uint32_t rx1);
     // An unlinked ESAI transmitter (the DACs on the output DSP): its frames go here, 4 words per frame
     // (slot 0 TX0, slot 0 TX1, slot 1 TX0, slot 1 TX1).
-    void setSink(std::vector<std::int32_t>* sink) { sink_ = sink; }
+    void setSink(std::vector<std::int32_t>* sink, std::mutex* mutex) { sink_ = sink; sinkMutex_ = mutex; }
 
     // ---- statistics and debugging ----
     std::uint64_t txFrames(int esaiIndex) const { return txFrames_[esaiIndex & 1]; }
@@ -111,6 +115,7 @@ private:
     void writeTx(int i, const dsp56k::Audio::TxFrame& f);
     std::uint32_t onPeripherals();
     void feedBootRom();
+    void retryHostCommand();  // the host's side: a host command that found the DSP's queue full
     std::uint8_t isr();
 
     int index_;
@@ -140,6 +145,7 @@ private:
     Link* in_[2] = {nullptr, nullptr};
     Link* out_[2] = {nullptr, nullptr};
     std::vector<std::int32_t>* sink_ = nullptr;
+    std::mutex* sinkMutex_ = nullptr;
     std::uint64_t txFrames_[2] = {0, 0}, rxFrames_[2] = {0, 0};
 
     std::uint64_t lastTick_ = 0;  // instruction count at the last slot tick

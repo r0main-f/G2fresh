@@ -8,6 +8,9 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <thread>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -93,7 +96,12 @@ struct Machine::Impl final : coldfire::Bus {
     std::array<std::unique_ptr<Link>, 8> links;
     std::array<int, 4> chain{3, 2, 1, 0};  // A6 (clock master, ADCs) -> A5 -> A4 -> A3 (DACs) [§3.7.3]
     std::vector<std::int32_t> dac;          // the DACs' words, 4 per frame
-    std::size_t dacTaken = 0;
+    std::mutex dacMutex;
+
+    // threads = 1: the DSPs' thread runs them up to `horizon`, and publishes how far they got in `dspTime`
+    std::thread worker;
+    std::atomic<std::uint64_t> horizon{0}, dspTime{0};
+    std::atomic<bool> quit{false};
 
     // time
     std::uint64_t t = 0;         // master time in DSP clocks
@@ -125,6 +133,10 @@ struct Machine::Impl final : coldfire::Bus {
     std::uint64_t profileIpl[8] = {};
     ~Impl() override
     {
+        stopWorker();
+        if(timing)
+            std::fprintf(stderr, "time: cf %.2f s (of which DSP catch-up %.2f s), DSPs at the end of each slice %.2f s\n", cfNs * 1e-9,
+                         syncNs * 1e-9, dspNs * 1e-9);
         if(!profile) return;
         std::vector<std::pair<std::uint64_t, std::uint32_t>> v;
         std::uint64_t total = 0;
@@ -202,7 +214,7 @@ struct Machine::Impl final : coldfire::Bus {
             link(chain[k], 1, 2, chain[k + 1], 1, opt.chainPrefill);
         }
         link(last, 1, 2, first, 1, opt.ringPrefill);
-        dsps[std::size_t(last)]->setSink(&dac);
+        dsps[std::size_t(last)]->setSink(&dac, &dacMutex);
     }
 
     // ---- time ----
@@ -215,14 +227,23 @@ struct Machine::Impl final : coldfire::Bus {
     // Catches the DSPs up to the ColdFire's time, in chain order up to DSP n (each needs its upstream's frames).
     void syncDsps(int n)
     {
+        if(opt.threads) return;  // the DSPs run on their own thread
         const auto target = dspTimeOfCf(cfNow());
         ++st.dspSyncs;
+        const auto t0 = timing ? clockNs() : 0;
         for(int k : chain)
         {
             dsps[std::size_t(k)]->runTo(target);
             if(k == n) break;
         }
+        if(timing) syncNs += clockNs() - t0;
     }
+    static std::uint64_t clockNs()
+    {
+        return std::uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+    }
+    bool timing = std::getenv("G2EMU_TIMING") != nullptr;
+    std::uint64_t syncNs = 0, cfNs = 0, dspNs = 0;
 
     // ---- the ColdFire bus ----
     std::uint32_t mmioRead(std::uint32_t a, int size)
@@ -327,12 +348,55 @@ struct Machine::Impl final : coldfire::Bus {
             else
                 v &= stubs[std::size_t(n - 4)].read(reg);
         }
-        return v;
+        return pollSkip(off, sel, reg, v);
+    }
+
+    // Poll skipping (single thread): the ColdFire reads the same status register of one DSP (CVR: waiting for a host
+    // command to be taken; ISR: for data or a host flag) from the same instruction, with nothing else on the host
+    // port in between, and finds the same value: it spins until the DSP changes it. Instead of running the loop, the
+    // DSPs run ahead until the value changes (at most a frame) and the ColdFire's clock moves on by as much, as if it
+    // had spun all that time. Only ColdFire instructions that do nothing but wait are left out.
+    struct Poll {
+        std::uint32_t pc = 0, off = ~0u;
+        std::uint8_t value = 0;
+    } poll;
+    std::uint8_t pollSkip(std::uint32_t off, unsigned sel, int reg, std::uint8_t v)
+    {
+        const std::uint32_t pc = cpu.getInstructionPC();
+        const bool repeat = pc == poll.pc && off == poll.off && v == poll.value;
+        poll = {pc, off, v};
+        if(!repeat || opt.threads || !opt.pollSkip || (reg != 1 && reg != 2) || (sel & (sel - 1)) || !(sel & 0x0f)) return v;
+        int n = 0;
+        while(!(sel & (1u << n))) ++n;
+        auto& d = *dsps[std::size_t(n)];
+        const std::uint64_t from = dspTimeOfCf(cfNow());
+        std::uint64_t to = from;
+        std::uint8_t now = v;
+        while(now == v && to < from + Dsp::CyclesPerFrame)
+        {
+            to += 16;
+            for(int k : chain)
+            {
+                dsps[std::size_t(k)]->runTo(to);
+                if(k == n) break;
+            }
+            now = d.hostRead(reg);
+        }
+        const auto cfTo = cfTimeOfDsp(to);
+        if(cfTo > cfNow())
+        {
+            st.cfPollSkipped += cfTo - cfNow();
+            cfSkipped += cfTo - cfNow();
+        }
+        irqDirty = true;  // the run loop looks at the clock again
+        poll.value = now;
+        return now;
     }
 
     void hostWrite8(std::uint32_t off, std::uint8_t v)
     {
         waitCycles += 12;
+        poll.off = ~0u;
         const unsigned sel = (~off >> 3) & 0xff;
         const int reg = int(off & 7);
         for(int n = 0; n < 8; ++n)
@@ -411,11 +475,14 @@ struct Machine::Impl final : coldfire::Bus {
     void runCf(std::uint64_t dspEnd)
     {
         const std::uint64_t target = cfTimeOfDsp(dspEnd);
-        while(cfNow() < target)
+        for(;;)
         {
-            if(busNow() >= nextSimEvent)
+            const std::uint64_t now = cfNow();
+            if(now >= target) break;
+            const std::uint64_t bus = busNow();
+            if(bus >= nextSimEvent)
             {
-                sim.advance(busNow());
+                sim.advance(bus);
                 nextSimEvent = sim.nextEvent();
                 irqDirty = true;
             }
@@ -424,20 +491,32 @@ struct Machine::Impl final : coldfire::Bus {
                 irqDirty = false;
                 cpu.setInterruptLevel(std::uint8_t(sim.pendingLevel()));
             }
-            if(cpu.isStopped() && sim.pendingLevel() == 0)
+            // run until the next timed event or the end of the slice; an access to the SIM or the USB chip (which may
+            // change an interrupt or the next event) ends the run early (irqDirty)
+            const std::uint64_t eventCf = nextSimEvent == ~0ull ? target : std::uint64_t(double(nextSimEvent) / busPerCf) + 1;
+            const std::uint64_t limit = std::min(target, std::max(eventCf, now + 1));
+            if(cpu.isStopped())
             {
                 // STOP: nothing runs until an interrupt; move on to the next event or the end of the slice
-                const auto next = std::min<std::uint64_t>(target, nextSimEvent == ~0ull ? target : std::uint64_t(double(nextSimEvent) / busPerCf) + 1);
-                if(next > cfNow()) { cfSkipped += next - cfNow(); st.cfSkipped += 0; }
-                else cpu.step();
+                if(sim.pendingLevel() == 0) { cfSkipped += limit - now; continue; }
+                cpu.step();
                 continue;
             }
-            cpu.step();
-            if(profile && (++profileTick % 61) == 0 && t >= profileFrom)
+            const std::uint64_t stepLimit = limit - cfSkipped;  // in the core's own cycle count
+            if(profile)
             {
-                ++(*profile)[cpu.getPC() & ~0x3fu];
-                ++profileIpl[(cpu.getSR() >> 8) & 7];
+                while(cpu.getCycles() < stepLimit && !irqDirty)
+                {
+                    cpu.step();
+                    if((++profileTick % 61) == 0 && t >= profileFrom)
+                    {
+                        ++(*profile)[cpu.getPC() & ~0x3fu];
+                        ++profileIpl[(cpu.getSR() >> 8) & 7];
+                    }
+                }
             }
+            else
+                while(cpu.getCycles() < stepLimit && !irqDirty && !cpu.isStopped()) cpu.step();
             if(cpu.isHalted())
             {
                 if(opt.trace) std::fprintf(stderr, "g2emu: the ColdFire halted at %08x\n", cpu.getPC());
@@ -539,21 +618,76 @@ struct Machine::Impl final : coldfire::Bus {
     void run(std::uint32_t frames, std::vector<float>* out)
     {
         const std::uint64_t end = t + std::uint64_t(frames) * Dsp::CyclesPerFrame;
+        if(opt.threads && !worker.joinable()) startWorker();
         while(t < end)
         {
             const std::uint64_t q = std::min<std::uint64_t>(end, t + opt.quantum);
-            runCf(q);
-            for(int k : chain) dsps[std::size_t(k)]->runTo(q);
+            const auto t0 = timing ? clockNs() : 0;
+            if(opt.threads)
+            {
+                // the ColdFire may not run more than `skew` ahead of the DSPs
+                waitFor([&] { return dspTime.load(std::memory_order_acquire) + opt.skew >= q; });
+                runCf(q);
+                horizon.store(q + opt.skew, std::memory_order_release);
+            }
+            else
+            {
+                runCf(q);
+                const auto t1 = timing ? clockNs() : 0;
+                for(int k : chain) dsps[std::size_t(k)]->runTo(q);
+                if(timing) dspNs += clockNs() - t1;
+            }
+            if(timing) cfNs += clockNs() - t0;
             t = q;
             usbStep();
         }
+        if(opt.threads)
+            waitFor([&] { return dspTime.load(std::memory_order_acquire) >= end; });
         // hand out the DAC frames produced so far
-        const std::size_t words = dac.size() - dacTaken;
+        std::vector<std::int32_t> words;
+        {
+            std::lock_guard lock(dacMutex);
+            words.swap(dac);
+        }
         if(out)
-            for(std::size_t k = dacTaken; k < dac.size(); ++k) out->push_back(float(dac[k]) / 8388608.0f);
-        st.frames += words / 4;
-        dac.clear();
-        dacTaken = 0;
+            for(auto w : words) out->push_back(float(w) / 8388608.0f);
+        st.frames += words.size() / 4;
+    }
+
+    // spins briefly, then yields
+    template<typename F> static void waitFor(F ready)
+    {
+        for(int i = 0; !ready(); ++i)
+            if(i > 64) std::this_thread::yield();
+    }
+
+    void startWorker()
+    {
+        dspTime.store(t);
+        horizon.store(t + opt.skew);
+        worker = std::thread([this] {
+            std::uint64_t done = dspTime.load();
+            while(!quit.load(std::memory_order_relaxed))
+            {
+                const auto h = horizon.load(std::memory_order_acquire);
+                if(done >= h)
+                {
+                    waitFor([&] { return quit.load(std::memory_order_relaxed) || horizon.load(std::memory_order_acquire) > done; });
+                    continue;
+                }
+                // one frame at a time, in chain order, so that each DSP finds its upstream's frames
+                const auto target = std::min(h, done + Dsp::CyclesPerFrame);
+                for(int k : chain) dsps[std::size_t(k)]->runTo(target);
+                done = target;
+                dspTime.store(done, std::memory_order_release);
+            }
+        });
+    }
+
+    void stopWorker()
+    {
+        quit = true;
+        if(worker.joinable()) worker.join();
     }
 
     Stats stats()

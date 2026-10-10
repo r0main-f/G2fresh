@@ -62,6 +62,7 @@ std::uint8_t Dsp::isr()
 
 std::uint8_t Dsp::hostRead(int reg)
 {
+    retryHostCommand();
     switch(reg)
     {
     case 0: return icr_;
@@ -89,6 +90,7 @@ std::uint8_t Dsp::hostRead(int reg)
 
 void Dsp::hostWrite(int reg, std::uint8_t v)
 {
+    retryHostCommand();
     switch(reg)
     {
     case 0:
@@ -140,13 +142,17 @@ void Dsp::feedBootRom()
     }
 }
 
-void Dsp::runTo(std::uint64_t target)
+void Dsp::retryHostCommand()
 {
     if(hcPending_ && !hdi_.hostCommandsFull())
     {
         hdi_.injectHostCommand(hcVector_);
         hcPending_ = false;
     }
+}
+
+void Dsp::runTo(std::uint64_t target)
+{
     while(dsp_.getInstructionCounter() < target)
     {
         if(booting_)
@@ -221,9 +227,14 @@ void Dsp::writeTx(int i, const Audio::TxFrame& f)
     if(!l)
     {
         if(i == 0 && sink_)
+        {
+            std::int32_t w[4];
             for(std::uint32_t s = 0; s < 2; ++s)
                 for(std::uint32_t t = 0; t < 2; ++t)
-                    sink_->push_back(s < f.size() ? std::int32_t(f[s][t] << 8) >> 8 : 0);
+                    w[s * 2 + t] = s < f.size() ? std::int32_t(f[s][t] << 8) >> 8 : 0;
+            std::lock_guard lock(*sinkMutex_);
+            sink_->insert(sink_->end(), w, w + 4);
+        }
         return;
     }
     Dsp& d = *l->down;

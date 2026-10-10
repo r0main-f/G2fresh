@@ -2,7 +2,7 @@
 //
 //   g2emurun [--fw PATH] [--patch FILE | --kbd FILE] [--to B:FILE ...] [--settle S] [--seconds S]
 //            [--note N@ON-OFF ...] [--midi N@ON-OFF[:CH] ...] [--wav OUT.wav] [--json OUT.json]
-//            [--boot S] [--quantum N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
+//            [--boot S] [--quantum N] [--threads 0|1] [--skew N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
 //
 // Boots the user's own firmware (--fw: the updater's .rsrc, the updater app, or G2fresh's original/firmware),
 // plugs in our protocol client (proto::Client over the emulated USB chip) after --boot emulated seconds, waits for
@@ -169,8 +169,11 @@ int main(int argc, char** argv)
         else if(a == "--ring-prefill") opt.ringPrefill = std::uint32_t(std::stoul(next()));
         else if(a == "--chain-prefill") opt.chainPrefill = std::uint32_t(std::stoul(next()));
         else if(a == "--cf-mhz") opt.cfHz = std::stod(next()) * 1e6;
+        else if(a == "--threads") opt.threads = std::stoi(next());
+        else if(a == "--skew") opt.skew = std::uint32_t(std::stoul(next()));
         else if(a == "--no-jit") opt.jit = false;
         else if(a == "--no-idle-skip") opt.idleSkip = false;
+        else if(a == "--no-poll-skip") opt.pollSkip = false;
         else if(a == "--trace") opt.trace = true;
         else
         {
@@ -206,7 +209,7 @@ int main(int argc, char** argv)
         const auto s = m.stats();
         const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
         std::fprintf(stderr,
-                     "[%7.3f s emulated, %6.1f s wall] %s: cf pc %08x, %llu instr; dsp pc %06x %06x %06x %06x; "
+                     "[%7.3f s emulated, %7.3f s wall] %s: cf pc %08x, %llu instr; dsp pc %06x %06x %06x %06x; "
                      "executed/frame %.0f %.0f %.0f %.0f; host cmds %llu; underruns %llu\n",
                      m.seconds(), wall, what, s.cfPc, (unsigned long long)s.cfInstructions, s.dspPc[0], s.dspPc[1],
                      s.dspPc[2], s.dspPc[3], double(s.dspExecuted[0]) / double(m.frame() + 1),
@@ -331,6 +334,9 @@ int main(int argc, char** argv)
     const double emulated = double(frames) / g2emu::Machine::FrameRate;
     std::printf("speed: %.3f emulated s in %.3f wall s = %.2fx real time, %.2f CPU s per emulated s\n", emulated,
                 recWall, emulated / recWall, recCpu / emulated);
+    std::printf("host port: %.0f reads/s, %.0f commands/s, %.0f DSP syncs/s; ColdFire time in skipped polls %.1f%%\n",
+                double(s.hostReads) / m.seconds(), double(s.hostCommands) / m.seconds(), double(s.dspSyncs) / m.seconds(),
+                100.0 * double(s.cfPollSkipped) / double(s.cfCycles));
     std::printf("whole run: %.1f emulated s, %.1f wall s, %.1f CPU s; cf %llu instr (%.1f M/s emulated); midi overruns %llu\n",
                 m.seconds(), std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count(),
                 cpuSeconds() - cpu0, (unsigned long long)s.cfInstructions, double(s.cfInstructions) / m.seconds() / 1e6,
