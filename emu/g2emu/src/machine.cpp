@@ -413,7 +413,7 @@ struct Machine::Impl final : coldfire::Bus {
         return pollSkip(off, sel, reg, v);
     }
 
-    // Poll skipping (single thread): the ColdFire reads the same status register of one DSP (CVR: waiting for a host
+    // Poll skipping: the ColdFire reads the same status register of one DSP (CVR: waiting for a host
     // command to be taken; ISR: for data or a host flag) from the same instruction, with nothing else on the host
     // port in between, and finds the same value: it spins until the DSP changes it. Instead of running the loop, the
     // DSPs run ahead until the value changes (at most a frame) and the ColdFire's clock moves on by as much, as if it
@@ -427,7 +427,17 @@ struct Machine::Impl final : coldfire::Bus {
         const std::uint32_t pc = cpu.getInstructionPC();
         const bool repeat = pc == poll.pc && off == poll.off && v == poll.value;
         poll = {pc, off, v};
-        if(!repeat || opt.threads || !opt.pollSkip || (reg != 1 && reg != 2) || (sel & (sel - 1)) || !(sel & 0x0f)) return v;
+        if(!repeat || !opt.pollSkip || (reg != 1 && reg != 2) || (sel & (sel - 1)) || !(sel & 0x0f)) return v;
+        if(opt.threads)
+        {
+            // the DSPs run on their own: the ColdFire's clock moves on a little per repeated poll instead of running
+            // the loop (the answer comes as soon as the DSP's thread gets there; the skew bounds how far it may be)
+            const std::uint64_t step = 128;
+            st.cfPollSkipped += step;
+            cfSkipped += step;
+            irqDirty = true;
+            return v;
+        }
         int n = 0;
         while(!(sel & (1u << n))) ++n;
         auto& d = *dsps[std::size_t(n)];

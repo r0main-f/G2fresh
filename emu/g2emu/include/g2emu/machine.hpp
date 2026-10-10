@@ -27,7 +27,7 @@ public:
     struct Options {
         bool jit = true;               // the DSPs on dsp56300's JIT (the interpreter cannot be stepped: debugging)
         bool idleSkip = true;          // skip the DSPs' idle background loop (no state changes)
-        bool pollSkip = true;          // skip the ColdFire's loops that wait on a DSP's host port (single thread)
+        bool pollSkip = true;          // skip the ColdFire's loops that wait on a DSP's host port
         double cfHz = 162e6;           // ColdFire core clock: cycles of the core's (V2) timing per second
         std::uint32_t ringPrefill = 16;  // frames of head start on the ESAI_1 line that closes the ring (A3 -> A6)
         std::uint32_t chainPrefill = 2;  // the same on each hop of the chain (absorbs the JIT's overshoot)
