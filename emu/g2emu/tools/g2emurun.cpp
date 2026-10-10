@@ -38,10 +38,14 @@
 #include <string>
 #include <vector>
 
-#ifdef __APPLE__
-#include <mach/mach.h>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
 #endif
+#include <windows.h>
+#else
 #include <sys/resource.h>
+#endif
 
 using namespace g2;
 
@@ -55,6 +59,27 @@ struct NoteEvent {
     int channel = 0;
 };
 
+#ifdef _WIN32
+double seconds(const FILETIME& a, const FILETIME& b)  // kernel + user, 100 ns units
+{
+    return 1e-7 * double((std::uint64_t(a.dwHighDateTime) << 32 | a.dwLowDateTime)
+                         + (std::uint64_t(b.dwHighDateTime) << 32 | b.dwLowDateTime));
+}
+
+double threadCpuSeconds()
+{
+    FILETIME created, exited, kernel, user;
+    GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user);
+    return seconds(kernel, user);
+}
+
+double cpuSeconds()
+{
+    FILETIME created, exited, kernel, user;
+    GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user);
+    return seconds(kernel, user);
+}
+#else
 double threadCpuSeconds()
 {
     timespec ts{};
@@ -68,6 +93,7 @@ double cpuSeconds()
     getrusage(RUSAGE_SELF, &r);
     return double(r.ru_utime.tv_sec + r.ru_stime.tv_sec) + 1e-6 * double(r.ru_utime.tv_usec + r.ru_stime.tv_usec);
 }
+#endif
 
 std::vector<std::uint8_t> readFile(const std::string& p)
 {
