@@ -309,6 +309,7 @@ int main(int argc, char** argv)
         else if(a == "--no-jit") opt.jit = false;
         else if(a == "--no-idle-skip") opt.idleSkip = false;
         else if(a == "--no-poll-skip") opt.pollSkip = false;
+        else if(a == "--causal-reads") opt.causalReads = true;
         else if(a == "--trace") opt.trace = true;
         else
         {

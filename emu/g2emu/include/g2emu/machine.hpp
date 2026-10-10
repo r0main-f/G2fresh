@@ -39,6 +39,9 @@ public:
         // The caller's thread needs a big stack (8 MB or more): the JIT compiles there in single-thread mode.
         int threads = 0;
         std::uint32_t skew = 2 * 1536;
+        // threads > 0: a status read of a DSP's host port waits (wall time) until that DSP has reached the ColdFire's
+        // time. Off: it cost 15-25 % of speed and no failure needed it once the host port was ordered (§3.9.6)
+        bool causalReads = false;
         double usbAfter = 2.0;         // plugUsb() takes effect once the OS has run this long (seconds): it boots in 1.6
         bool trace = false;            // log unusual events (unmapped accesses, exceptions) to stderr
     };

@@ -1323,6 +1323,11 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
   with 2-4 DSP threads; but without poll skipping a DSP still strayed in about 1 of 8 runs (stopped by the trap, the OS
   then lost USB contact). The cause is not found; it needs the DSPs on more than one thread and the ColdFire hammering
   the host ports. `threads = 1` showed nothing in any test (also without poll skipping); 2-4 stay experimental.
+  Ruled out since: stale DSP answers (none: no answer was ever written over an unread one, in any mode). Tried:
+  `Options::causalReads` makes a status read wait (wall time) until that DSP has reached the ColdFire's time, in case
+  an OS wait counted in loop iterations expired before a lagging DSP thread got there; with it, 0 failures in 22 runs
+  of the failing configuration, but also 0 in 20 without it (the ordered host port had made the failure rare), and it
+  costs 15-25 % of speed: off by default.
 * The OS's DSP code runs the undefined opcode `$000040`: harmless (dsp56300 runs it as ILLEGAL; its vector is empty),
   logged by the library when it compiles such a block; g2emu filters that line.
 * The core counts V2 cycles (§3.9.2): the emulated CPU is probably slower than the real one; nothing seen depends on it
