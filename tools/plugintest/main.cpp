@@ -2,6 +2,7 @@
 // exits with 0 when all pass.
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -28,13 +29,18 @@ auto onMessageThread(F&& f)
 std::unique_ptr<juce::AudioPluginInstance> load(const juce::String& path, double rate, int block)
 {
     return *onMessageThread([&]() -> std::unique_ptr<juce::AudioPluginInstance> {
-        juce::VST3PluginFormat format;
+        // a .component is an Audio Unit (as Live uses it), anything else a VST3
+        std::unique_ptr<juce::AudioPluginFormat> format;
+        if (path.endsWithIgnoreCase(".component"))
+            format = std::make_unique<juce::AudioUnitPluginFormat>();
+        else
+            format = std::make_unique<juce::VST3PluginFormat>();
         juce::OwnedArray<juce::PluginDescription> types;
-        format.findAllTypesForFile(types, path);
+        format->findAllTypesForFile(types, path);
         if (types.isEmpty())
             return nullptr;
         juce::String error;
-        auto p = format.createInstanceFromDescription(*types[0], rate, block, error);
+        auto p = format->createInstanceFromDescription(*types[0], rate, block, error);
         if (p == nullptr)
             std::cout << "  cannot load: " << error << std::endl;
         return p;
@@ -44,7 +50,7 @@ std::unique_ptr<juce::AudioPluginInstance> load(const juce::String& path, double
 // Plays `seconds` of audio through the plugin, in real time (or as fast as it goes when offline), with a note held
 // from `noteOn` to `noteOff` (seconds; negative: none). Returns the left channel.
 std::vector<float> play(juce::AudioPluginInstance& p, double rate, int block, double seconds, double noteOn,
-                        double noteOff, bool offline)
+                        double noteOff, bool offline, std::vector<int> notes = {69})
 {
     std::vector<float> out;
     juce::AudioBuffer<float> buffer(2, block);
@@ -53,10 +59,12 @@ std::vector<float> play(juce::AudioPluginInstance& p, double rate, int block, do
     for (int b = 0; b < blocks; ++b) {
         juce::MidiBuffer midi;
         const double t0 = b * block / rate, t1 = (b + 1) * block / rate;
-        if (noteOn >= 0 && noteOn >= t0 && noteOn < t1)
-            midi.addEvent(juce::MidiMessage::noteOn(1, 69, (juce::uint8) 100), static_cast<int>((noteOn - t0) * rate));
-        if (noteOff >= 0 && noteOff >= t0 && noteOff < t1)
-            midi.addEvent(juce::MidiMessage::noteOff(1, 69), static_cast<int>((noteOff - t0) * rate));
+        for (const int n : notes) {
+            if (noteOn >= 0 && noteOn >= t0 && noteOn < t1)
+                midi.addEvent(juce::MidiMessage::noteOn(1, n, (juce::uint8) 100), static_cast<int>((noteOn - t0) * rate));
+            if (noteOff >= 0 && noteOff >= t0 && noteOff < t1)
+                midi.addEvent(juce::MidiMessage::noteOff(1, n), static_cast<int>((noteOff - t0) * rate));
+        }
         buffer.clear();
         {
             const juce::ScopedLock lock(p.getCallbackLock());
@@ -161,6 +169,36 @@ juce::MemoryBlock withPluginState(const juce::MemoryBlock& hostState, const juce
 
 void waitMs(int ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 
+// A project reopened: the plugin restored from the state bytes a host saved (e.g. the AU's ClassInfo from a Live
+// set), then played; prints the level and writes the state the plugin gives back.
+void restore(const juce::String& path, const juce::File& saved, double seconds)
+{
+    constexpr double rate = 48000;
+    constexpr int block = 256;
+    juce::MemoryBlock bytes;
+    check(saved.loadFileAsData(bytes), "the saved state reads (" + juce::String(bytes.getSize()) + " bytes)");
+    auto p = load(path, rate, block);
+    check(p != nullptr, "the plugin loads");
+    if (p == nullptr)
+        return;
+    onMessageThread([&] {
+        p->setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+        p->prepareToPlay(rate, block);
+    });
+    // a chord held over the last 2 s (as played in a set: A minor 7, four voices)
+    const auto out = play(*p, rate, block, seconds, seconds - 2.5, seconds - 0.2, false, {57, 60, 64, 67});
+    const auto tail = static_cast<std::size_t>((seconds - 2.0) * rate);
+    const auto level = peak(out, tail, out.size());
+    std::cout << "  last 2 s: peak " << level << " (" << juce::Decibels::gainToDecibels(level) << " dBFS), samples over 1.0: "
+              << std::count_if(out.begin() + static_cast<std::ptrdiff_t>(tail), out.end(), [](float v) { return std::abs(v) > 1.0f; })
+              << ", longest silence " << longestSilence(out, tail, out.size()) << " samples, latency " << p->getLatencySamples()
+              << std::endl;
+    juce::MemoryBlock after;
+    onMessageThread([&] { p->getStateInformation(after); });
+    saved.withFileExtension(".after").replaceWithData(after.getData(), after.getSize());
+    onMessageThread([&] { p.reset(); });
+}
+
 void run(const juce::String& path, const juce::File& patch)
 {
     constexpr double rate = 48000;
@@ -227,12 +265,28 @@ void run(const juce::String& path, const juce::File& patch)
     check(treeB["emulatorFlash"].toString() == flash, "with the project's synth memory");
 
     std::cout << "Offline rendering (a bounce or a freeze)" << std::endl;
-    b->setNonRealtime(true);
+    // as a host does for a bounce: offline, then a new set-up (the VST3 process mode reaches the plugin there)
+    onMessageThread([&] {
+        b->setNonRealtime(true);
+        b->prepareToPlay(rate, block);
+    });
     const auto t0 = std::chrono::steady_clock::now();
     auto bounce = play(*b, rate, block, 4.0, 0.5, 3.5, true);
     const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     b->setNonRealtime(false);
     std::cout << "  (4 s rendered in " << took << " s; output peak " << peak(bounce, 0, bounce.size()) << ")" << std::endl;
+    {
+        std::size_t run = 0, best = 0, end = 0;
+        for (std::size_t i = 0; i < bounce.size(); ++i) {
+            run = bounce[i] == 0.0f ? run + 1 : 0;
+            if (run > best) {
+                best = run;
+                end = i;
+            }
+        }
+        if (best > 0)
+            std::cout << "  (longest silence: " << best << " samples ending at " << end / rate << " s)" << std::endl;
+    }
     check(peak(bounce, 0, bounce.size()) > 0.01f, "it renders the patch");
     check(longestSilence(bounce, 0, bounce.size()) < static_cast<std::size_t>(rate * 0.005),
           "without dropouts, faster or slower than real time");
@@ -253,15 +307,20 @@ public:
     {
         const auto args = getCommandLineParameterArray();
         if (args.isEmpty()) {
-            std::cerr << "usage: g2plugintest <G2fresh.vst3> [patch.pch2 that sounds without notes]\n";
+            std::cerr << "usage: g2plugintest <G2fresh.vst3|.component> [patch.pch2 that sounds without notes]\n"
+                         "       g2plugintest <plugin> --restore <state saved by a host>\n";
             setApplicationReturnValue(2);
             quit();
             return;
         }
         const juce::String path(args[0]);
-        const juce::File patch = args.size() > 1 ? juce::File::getCurrentWorkingDirectory().getChildFile(args[1]) : juce::File();
-        test_ = std::thread([this, path, patch] {
-            run(path, patch);
+        const bool restoring = args.size() > 2 && args[1] == "--restore";
+        const juce::File file = args.size() > (restoring ? 2 : 1) ? juce::File::getCurrentWorkingDirectory().getChildFile(args[restoring ? 2 : 1]) : juce::File();
+        test_ = std::thread([this, path, file, restoring] {
+            if (restoring)
+                restore(path, file, 8.0);
+            else
+                run(path, file);
             std::cout << (failures == 0 ? "all checks passed" : juce::String(failures) + " check(s) failed") << std::endl;
             juce::MessageManager::callAsync([this] {
                 setApplicationReturnValue(failures == 0 ? 0 : 1);

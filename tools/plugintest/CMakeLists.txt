@@ -4,7 +4,7 @@
 # A GUI app without a window: the plugin needs a running message loop (a console app has none on macOS).
 juce_add_gui_app(g2plugintest PRODUCT_NAME "g2plugintest")
 target_sources(g2plugintest PRIVATE main.cpp)
-target_compile_definitions(g2plugintest PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_PLUGINHOST_AU=0 JUCE_WEB_BROWSER=0
+target_compile_definitions(g2plugintest PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_PLUGINHOST_AU=1 JUCE_WEB_BROWSER=0
   JUCE_USE_CURL=0)
 target_link_libraries(g2plugintest PRIVATE juce::juce_audio_processors juce::juce_audio_utils juce::juce_gui_extra
   juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
