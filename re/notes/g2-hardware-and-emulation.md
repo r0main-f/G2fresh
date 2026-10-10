@@ -67,6 +67,14 @@ extraction tool `tools/firmware/g2os.py` and this note. No Clavia bytes are comm
   four DSPs, an FX send and an inter-slot bus (once around the ring) all reach the DACs.
 * Speed: 0.07–0.6 × real time on a loaded M1, with the interpreter.
 
+**Update (§3.8): control-rate timing fixed.**
+* The DSPs' control-rate code ran 1.9–2.2 × too often (LFOs fast, envelope stages 0.45 × their displayed time).
+  Cause: a bug in the dsp56300 library. Interrupts are run by its JIT even on the interpreter, and the JIT stacked an
+  SR without the condition codes the interpreter computes lazily. So a branch right after a compare went the wrong
+  way when an interrupt fell in between, and the background loop's "every 4th frame" test passed early.
+* `emu/CMakeLists.txt` patches the fetched library. Now LFO rates and envelope times match the editor's display to
+  within 0.6 %, and the control-rate code runs exactly once per 4 frames on all four DSPs.
+
 ## 1. Hardware (Part A)
 
 ### 1.1 Summary table
@@ -691,7 +699,7 @@ The panel (LCD, buttons, knobs on CS4/CS5) is unmodelled: reads give 0, and the 
 * UART RX;
 * ESAI receive data (zeros, no inter-DSP audio links; linked since §3.7);
 * the DSP clock (dsp56300's default EXTAL gives 66 MHz; §3.7 sets 1536 instructions per frame);
-* timer rate (one tick per 20,000 instructions);
+* timer rate (one tick per 20,000 instructions; how that compares with DSP time: §3.8.5);
 * the second (expansion) DSP bank: A7–A10 answer as stubs.
 
 **Not done:**
@@ -821,7 +829,7 @@ So a 32-word buffer holds one frame: word 2k is line 0 (RX0/TX0, or TX2) of slot
 `$0–$F` are ESAI, `$10–$1F` ESAI_1. Four buffers (X:`$1C00`, `$1D00`, `$1E00`, `$1F00`) rotate through X/Y:`$45..$48`
 once per frame (§3.6.3): the buffer received in frame k is processed in place in frame k+1 (as `$45`) and
 transmitted in frame k+2 (as `$46`). The frame interrupt is ESAI_1's receive-last-slot (P:`$76`). Every 4th frame
-the background loop runs the control-rate code (frame counter X:`$43` > 3).
+the background loop runs the control-rate code (frame counter X:`$43` > 3; details and an emulator fault in §3.8).
 
 ### 3.7.2 What travels in which slot [C, frame programs]
 
@@ -948,6 +956,183 @@ What dominates:
 * The expansion board's four DSPs (A7–A10) are stubs; with them the chain would run A6, A10…A7, A5, A4, A3.
 * Speed: about 0.15–0.6 × real time here. Next: run the four DSPs' links without per-frame thread hand-offs (larger
   batches, or all four on one thread with the JIT), port the host to C++ (§3.6.7), fix the JIT.
+
+## 3.8 Control-rate timing: the emulator's fault and its fix (2026-10-10)
+
+**Symptom** (`re/notes/native-engine.md` §3.3, measured as a black box). In the full machine, control-rate code ran
+about 2 × too often:
+* an LFO displayed as 10.30 Hz measured 19–23 Hz (it varied between runs);
+* envelope stages took 0.45 × their displayed time;
+* the Env output changed in bursts of about 4 consecutive samples, then held for about 4;
+* audio-rate code (oscillator pitch) was exact.
+
+`--no-idle-skip` did not change it.
+
+**Cause: lost condition codes in the dsp56300 library, not a clock rate.** Details below. The DSP clock, the ESAI
+frame clock, DSP timer 0 and the ColdFire timer ticks play no part.
+
+### 3.8.1 How control-rate code is dispatched [C]
+
+Seen in the stage-1 programs and the live dumps of patched DSPs.
+
+* **The frame interrupt** (ESAI_1 receive-last-slot, P:`$76`: `jsr DOR0`) runs the patch's audio-rate code. It also
+  increments the frame counter X:`$43`.
+* **The background loop** is stage 1's `DO FOREVER` at P:`$220`. Its body starts at P:`$222`:
+  * `bsset #HF0,x:HSR,…`: the HF0 handshake;
+  * r3/r4 ← DOR1/DCO1;
+  * `clr b x:(r1),a`, `cmp #3,a`, `ble $222`: spin while X:`$43` ≤ 3.
+* **When the counter passes 3,** the loop does three things:
+  * it sets X:`$43` to 0;
+  * it adds X:`$40` to the 48-bit L:`$42`. This counts control ticks: X:`$40` = `$15D8`/`$15D9` ≈ 2²⁷/24000 with
+    the empty patch, and `$5761` after a patch upload;
+  * it falls through into the patch's **control-rate code at P:`$235`**.
+* **The OS ends the loop body after that code.** It sets the loop's last address with host command `$98` (LA).
+  Examples:
+  * EnvADSR patch: control code P:`$235–$25A`, LA = `$25A`, frame code from DOR0 = `$25B`;
+  * empty patch: LA = `$235`, DOR0 = `$236`.
+
+So the control-rate code runs in the background, once every 4 frames, and the frame interrupts preempt it. That
+gives a 24 kHz control rate at 96 kHz. No DSP timer and no host tick is involved.
+
+### 3.8.2 What went wrong [emulated]
+
+**Trace.** A slot-tick trace of PC and X:`$43` (`g2dsp_trace`, replay bench, 1 kHz patch) showed the counter at
+0, 1, 2 (or 0, 1 on A6) when the background loop passed its `ble`.
+
+**Measured from L:`$42`** (control ticks per frame, which should be 0.25 everywhere):
+
+| DSP | Ticks per frame |
+|---|---|
+| A3 | 0.339 |
+| A4 | 0.333 |
+| A5 | 0.333 |
+| A6 | 0.500 |
+
+**Per-instruction trace** (`g2dsp_trace_fine`). Every early pass had an interrupt between `cmp` (P:`$228`) and
+`ble` (P:`$229`). There are three interrupts per frame on every DSP: the frame interrupt and the DMA 4/5 done
+interrupts (P:`$20/$22`, `jsr`).
+
+**The mechanism, in the library at the pinned commit:**
+1. The interpreter computes the CCR bits E, U and N lazily (`ccrCache`).
+2. `DSP::execInterrupt` hands every interrupt vector to the JIT (`if(g_useJIT)`), also when the DSP runs on the
+   interpreter. `g_useJIT` is `g_jitSupported`, so it is true on arm64 and x64.
+3. The JIT's `jsr` stacks SR as stored, without the pending N of the `cmp`.
+4. The `rti` restores that stale SR, and `ble` (Z | N ⊕ V) falls through.
+
+**Reproduced in isolation.**
+* A bench script (not kept) ran stage 1's loop on one DSP with X:`$43` held at 0, under a stream of host commands
+  whose vector is `jsr $300; rti`. It counted 6,000–100,000 wrong passes per second.
+* `g2dspccr` (§3.8.3) is the same check without firmware.
+
+**Why the rate was about 2 × and varied.** Where an interrupt lands in the loop depends on the emulated timing (idle
+skipping, link waits). So the loop passed every 2 or 3 frames instead of every 4, which gives 1.3–2 × on average.
+Bursts of 4 Env changes appear when passes cluster.
+
+**Effects beyond the loop.** The same fault hits any conditional in control-rate code (`Tcc`, `Bcc`, `IFcc`) that
+follows an ALU op when an interrupt falls between the two. That corrupts module state now and then, which is a
+likely cause of the gate dropouts in big patches (`native-engine.md` §3.3).
+
+Audio-rate code runs inside the frame interrupt. The library runs no peripherals during a long interrupt, so no
+other interrupt can land there, and pitch was never affected.
+
+### 3.8.3 The fix
+
+* **`emu/CMakeLists.txt` edits the fetched `dsp56kEmu/dsp.cpp` after population.**
+  * It inserts `updateDirtyCCR();` before the JIT runs the vector in `DSP::execInterrupt`. This resolves the
+    pending E/U/N into SR before anything stacks it.
+  * The edit is idempotent and marked `G2FRESH`. Configure fails if the anchor line is missing (a new pin).
+  * In a pure JIT run nothing is pending, so it changes nothing there.
+* **`emu/dsptest/g2dspccr.cpp`** (target `g2dspccr`) checks the fix without firmware: a `cmp`/`ble` loop with an
+  interrupt injected at each position.
+  * Without the fix: 100 wrong branches in 400 loops (every interrupt that lands after the `cmp`).
+  * With the fix: 0.
+* **`g2dspreplay.py`** now prints the control ticks per frame from L:`$42`/X:`$40`. The bench gives **0.2500 on all
+  four DSPs**, with and without idle skipping.
+* **Debugging aids in the bridge:**
+  * `g2dsp_trace`: per slot tick;
+  * `g2dsp_trace_fine`: per instruction. It is blind inside long interrupts, where the library runs no peripherals.
+
+### 3.8.4 Before and after [emulated, full machine, same patches, one session each]
+
+Patches made with `g2mkpatch`:
+* LfoA Rate 64, Range Hi (displayed 10.30 Hz) → 2-Out;
+* OscA (KBT off, Coarse 84) → EnvADSR (Attack 60, Decay 60, Sustain 30, Release 55: displayed 748 ms, 748 ms,
+  496 ms) → 2-Out, note 0.1–3.0 s;
+* the 1 kHz reference (`1khz_on.pch2`).
+
+Decay and release are fitted as exponentials and given as the time to 1 %.
+
+| | Before | After | Displayed |
+|---|---|---|---|
+| LFO | 19.57 Hz (× 1.900; 19.06 Hz in another run) | **10.3009 Hz** (−0.002 %) | 10.3011 Hz |
+| Attack 0 → 1 | 341 ms (× 0.456) | **749.9 ms** (+0.25 %) | 748 ms |
+| Decay to 1 % | 339 ms (× 0.453) | **744.8 ms** (−0.4 %) | 748 ms |
+| Release to 1 % | 226 ms (× 0.456) | **493.1 ms** (−0.6 %) | 496 ms |
+| Env stepping during the attack | runs of 1–5 consecutive changes (mostly 4), 0.53 changes per sample | one change per 4 samples (0.24 per sample) | 0.25 |
+| LFO harmonics | H2 −48 to −52 dB | H2 −84 dB | |
+| 1 kHz patch | 1000.344 Hz | 1000.344 Hz, H3 −106 dB, H5 −82 dB (unchanged) | |
+| Speed (emulated s per wall s) | 1.17 / 1.07 / 0.69 | 2.08 / 2.01 / 1.99 | |
+
+**Speed caveat.** The two sessions ran under different background load (other builds on the machine), so the speed
+difference is not attributable to the fix. The fix itself adds one call per interrupt.
+
+**Other results:**
+* **Frame repeats.** A sine predictor on the DAC found none, before or after:
+  * in 1 s of the 1 kHz patch;
+  * in the VCA output of the envelope job, around its note on/off;
+  * after the fix, in 3.2 s of the 1 kHz patch with 30 note events.
+
+  So the ~0.1 % repeats of `native-engine.md` §3.3 were not reproduced. Possibly they were the same fault seen
+  through control-rate outputs; this is not confirmed.
+* **The 26-module patch** (`native-engine.md` §4), note held 0.1–3.0 s, 50 ms RMS of Out 1:
+  * an older recording jumps between levels (161 → 228 → 110 → 223 → 111, ×10⁻⁵), the gate dropouts;
+  * after the fix, one run stays between 194 and 262 with no dropout.
+* **The output ramp after an upload** (measured from the client going idle) reaches 50 % at 0.4 s, 95 % at 1.2 s
+  and 99 % at 1.7 s. It is similar to before, so it is not DSP control-rate timing. It is possibly OS-timed (§3.8.5).
+
+### 3.8.5 Still not right: OS time against DSP time [emulated, measured]
+
+The ColdFire's timer 1 fires once per 20,000-instruction slice. The DSPs run freely, paced only by their links.
+
+**Measured** (slices against A6 frames):
+* **111** ticks per emulated DSP second over the first fixed session;
+* **51–62** during boot and sync;
+* **180–217** while recording;
+* 105–357 in the unfixed session.
+
+**Hardware estimate:** the OS programs TRR 50 with a ÷128 prescaler, 6,400 bus clocks per tick. At an assumed
+54 MHz bus that is about **8,400 ticks/s**. The G2's ColdFire bus clock is not known: check this.
+
+So relative to the audio, everything the OS times runs roughly 40–170 × slow, and the factor changes with load:
+* the 64-step knob slews (about 130 ticks);
+* note-on latency (33–93 ms measured);
+* LED/meter polling;
+* the post-upload ramp, if it is OS-driven.
+
+DSP-side timing (rates, envelopes, pitch) is unaffected. A fix would gate the DSP frames by host ticks (about 11
+frames per tick at 8.4 kHz). That makes the full machine about 30 × slower, so it is not done.
+
+**DSP timer 0** (stage 1, A3) is the one the OS calibrates through the I2C ADC (§3.6.3).
+* The frame and control code of the patches looked at here (empty, 1 kHz, EnvADSR) does not read it, and no timer
+  vector is set.
+* So it does not set the audio or control rate.
+* Its own rate in the emulator was not checked.
+
+### 3.8.6 Earlier measurements to revisit
+* **`re/notes/native-engine.md`:**
+  * §2.3 and §3.3: the 2.213 × time rescale is no longer needed, and the emulator is now a timing reference. The
+    rescaled numbers were right, because the error was a pure speed-up of the control ticks.
+  * The 0.5–3 ms stage errors near note events, the frame repeats and the gate dropouts need re-measuring.
+* **`re/notes/dsp-module-catalog.md`** is largely unaffected:
+  * parameter words and slews come from the OS's host-port writes;
+  * responses and costs come from `g2dspframe`, which runs only the frame program, offline, without interrupts.
+  * Two things to recheck:
+    * module X/Y state in the `dsp3_live_*` dumps, which control-rate code may have corrupted (the initial
+      values and OS-written words are not affected);
+    * any statement that relies on running control-rate code in the full machine.
+  * Its OS-timed figures (slew of about 130 ticks) are in OS ticks, so they hold, but they cannot be converted to
+    DSP time in the emulator (§3.8.5).
+* **§3.7.5 results** (pitch, routing) are audio-rate and stand.
 
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source

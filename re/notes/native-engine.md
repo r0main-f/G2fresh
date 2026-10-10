@@ -159,7 +159,12 @@ DAC word = **−0.0085306** × (signal into Out 1 × patch Gain curve × 2-Out P
 * Note-on latency is 33–93 ms and varies (USB plus OS), so comparisons align on the onset.
 
 ### 3.3 Emulator faults that matter for timing
-* **Control-rate code runs about 2.21 × too often.**
+* **Resolved (2026-10-10, g2-hardware-and-emulation.md §3.8):** the 2.21 × came from a bug in the dsp56300
+  library: interrupts entered through the JIT stacked a stale SR, so the control-rate wait loop's `ble` fell through
+  early. With the fix, LfoA measures 10.3009 Hz for 10.3011 Hz displayed and envelope stages are within 0.6 % of the
+  displayed times, with no rescale; the native engine's choice of the editor's times is confirmed. The rescaled
+  comparisons below still hold (the fault was a pure speed-up). Kept for the record:
+* **Control-rate code ran about 2.21 × too often** (before the fix).
   * LfoC measures 22.79 Hz where the editor displays 10.30 Hz, and 54.18 Hz for 24.40 Hz (×2.21).
   * Envelope stages take 0.452 × the displayed time.
   * The Env output advances in bursts, typically 4 consecutive samples then 4 held, instead of once per 4 samples.

@@ -11,6 +11,29 @@ FetchContent_Declare(dsp56300
 FetchContent_GetProperties(dsp56300)
 if(NOT dsp56300_POPULATED)
   FetchContent_Populate(dsp56300)
+endif()
+
+# A fix to the library (re/notes/g2-hardware-and-emulation.md 3.8). In a build that has the JIT
+# (g_useJIT), DSP::execInterrupt runs every interrupt vector through the JIT, also when the DSP
+# runs on the interpreter, as ours do. The interpreter computes the condition codes E, U and N
+# lazily (ccrCache); the JIT reads SR as it is, so a jsr in the vector stacked an SR without the
+# pending N of the instruction before the interrupt, and the rti brought back the stale bits. A
+# Bcc right after a cmp went the wrong way whenever an interrupt fell in between: the G2's
+# background loop then ran its control-rate code every 2 to 3 frames instead of every 4.
+# Resolving the pending bits before the JIT runs the vector fixes it (idempotent edit).
+set(_dsp_cpp ${dsp56300_SOURCE_DIR}/source/dsp56kEmu/dsp.cpp)
+file(READ ${_dsp_cpp} _dsp_src)
+if(NOT _dsp_src MATCHES "G2FRESH: flush the lazy CCR")
+  string(REPLACE "			LOGJITPC(vba);\n"
+                 "			LOGJITPC(vba);\n			updateDirtyCCR();  // G2FRESH: flush the lazy CCR before the JIT stacks SR\n"
+                 _dsp_patched "${_dsp_src}")
+  if(_dsp_patched STREQUAL _dsp_src)
+    message(FATAL_ERROR "dsp56300: could not apply the interrupt CCR fix to ${_dsp_cpp}")
+  endif()
+  file(WRITE ${_dsp_cpp} "${_dsp_patched}")
+endif()
+
+if(NOT TARGET dsp56kEmu)
   # Only the libraries: the emulator, its base and asmjit (not its tests or tools).
   set(ASMJIT_STATIC TRUE)
   add_subdirectory(${dsp56300_SOURCE_DIR}/source/asmjit ${dsp56300_BINARY_DIR}/asmjit EXCLUDE_FROM_ALL)
@@ -43,3 +66,10 @@ add_executable(g2dspframe dspframe/g2dspframe.cpp)
 target_include_directories(g2dspframe PRIVATE ${dsp56300_SOURCE_DIR}/source)
 target_link_libraries(g2dspframe PRIVATE dsp56kEmu)
 target_compile_features(g2dspframe PRIVATE cxx_std_17)
+
+# g2dspccr: checks the library fix above (an interrupt between cmp and Bcc keeps the branch);
+# run build/emu/g2dspccr (exit code 0 = fixed).
+add_executable(g2dspccr dsptest/g2dspccr.cpp)
+target_include_directories(g2dspccr PRIVATE ${dsp56300_SOURCE_DIR}/source)
+target_link_libraries(g2dspccr PRIVATE dsp56kEmu)
+target_compile_features(g2dspccr PRIVATE cxx_std_17)

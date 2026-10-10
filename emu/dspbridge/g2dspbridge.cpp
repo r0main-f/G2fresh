@@ -235,9 +235,37 @@ struct G2Dsp
 
 	Esai& esai(int i) { return i ? periphY.getEsai() : periphX.getEsai(); }
 
+	// Debugging (g2dsp_trace, g2dsp_trace_fine): at each slot tick, or before each instruction,
+	// the instruction counter, the PC, X:traceAddr and the ESAI_1 frame count. Found the lost
+	// condition codes of notes 3.8 (the library's DSP::execInterrupt).
+	std::mutex traceMutex;
+	std::vector<uint64_t> trace;
+	std::atomic<uint32_t> traceLeft{0};
+	std::atomic<uint32_t> fineLeft{0};   // per instruction instead of per slot tick
+	TWord traceAddr = 0x43;
+	void traceTick()
+	{
+		if(!traceLeft.load(std::memory_order_relaxed))
+			return;
+		std::lock_guard lock(traceMutex);
+		trace.push_back(dsp.getInstructionCounter());
+		trace.push_back(uint64_t(dsp.getPC().toWord()) | uint64_t(mem.get(MemArea_X, traceAddr)) << 24 |
+		                uint64_t(rxFrames[1].load() & 0xffff) << 48);
+		--traceLeft;
+	}
+
 	// from the peripherals' exec, on the DSP thread: instructions until it wants to run again
 	uint32_t onPeripherals()
 	{
+		if(fineLeft.load(std::memory_order_relaxed))
+		{
+			std::lock_guard lock(traceMutex);
+			trace.push_back(dsp.getInstructionCounter() | uint64_t(dsp.getProcessingMode()) << 60);
+			trace.push_back(uint64_t(dsp.getPC().toWord()) | uint64_t(mem.get(MemArea_X, traceAddr)) << 24 |
+			                uint64_t(rxFrames[1].load() & 0xffff) << 48);
+			--fineLeft;
+			return 0;
+		}
 		if(!idleOn.load(std::memory_order_relaxed))
 			return std::numeric_limits<uint32_t>::max();
 		const TWord pc = dsp.getPC().toWord();
@@ -274,7 +302,7 @@ struct G2Dsp
 			esai(i).setReadRxCallback([this, i](uint64_t& _frame, Audio::RxFrame& _f) { readRx(i, _f); ++_frame; });
 			esai(i).setWriteTxCallback([this, i](uint64_t& _frame, const Audio::TxFrame& _f) { writeTx(i, _f); ++_frame; });
 		}
-		clock.setTickCallback([this] { lastTick = dsp.getInstructionCounter(); });
+		clock.setTickCallback([this] { lastTick = dsp.getInstructionCounter(); traceTick(); });
 		periphX.setExecCallback([this] { return onPeripherals(); });
 		thread = std::thread([this] { threadFunc(); });
 	}
@@ -674,6 +702,38 @@ extern "C"
 		d->idleOn = last != 0;
 	}
 	uint64_t g2dsp_skipped(void* h) { return static_cast<G2Dsp*>(h)->skipped; }
+	// debugging: record `ticks` slot ticks: per tick two words, the instruction counter, then
+	// PC | X:addr << 24 | (ESAI_1 receive frames & $FFFF) << 48
+	void g2dsp_trace(void* h, uint32_t ticks, uint32_t addr)
+	{
+		auto* d = static_cast<G2Dsp*>(h);
+		std::lock_guard lock(d->traceMutex);
+		d->trace.clear();
+		d->traceAddr = addr;
+		d->traceLeft = ticks;
+	}
+	// The same before each instruction (the peripherals run before each one meanwhile, which changes
+	// the timing; idle skipping is off while it records). The library runs no peripherals inside a
+	// long interrupt, so the instructions of the frame program and of other jsr vectors are missing:
+	// they show as gaps in the instruction counter. The first word also carries the processing
+	// mode in bits 60-63.
+	void g2dsp_trace_fine(void* h, uint32_t instructions, uint32_t addr)
+	{
+		auto* d = static_cast<G2Dsp*>(h);
+		std::lock_guard lock(d->traceMutex);
+		d->trace.clear();
+		d->traceAddr = addr;
+		d->fineLeft = instructions;
+	}
+	uint32_t g2dsp_trace_take(void* h, uint64_t* buf, uint32_t max)
+	{
+		auto* d = static_cast<G2Dsp*>(h);
+		std::lock_guard lock(d->traceMutex);
+		const uint32_t n = uint32_t(std::min<size_t>(max, d->trace.size()));
+		std::memcpy(buf, d->trace.data(), n * sizeof(uint64_t));
+		d->trace.erase(d->trace.begin(), d->trace.begin() + n);
+		return n;
+	}
 	// run the DSP with dsp56300's JIT instead of its interpreter (set before boot). Experimental:
 	// so far the DSPs did not answer the stage-1 HF0 handshake with it (notes 3.7.6)
 	void g2dsp_jit(void* h, int on) { static_cast<G2Dsp*>(h)->useJit = on != 0; }

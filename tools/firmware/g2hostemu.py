@@ -109,7 +109,9 @@ class DspBridge:
                                 ('g2dsp_sink_take', u32, [vp, i, ctypes.POINTER(ctypes.c_int32), u32]),
                                 ('g2dsp_throttle', None, [vp, ctypes.c_double, u32]),
                                 ('g2dsp_idle_loop', None, [vp, u32, u32, u32, u32]),
-                                ('g2dsp_skipped', u64, [vp]), ('g2dsp_jit', None, [vp, i])):
+                                ('g2dsp_skipped', u64, [vp]), ('g2dsp_jit', None, [vp, i]),
+                                ('g2dsp_trace', None, [vp, u32, u32]), ('g2dsp_trace_fine', None, [vp, u32, u32]),
+                                ('g2dsp_trace_take', u32, [vp, ctypes.POINTER(u64), u32])):
             f = getattr(lib, name)
             f.restype, f.argtypes = res, args
         cls.lib = lib

@@ -128,7 +128,17 @@ def main(argv):
         n, space, addr = where.split(':')
         dsps[int(n)].mem_write('PXY'.index(space.upper()), int(addr, 16), int(val, 16))
     rec = emu.AudioRecorder(dsps, links, args)
+    # Stage 1's background loop adds X:$40 to the 48-bit L:$42 each time it runs the control-rate
+    # code [C]: the count of control ticks, which must be one per 4 frames (notes 3.8)
+    clock = lambda d: ((d.mem_read(1, 0x42) << 24) | d.mem_read(2, 0x42), d.rx_frames(1))
+    c0 = [clock(d) for d in dsps]
     rec.run(args.settle, args.seconds)
+    for n, (d, (l0, f0)) in enumerate(zip(dsps, c0)):
+        l1, f1 = clock(d)
+        inc = d.mem_read(1, 0x40)
+        if inc and f1 > f0:
+            print(f'  A{3 + n}: {((l1 - l0) % (1 << 48)) / inc / (f1 - f0):.4f} control ticks per frame (0.25 expected)',
+                  flush=True)
     rec.save(out)
     emu.DspBridge.lib.g2dsp_shutdown_all()
     return 0
