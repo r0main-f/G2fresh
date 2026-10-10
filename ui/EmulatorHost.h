@@ -26,6 +26,8 @@ public:
     }
     // Whether it runs now.
     virtual bool emulatorRunning() const { return false; }
+    // How many emulated G2s run in this host process (all plugin instances).
+    virtual int emulatorsInHost() const { return 0; }
     // MIDI into its MIDI IN (e.g. the on-screen keyboard), from the message
     // thread. Ignored while it does not run.
     virtual void emulatorMidi(std::span<const std::uint8_t> bytes) { juce::ignoreUnused(bytes); }

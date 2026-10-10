@@ -93,6 +93,11 @@ std::vector<std::uint8_t> gunzip(const juce::MemoryBlock& gz)
 
 } // namespace
 
+int G2EditorProcessor::emulatorsInHost() const
+{
+    return EmulatedSoundEngine::running();
+}
+
 std::vector<std::uint8_t> G2EditorProcessor::startingFlash() const
 {
     // the project's, else (a new instance, or the stand-alone app) the one kept next to the settings
@@ -144,6 +149,10 @@ void G2EditorProcessor::autoStartEmulator()
     const juce::File firmware{g2ui::userSettings().getValue("emulatorFirmware")};
     if (!firmware.exists())
         return; // never set up: Synth > Connect to Emulated G2 asks for it
+    // One emulated G2 starts by itself per host: each takes about 1.5 cores, and a few of them overload a laptop
+    // (they then drop out, which sounds like distortion). The others start from the Synth menu or the Live view.
+    if (EmulatedSoundEngine::running() > 0)
+        return;
     if (const auto error = startEmulator(firmware); error.isNotEmpty())
         DBG("G2fresh: " << error);
 }

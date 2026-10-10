@@ -56,6 +56,7 @@ public:
     bool emulatorAvailable() const override { return true; }
     juce::String startEmulator(const juce::File& firmware) override;
     bool emulatorRunning() const override { return emulated_ != nullptr; }
+    int emulatorsInHost() const override;
     void emulatorMidi(std::span<const std::uint8_t> bytes) override;
     g2ui::PanelSnapshot panel() const override;
     void panelButton(g2ui::PanelButton button, bool down) override;

@@ -250,6 +250,14 @@ void MainView::updateSynthStatus()
     if (synth_ == nullptr)
         return;
     juce::String text = synth_->statusText();
+    if (emulator_ != nullptr && emulator_->emulatorAvailable()) {
+        const int others = emulator_->emulatorsInHost() - (emulator_->emulatorRunning() ? 1 : 0);
+        if (synth_->kind() == SynthSync::Kind::None && others > 0)
+            text = "Not connected: another G2fresh here runs the Emulated G2 (Synth > Connect to Emulated G2 starts one "
+                   "more, about 1.5 cores each)";
+        else if (emulator_->emulatorRunning() && others > 0)
+            text << "  |  " << (others + 1) << " Emulated G2s run in this host: heavy on the CPU";
+    }
     if (synth_->boundSlot() >= 0)
         text << "  |  live: slot " << juce::String::charToString(static_cast<juce::juce_wchar>('A' + synth_->boundSlot()));
     else if (synth_->performanceBound())

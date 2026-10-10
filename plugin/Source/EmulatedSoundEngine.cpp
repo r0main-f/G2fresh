@@ -40,6 +40,7 @@ EmulatedSoundEngine::EmulatedSoundEngine(const g2emu::Firmware& firmware, std::v
     : saveTo_(std::move(saveTo)), savedFlash_(std::move(flash)),
       runner_(std::make_unique<g2emu::Runner>(firmware, runnerOptions(savedFlash_)))
 {
+    ++running_;
 }
 
 int EmulatedSoundEngine::latencySamples() const
@@ -51,6 +52,7 @@ int EmulatedSoundEngine::latencySamples() const
 EmulatedSoundEngine::~EmulatedSoundEngine()
 {
     runner_->stop();
+    --running_;
     const auto& flash = runner_->machine().flash();
     if (saveTo_ == juce::File() || flash == savedFlash_)
         return;

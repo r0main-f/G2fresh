@@ -21,6 +21,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -51,9 +52,12 @@ public:
     // The stand-alone app's flash, and the first flash of a new plugin
     // instance: in the user's G2fresh settings folder.
     static juce::File defaultFlashFile();
+    // How many emulated G2s run in this process (plugin instances share it): each takes about 1.5 cores.
+    static int running() { return running_.load(); }
     static std::vector<std::uint8_t> readFlash(const juce::File& file);
 
 private:
+    inline static std::atomic<int> running_{0};
     juce::File saveTo_;
     std::vector<std::uint8_t> savedFlash_; // as loaded: only a changed flash is written back
     std::unique_ptr<g2emu::Runner> runner_;

@@ -174,7 +174,7 @@ void waitMs(int ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms))
 void restore(const juce::String& path, const juce::File& saved, double seconds)
 {
     constexpr double rate = 48000;
-    constexpr int block = 256;
+    const int block = juce::SystemStats::getEnvironmentVariable("G2TEST_BLOCK", "256").getIntValue(); // Live: 512
     juce::MemoryBlock bytes;
     check(saved.loadFileAsData(bytes), "the saved state reads (" + juce::String(bytes.getSize()) + " bytes)");
     auto p = load(path, rate, block);
