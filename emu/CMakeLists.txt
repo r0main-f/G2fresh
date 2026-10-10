@@ -198,12 +198,19 @@ add_library(g2emu STATIC
   g2emu/src/hw.cpp
   g2emu/src/dsp.cpp
   g2emu/src/machine.cpp
-  g2emu/src/runner.cpp)
+  g2emu/src/runner.cpp
+  g2emu/src/dmg.cpp)
 target_include_directories(g2emu PUBLIC g2emu/include)
 target_include_directories(g2emu SYSTEM PRIVATE ${dsp56300_SOURCE_DIR}/source)
 target_link_libraries(g2emu PUBLIC g2proto PRIVATE g2coldfire dsp56kEmu)
 target_compile_features(g2emu PUBLIC cxx_std_20)
 set_target_properties(g2emu PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# zlib (macOS and Linux have it) reads the compressed .dmg Clavia ships the updater in; without it only stored images
+find_package(ZLIB)
+if(ZLIB_FOUND)
+  target_link_libraries(g2emu PRIVATE ZLIB::ZLIB)
+  target_compile_definitions(g2emu PRIVATE G2EMU_HAVE_ZLIB=1)
+endif()
 
 # g2emurun: boots the user's firmware, connects our protocol client, uploads patches, plays notes, records the DACs
 # and reports the speed (the firmware-gated check of the whole machine).

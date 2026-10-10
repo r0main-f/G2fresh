@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 #include <string>
 #include <thread>
 #include <vector>
@@ -130,6 +131,7 @@ Bytes makeResources(const std::vector<Resource>& res)
     put32(file, 4, std::uint32_t(256 + data.size()));
     put32(file, 8, std::uint32_t(data.size()));
     put32(file, 12, std::uint32_t(map.size()));
+    std::copy_n(file.begin(), 16, map.begin());  // the map starts with a copy of the header
     file.insert(file.end(), data.begin(), data.end());
     file.insert(file.end(), map.begin(), map.end());
     return file;
@@ -189,6 +191,64 @@ TEST_CASE("OS image: sections, checksums, the updater's resources", "[g2emu]")
     const auto fw3 = Firmware::load(dir);
     CHECK(fw3.code()->data == code);
     std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("UDIF disk image (.dmg): stored and zero chunks, the updater's resource file found on the disk", "[g2emu]")
+{
+    const Bytes code = {'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c'};
+    const auto os = makeOsImage({1, 2, 3}, kLzoAbc, code);
+    auto rsrc = makeResources({{"NMG2", 128, "OS", os}, {"BOOT", 128, "Loader", {7, 7}}});
+    rsrc.resize((rsrc.size() + 511) / 512 * 512, 0);
+    // a disk of 16 zero sectors, then the resource file from sector 16; the image stores it raw
+    const std::uint64_t first = 16, count = rsrc.size() / 512, sectors = first + count;
+    Bytes dmg = rsrc;  // the data fork: the raw chunk's bytes
+    Bytes mish(204 + 3 * 40, 0);
+    std::copy_n("mish", 4, mish.begin());
+    put32(mish, 4, 1);
+    put32(mish, 8, 0); put32(mish, 12, 0);                               // first sector
+    put32(mish, 16, 0); put32(mish, 20, std::uint32_t(sectors));         // sector count
+    put32(mish, 200, 3);                                                 // chunks
+    auto chunk = [&](int i, std::uint32_t type, std::uint64_t sector, std::uint64_t n, std::uint64_t off, std::uint64_t len) {
+        const std::size_t c = 204 + 40 * std::size_t(i);
+        put32(mish, c, type);
+        put32(mish, c + 12, std::uint32_t(sector));
+        put32(mish, c + 20, std::uint32_t(n));
+        put32(mish, c + 28, std::uint32_t(off));
+        put32(mish, c + 36, std::uint32_t(len));
+    };
+    chunk(0, 0, 0, first, 0, 0);
+    chunk(1, 1, first, count, 0, rsrc.size());
+    chunk(2, 0xffffffff, sectors, 0, 0, 0);
+    static const char* b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string enc;
+    for(std::size_t i = 0; i < mish.size(); i += 3)
+    {
+        const std::uint32_t v = std::uint32_t(mish[i]) << 16 | std::uint32_t(i + 1 < mish.size() ? mish[i + 1] : 0) << 8 |
+                                (i + 2 < mish.size() ? mish[i + 2] : 0);
+        enc += b64[v >> 18]; enc += b64[(v >> 12) & 63];
+        enc += i + 1 < mish.size() ? b64[(v >> 6) & 63] : '=';
+        enc += i + 2 < mish.size() ? b64[v & 63] : '=';
+    }
+    const std::string xml = "<plist><dict><key>resource-fork</key><dict><key>blkx</key><array><dict><key>Data</key><data>" +
+                            enc + "</data></dict></array></dict></dict></plist>";
+    const auto xmlOffset = dmg.size();
+    dmg.insert(dmg.end(), xml.begin(), xml.end());
+    Bytes koly(512, 0);
+    std::copy_n("koly", 4, koly.begin());
+    put32(koly, 220, std::uint32_t(xmlOffset));
+    put32(koly, 228, std::uint32_t(xml.size()));
+    put32(koly, 496, std::uint32_t(sectors));
+    dmg.insert(dmg.end(), koly.begin(), koly.end());
+
+    REQUIRE(isUdifImage(dmg));
+    const auto disk = udifDisk(dmg);
+    REQUIRE(disk.size() == sectors * 512);
+    CHECK(std::equal(rsrc.begin(), rsrc.end(), disk.begin() + 16 * 512));
+    const auto fw = firmwareFromDisk(disk);
+    CHECK(fw.code()->data == code);
+    CHECK(fw.bootLoader == Bytes{7, 7});
+    CHECK_FALSE(isUdifImage(rsrc));
+    CHECK_THROWS(firmwareFromDisk(Bytes(4096, 0)));
 }
 
 TEST_CASE("SIM: timer 1 as the OS programs it ticks every 51 x 128 bus clocks", "[g2emu]")

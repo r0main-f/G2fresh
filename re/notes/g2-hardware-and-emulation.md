@@ -1379,8 +1379,11 @@ Where the time goes:
 ### 3.9.8 What remains for a real-time `EmulatedSoundEngine` in the plugin
 
 `plugin/Source/SoundEngine.h` is the interface; `NativeSoundEngine` the existing engine. An `EmulatedSoundEngine` would:
-1. **Firmware:** let the user point at their updater: the `.rsrc`, the `.app`, or `g2os.py`'s output
-   (`Firmware::load`). Still missing: reading the `.dmg` (HFS+/APFS image) and the Windows `.zip`/`.exe` (Wise, §4.7).
+1. **Firmware:** let the user point at their updater: Clavia's `.dmg` as downloaded, the `.rsrc`, the `.app`, or
+   `g2os.py`'s output (`Firmware::load`). The `.dmg` (UDIF, zlib chunks, an HFS volume) is put back together in memory
+   and the updater's resource file is found on it by its resource map, checked by the OS image's own checksums
+   (`emu/g2emu/src/dmg.cpp`; needs zlib, found by CMake on macOS and Linux; assumes the file is stored in one piece, as
+   in Clavia's image). Still missing: the Windows `.zip`/`.exe` (Wise, §4.7).
 2. **Run it:** `g2emu::Runner` (machine on its own threads, `threads = 1` or 2) from `prepare()`; the audio thread
    calls `Runner::read()` for 96 kHz frames (lock-free, real-time safe) and resamples to the host's rate (JUCE's
    `LagrangeInterpolator` or better); `bufferMs` (20 ms in the tests) is the extra latency; boot takes about 2 s of
@@ -1405,8 +1408,8 @@ to a G2. The processor swaps the engine under its callback lock; while it exists
 engine (outputs 1/2 = **words 0 and 2** of `Machine::run`'s frames, which are in DAC order 1, 3, 2, 4). Offline
 bounces wait for the machine (up to 2 s per block). The flash is kept in `Emulated G2 flash.bin` in the settings
 folder, written back when it changed. Test: `[firmware]` "the plugin's path" (440 Hz on Out 1 and Out 2, in real
-time). Still open from the list: `.dmg`/Windows firmware, a machine snapshot, the JIT in hardened hosts; and each
-plugin instance runs its own G2 (2-3 cores each). Sample-accurate MIDI is in g2emu since (`Runner::midiInAt`,
+time). Still open from the list: Windows firmware, a machine snapshot, the JIT in hardened hosts; and each
+plugin instance runs its own G2 (2-3 cores each). The `.dmg` is read since (point 1). Sample-accurate MIDI is in g2emu since (`Runner::midiInAt`,
 §3.9.4); the engine still uses `midiIn`.
 
 ### 3.9.9 Reproducing

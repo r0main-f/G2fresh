@@ -33,7 +33,8 @@ struct Firmware {
     static Firmware fromUpdaterResources(std::span<const std::uint8_t> rsrc);
     // From the OS image (NMG2 128) and, optionally, the boot loader (BOOT 128).
     static Firmware fromOsImage(std::span<const std::uint8_t> os, std::span<const std::uint8_t> boot = {});
-    // From a path: the updater's .rsrc file, the updater app (…/Nord Modular G2 OS Update.app), or a directory
+    // From a path: Clavia's "Nord Modular G2 OS v1.62 Update.dmg" as downloaded, the updater's .rsrc file, the
+    // updater app (…/Nord Modular G2 OS Update.app), or a directory
     // that g2os.py wrote (NMG2_OS.bin and BOOT_Loader.bin), or G2fresh's original/firmware directory
     // (mac-updater-rsrc/NMG2/128_OS.bin, mac-updater-rsrc/BOOT/128_Loader.bin). Throws std::runtime_error.
     static Firmware load(const std::filesystem::path& path);
@@ -54,5 +55,11 @@ std::vector<std::uint8_t> lzo1xDecompress(std::span<const std::uint8_t> src);
 
 // The checksum of the OS image: the one's complement of the byte sum.
 std::uint32_t onesComplementSum(std::span<const std::uint8_t> data);
+
+// Apple UDIF disk images (.dmg): whether `file` is one, the disk it holds (stored and zlib chunks; zlib needs a
+// build with zlib), and the updater's firmware found on such a disk.
+bool isUdifImage(std::span<const std::uint8_t> file);
+std::vector<std::uint8_t> udifDisk(std::span<const std::uint8_t> file);
+Firmware firmwareFromDisk(std::span<const std::uint8_t> disk);
 
 } // namespace g2emu
