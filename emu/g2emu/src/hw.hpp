@@ -36,6 +36,8 @@ public:
 
     // MIDI on UART0 (31250 baud: the OS programs UBG = 54, so the bus clock is 54 MHz [C]).
     void midiIn(const std::uint8_t* data, std::size_t n);
+    // The same, the first byte starting on the line at bus clock `notBefore` at the earliest.
+    void midiInAt(const std::uint8_t* data, std::size_t n, std::uint64_t notBefore);
     std::vector<std::uint8_t> takeMidiOut();
     std::uint64_t midiOverruns() const { return uartOverruns_; }
 
@@ -76,8 +78,13 @@ private:
     std::uint8_t externalIrqs_ = 0;  // bit n: IRQn asserted
 
     // MIDI bytes waiting to be shifted in, and when the next one completes
-    std::deque<std::uint8_t> midiPending_;
-    std::uint64_t midiNext_ = 0;
+    struct MidiByte {
+        std::uint8_t byte = 0;
+        std::uint64_t notBefore = 0;  // bus clock
+    };
+    std::deque<MidiByte> midiPending_;
+    std::uint64_t midiLineFree_ = 0;  // the bus clock at which the last byte finished
+    std::uint64_t midiCompletion() const;
     std::uint64_t uartOverruns_ = 0;
 
     // I2C master: every addressed slave acknowledges; reads return 0x80 (the OS servoes DSP timer 0 until a

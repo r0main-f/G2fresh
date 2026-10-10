@@ -108,6 +108,7 @@ struct Machine::Impl final : coldfire::Bus {
     std::vector<BigStackThread> workers;
     std::array<std::atomic<std::uint64_t>, 4> workerTime{};
     std::array<std::atomic<std::uint64_t>, 4> workerCpuNs{}, workerWaitNs{};  // per DSP thread: CPU time, time waiting
+    std::array<int, 4> dspWorker{};  // which DSP thread runs DSP n
     std::atomic<std::uint64_t> horizon{0}, dspTime{0};
     std::atomic<bool> quit{false};
 
@@ -132,7 +133,12 @@ struct Machine::Impl final : coldfire::Bus {
     std::deque<std::vector<std::uint8_t>> usbOut;  // from the client
     std::deque<UsbIn> usbIn;               // to the client
     bool plugRequest = false;
-    std::vector<std::uint8_t> midiInQueue, midiOutQueue;
+    std::vector<std::uint8_t> midiOutQueue;
+    struct MidiIn {
+        std::vector<std::uint8_t> bytes;
+        std::uint64_t frame = 0;  // 0: as soon as possible
+    };
+    std::vector<MidiIn> midiInQueue;
 
     // statistics
     Stats st;
@@ -235,7 +241,24 @@ struct Machine::Impl final : coldfire::Bus {
     // Catches the DSPs up to the ColdFire's time, in chain order up to DSP n (each needs its upstream's frames).
     void syncDsps(int n)
     {
-        if(opt.threads) return;  // the DSPs run on their own thread
+        if(opt.threads)
+        {
+            // The DSPs run on their own threads, usually ahead of the ColdFire. If this one is behind it, the
+            // ColdFire waits (wall time) until it has caught up, so that a status it reads is the DSP's as of now:
+            // the OS counts some of its waits in loop iterations, and on the chip the DSP answers within
+            // microseconds (§3.9.4)
+            if(!workers.empty() && opt.causalReads)
+            {
+                const auto target = std::min(dspTimeOfCf(cfNow()), horizon.load(std::memory_order_acquire));
+                auto& wt = workerTime[std::size_t(dspWorker[std::size_t(n)])];
+                if(wt.load(std::memory_order_acquire) < target)
+                {
+                    ++st.dspSyncs;
+                    waitFor([&] { return wt.load(std::memory_order_acquire) >= target || quit.load(std::memory_order_relaxed); });
+                }
+            }
+            return;
+        }
         const auto target = dspTimeOfCf(cfNow());
         ++st.dspSyncs;
         const auto t0 = timing ? clockNs() : 0;
@@ -435,7 +458,9 @@ struct Machine::Impl final : coldfire::Bus {
             if(!(sel & (1u << n))) continue;
             if(n < 4)
             {
-                syncDsps(n);
+                // single thread: catch the DSPs up first; with threads the writes need no wait (they reach the DSP
+                // in order through its host queue)
+                if(!opt.threads) syncDsps(n);
                 if(reg == 1 && (v & 0x80)) ++st.hostCommands;
                 dsps[std::size_t(n)]->hostWrite(reg, v);
             }
@@ -585,7 +610,13 @@ struct Machine::Impl final : coldfire::Bus {
             }
             if(!midiInQueue.empty())
             {
-                sim.midiIn(midiInQueue.data(), midiInQueue.size());
+                for(const auto& m : midiInQueue)
+                {
+                    // frame f starts at master time f * 1536 DSP clocks: in bus clocks via the ColdFire's clock
+                    const auto bus = std::uint64_t(double(m.frame) * Dsp::CyclesPerFrame * cfPerDsp * busPerCf);
+                    if(m.frame) sim.midiInAt(m.bytes.data(), m.bytes.size(), bus);
+                    else sim.midiIn(m.bytes.data(), m.bytes.size());
+                }
                 midiInQueue.clear();
                 nextSimEvent = 0;
             }
@@ -712,7 +743,11 @@ struct Machine::Impl final : coldfire::Bus {
     {
         const int n = std::clamp(opt.threads, 1, 4);
         std::vector<std::vector<int>> parts(static_cast<std::size_t>(n));
-        for(std::size_t k = 0; k < chain.size(); ++k) parts[k * std::size_t(n) / chain.size()].push_back(chain[k]);
+        for(std::size_t k = 0; k < chain.size(); ++k)
+        {
+            parts[k * std::size_t(n) / chain.size()].push_back(chain[k]);
+            dspWorker[std::size_t(chain[k])] = int(k * std::size_t(n) / chain.size());
+        }
         horizon.store(t + opt.skew);
         dspTime.store(t);
         for(int w = 0; w < n; ++w) workerTime[std::size_t(w)].store(t);
@@ -823,7 +858,13 @@ bool Machine::usbTake(UsbIn& in)
 void Machine::midiIn(std::span<const std::uint8_t> bytes)
 {
     std::lock_guard lock(impl_->ioMutex);
-    impl_->midiInQueue.insert(impl_->midiInQueue.end(), bytes.begin(), bytes.end());
+    impl_->midiInQueue.push_back({{bytes.begin(), bytes.end()}, 0});
+}
+
+void Machine::midiInAt(std::span<const std::uint8_t> bytes, std::uint64_t frame)
+{
+    std::lock_guard lock(impl_->ioMutex);
+    impl_->midiInQueue.push_back({{bytes.begin(), bytes.end()}, frame});
 }
 
 std::vector<std::uint8_t> Machine::takeMidiOut()

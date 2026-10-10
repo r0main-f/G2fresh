@@ -253,6 +253,17 @@ TEST_CASE("SIM: MIDI bytes reach UART0 at 31250 baud and interrupt at level 4 wi
     CHECK(sim.read(0x1CC, 1) == 69);
     CHECK(sim.read(0x1CC, 1) == 100);
     CHECK(sim.midiOverruns() == 0);
+
+    // a timed message: its first byte starts on the line at the given bus clock, not before
+    const std::uint8_t off[3] = {0x80, 69, 64};
+    sim.midiInAt(off, 3, now + 100000);
+    CHECK(sim.nextEvent() == now + 100000 + perByte);
+    now += 100000 + perByte - 1;
+    sim.advance(now);
+    CHECK((sim.read(0x1C4, 1) & 1) == 0);
+    now += 1;
+    sim.advance(now);
+    CHECK(sim.read(0x1CC, 1) == 0x80);
     sim.write(0x1CC, 1, 0xF8);
     CHECK(sim.takeMidiOut() == Bytes{0xF8});
 }
@@ -463,7 +474,8 @@ TEST_CASE("The user's G2 OS: boots, syncs with our client, plays a MIDI note", "
     for(int i = 0; i < 500; ++i) step();  // the output ramps up after an upload
 
     const std::uint8_t on[3] = {0x90, 69, 100};
-    m.midiIn(on);
+    // timed: the note-on starts on the MIDI line 500 frames after the start of the recording
+    m.midiInAt(on, m.frame() + 500);
     std::vector<float> out;
     m.run(Machine::FrameRate / 2, &out);
     // the DACs' frames follow the DSPs' serial clock, not run()'s boundaries: one more or less is possible
@@ -471,7 +483,9 @@ TEST_CASE("The user's G2 OS: boots, syncs with our client, plays a MIDI note", "
     // outputs 1 and 2 are words 0 and 2 of each frame; find the onset and measure the pitch after it
     std::size_t onset = 0;
     while(onset < out.size() / 4 && std::fabs(out[onset * 4]) < 1e-3f) ++onset;
-    CHECK(onset < Machine::FrameRate / 100);  // within 10 ms
+    // not before its three bytes (0.96 ms = 92 frames) are in, within 10 ms after that
+    CHECK(onset >= 500 + 92);
+    CHECK(onset < 500 + Machine::FrameRate / 100);
     std::size_t crossings = 0;
     double first = -1, last = -1;
     for(std::size_t f = onset + 100; f + 1 < out.size() / 4; ++f)

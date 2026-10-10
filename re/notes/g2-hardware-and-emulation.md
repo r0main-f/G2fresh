@@ -1285,6 +1285,11 @@ there, but it is the same code.
   read-modify-writes the mode register).
 * **MIDI IN** is UART0: bytes reach its receiver FIFO at 31250 baud, with RxRDY interrupts at level 4, vector $42 [C].
   MIDI OUT (UART0 transmitter) is captured; OS 1.62 sent nothing in these tests.
+* **Sample-accurate MIDI:** `Machine::midiInAt(bytes, frame)` starts a message on the MIDI line at a given machine
+  frame; `Runner::midiInAt(bytes, offset)` (lock-free, from the audio thread before its `read()`) puts it `offset`
+  frames into the next block plus a fixed `latencyFrames()` (the buffer plus a chunk). Measured in real time
+  (`g2emurun --realtime --timed-midi`, 8 notes at odd times, 20 ms buffer): note-on to sound **23.39 ms ± 0.06 ms**,
+  against 22.8-31.7 ms when the bytes go in at once (`midiIn`).
 
 ### 3.9.5 Results [emulated, full machine]
 
@@ -1323,6 +1328,11 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
   with 2-4 DSP threads; but without poll skipping a DSP still strayed in about 1 of 8 runs (stopped by the trap, the OS
   then lost USB contact). The cause is not found; it needs the DSPs on more than one thread and the ColdFire hammering
   the host ports. `threads = 1` showed nothing in any test (also without poll skipping); 2-4 stay experimental.
+  Ruled out since: stale DSP answers (none: no answer was ever written over an unread one, in any mode). Tried:
+  `Options::causalReads` makes a status read wait (wall time) until that DSP has reached the ColdFire's time, in case
+  an OS wait counted in loop iterations expired before a lagging DSP thread got there; with it, 0 failures in 22 runs
+  of the failing configuration, but also 0 in 20 without it (the ordered host port had made the failure rare), and it
+  costs 15-25 % of speed: off by default.
 * The OS's DSP code runs the undefined opcode `$000040`: harmless (dsp56300 runs it as ILLEGAL; its vector is empty),
   logged by the library when it compiles such a block; g2emu filters that line.
 * The core counts V2 cycles (§3.9.2): the emulated CPU is probably slower than the real one; nothing seen depends on it
@@ -1395,8 +1405,9 @@ to a G2. The processor swaps the engine under its callback lock; while it exists
 engine (outputs 1/2 = **words 0 and 2** of `Machine::run`'s frames, which are in DAC order 1, 3, 2, 4). Offline
 bounces wait for the machine (up to 2 s per block). The flash is kept in `Emulated G2 flash.bin` in the settings
 folder, written back when it changed. Test: `[firmware]` "the plugin's path" (440 Hz on Out 1 and Out 2, in real
-time). Still open from the list: `.dmg`/Windows firmware, sample-accurate MIDI, a machine snapshot, the JIT in
-hardened hosts; and each plugin instance runs its own G2 (2-3 cores each).
+time). Still open from the list: `.dmg`/Windows firmware, a machine snapshot, the JIT in hardened hosts; and each
+plugin instance runs its own G2 (2-3 cores each). Sample-accurate MIDI is in g2emu since (`Runner::midiInAt`,
+§3.9.4); the engine still uses `midiIn`.
 
 ### 3.9.9 Reproducing
 

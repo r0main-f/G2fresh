@@ -39,6 +39,9 @@ public:
         // The caller's thread needs a big stack (8 MB or more): the JIT compiles there in single-thread mode.
         int threads = 0;
         std::uint32_t skew = 2 * 1536;
+        // threads > 0: a status read of a DSP's host port waits (wall time) until that DSP has reached the ColdFire's
+        // time. Off: it cost 15-25 % of speed and no failure needed it once the host port was ordered (§3.9.6)
+        bool causalReads = false;
         double usbAfter = 2.0;         // plugUsb() takes effect once the OS has run this long (seconds): it boots in 1.6
         bool trace = false;            // log unusual events (unmapped accesses, exceptions) to stderr
     };
@@ -87,6 +90,9 @@ public:
 
     // ---- MIDI IN (UART0, 31250 baud) and OUT (thread-safe) ----
     void midiIn(std::span<const std::uint8_t> bytes);
+    // The same at a given time: the first byte starts on the line at the start of machine frame `frame` (see frame()),
+    // or at once if that is past. A note-on's three bytes then reach the OS 0.96 ms later, always the same.
+    void midiInAt(std::span<const std::uint8_t> bytes, std::uint64_t frame);
     std::vector<std::uint8_t> takeMidiOut();
 
     // ---- flash (patches and settings the OS stores) ----

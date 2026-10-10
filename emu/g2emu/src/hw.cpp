@@ -64,14 +64,15 @@ void Sim::timerUpdate(Timer& t, std::uint64_t now)
 void Sim::advance(std::uint64_t now)
 {
     for(auto& t : timer_) timerUpdate(t, now);
-    // MIDI bytes complete one by one at the line rate; a full FIFO overruns
-    while(!midiPending_.empty() && now >= midiNext_)
+    // MIDI bytes complete one by one at the line rate, none starting before its time; a full FIFO overruns
+    while(!midiPending_.empty() && now >= midiCompletion())
     {
         auto& u = uart_[0];
+        const auto done = midiCompletion();
         if(u.rxEnabled)
         {
             if(u.fifo.size() < 3)
-                u.fifo.push_back(midiPending_.front());
+                u.fifo.push_back(midiPending_.front().byte);
             else
             {
                 u.overrun = true;
@@ -79,14 +80,20 @@ void Sim::advance(std::uint64_t now)
             }
         }
         midiPending_.pop_front();
-        midiNext_ += busClocksPerMidiByte();
+        midiLineFree_ = done;
     }
+}
+
+std::uint64_t Sim::midiCompletion() const
+{
+    // the head byte starts when the line is free and not before its time, and takes 10 bits
+    return std::max(midiLineFree_, midiPending_.front().notBefore) + busClocksPerMidiByte();
 }
 
 std::uint64_t Sim::nextEvent() const
 {
     std::uint64_t next = ~0ull;
-    if(!midiPending_.empty()) next = std::min(next, midiNext_);
+    if(!midiPending_.empty()) next = std::min(next, midiCompletion());
     for(int i = 0; i < 2; ++i)
     {
         const auto& t = timer_[i];
@@ -108,11 +115,14 @@ std::uint32_t Sim::busClocksPerMidiByte() const
     return 10u * 32u * (ubg ? ubg : 54u);
 }
 
-void Sim::midiIn(const std::uint8_t* data, std::size_t n)
+void Sim::midiIn(const std::uint8_t* data, std::size_t n) { midiInAt(data, n, busNow_()); }
+
+void Sim::midiInAt(const std::uint8_t* data, std::size_t n, std::uint64_t notBefore)
 {
+    // bytes queued behind others keep their order: a byte never starts before the one in front of it
     const auto now = busNow_();
-    if(midiPending_.empty()) midiNext_ = std::max(midiNext_, now + busClocksPerMidiByte());
-    midiPending_.insert(midiPending_.end(), data, data + n);
+    if(midiPending_.empty()) midiLineFree_ = std::max(midiLineFree_, now);
+    for(std::size_t i = 0; i < n; ++i) midiPending_.push_back({data[i], notBefore});
 }
 
 std::vector<std::uint8_t> Sim::takeMidiOut()

@@ -76,6 +76,12 @@ void Runner::loop()
             busyFrames = 0;
             continue;
         }
+        for(auto t = midiTail_.load(std::memory_order_relaxed); t != midiHead_.load(std::memory_order_acquire); ++t)
+        {
+            const auto& e = midiRing_[t % midiRing_.size()];
+            machine_->midiInAt({e.bytes.data(), e.size}, e.frame);
+            midiTail_.store(t + 1, std::memory_order_release);
+        }
         chunk.clear();
         machine_->run(options_.chunkFrames, &chunk);
         const std::size_t frames = chunk.size() / 4;
@@ -83,9 +89,35 @@ void Runner::loop()
         for(std::size_t i = 0; i < frames; ++i)
             std::memcpy(&ring_[((w + i) % capacity_) * 4], &chunk[4 * i], 4 * sizeof(float));
         written_.store(w + frames, std::memory_order_release);  // room: it only runs below the target level
+        // ring frame i was made at machine frame i + offset (the DACs' pipeline is constant)
+        frameOffset_.store(std::int64_t(machine_->frame()) - std::int64_t(w + frames), std::memory_order_release);
         busyFrames += frames;
         const double wall = std::chrono::duration<double>(Clock::now() - busyStart).count();
         if(wall > 0.05) speed_.store(double(busyFrames) / Machine::FrameRate / wall, std::memory_order_relaxed);
+    }
+}
+
+std::uint32_t Runner::latencyFrames() const
+{
+    // the reader takes frame R while the machine makes R + bufferMs (it runs in chunks until it is that far ahead)
+    return std::uint32_t(options_.bufferMs * Machine::FrameRate / 1000.0) + options_.chunkFrames;
+}
+
+void Runner::midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset)
+{
+    // where the next read() starts, plus the offset, plus the fixed latency: the frame its sound appears at is then
+    // that many frames after the reader's position, always the same. Lock-free: the runner's thread hands it on.
+    const auto at = std::int64_t(read_.load(std::memory_order_relaxed)) + std::int64_t(offset) + std::int64_t(latencyFrames()) +
+                    frameOffset_.load(std::memory_order_acquire);
+    for(std::size_t k = 0; k < bytes.size(); k += MidiEvent::MaxBytes)
+    {
+        const auto h = midiHead_.load(std::memory_order_relaxed);
+        if(h - midiTail_.load(std::memory_order_acquire) >= midiRing_.size()) return;  // full: dropped
+        auto& e = midiRing_[h % midiRing_.size()];
+        e.frame = at > 0 ? std::uint64_t(at) : 1;
+        e.size = std::uint8_t(std::min<std::size_t>(MidiEvent::MaxBytes, bytes.size() - k));
+        std::copy_n(bytes.begin() + std::ptrdiff_t(k), e.size, e.bytes.begin());
+        midiHead_.store(h + 1, std::memory_order_release);
     }
 }
 
