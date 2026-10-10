@@ -269,11 +269,11 @@ void MainView::startEmulator(bool chooseFirmware)
         start(known);
         return;
     }
-    // Clavia's free OS updater, as downloaded from nordkeyboards.com (macOS: the
-    // updater app, or the .rsrc inside it).
+    // Clavia's free OS updater for the Mac, as downloaded from nordkeyboards.com:
+    // the .dmg itself, the updater app in it, or the app's .rsrc file.
     chooser_ = std::make_unique<juce::FileChooser>(
-        "Locate the Nord Modular G2 OS updater (Nord Modular G2 OS Update.app, or its .rsrc file)",
-        known.exists() ? known : juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.app;*.rsrc;*.bin");
+        "Locate Clavia's G2 OS 1.62 updater for the Mac (the .dmg as downloaded, or the updater app)",
+        known.exists() ? known : juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.dmg;*.app;*.rsrc;*.bin");
     chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles
                               | juce::FileBrowserComponent::canSelectDirectories,
                           [this, start](const juce::FileChooser& fc) {

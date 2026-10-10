@@ -4,7 +4,7 @@ A modern, native editor for the Clavia **Nord Modular G2**, for macOS (Apple Sil
 
 Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a proprietary kernel driver on Windows, so it no longer runs on current systems. G2fresh is a rewrite. Ghidra analysis of the original editor serves as the specification, cross-checked against Bruno Verhue's open-source editor.
 
-**Status:** 0.6.1, an offline patch editor with an experimental USB connection. It opens, edits and saves G2 patches and performances; every public G2 file we know of loads (5,589 files from Clavia's banks and the community archives). It has the full patch settings, morph, knob and MIDI controller assignments, copy/paste and duplicate, module Replace, the randomizer and Patch Mutator, the original's special controls, the patch load meter, the modules' live graphs and descriptions, a modern look and the original Classic look, zoom, animated cables with bend points, and native menus. As a VST3/AU plugin it stores the patch in your DAW project, exposes the patch's knobs, morph dials and variation for automation, and forwards its MIDI to a hardware port into the G2. The Synth menu connects to a G2 over USB (through `g2bridge`) or to a virtual G2: send and get patches and performances, live editing both ways, the synth's memory banks, live LEDs and meters, the load the synth reports. **The USB connection has only been tested against the virtual G2**: see "Testing with a real G2" below.
+**Status:** 0.7.0, a patch editor that also plays the patch by itself (the **Emulated G2**, experimental), with an experimental USB connection. It opens, edits and saves G2 patches and performances; every public G2 file we know of loads (5,589 files from Clavia's banks and the community archives). It has the full patch settings, morph, knob and MIDI controller assignments, copy/paste and duplicate, module Replace, the randomizer and Patch Mutator, the original's special controls, the patch load meter, the modules' live graphs and descriptions, a modern look and the original Classic look, zoom, animated cables with bend points, and native menus. As a VST3/AU plugin it stores the patch in your DAW project, exposes the patch's knobs, morph dials and variation for automation, and forwards its MIDI to a hardware port into the G2. The Synth menu connects to a G2 over USB (through `g2bridge`) or to a virtual G2: send and get patches and performances, live editing both ways, the synth's memory banks, live LEDs and meters, the load the synth reports. **The USB connection has only been tested against the virtual G2**: see "Testing with a real G2" below. Without a G2, the Emulated G2 runs the G2's own operating system (from Clavia's free OS update, which you download yourself) inside G2fresh, so any patch plays in the app or in your DAW: see "Playing without a G2" below.
 
 ## Layout
 
@@ -31,6 +31,17 @@ Builds for macOS (universal), Windows and Linux are attached to each [release](h
 - **Windows:** SmartScreen may warn: choose "More info", then "Run anyway". Copy `G2fresh.vst3` to `C:\Program Files\Common Files\VST3\`.
 - **Linux:** copy `G2fresh.vst3` to `~/.vst3/`.
 
+## Playing without a G2
+
+G2fresh can make the G2's sound itself, in the stand-alone app and in the plugin:
+
+- **Emulated G2 (experimental):** a whole G2 in software (its processor, its four DSPs, the USB link) running Clavia's own G2 OS 1.62, which therefore plays every module and patch. G2fresh contains no Clavia code: download the free **Nord Modular G2 OS v1.62 update for the Mac** from Nord's website ([nordkeyboards.com](https://www.nordkeyboards.com), in the Nord Modular G2 downloads) and keep the `.dmg`; G2fresh reads the Mac download on every system. Then choose **Synth > Connect to Emulated G2**: the first time, G2fresh asks where the `.dmg` (or the updater app in it) is. The synth boots in about 2 seconds; your patch is then sent to it and plays from MIDI (the plugin's track, or a MIDI input in the app's Options), and every edit, variation, knob and memory bank works as with a G2. Its memory is kept in `Emulated G2 flash.bin` next to G2fresh's settings.
+  - It needs a fast computer: one emulated G2 uses about 1.5 CPU cores of an Apple M1, and each plugin instance runs its own.
+  - The latency from a MIDI note to its sound is about 23 ms.
+  - The front panel, the audio inputs and the expansion ports are not emulated, and the pedal inputs read half-way.
+  - In a DAW on macOS, the emulator generates code at run time; a host that forbids it cannot run it (not seen so far).
+- **Built-in sound:** a native engine (**Synth > Built-in Sound**) for the few modules it knows (OscA, FltLP, EnvADSR, the mixers, the outputs and the keyboard). It is on when nothing else plays the patch.
+
 ## Connecting a G2
 
 Only one program can hold the G2's USB connection, while you may run the stand-alone app and several plugin instances at once. So a small background program, `g2bridge`, owns the connection and serves every editor. The editors start it when needed, and it quits a few seconds after the last one closes. It ships next to the stand-alone app's executable and inside each plugin bundle (`Contents/Resources/`). `g2bridge --emulator` serves a virtual G2 instead, for trying things without hardware.
@@ -54,7 +65,7 @@ brew install cmake ninja   # macOS (JUCE, Catch2 and libusb are fetched by CMake
 cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 ```
 
-`-DG2_WITH_USB=OFF` builds without libusb (the bridge then only serves the virtual G2).
+`-DG2_WITH_USB=OFF` builds without libusb (the bridge then only serves the virtual G2). `-DG2_BUILD_EMU=ON` adds the Emulated G2 (it fetches the DSP56300 emulator and Gearmulator's ColdFire core, both GPL-3); the release builds have it.
 
 ## Reverse-engineering setup
 
