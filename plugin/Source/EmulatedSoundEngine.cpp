@@ -15,7 +15,9 @@ g2emu::Runner::Options runnerOptions(std::vector<std::uint8_t> flash)
     return o;
 }
 
-std::vector<std::uint8_t> readFlash(const juce::File& file)
+} // namespace
+
+std::vector<std::uint8_t> EmulatedSoundEngine::readFlash(const juce::File& file)
 {
     juce::MemoryBlock data;
     if (!file.existsAsFile() || !file.loadFileAsData(data))
@@ -23,8 +25,6 @@ std::vector<std::uint8_t> readFlash(const juce::File& file)
     const auto* p = static_cast<const std::uint8_t*>(data.getData());
     return {p, p + data.getSize()};
 }
-
-} // namespace
 
 juce::File EmulatedSoundEngine::defaultFlashFile()
 {
@@ -36,21 +36,27 @@ juce::File EmulatedSoundEngine::defaultFlashFile()
         .getChildFile("Emulated G2 flash.bin");
 }
 
-EmulatedSoundEngine::EmulatedSoundEngine(const g2emu::Firmware& firmware, juce::File flashFile)
-    : flashFile_(std::move(flashFile)), savedFlash_(readFlash(flashFile_)),
+EmulatedSoundEngine::EmulatedSoundEngine(const g2emu::Firmware& firmware, std::vector<std::uint8_t> flash, juce::File saveTo)
+    : saveTo_(std::move(saveTo)), savedFlash_(std::move(flash)),
       runner_(std::make_unique<g2emu::Runner>(firmware, runnerOptions(savedFlash_)))
 {
+}
+
+int EmulatedSoundEngine::latencySamples() const
+{
+    // the runner's fixed delay, plus the samples the resampler holds back
+    return static_cast<int>(std::lround(runner_->latencyFrames() * hostRate_ / g2emu::Machine::FrameRate)) + 2;
 }
 
 EmulatedSoundEngine::~EmulatedSoundEngine()
 {
     runner_->stop();
     const auto& flash = runner_->machine().flash();
-    if (flash == savedFlash_)
+    if (saveTo_ == juce::File() || flash == savedFlash_)
         return;
-    flashFile_.getParentDirectory().createDirectory();
-    if (!flashFile_.replaceWithData(flash.data(), flash.size()))
-        DBG("G2fresh: cannot save the emulated G2's flash to " << flashFile_.getFullPathName());
+    saveTo_.getParentDirectory().createDirectory();
+    if (!saveTo_.replaceWithData(flash.data(), flash.size()))
+        DBG("G2fresh: cannot save the emulated G2's flash to " << saveTo_.getFullPathName());
 }
 
 void EmulatedSoundEngine::prepare(double sampleRate, int maxBlock)

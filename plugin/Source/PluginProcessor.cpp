@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Skin.h"
 
 #if G2FRESH_EMULATOR
 #include "EmulatedSoundEngine.h"
@@ -22,6 +23,9 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
     state.setProperty("midiOut", midiOut_.deviceIdentifier(), nullptr);
     state.setProperty("midiOutName", midiOut_.deviceName(), nullptr);
     state.setProperty("midiChannel", midiOut_.channel(), nullptr);
+    state.setProperty("emulated", emulatorWanted_, nullptr);
+    if (flashGz_.getSize() > 0)
+        state.setProperty("emulatorFlash", flashGz_.toBase64Encoding(), nullptr);
     juce::MemoryOutputStream out;
     state.writeToStream(out);
     const auto* p = static_cast<const std::uint8_t*>(out.getData());
@@ -36,10 +40,20 @@ G2EditorProcessor::G2EditorProcessor()
     automation_ = std::make_unique<AutomationBank>(*this, document_);
     midiOut_.onChange = [this] { refreshState(); };
     synth_.addChangeListener(this);
+#if G2FRESH_EMULATOR
+    // A new instance plays the emulated G2 at once; a project's instance once its state is in (setStateInformation
+    // comes right after the constructor, before this runs).
+    juce::MessageManager::callAsync([this, alive = std::weak_ptr<int>(alive_)] {
+        if (alive.lock())
+            autoStartEmulator();
+    });
+    startTimer(1000);
+#endif
 }
 
 G2EditorProcessor::~G2EditorProcessor()
 {
+    stopTimer();
     synth_.removeChangeListener(this);
     document_.removeChangeListener(this);
     synth_.disconnect(); // the emulated G2's link, before the emulator goes
@@ -55,10 +69,82 @@ void G2EditorProcessor::setEmulated(std::unique_ptr<SoundEngine> engine)
 }
 
 #if G2FRESH_EMULATOR
+namespace {
+
+juce::MemoryBlock gzip(const std::vector<std::uint8_t>& bytes)
+{
+    juce::MemoryOutputStream out;
+    {
+        juce::GZIPCompressorOutputStream z(out, 9);
+        z.write(bytes.data(), bytes.size());
+    }
+    return out.getMemoryBlock();
+}
+
+std::vector<std::uint8_t> gunzip(const juce::MemoryBlock& gz)
+{
+    juce::MemoryInputStream in(gz, false);
+    juce::GZIPDecompressorInputStream z(in);
+    juce::MemoryBlock out;
+    z.readIntoMemoryBlock(out);
+    const auto* p = static_cast<const std::uint8_t*>(out.getData());
+    return {p, p + out.getSize()};
+}
+
+} // namespace
+
+std::vector<std::uint8_t> G2EditorProcessor::startingFlash() const
+{
+    // the project's, else (a new instance, or the stand-alone app) the one kept next to the settings
+    if (wrapperType != wrapperType_Standalone && flashGz_.getSize() > 0)
+        return gunzip(flashGz_);
+    return EmulatedSoundEngine::readFlash(EmulatedSoundEngine::defaultFlashFile());
+}
+
+void G2EditorProcessor::captureFlash()
+{
+    if (emulated_ == nullptr)
+        return;
+    const auto& engine = static_cast<EmulatedSoundEngine&>(*emulated_);
+    flashSeen_ = engine.flashChanges();
+    flashGz_ = gzip(engine.flashSnapshot());
+    refreshState();
+}
+
+void G2EditorProcessor::timerCallback()
+{
+    // The OS changed the flash (a stored patch, a setting): into the state once it is quiet for a second.
+    if (emulated_ == nullptr)
+        return;
+    const auto changes = static_cast<EmulatedSoundEngine&>(*emulated_).flashChanges();
+    if (changes == flashSeen_) {
+        flashQuiet_ = 0;
+        return;
+    }
+    if (++flashQuiet_ < 2)
+        return;
+    flashQuiet_ = 0;
+    captureFlash();
+}
+
+void G2EditorProcessor::autoStartEmulator()
+{
+    if (!emulatorWanted_ || emulated_ != nullptr)
+        return;
+    if (emulated_ == nullptr && synth_.kind() != g2ui::SynthSync::Kind::None)
+        return; // the editor talks to another synth
+    const juce::File firmware{g2ui::userSettings().getValue("emulatorFirmware")};
+    if (!firmware.exists())
+        return; // never set up: Synth > Connect to Emulated G2 asks for it
+    if (const auto error = startEmulator(firmware); error.isNotEmpty())
+        DBG("G2fresh: " << error);
+}
+
 juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
 {
-    // One emulated G2 at a time: the running one saves its flash before the new one reads it.
+    // One emulated G2 at a time: the running one hands its flash over.
     if (emulated_ != nullptr) {
+        captureFlash();
         synth_.disconnect();
         setEmulated(nullptr);
     }
@@ -67,15 +153,21 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
         const auto fw = g2emu::Firmware::load(firmware.getFullPathName().toStdString());
         if (fw.code() == nullptr)
             return "no G2 OS in " + firmware.getFileName();
-        engine = std::make_unique<EmulatedSoundEngine>(fw, EmulatedSoundEngine::defaultFlashFile());
+        // The stand-alone app keeps its flash in a file; a plugin instance in the host's project.
+        const auto saveTo = wrapperType == wrapperType_Standalone ? EmulatedSoundEngine::defaultFlashFile() : juce::File();
+        engine = std::make_unique<EmulatedSoundEngine>(fw, startingFlash(), saveTo);
     } catch (const std::exception& e) {
         return juce::String("the emulated G2 cannot start: ") + e.what();
     }
     engine->prepare(sampleRate_ > 0 ? sampleRate_ : 48000.0, blockSize_);
+    flashSeen_ = engine->flashChanges();
     synth_.connectEmulated(g2emu::emulatedG2Link(engine->machine()));
     emulatedSent_ = false;
     emulatedLocal_ = false;
+    emulatorWanted_ = true;
+    setLatencySamples(engine->latencySamples());
     setEmulated(std::move(engine));
+    refreshState();
     return {};
 }
 #endif
@@ -225,8 +317,7 @@ void G2EditorProcessor::panelAnalog(g2ui::PanelAnalog control, float value)
 
 bool G2EditorProcessor::panelKey(int midiNote, bool down, float velocity)
 {
-    // The G2X's 61 keys: key 0 is C1 (MIDI 36). (Which note key 0 plays on a G2X is not verified; the G2's 37 keys
-    // start at C3.)
+    // The G2X's 61 keys: key 0 is C1 (MIDI 36), as the OS plays it (test "on a G2X: the lowest key...").
     const int key = midiNote - 36;
     if (emulated_ == nullptr || key < 0 || key > 60)
         return false;
@@ -238,8 +329,15 @@ void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
     if (source == &synth_) {
         using Kind = g2ui::SynthSync::Kind;
-        if (emulated_ != nullptr && synth_.kind() != Kind::Emulated)
-            setEmulated(nullptr); // the editor left the emulated G2
+        if (emulated_ != nullptr && synth_.kind() != Kind::Emulated) { // the editor left the emulated G2
+#if G2FRESH_EMULATOR
+            captureFlash();
+#endif
+            emulatorWanted_ = false;
+            setLatencySamples(0);
+            setEmulated(nullptr);
+            refreshState();
+        }
         // An erased flash leaves the OS's MIDI Local Off: its panel's keys and controls would only go out as MIDI.
         if (synth_.kind() == Kind::Emulated && synth_.ready() && !emulatedLocal_) {
             emulatedLocal_ = true;
@@ -283,8 +381,12 @@ void G2EditorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     const juce::ScopedLock lock(getCallbackLock());
     sampleRate_ = sampleRate;
     blockSize_ = samplesPerBlock;
-    if (emulated_ != nullptr)
+    if (emulated_ != nullptr) {
         emulated_->prepare(sampleRate, samplesPerBlock);
+#if G2FRESH_EMULATOR
+        setLatencySamples(static_cast<EmulatedSoundEngine&>(*emulated_).latencySamples());
+#endif
+    }
 }
 
 bool G2EditorProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -353,6 +455,19 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         document_.setName(state["name"].toString());
         document_.applyLayoutJson(state["layout"].toString());
         midiOut_.restore(state["midiOut"].toString(), state["midiOutName"].toString(), state["midiChannel"]);
+        emulatorWanted_ = static_cast<bool>(state.getProperty("emulated", true));
+        flashGz_.reset();
+        flashGz_.fromBase64Encoding(state["emulatorFlash"].toString());
+#if G2FRESH_EMULATOR
+        // The project's emulated G2, with the project's flash. If the new instance's one already runs, it goes
+        // without handing its flash over (that would replace the project's).
+        if (emulated_ != nullptr && (!emulatorWanted_ || flashGz_.getSize() > 0)) {
+            setLatencySamples(0);
+            setEmulated(nullptr);
+            synth_.disconnect();
+        }
+        autoStartEmulator();
+#endif
         document_.markSaved();
     } catch (const std::exception& e) {
         DBG("G2fresh: could not restore the patch from the host: " << e.what());

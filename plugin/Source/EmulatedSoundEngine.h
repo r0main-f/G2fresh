@@ -7,7 +7,8 @@
 // Outputs 1/2 of the G2 at 96 kHz, resampled to the host's rate, in signal
 // units (a signal of 1.0 into an Out module is 1.0). The track's MIDI goes to the G2's MIDI IN,
 // sample-accurate (a fixed latency, Runner::latencyFrames). The flash (the
-// synth's banks) is kept in a file between sessions.
+// synth's banks) comes from the caller: the plugin keeps it in the host's
+// project, the stand-alone app in a file.
 //
 // Threads: made, prepared and destroyed on the message thread while the audio
 // thread does not use it (the processor swaps it in under its callback lock);
@@ -25,11 +26,18 @@
 
 class EmulatedSoundEngine final : public SoundEngine {
 public:
-    // Powers the machine on with the flash saved in `flashFile` (if any).
+    // Powers the machine on with `flash` (empty: erased) in its flash chip;
+    // `saveTo`: where the destructor saves a changed flash (none: nowhere).
     // Throws std::exception when the emulator cannot start.
-    EmulatedSoundEngine(const g2emu::Firmware& firmware, juce::File flashFile);
-    // Stops the machine and saves its flash.
+    EmulatedSoundEngine(const g2emu::Firmware& firmware, std::vector<std::uint8_t> flash, juce::File saveTo);
+    // Stops the machine (and saves its flash to `saveTo`).
     ~EmulatedSoundEngine() override;
+
+    // The flash while the machine runs (any thread): how many times the OS changed it, and a copy.
+    std::uint64_t flashChanges() const { return runner_->machine().flashChanges(); }
+    std::vector<std::uint8_t> flashSnapshot() const { return runner_->machine().flashSnapshot(); }
+    // From a MIDI event to the DACs, in host samples (the runner's buffer, the resampler).
+    int latencySamples() const;
 
     g2emu::Machine& machine() { return runner_->machine(); }
     // Offline rendering (a bounce): wait for the emulator instead of dropping
@@ -40,11 +48,13 @@ public:
     void render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi) override;
     juce::String status() const override;
 
-    // Where the flash is kept: in the user's G2fresh settings folder.
+    // The stand-alone app's flash, and the first flash of a new plugin
+    // instance: in the user's G2fresh settings folder.
     static juce::File defaultFlashFile();
+    static std::vector<std::uint8_t> readFlash(const juce::File& file);
 
 private:
-    juce::File flashFile_;
+    juce::File saveTo_;
     std::vector<std::uint8_t> savedFlash_; // as loaded: only a changed flash is written back
     std::unique_ptr<g2emu::Runner> runner_;
 

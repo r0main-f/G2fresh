@@ -66,6 +66,7 @@ if(G2_BUILD_PLUGIN)
 
   add_subdirectory(plugin)
   add_subdirectory(tools/render)
+  add_subdirectory(tools/plugintest)
 endif()
 
 if(G2_BUILD_TESTS)

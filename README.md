@@ -39,7 +39,7 @@ G2fresh can make the G2's sound itself, in the stand-alone app and in the plugin
 
 - It needs a fast computer: one emulated G2 uses about 1.5 CPU cores of an Apple M1, and each plugin instance runs its own.
 - The latency from a MIDI note to its sound is about 23 ms.
-- The audio inputs and the expansion ports are not emulated; the pedals are not connected (the control pedal reads 0, the sustain pedal is up). Not verified against a real G2X: which note its lowest key plays, the directions of the pitch stick and wheels, and the key velocity curve (approximated).
+- The audio inputs and the expansion ports are not emulated; the pedals are not connected (the control pedal reads 0, the sustain pedal is up). Checked in the emulator (as the G2 OS reads them): the lowest key plays C1, the pitch stick bends up to the right, the mod wheel's vibrato grows upwards. Not verified: the global wheels' direction and the key velocity curve (approximated).
 - In a DAW on macOS, the emulator generates code at run time; a host that forbids it cannot run it (not seen so far).
 - G2fresh is not affiliated with Clavia. The G2 OS is Clavia DMI AB's copyright: download it yourself from Nord's website and do not share the file; G2fresh never includes or distributes it.
 

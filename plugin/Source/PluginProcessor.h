@@ -18,7 +18,8 @@
 // connected to it; otherwise silence (a G2 makes its own sound).
 class G2EditorProcessor final : public juce::AudioProcessor,
                                 public g2ui::EmulatorHost,
-                                private juce::ChangeListener {
+                                private juce::ChangeListener,
+                                private juce::Timer {
 public:
     G2EditorProcessor();
     ~G2EditorProcessor() override;
@@ -65,12 +66,21 @@ public:
 
 private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
+    void timerCallback() override; // keeps the emulated G2's flash in the state
     void loadState(std::vector<std::uint8_t> bytes);
     std::vector<std::uint8_t> encodeState() const;
     void refreshState();
     // Swaps the emulated G2's engine (nullptr: none) while the audio thread
     // does not run; the old one is destroyed here, on the message thread.
     void setEmulated(std::unique_ptr<SoundEngine> engine);
+#if G2FRESH_EMULATOR
+    // Starts the emulated G2 if it should run (it ran when the project was saved, or a new instance), does not run
+    // yet, and the G2 OS is known.
+    void autoStartEmulator();
+    // The running emulated G2's flash into the state.
+    void captureFlash();
+    std::vector<std::uint8_t> startingFlash() const;
+#endif
 
     g2ui::PatchDocument document_;
     MidiForwarder midiOut_;
@@ -80,6 +90,12 @@ private:
     std::unique_ptr<SoundEngine> emulated_;
     bool emulatedSent_ = false; // the document went to the emulated G2 once it was up
     bool emulatedLocal_ = false; // its MIDI Local switched on (its panel's keys play), once it was up
+    // In the state: whether the emulated G2 runs (it starts again with the project), and its flash (gzip): each
+    // plugin instance keeps its own synth memory in the host's project.
+    bool emulatorWanted_ = true;
+    juce::MemoryBlock flashGz_;
+    std::uint64_t flashSeen_ = 0;
+    int flashQuiet_ = 0;
     double sampleRate_ = 0.0;
     int blockSize_ = 512;
     g2ui::SynthSync synth_{document_}; // the G2 connection outlives the editor window
