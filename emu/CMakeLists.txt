@@ -33,6 +33,22 @@ if(NOT _dsp_src MATCHES "G2FRESH: flush the lazy CCR")
   file(WRITE ${_dsp_cpp} "${_dsp_patched}")
 endif()
 
+# A second fix, for GCC: on x86-64 outside Windows the library lists no callee-saved XMM registers as
+# `JitReg128 g_nonVolatileXMMs[] = {}`, a zero-size array GCC rejects (clang accepts it). An empty std::array
+# works with every use (range-for in jit.cpp's static_asserts and in jitstackhelper.cpp). Idempotent.
+set(_jit_regs ${dsp56300_SOURCE_DIR}/source/dsp56kEmu/jitregtypes.h)
+file(READ ${_jit_regs} _jit_regs_src)
+if(NOT _jit_regs_src MATCHES "G2FRESH: empty std::array")
+  string(REPLACE "static constexpr JitReg128 g_nonVolatileXMMs[] = {};"
+                 "static constexpr std::array<JitReg128, 0> g_nonVolatileXMMs{};  // G2FRESH: empty std::array (GCC)"
+                 _jit_regs_patched "${_jit_regs_src}")
+  string(REPLACE "#include \"jittypes.h\"" "#include \"jittypes.h\"\n\n#include <array>" _jit_regs_patched "${_jit_regs_patched}")
+  if(_jit_regs_patched STREQUAL _jit_regs_src)
+    message(FATAL_ERROR "dsp56300: could not apply the zero-size array fix to ${_jit_regs}")
+  endif()
+  file(WRITE ${_jit_regs} "${_jit_regs_patched}")
+endif()
+
 if(NOT TARGET dsp56kEmu)
   # Only the libraries: the emulator, its base and asmjit (not its tests or tools).
   set(ASMJIT_STATIC TRUE)
@@ -52,6 +68,7 @@ add_executable(g2dsppoc dsppoc/g2dsppoc.cpp)
 target_include_directories(g2dsppoc PRIVATE ${dsp56300_SOURCE_DIR}/source)
 target_link_libraries(g2dsppoc PRIVATE dsp56kEmu)
 target_compile_features(g2dsppoc PRIVATE cxx_std_17)
+target_compile_definitions(g2dsppoc PRIVATE _USE_MATH_DEFINES)  # M_PI with MSVC
 
 # g2dspbridge: a C interface to emulated DSP56367s for tools/firmware/g2hostemu.py
 # (the ColdFire OS in Unicorn drives them through their HDI08 host ports).
@@ -72,6 +89,7 @@ add_executable(g2dspframe dspframe/g2dspframe.cpp)
 target_include_directories(g2dspframe PRIVATE ${dsp56300_SOURCE_DIR}/source)
 target_link_libraries(g2dspframe PRIVATE dsp56kEmu)
 target_compile_features(g2dspframe PRIVATE cxx_std_17)
+target_compile_definitions(g2dspframe PRIVATE _USE_MATH_DEFINES)  # M_PI with MSVC
 
 # g2dspccr: checks the library fix above (an interrupt between cmp and Bcc keeps the branch);
 # run build/emu/g2dspccr (exit code 0 = fixed).
