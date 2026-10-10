@@ -107,13 +107,29 @@ struct Machine::Impl final : coldfire::Bus {
     std::mutex dacMutex;
 
     // threads = N > 0: N DSP threads, each running a stretch of the chain (in chain order) up to `horizon`; each
-    // publishes how far it got in `workerTime`, and `dspTime` is the slowest of them
+    // publishes how far it got in `worker[w].time`, and `dspTime` is the slowest of them
+    // (Each group of atomics that one thread writes has a cache line of its own (128 bytes on Apple's cores): on a
+    // shared line every store of one thread would evict what the other threads read all the time, the ColdFire's
+    // state among it.)
     std::vector<BigStackThread> workers;
-    std::array<std::atomic<std::uint64_t>, 4> workerTime{};
-    std::array<std::atomic<std::uint64_t>, 4> workerCpuNs{}, workerWaitNs{};  // per DSP thread: CPU time, time waiting
+    struct alignas(128) Worker {
+        std::atomic<std::uint64_t> time{0};
+        std::atomic<std::uint64_t> cpuNs{0}, waitNs{0};  // CPU time, time spent waiting
+    };
+    std::array<Worker, 4> worker{};
     std::array<int, 4> dspWorker{};  // which DSP thread runs DSP n
-    std::atomic<std::uint64_t> horizon{0}, dspTime{0};
-    std::atomic<bool> quit{false};
+    struct alignas(128) {
+        std::atomic<std::uint64_t> horizon{0};
+        std::atomic<bool> quit{false};
+    } cf;
+    struct alignas(128) {
+        std::atomic<std::uint64_t> dspTime{0};
+    } dspShared;
+    std::atomic<std::uint64_t>& horizon = cf.horizon;
+    std::atomic<bool>& quit = cf.quit;
+    std::atomic<std::uint64_t>& dspTime = dspShared.dspTime;
+    Doorbell progress;  // rung whenever horizon, a worker's time or quit changes
+    struct alignas(128) {} endOfShared;
 
     // time
     std::uint64_t t = 0;         // master time in DSP clocks
@@ -122,7 +138,6 @@ struct Machine::Impl final : coldfire::Bus {
     std::uint64_t cfSkipped = 0; // ColdFire cycles skipped (stopped)
     std::uint64_t nextSimEvent = 0;
     bool irqDirty = true;
-    std::uint32_t waitCycles = 0;
 
     // USB host side
     struct UsbHostState {
@@ -241,15 +256,21 @@ struct Machine::Impl final : coldfire::Bus {
 
     // statistics
     Stats st;
-    std::unique_ptr<std::map<std::uint32_t, std::uint64_t>> profile;  // G2EMU_CFPROFILE: ColdFire PCs, every 64th
+    std::unique_ptr<std::map<std::uint32_t, std::uint64_t>> profile;  // G2EMU_CFPROFILE: ColdFire PCs, every 61st
+    // G2EMU_CFPROFILE_EXACT: by instruction (all of them listed) instead of 64-byte blocks (the top 40)
+    const bool profileExact = std::getenv("G2EMU_CFPROFILE_EXACT") != nullptr;
     std::uint64_t profileTick = 0, profileFrom = 0;
     std::uint64_t profileIpl[8] = {};
     ~Impl() override
     {
         stopWorker();
+        if(timing && opt.threads)
+            std::fprintf(stderr, "ColdFire waits: %llu (<1 us %llu, <10 us %llu, <100 us %llu, more %llu)\n", (unsigned long long)cfWaits,
+                         (unsigned long long)cfWaitHist[0], (unsigned long long)cfWaitHist[1], (unsigned long long)cfWaitHist[2], (unsigned long long)cfWaitHist[3]);
         if(timing)
-            std::fprintf(stderr, "time: cf %.2f s (of which DSP catch-up %.2f s), DSPs at the end of each slice %.2f s\n", cfNs * 1e-9,
-                         syncNs * 1e-9, dspNs * 1e-9);
+            std::fprintf(stderr, "time: cf %.2f s (of which DSP catch-up %.2f s), DSPs at the end of each slice %.2f s; ColdFire alone %.2f s, %.1f M instructions/s\n",
+                         cfNs * 1e-9, syncNs * 1e-9, dspNs * 1e-9, (cfNs - syncNs - dspNs) * 1e-9,
+                         double(cpu.getInstructionCount()) / double(std::max<std::uint64_t>(1, cfNs - syncNs - dspNs)) * 1e3);
         if(!profile) return;
         std::vector<std::pair<std::uint64_t, std::uint32_t>> v;
         std::uint64_t total = 0;
@@ -259,7 +280,7 @@ struct Machine::Impl final : coldfire::Bus {
         std::fprintf(stderr, "  by interrupt mask: ");
         for(int i = 0; i < 8; ++i) std::fprintf(stderr, "%d: %.1f%% ", i, 100.0 * double(profileIpl[i]) / double(total));
         std::fprintf(stderr, "\n");
-        for(std::size_t i = 0; i < std::min<std::size_t>(40, v.size()); ++i)
+        for(std::size_t i = 0; i < (profileExact ? v.size() : std::min<std::size_t>(40, v.size())); ++i)
             std::fprintf(stderr, "  %08x %5.2f%%\n", v[i].second, 100.0 * double(v[i].first) / double(total));
     }
 
@@ -356,11 +377,11 @@ struct Machine::Impl final : coldfire::Bus {
             if(!workers.empty() && opt.causalReads)
             {
                 const auto target = std::min(dspTimeOfCf(cfNow()), horizon.load(std::memory_order_acquire));
-                auto& wt = workerTime[std::size_t(dspWorker[std::size_t(n)])];
+                auto& wt = worker[std::size_t(dspWorker[std::size_t(n)])].time;
                 if(wt.load(std::memory_order_acquire) < target)
                 {
                     ++st.dspSyncs;
-                    waitFor([&] { return wt.load(std::memory_order_acquire) >= target || quit.load(std::memory_order_relaxed); });
+                    progress.wait([&] { return wt.load(std::memory_order_acquire) >= target || quit.load(std::memory_order_relaxed); });
                 }
             }
             return;
@@ -404,7 +425,7 @@ struct Machine::Impl final : coldfire::Bus {
             }
         return v;
     }();
-    std::uint64_t syncNs = 0, cfNs = 0, dspNs = 0;
+    std::uint64_t syncNs = 0, cfNs = 0, dspNs = 0, cfWaits = 0, cfWaitHist[4] = {};
 
     // ---- the ColdFire bus ----
     std::uint32_t mmioRead(std::uint32_t a, int size)
@@ -412,7 +433,7 @@ struct Machine::Impl final : coldfire::Bus {
         switch(a >> 24)
         {
         case 0x10:
-            if(a < 0x10001000) { irqDirty = true; waitCycles += 6; return sim.read(a & 0xfff, size); }
+            if(a < 0x10001000) { irqDirty = true; cpu.m_g2WaitCycles += 6; return sim.read(a & 0xfff, size); }
             break;
         case 0x11:
             if(a < 0x11001000)
@@ -422,11 +443,11 @@ struct Machine::Impl final : coldfire::Bus {
                 return v;
             }
             break;
-        case 0x12: waitCycles += 15; return flashChip.read(a & (Flash::Size - 1), size);
+        case 0x12: cpu.m_g2WaitCycles += 15; return flashChip.read(a & (Flash::Size - 1), size);
         case 0x13:
             if(a < 0x13010000)
             {
-                waitCycles += 12;
+                cpu.m_g2WaitCycles += 12;
                 const auto v = usb.read(a & 0xffff, size);
                 usbIrqChanged();
                 return v;
@@ -435,14 +456,14 @@ struct Machine::Impl final : coldfire::Bus {
         case 0x15:
             if((a & 0xffffff) < 0x10000)
             {
-                waitCycles += 12;
+                cpu.m_g2WaitCycles += 12;
                 std::uint32_t v = 0;
                 for(int k = 0; k < size; ++k) v = v << 8 | panelHw.readCs5((a + std::uint32_t(k)) & 7);
                 return v;
             }
             break;
         case 0x14: case 0x16: case 0x17:
-            if((a & 0xffffff) < 0x10000) { waitCycles += 12; return 0; }  // write-only latches (CS4), nothing (CS6/7)
+            if((a & 0xffffff) < 0x10000) { cpu.m_g2WaitCycles += 12; return 0; }  // write-only latches (CS4), nothing (CS6/7)
             break;
         default: break;
         }
@@ -457,7 +478,7 @@ struct Machine::Impl final : coldfire::Bus {
         case 0x10:
             if(a < 0x10001000)
             {
-                waitCycles += 6;
+                cpu.m_g2WaitCycles += 6;
                 sim.write(a & 0xfff, size, v);
                 irqDirty = true;
                 nextSimEvent = 0;
@@ -471,15 +492,15 @@ struct Machine::Impl final : coldfire::Bus {
                 return;
             }
             break;
-        case 0x12: waitCycles += 15; flashChip.write(a & (Flash::Size - 1), size, v); return;
+        case 0x12: cpu.m_g2WaitCycles += 15; flashChip.write(a & (Flash::Size - 1), size, v); return;
         case 0x13:
-            if(a < 0x13010000) { waitCycles += 12; usb.write(a & 0xffff, size, v); usbIrqChanged(); return; }
+            if(a < 0x13010000) { cpu.m_g2WaitCycles += 12; usb.write(a & 0xffff, size, v); usbIrqChanged(); return; }
             break;
         case 0x14:
             if((a & 0xffffff) < 0x10000)
             {
                 // the keyboard matrix's column latch (16 bits) [C 0x30029d78]
-                waitCycles += 12;
+                cpu.m_g2WaitCycles += 12;
                 panelHw.writeCs4(std::uint16_t(v));
                 sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
                 return;
@@ -488,13 +509,13 @@ struct Machine::Impl final : coldfire::Bus {
         case 0x15:
             if((a & 0xffffff) < 0x10000)
             {
-                waitCycles += 12;
+                cpu.m_g2WaitCycles += 12;
                 for(int k = 0; k < size; ++k) panelHw.writeCs5((a + std::uint32_t(k)) & 7, std::uint8_t(v >> (8 * (size - 1 - k))));
                 return;
             }
             break;
         case 0x16: case 0x17:
-            if((a & 0xffffff) < 0x10000) { waitCycles += 12; return; }
+            if((a & 0xffffff) < 0x10000) { cpu.m_g2WaitCycles += 12; return; }
             break;
         default: break;
         }
@@ -519,7 +540,7 @@ struct Machine::Impl final : coldfire::Bus {
     // goes to all of them, a read ANDs them (inferred). The bus splits word and long accesses into byte cycles.
     std::uint8_t hostRead8(std::uint32_t off)
     {
-        waitCycles += 12;
+        cpu.m_g2WaitCycles += 12;
         const unsigned sel = (~off >> 3) & 0xff;
         const int reg = int(off & 7);
         std::uint8_t v = 0xff;
@@ -570,6 +591,7 @@ struct Machine::Impl final : coldfire::Bus {
         const std::uint64_t from = dspTimeOfCf(cfNow());
         std::uint64_t to = from;
         std::uint8_t now = v;
+        const auto t0 = timing ? clockNs() : 0;
         while(now == v && to < from + Dsp::CyclesPerFrame)
         {
             to += 16;
@@ -580,6 +602,7 @@ struct Machine::Impl final : coldfire::Bus {
             }
             now = d.hostRead(reg);
         }
+        if(timing) syncNs += clockNs() - t0;
         const auto cfTo = cfTimeOfDsp(to);
         if(cfTo > cfNow())
         {
@@ -593,7 +616,7 @@ struct Machine::Impl final : coldfire::Bus {
 
     void hostWrite8(std::uint32_t off, std::uint8_t v)
     {
-        waitCycles += 12;
+        cpu.m_g2WaitCycles += 12;
         poll.off = ~0u;
         const unsigned sel = (~off >> 3) & 0xff;
         const int reg = int(off & 7);
@@ -675,10 +698,11 @@ struct Machine::Impl final : coldfire::Bus {
         // CACR, ACR0-3, RAMBAR0/1 ($C04/$C05), MBAR ($C0F): the caches are not modelled, and the OS maps the SRAM at
         // 0x20000000 and MBAR at 0x10000000 as the memory map above has them [C, §2.3, §3.6.1]
     }
+    // the bus's wait states go to the core's m_g2WaitCycles, which it adds to the instruction that caused them
     std::uint32_t consumeWaitCycles() override
     {
-        const auto w = waitCycles;
-        waitCycles = 0;
+        const auto w = cpu.m_g2WaitCycles;
+        cpu.m_g2WaitCycles = 0;
         return w;
     }
 
@@ -732,13 +756,13 @@ struct Machine::Impl final : coldfire::Bus {
                     cpu.step();
                     if((++profileTick % 61) == 0 && t >= profileFrom)
                     {
-                        ++(*profile)[cpu.getPC() & ~0x3fu];
+                        ++(*profile)[cpu.getPC() & (profileExact ? ~1u : ~0x3fu)];
                         ++profileIpl[(cpu.getSR() >> 8) & 7];
                     }
                 }
             }
             else
-                while(cpu.getCycles() < stepLimit && !irqDirty && !cpu.isStopped()) cpu.step();
+                cpu.run(stepLimit, irqDirty);  // while(cycles < stepLimit && !irqDirty && !stopped) step()
             if(cpu.isHalted())
             {
                 if(opt.trace) std::fprintf(stderr, "g2emu: the ColdFire halted at %08x\n", cpu.getPC());
@@ -856,9 +880,17 @@ struct Machine::Impl final : coldfire::Bus {
             if(opt.threads)
             {
                 // the ColdFire may not run more than `skew` ahead of the DSPs
-                waitFor([&] { return dspTime.load(std::memory_order_acquire) + opt.skew >= q; });
+                if(dspTime.load(std::memory_order_acquire) + opt.skew < q)
+                {
+                    const auto w0 = clockNs();
+                    progress.wait([&] { return dspTime.load(std::memory_order_acquire) + opt.skew >= q; });
+                    const auto dw = clockNs() - w0;
+                    st.cfWaitNs += dw;
+                    if(timing) { ++cfWaits; cfWaitHist[dw < 1000 ? 0 : dw < 10000 ? 1 : dw < 100000 ? 2 : 3]++; }
+                }
                 runCf(q);
-                horizon.store(q + opt.skew, std::memory_order_release);
+                horizon.store(q + opt.dspLead, std::memory_order_release);
+                progress.ring();
             }
             else
             {
@@ -872,8 +904,12 @@ struct Machine::Impl final : coldfire::Bus {
             usbStep();
             panelStep();
         }
-        if(opt.threads)
-            waitFor([&] { return dspTime.load(std::memory_order_acquire) >= end; });
+        if(opt.threads && dspTime.load(std::memory_order_acquire) < end)
+        {
+            const auto w0 = clockNs();
+            progress.wait([&] { return dspTime.load(std::memory_order_acquire) >= end; });
+            st.cfWaitNs += clockNs() - w0;
+        }
         // hand out the DAC frames produced so far
         std::vector<std::int32_t> words;
         {
@@ -885,12 +921,7 @@ struct Machine::Impl final : coldfire::Bus {
         st.frames += words.size() / 4;
     }
 
-    // spins briefly, then yields
-    template<typename F> static void waitFor(F ready)
-    {
-        for(int i = 0; !ready(); ++i)
-            if(i > 64) std::this_thread::yield();
-    }
+
 
     // Each worker runs its DSPs one frame at a time. A worker never runs past the one upstream of it (its DSPs need
     // that one's frames; the chain links hold chainPrefill frames of slack), and the first one never more than the ring's
@@ -904,18 +935,18 @@ struct Machine::Impl final : coldfire::Bus {
             parts[k * std::size_t(n) / chain.size()].push_back(chain[k]);
             dspWorker[std::size_t(chain[k])] = int(k * std::size_t(n) / chain.size());
         }
-        horizon.store(t + opt.skew);
+        horizon.store(t + opt.dspLead);
         dspTime.store(t);
-        for(int w = 0; w < n; ++w) workerTime[std::size_t(w)].store(t);
+        for(int w = 0; w < n; ++w) worker[std::size_t(w)].time.store(t);
         const std::uint64_t ringSlack = opt.ringPrefill > 2 ? std::uint64_t(opt.ringPrefill - 2) * Dsp::CyclesPerFrame : 0;
         for(int w = 0; w < n; ++w)
             workers.emplace_back([this, w, n, ringSlack, mine = parts[std::size_t(w)]] {
-                auto& my = workerTime[std::size_t(w)];
-                std::uint64_t done = my.load();
+                auto& my = worker[std::size_t(w)].time;
+                std::uint64_t done = my.load(), frames = 0;
                 auto limit = [&] {
                     std::uint64_t l = horizon.load(std::memory_order_acquire);
-                    if(w > 0) l = std::min(l, workerTime[std::size_t(w - 1)].load(std::memory_order_acquire));
-                    else if(n > 1) l = std::min(l, workerTime[std::size_t(n - 1)].load(std::memory_order_acquire) + ringSlack);
+                    if(w > 0) l = std::min(l, worker[std::size_t(w - 1)].time.load(std::memory_order_acquire));
+                    else if(n > 1) l = std::min(l, worker[std::size_t(n - 1)].time.load(std::memory_order_acquire) + ringSlack);
                     return l;
                 };
                 while(!quit.load(std::memory_order_relaxed))
@@ -924,20 +955,22 @@ struct Machine::Impl final : coldfire::Bus {
                     if(done >= l)
                     {
                         const auto w0 = clockNs();
-                        waitFor([&] { return quit.load(std::memory_order_relaxed) || limit() > done; });
-                        workerWaitNs[std::size_t(w)] += clockNs() - w0;
-                        workerCpuNs[std::size_t(w)].store(threadCpuNs(), std::memory_order_relaxed);
+                        progress.wait([&] { return quit.load(std::memory_order_relaxed) || limit() > done; });
+                        worker[std::size_t(w)].waitNs += clockNs() - w0;
+                        worker[std::size_t(w)].cpuNs.store(threadCpuNs(), std::memory_order_relaxed);
                         continue;
                     }
                     const auto target = std::min(l, done + Dsp::CyclesPerFrame);
                     for(int k : mine) dsps[std::size_t(k)]->runTo(target);
                     done = target;
                     my.store(done, std::memory_order_release);
+                    if((++frames & 63) == 0) worker[std::size_t(w)].cpuNs.store(threadCpuNs(), std::memory_order_relaxed);
                     std::uint64_t slowest = done;
-                    for(int v = 0; v < n; ++v) slowest = std::min(slowest, workerTime[std::size_t(v)].load(std::memory_order_acquire));
+                    for(int v = 0; v < n; ++v) slowest = std::min(slowest, worker[std::size_t(v)].time.load(std::memory_order_acquire));
                     // dspTime only grows: a lagging worker may publish an older minimum than another just did
                     auto cur = dspTime.load(std::memory_order_relaxed);
                     while(slowest > cur && !dspTime.compare_exchange_weak(cur, slowest)) {}
+                    progress.ring();
                 }
             });
     }
@@ -945,6 +978,7 @@ struct Machine::Impl final : coldfire::Bus {
     void stopWorker()
     {
         quit = true;
+        progress.ring();
         for(auto& w : workers) w.join();
         workers.clear();
     }
@@ -968,8 +1002,8 @@ struct Machine::Impl final : coldfire::Bus {
         s.midiOverruns = sim.midiOverruns();
         for(std::size_t w = 0; w < workers.size(); ++w)
         {
-            s.dspThreadCpuNs[w] = workerCpuNs[w].load(std::memory_order_relaxed);
-            s.dspThreadWaitNs[w] = workerWaitNs[w].load(std::memory_order_relaxed);
+            s.dspThreadCpuNs[w] = worker[w].cpuNs.load(std::memory_order_relaxed);
+            s.dspThreadWaitNs[w] = worker[w].waitNs.load(std::memory_order_relaxed);
         }
         return s;
     }

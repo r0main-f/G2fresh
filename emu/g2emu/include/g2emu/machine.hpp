@@ -40,6 +40,7 @@ public:
         // The caller's thread needs a big stack (8 MB or more): the JIT compiles there in single-thread mode.
         int threads = 0;
         std::uint32_t skew = 2 * 1536;
+        std::uint32_t dspLead = 8 * 1536;
         // threads > 0: a status read of a DSP's host port waits (wall time) until that DSP has reached the ColdFire's
         // time. Off: it cost 15-25 % of speed and no failure needed it once the host port was ordered (§3.9.6)
         bool causalReads = false;
@@ -66,6 +67,8 @@ public:
         // threads > 0: each DSP thread's CPU time (as of its last wait) and the time it spent waiting (spinning or
         // yielding: the waits count as CPU time too)
         std::uint64_t dspThreadCpuNs[4] = {}, dspThreadWaitNs[4] = {};
+        // threads > 0: the wall time the ColdFire's thread (the caller of run()) spent waiting for the DSP threads
+        std::uint64_t cfWaitNs = 0;
     };
 
     explicit Machine(const Firmware& firmware);

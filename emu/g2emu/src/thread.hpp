@@ -7,10 +7,19 @@
 // the plugin silent: the machine fell far behind real time).
 #pragma once
 
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
+#include <thread>
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -92,5 +101,71 @@ private:
 #endif
 };
 
+
+// A hint to the core that this thread spins (lets the other hardware threads of the core run, saves power).
+inline void cpuRelax()
+{
+#if defined(__aarch64__) || defined(_M_ARM64)
+#if defined(_MSC_VER) && !defined(__clang__)
+    __isb(_ARM64_BARRIER_SY);
+#else
+    __asm__ __volatile__("isb" ::: "memory");
+#endif
+#elif (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+    __builtin_ia32_pause();
+#elif defined(_M_X64) || defined(_M_IX86)
+    _mm_pause();
+#endif
+}
+
+// Waiting for another thread's progress (published in atomics): spin a little, for the common case of a wait of a
+// few microseconds, then sleep until the other thread rings. A thread that waits for longer (the machine is ahead
+// of the audio and its runner sleeps) then costs no CPU, and leaves its core to the threads that have work.
+// ring() after every change a waiter may wait for: it costs a fence and a load while nobody sleeps.
+class Doorbell {
+public:
+    void ring()
+    {
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+        if(sleepers_.load(std::memory_order_relaxed) == 0) return;
+        {
+            std::lock_guard lock(mutex_);
+            ++seq_;
+        }
+        cv_.notify_all();
+    }
+
+    // Returns once ready() is true; spins for about spinMicros first.
+    template<typename F> void wait(F ready, int spinMicros = 50)
+    {
+        using Clock = std::chrono::steady_clock;
+        if(ready()) return;
+        const auto spinEnd = Clock::now() + std::chrono::microseconds(spinMicros);
+        do
+        {
+            for(int k = 0; k < 64; ++k)
+            {
+                if(ready()) return;
+                cpuRelax();
+            }
+        } while(Clock::now() < spinEnd);
+        std::unique_lock lock(mutex_);
+        sleepers_.fetch_add(1, std::memory_order_seq_cst);
+        std::atomic_thread_fence(std::memory_order_seq_cst);  // ready() reads after the count is seen (as ring())
+        while(!ready())
+        {
+            const auto seq = seq_;
+            // the timeout only bounds the damage of a missed ring; ring() does not miss one (see above)
+            cv_.wait_for(lock, std::chrono::milliseconds(2), [&] { return seq_ != seq; });
+        }
+        sleepers_.fetch_sub(1, std::memory_order_seq_cst);
+    }
+
+private:
+    alignas(128) std::atomic<int> sleepers_{0};
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    std::uint64_t seq_ = 0;  // guarded by mutex_
+};
 
 } // namespace g2emu

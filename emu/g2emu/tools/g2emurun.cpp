@@ -53,6 +53,10 @@
 #else
 #include <sys/resource.h>
 #endif
+#ifdef __APPLE__
+#include <pthread.h>
+#include <pthread/qos.h>
+#endif
 
 using namespace g2;
 
@@ -343,9 +347,17 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
     auto next = Clock::now();
     const auto t0 = next;
     std::uint64_t audioFrames = 0;
+    int gaps = 0, longestGap = 0;  // 10 ms blocks with frames missing (while keeping), the most frames missing in one
     auto audio = [&](bool keep) {
         // one 10 ms callback, then the editor's ticks until the next one
-        runner.read(block.data(), 960);
+        const auto got = int(runner.read(block.data(), 960));
+        if(keep && got < 960)
+        {
+            ++gaps;
+            longestGap = std::max(longestGap, 960 - got);
+            if(std::getenv("G2EMU_GAPS"))
+                std::fprintf(stderr, "gap: %d frames missing at %.2f s of the recording\n", 960 - got, double(all.size() / 4) / 96000.0);
+        }
         audioFrames += 960;
         if(keep) all.insert(all.end(), block.begin(), block.end());
         for(int k = 0; k < 10; ++k)
@@ -379,6 +391,7 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
         for(int i = 0; i < 100; ++i) audio(false);  // the upload, then a second of settling
     }
     const auto missing0 = runner.stats().framesMissing;
+    runner.resetLongestChunk();
     std::size_t ni = 0;
     const std::uint64_t f0 = audioFrames;
     while(double(audioFrames - f0) / 96000.0 < seconds)
@@ -405,9 +418,10 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
     std::vector<float> ch(all.size() / 4);
     for(std::size_t f = 0; f < ch.size(); ++f) ch[f] = all[f * 4];
     const auto a = analyse(ch);
-    std::printf("realtime: %.2f s of audio, %llu frames missing (%.2f%%), emulator speed while catching up %.2fx\n",
+    std::printf("realtime: %.2f s of audio, %llu frames missing (%.2f%%) in %d of %zu blocks (at most %d in one), emulator speed while running %.2fx, longest chunk %.1f ms\n",
                 double(ch.size()) / 96000.0, (unsigned long long)(st.framesMissing - missing0),
-                100.0 * double(st.framesMissing - missing0) / double(ch.size() ? ch.size() : 1), st.speed);
+                100.0 * double(st.framesMissing - missing0) / double(ch.size() ? ch.size() : 1), gaps, ch.size() / 960, longestGap, st.speed,
+                st.longestChunkMs);
     std::printf("out 1: peak %.6f rms %.6f freq %.3f Hz, above 10%% of the peak %.4f-%.4f s\n", a.peak, a.rms, a.freq, a.onset, a.end);
     // each note-on's onset: the first sample above 10 % of the peak after the event (the notes must be apart)
     double lo = 1e9, hi = -1e9, sum = 0;
@@ -439,6 +453,11 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
 
 int main(int argc, char** argv)
 {
+#ifdef __APPLE__
+    // as the Runner's threads (thread.hpp): the performance cores, also for the machine on this thread (--threads 0
+    // and the ColdFire); otherwise a busy computer moves it to an efficiency core and the speed means little
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+#endif
     std::string fwPath = "original/firmware", wav, json, flashPath;
     std::optional<std::string> patch, kbd;
     std::vector<std::pair<int, std::string>> more;
@@ -478,6 +497,7 @@ int main(int argc, char** argv)
         else if(a == "--cf-mhz") opt.cfHz = std::stod(next()) * 1e6;
         else if(a == "--threads") opt.threads = std::stoi(next());
         else if(a == "--skew") opt.skew = std::uint32_t(std::stoul(next()));
+        else if(a == "--dsp-lead") opt.dspLead = std::uint32_t(std::stoul(next()));
         else if(a == "--model")
         {
             const auto m = next();
@@ -706,6 +726,11 @@ int main(int argc, char** argv)
     std::printf("speed: %.3f emulated s in %.3f wall s = %.2fx real time, %.2f CPU s per emulated s\n", emulated,
                 recWall, emulated / recWall, recCpu / emulated);
     std::printf("per thread: ColdFire (and the caller) %.2f CPU s per emulated s", recCfCpu / emulated);
+    if(opt.threads) std::printf(", of which waiting %.2f s", double(s2.cfWaitNs - s1.cfWaitNs) * 1e-9 / emulated);
+    {
+        const double busy = recCfCpu - (opt.threads ? double(s2.cfWaitNs - s1.cfWaitNs) * 1e-9 : 0.0);
+        std::printf(" (%.1f M instructions per busy s)", double(s2.cfInstructions - s1.cfInstructions) / std::max(busy, 1e-9) * 1e-6);
+    }
     for(int w = 0; w < 4; ++w)
         if(s2.dspThreadCpuNs[w])
             std::printf("; DSP thread %d %.2f CPU s, of which waiting %.2f s", w,

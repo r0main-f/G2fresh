@@ -35,7 +35,8 @@ public:
 
     struct Stats {
         std::uint64_t framesRead = 0, framesMissing = 0;  // the reader asked for frames that were not there yet
-        double speed = 0;                                 // emulated seconds per wall second while catching up
+        double speed = 0;  // emulated seconds per wall second while the machine runs (its rests left out), recently
+        double longestChunkMs = 0;  // the longest wall time one chunk took (a stall of the machine's threads shows here)
     };
 
     explicit Runner(const Firmware& firmware);
@@ -70,6 +71,7 @@ public:
     void panelSustainPedal(bool down) { machine_->panelSustainPedal(down); }
     Machine& machine() { return *machine_; }
     Stats stats() const;
+    void resetLongestChunk() { longestChunk_.store(0); }
 
 private:
     void loop();
@@ -89,7 +91,7 @@ private:
     std::array<MidiEvent, 1024> midiRing_{};
     std::atomic<std::uint64_t> midiHead_{0}, midiTail_{0};
     std::atomic<std::uint64_t> missing_{0};
-    std::atomic<double> speed_{0};
+    std::atomic<double> speed_{0}, longestChunk_{0};
     std::atomic<bool> quit_{false};
     struct Thread;
     std::unique_ptr<Thread> thread_;

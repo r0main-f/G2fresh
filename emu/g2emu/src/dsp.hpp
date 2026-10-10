@@ -147,11 +147,14 @@ private:
     std::uint8_t rx_[3] = {0, 0, 0};
     bool rxLatched_ = false;
     // what the host writes, on its way to the DSP's thread (single producer, single consumer), in order
+    // (the host's and the DSP's ends on cache lines of their own: see Machine's DSP threads)
     static constexpr std::uint32_t HostQueueSize = 8192;
     std::array<HostEvent, HostQueueSize> hostQueue_{};
-    std::atomic<std::uint32_t> hostHead_{0}, hostTail_{0};
+    alignas(128) std::atomic<std::uint32_t> hostHead_{0};  // the host's thread writes
+    alignas(128) std::atomic<std::uint32_t> hostTail_{0};  // the DSP's thread writes
     std::atomic<int> commandsOutstanding_{0};  // host commands written and not yet taken by the DSP
     bool awaitingCommand_ = false, awaitingFlags_ = false;  // the DSP's thread
+    struct alignas(128) {} endOfHostQueue_;
 
     Link* in_[2] = {nullptr, nullptr};
     Link* out_[2] = {nullptr, nullptr};

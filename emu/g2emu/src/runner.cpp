@@ -63,19 +63,24 @@ void Runner::loop()
 {
     using Clock = std::chrono::steady_clock;
     const auto target = std::size_t(options_.bufferMs * Machine::FrameRate / 1000.0);
+    // Once full, the machine rests until the reader has taken a quarter of the buffer, then runs until it is full
+    // again: a few longer runs rather than one chunk after every short sleep, each of which would start the machine's
+    // threads again from their sleep.
+    const auto resume = target - std::min(target, std::max<std::size_t>(options_.chunkFrames, target / 4));
     std::vector<float> chunk;
-    auto busyStart = Clock::now();
+    // the speed while running (the rests left out), over about the last tenth of a second of running
+    double busyWall = 0;
     std::uint64_t busyFrames = 0;
     while(!quit_.load(std::memory_order_relaxed))
     {
         if(available() >= target)
         {
             // full: the reader drains it at the audio rate
-            std::this_thread::sleep_for(std::chrono::microseconds(500));
-            busyStart = Clock::now();
-            busyFrames = 0;
+            while(available() > resume && !quit_.load(std::memory_order_relaxed))
+                std::this_thread::sleep_for(std::chrono::microseconds(500));
             continue;
         }
+        const auto chunkStart = Clock::now();
         for(auto t = midiTail_.load(std::memory_order_relaxed); t != midiHead_.load(std::memory_order_acquire); ++t)
         {
             const auto& e = midiRing_[t % midiRing_.size()];
@@ -92,8 +97,15 @@ void Runner::loop()
         // ring frame i was made at machine frame i + offset (the DACs' pipeline is constant)
         frameOffset_.store(std::int64_t(machine_->frame()) - std::int64_t(w + frames), std::memory_order_release);
         busyFrames += frames;
-        const double wall = std::chrono::duration<double>(Clock::now() - busyStart).count();
-        if(wall > 0.05) speed_.store(double(busyFrames) / Machine::FrameRate / wall, std::memory_order_relaxed);
+        const double chunkWall = std::chrono::duration<double>(Clock::now() - chunkStart).count();
+        busyWall += chunkWall;
+        if(chunkWall > longestChunk_.load(std::memory_order_relaxed)) longestChunk_.store(chunkWall, std::memory_order_relaxed);
+        if(busyWall > 0.1)
+        {
+            speed_.store(double(busyFrames) / Machine::FrameRate / busyWall, std::memory_order_relaxed);
+            busyWall = 0;
+            busyFrames = 0;
+        }
     }
 }
 
@@ -127,6 +139,7 @@ Runner::Stats Runner::stats() const
     s.framesRead = read_.load();
     s.framesMissing = missing_.load();
     s.speed = speed_.load();
+    s.longestChunkMs = longestChunk_.load() * 1e3;
     return s;
 }
 

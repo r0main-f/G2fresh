@@ -160,8 +160,10 @@ void Dsp::pumpHost()
         if(hdi_.hasPendingHostFlags01()) return;  // the DSP has not read its status register since
         awaitingFlags_ = false;
     }
-    auto t = hostTail_.load(std::memory_order_relaxed);
+    const auto t0 = hostTail_.load(std::memory_order_relaxed);
     const auto h = hostHead_.load(std::memory_order_acquire);
+    if(t0 == h) return;
+    auto t = t0;
     while(t != h)
     {
         const auto& e = hostQueue_[t % HostQueueSize];
@@ -188,7 +190,7 @@ void Dsp::pumpHost()
         }
         ++t;
     }
-    hostTail_.store(t, std::memory_order_release);
+    if(t != t0) hostTail_.store(t, std::memory_order_release);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

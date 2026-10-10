@@ -126,9 +126,15 @@ set(_cf_dir ${CMAKE_CURRENT_BINARY_DIR}/gearmulator/coldfire)
 configure_file(${gm_cfcpu_cpp_SOURCE_DIR}/cfCpu.cpp ${_cf_dir}/cfCpu.cpp COPYONLY)
 configure_file(${gm_cfcpu_h_SOURCE_DIR}/cfCpu.h ${_cf_dir}/cfCpu.h COPYONLY)
 
-# A speed-up (G2FRESH): a window of plain RAM (the G2's SDRAM, where the OS runs) that the core fetches from, reads
-# and writes directly instead of through the virtual Bus calls; everything else still goes to the bus. Edits the
-# copies above; configure fails if an anchor is missing (a new pin).
+# Speed-ups (G2FRESH), none of which changes what the core computes (re/notes/g2-hardware-and-emulation.md 3.9.7):
+# * a window of plain RAM (the G2's SDRAM, where the OS runs) that the core fetches from, reads and writes directly
+#   instead of through the virtual Bus calls; everything else still goes to the bus;
+# * Cpu::run(), the stepping loop inside the core, and the bus's wait cycles in a field of the core
+#   (m_g2WaitCycles) instead of a virtual call per instruction;
+# * the dispatch through a table of plain function pointers, and specialised handlers (operand size and address
+#   mode as template arguments) for the most frequent instructions, with the address decoding and memory access
+#   helpers inlined: g2emu/coldfire/cfFast*.
+# Edits the copies above; configure fails if an anchor is missing (a new pin).
 function(g2_patch_file _file)
   file(READ ${_file} _src)
   if(_src MATCHES "G2FRESH")
@@ -148,6 +154,58 @@ function(g2_patch_file _file)
   file(WRITE ${_file} "${_src}")
 endfunction()
 g2_patch_file(${_cf_dir}/cfCpu.h
+  "#include <functional>"
+  "#include <functional>
+
+#include \"cfFast.h\"  // G2FRESH: emu/g2emu/coldfire"
+  "		uint32_t step();"
+  "		uint32_t step();
+
+		// G2FRESH: steps until the cycle count reaches _cycleLimit, _stop is set (by the bus), or the core stops or halts
+		void run(uint64_t _cycleLimit, const bool& _stop);
+
+		// G2FRESH: bus wait cycles, added by the bus while an instruction runs and taken by the core at its end, as
+		// Bus::consumeWaitCycles (a virtual call per instruction) returns them
+		uint32_t m_g2WaitCycles = 0;"
+  "		void buildTable();"
+  "		void buildTable();
+#include \"cfFastMembers.inl\"  // G2FRESH"
+  "		void push32(uint32_t _value);"
+  "		G2_CF_INLINE void push32(uint32_t _value);"
+  "		uint32_t pop32();"
+  "		G2_CF_INLINE uint32_t pop32();"
+  "		uint32_t controlAddress(uint32_t _mode, uint32_t _reg);"
+  "		G2_CF_INLINE uint32_t controlAddress(uint32_t _mode, uint32_t _reg);"
+  "		void jump(uint32_t _target);"
+  "		G2_CF_INLINE void jump(uint32_t _target);"
+  "		bool testCondition(uint32_t _cc) const;"
+  "		G2_CF_INLINE bool testCondition(uint32_t _cc) const;"
+  "		uint32_t add(uint32_t _src, uint32_t _dst, bool _withX);"
+  "		G2_CF_INLINE uint32_t add(uint32_t _src, uint32_t _dst, bool _withX);"
+  "		uint32_t sub(uint32_t _src, uint32_t _dst, bool _withX);"
+  "		G2_CF_INLINE uint32_t sub(uint32_t _src, uint32_t _dst, bool _withX);"
+  "		void cmp(uint32_t _src, uint32_t _dst);"
+  "		G2_CF_INLINE void cmp(uint32_t _src, uint32_t _dst);"
+  "		uint16_t fetch16();"
+  "		G2_CF_INLINE uint16_t fetch16();"
+  "		uint32_t fetch32();"
+  "		G2_CF_INLINE uint32_t fetch32();"
+  "		uint32_t read(uint32_t _addr, Size _size);"
+  "		G2_CF_INLINE uint32_t read(uint32_t _addr, Size _size);"
+  "		void write(uint32_t _addr, uint32_t _value, Size _size);"
+  "		G2_CF_INLINE void write(uint32_t _addr, uint32_t _value, Size _size);"
+  "		Ea decodeEa(uint32_t _mode, uint32_t _reg, Size _size);"
+  "		G2_CF_INLINE Ea decodeEa(uint32_t _mode, uint32_t _reg, Size _size);"
+  "		uint32_t readEa(const Ea& _ea, Size _size);"
+  "		G2_CF_INLINE uint32_t readEa(const Ea& _ea, Size _size);"
+  "		void writeEa(const Ea& _ea, uint32_t _value, Size _size);"
+  "		G2_CF_INLINE void writeEa(const Ea& _ea, uint32_t _value, Size _size);"
+  "		static uint32_t eaClass(uint32_t _mode, uint32_t _reg);"
+  "		G2_CF_INLINE static uint32_t eaClass(uint32_t _mode, uint32_t _reg);"
+  "		void setNZ(uint32_t _result, Size _size);"
+  "		G2_CF_INLINE void setNZ(uint32_t _result, Size _size);"
+  "		void setLogicFlags(uint32_t _result, Size _size);"
+  "		G2_CF_INLINE void setLogicFlags(uint32_t _result, Size _size);"
   "		void setUnimplementedCallback(UnimplementedCallback _cb)"
   "		// G2FRESH: plain RAM at [_base, _base + _size) that is accessed directly, not through the bus
 		void setFastMemory(uint8_t* _mem, const uint32_t _base, const uint32_t _size)
@@ -164,6 +222,33 @@ g2_patch_file(${_cf_dir}/cfCpu.h
 		uint16_t fast16(const uint32_t _o) const { return static_cast<uint16_t>(m_fastMem[_o] << 8 | m_fastMem[_o + 1]); }
 		uint32_t fast32(const uint32_t _o) const { return static_cast<uint32_t>(m_fastMem[_o]) << 24 | static_cast<uint32_t>(m_fastMem[_o + 1]) << 16 | static_cast<uint32_t>(m_fastMem[_o + 2]) << 8 | m_fastMem[_o + 3]; }")
 g2_patch_file(${_cf_dir}/cfCpu.cpp
+  "		buildTable();
+"
+  "		buildTable();
+		buildFastTable();
+"
+  "	uint32_t Cpu::step()
+	{"
+  "	uint32_t Cpu::step()
+	{
+		return stepInline();
+	}
+
+	uint32_t Cpu::stepInline()
+	{"
+  "m_cycles += m_bus.consumeWaitCycles();"
+  "m_cycles += m_g2WaitCycles; m_g2WaitCycles = 0;"
+  "		read(addr + 4, Size::Long);
+		m_cycles += 5;
+	}
+}"
+  "		read(addr + 4, Size::Long);
+		m_cycles += 5;
+	}
+}
+
+#include \"cfFast.inl\"  // G2FRESH
+"
   "		const uint16_t w = m_bus.fetch16(m_pc);"
   "		const uint32_t fo = m_pc - m_fastBase;
 		const uint16_t w = fo < m_fastEnd2 ? fast16(fo) : m_bus.fetch16(m_pc);"
@@ -186,8 +271,8 @@ g2_patch_file(${_cf_dir}/cfCpu.cpp
   "			if(_addr - m_fastBase < m_fastEnd4) { uint8_t* p = m_fastMem + (_addr - m_fastBase); p[0] = static_cast<uint8_t>(_value >> 24); p[1] = static_cast<uint8_t>(_value >> 16); p[2] = static_cast<uint8_t>(_value >> 8); p[3] = static_cast<uint8_t>(_value); break; }
 			m_bus.write32(_addr, _value);")
 add_library(g2coldfire STATIC ${_cf_dir}/cfCpu.cpp)
-target_include_directories(g2coldfire SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/gearmulator)
-target_compile_features(g2coldfire PUBLIC cxx_std_17)
+target_include_directories(g2coldfire SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/gearmulator ${CMAKE_CURRENT_SOURCE_DIR}/g2emu/coldfire)
+target_compile_features(g2coldfire PUBLIC cxx_std_20)
 set_target_properties(g2coldfire PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(NOT MSVC)
   target_compile_options(g2coldfire PRIVATE -w)
