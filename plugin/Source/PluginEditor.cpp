@@ -5,6 +5,7 @@ G2EditorView::G2EditorView(G2EditorProcessor& p)
 {
     main_.setMidiOutput(&p.midiOutput());
     main_.setSynth(&p.synth());
+    main_.setBuiltinSound(&p);
     addAndMakeVisible(main_);
     setResizable(true, true);
     setResizeLimits(800, 500, 8192, 8192);

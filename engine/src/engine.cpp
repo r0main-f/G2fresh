@@ -40,6 +40,7 @@ std::vector<std::uint8_t> supportedTypes()
 // One module in the run order: its processor and where its inputs come from.
 struct PatchEngine::Node {
     Location loc = Location::Va;
+    int voice = -1; // VA nodes: their voice; FX nodes: -1
     std::uint8_t index = 0;
     std::unique_ptr<Processor> proc;
     bool audioRate = true;
@@ -48,7 +49,7 @@ struct PatchEngine::Node {
     std::vector<float> in, out;
 };
 
-PatchEngine::PatchEngine(const Patch& patch) : patch_(patch)
+PatchEngine::PatchEngine(const Patch& patch, int maxVoices) : patch_(patch)
 {
     static const bool registered = [] {
         registerBuiltinProcessors();
@@ -56,8 +57,11 @@ PatchEngine::PatchEngine(const Patch& patch) : patch_(patch)
     }();
     (void)registered;
     variation_ = patch_.header.activeVariation;
-    build(Location::Va);
-    build(Location::Fx);
+    const int voices = patch_.header.monoMode != 0 ? 1 : std::clamp<int>(patch_.header.voiceCount, 1, std::max(1, maxVoices));
+    voices_.assign(static_cast<std::size_t>(voices), Voice{});
+    for (int v = 0; v < voices; ++v)
+        build(Location::Va, v);
+    build(Location::Fx, -1);
     for (auto& n : nodes_)
         if (n.proc) {
             const auto* m = patch_.area(n.loc).find(n.index);
@@ -84,7 +88,7 @@ void PatchEngine::updateGain()
 
 PatchEngine::~PatchEngine() = default;
 
-void PatchEngine::build(Location loc)
+void PatchEngine::build(Location loc, int voice)
 {
     const auto& area = patch_.area(loc);
     const auto first = static_cast<int>(nodes_.size());
@@ -121,13 +125,14 @@ void PatchEngine::build(Location loc)
             continue; // a label (the Name bar): nothing to play
         Node n;
         n.loc = loc;
+        n.voice = voice;
         n.index = idx;
         n.in.assign(def ? def->inputs.size() : 0, 0.0f);
         n.out.assign(def ? def->outputs.size() : 0, 0.0f);
         n.sources.assign(n.in.size(), {-1, -1});
         if (const auto it = registry().find(m->type); it != registry().end())
             n.proc = it->second();
-        else
+        else if (voice <= 0) // once per module, not per voice
             unsupported_.push_back(m->name + (def ? " (" + std::string(def->shortName) + ")" : std::string()));
         nodeOf[idx] = static_cast<int>(nodes_.size());
         nodes_.push_back(std::move(n));
@@ -190,15 +195,64 @@ void PatchEngine::setParam(Location loc, std::uint8_t module, std::uint8_t param
 
 void PatchEngine::setKey(int note, bool gate, int velocity)
 {
+    auto& v = voices_.front();
+    const float vel = static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f;
+    v.note = note;
+    v.gate = gate;
+    (gate ? v.velocity : v.releaseVelocity) = vel;
+    v.since = sampleCount_;
+    lastVoice_ = 0;
+}
+
+void PatchEngine::noteOn(int note, int velocity)
+{
+    // A free voice released longest ago, else the voice started longest ago.
+    int pick = -1;
+    for (int i = 0; i < voices(); ++i) {
+        const auto& v = voices_[static_cast<std::size_t>(i)];
+        if (!v.gate && (pick < 0 || voices_[static_cast<std::size_t>(pick)].gate
+                        || v.since < voices_[static_cast<std::size_t>(pick)].since))
+            pick = i;
+    }
+    if (pick < 0)
+        for (int i = 0; i < voices(); ++i)
+            if (pick < 0 || voices_[static_cast<std::size_t>(i)].since < voices_[static_cast<std::size_t>(pick)].since)
+                pick = i;
+    auto& v = voices_[static_cast<std::size_t>(pick)];
+    v.note = note;
+    v.gate = true;
+    v.velocity = static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f;
+    v.since = sampleCount_;
+    lastVoice_ = pick;
+}
+
+void PatchEngine::noteOff(int note, int velocity)
+{
+    for (auto& v : voices_)
+        if (v.gate && v.note == note) {
+            v.gate = false;
+            v.releaseVelocity = static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f;
+            v.since = sampleCount_;
+        }
+}
+
+void PatchEngine::allNotesOff()
+{
+    for (auto& v : voices_)
+        if (v.gate) {
+            v.gate = false;
+            v.since = sampleCount_;
+        }
+}
+
+void PatchEngine::keyIo(const Voice& v)
+{
     // The G2's note signal: 0 at note 64 (E4), one unit (1/64) per semitone
     // (the Keyboard module's Pitch output, measured on the emulated G2).
-    io_.pitch = static_cast<float>(note - 64) / kUnitsPerSignal;
-    io_.gate = gate ? 1.0f : 0.0f;
-    const float v = static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f;
-    if (gate)
-        io_.velocity = v;
-    else
-        io_.releaseVelocity = v;
+    io_.pitch = static_cast<float>(v.note - 64) / kUnitsPerSignal;
+    io_.gate = v.gate ? 1.0f : 0.0f;
+    io_.velocity = v.velocity;
+    io_.releaseVelocity = v.releaseVelocity;
 }
 
 void PatchEngine::step()
@@ -208,7 +262,12 @@ void PatchEngine::step()
     io_.out = {};
     io_.fx = {};
     io_.bus = {};
+    int voice = -2;
     for (auto& n : nodes_) {
+        if (n.voice != voice) { // the keyboard of the voice whose modules run now
+            voice = n.voice;
+            keyIo(voices_[static_cast<std::size_t>(voice >= 0 ? voice : lastVoice_)]);
+        }
         if (!n.proc || (!n.audioRate && !controlTick))
             continue;
         for (std::size_t i = 0; i < n.in.size(); ++i) {

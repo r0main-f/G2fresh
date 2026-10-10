@@ -292,3 +292,40 @@ TEST_CASE("Linked inputs share their net's source, whichever end the cable reach
         CHECK(peak > 0.1f);
     }
 }
+
+TEST_CASE("Polyphony: each note gets its own voice; a full patch steals the oldest", "[engine]")
+{
+    Patch p = oscPatch(0, 64, 1); // a sine tracking the keyboard
+    p.header.monoMode = 0;
+    p.header.voiceCount = 2;
+    engine::PatchEngine e(p);
+    REQUIRE(e.voices() == 2);
+    auto level = [](const std::vector<float>& x, double f) { // Goertzel, normalised
+        double re = 0, im = 0;
+        for (std::size_t k = 0; k < x.size(); ++k) {
+            re += x[k] * std::cos(2 * M_PI * f * double(k) / 96000.0);
+            im += x[k] * std::sin(2 * M_PI * f * double(k) / 96000.0);
+        }
+        return std::hypot(re, im) / double(x.size());
+    };
+    auto block = [&] {
+        std::vector<float> l(9600);
+        e.render({l.data(), nullptr, nullptr, nullptr}, 9600);
+        return l;
+    };
+    const double e4 = 329.6276, e5 = e4 * 2, b4 = e4 * std::exp2(7.0 / 12);
+    e.noteOn(64, 100);
+    e.noteOn(76, 100);
+    auto x = block();
+    CHECK(level(x, e4) > 0.2);
+    CHECK(level(x, e5) > 0.2);
+    // A third note steals the voice started first (E4).
+    e.noteOn(71, 100);
+    x = block();
+    CHECK(level(x, e4) < 0.05); // only leakage from the other two tones (short, unwindowed block)
+    CHECK(level(x, e5) > 0.2);
+    CHECK(level(x, b4) > 0.2);
+    // Mono patches play one voice.
+    p.header.monoMode = 1;
+    CHECK(engine::PatchEngine(p).voices() == 1);
+}

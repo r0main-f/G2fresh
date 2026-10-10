@@ -6,6 +6,7 @@
 #pragma once
 
 #include "AreaView.h"
+#include "BuiltinSound.h"
 #include "MidiOutputTarget.h"
 #include "SynthSync.h"
 #include "ModuleBrowser.h"
@@ -42,6 +43,13 @@ public:
     }
     // The connection to the G2 (nullptr: no Synth menu).
     void setSynth(SynthSync* synth);
+    // The patch played by G2fresh itself (nullptr: none).
+    void setBuiltinSound(BuiltinSound* sound)
+    {
+        builtin_ = sound;
+        updateSynthStatus();
+        menuItemsChanged();
+    }
 
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -111,6 +119,7 @@ private:
     std::unique_ptr<MutatorWindow> mutator_;
     MidiOutputTarget* midiOut_ = nullptr;
     SynthSync* synth_ = nullptr;
+    BuiltinSound* builtin_ = nullptr;
     std::unique_ptr<class BankBrowser> bankBrowser_;
     juce::Label synthStatus_;
     void updateSynthStatus();

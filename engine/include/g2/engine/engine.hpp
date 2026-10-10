@@ -75,11 +75,20 @@ void registerBuiltinProcessors();
 bool hasProcessor(std::uint8_t type);
 std::vector<std::uint8_t> supportedTypes();
 
-// One voice of a patch (VA area) plus its FX area.
+// A patch: its VA area once per voice, its FX area once (fed by the sum of
+// the voices' FX sends).
 class PatchEngine {
 public:
-    explicit PatchEngine(const Patch& patch);
+    // `maxVoices` caps the patch's voice count (Mono and Legato play one).
+    explicit PatchEngine(const Patch& patch, int maxVoices = 16);
     ~PatchEngine();
+
+    int voices() const { return static_cast<int>(voices_.size()); }
+    // Polyphonic keyboard: a note starts the free voice released longest
+    // ago, or steals the voice started longest ago. (G2 note numbers, 60 = C4.)
+    void noteOn(int note, int velocity);
+    void noteOff(int note, int velocity = 64);
+    void allNotesOff();
 
     // Modules without a processor: they output silence.
     const std::vector<std::string>& unsupported() const { return unsupported_; }
@@ -87,9 +96,9 @@ public:
     void setVariation(std::uint8_t variation);
     // Applies a parameter change of the current variation (like a knob).
     void setParam(Location loc, std::uint8_t module, std::uint8_t param, std::uint8_t value);
-    // Keyboard (for keyboard-driven modules): G2 note number (60 = C4),
-    // gate on/off, velocity 0..127. The pitch keeps the last note after the
-    // gate closes, as on the synth.
+    // Monophonic keyboard on the first voice (tools and tests): G2 note
+    // number (60 = C4), gate on/off, velocity 0..127. The pitch keeps the last
+    // note after the gate closes, as on the synth.
     void setKey(int note, bool gate, int velocity = 100);
 
     // Renders `frames` samples of Out 1..4 into `outs` (each `frames` long;
@@ -99,17 +108,26 @@ public:
 
 private:
     struct Node;
-    void build(Location loc);
+    struct Voice {
+        int note = 64;
+        bool gate = false;
+        float velocity = 0.0f, releaseVelocity = 0.0f;
+        std::uint64_t since = 0; // sample count of the last note on or off
+    };
+    void build(Location loc, int voice);
     void step();
+    void keyIo(const Voice& v);
 
     Patch patch_;
     std::uint8_t variation_ = 0;
-    std::vector<Node> nodes_; // VA in cable order, then FX in cable order
+    std::vector<Node> nodes_; // each voice's VA in cable order, then FX in cable order
+    std::vector<Voice> voices_;
+    int lastVoice_ = 0; // the FX area hears the voice played last
     std::vector<std::string> unsupported_;
     void updateGain();
 
     Io io_;
-    int sampleCount_ = 0;
+    std::uint64_t sampleCount_ = 0;
     float gain_ = 1.0f; // patch Gain setting
 };
 

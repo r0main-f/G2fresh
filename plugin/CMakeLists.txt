@@ -24,6 +24,7 @@ target_sources(G2Editor PRIVATE
   Source/PluginProcessor.cpp
   Source/AutomationBank.cpp
   Source/MidiForwarder.cpp
+  Source/NativeSoundEngine.cpp
   Source/PluginEditor.cpp
   Source/StandaloneApp.cpp
   ${G2_UI_SOURCES})
@@ -38,6 +39,7 @@ target_compile_definitions(G2Editor PUBLIC
 target_link_libraries(G2Editor
   PRIVATE
     g2bridgelib # with g2proto and g2core
+    g2engine
     G2SkinData
     juce::juce_audio_utils
   PUBLIC

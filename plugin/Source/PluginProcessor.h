@@ -1,7 +1,9 @@
 #pragma once
 
 #include "AutomationBank.h"
+#include "BuiltinSound.h"
 #include "MidiForwarder.h"
+#include "NativeSoundEngine.h"
 #include "PatchDocument.h"
 #include "SynthSync.h"
 
@@ -13,7 +15,9 @@
 // variation as automatable parameters (AutomationBank); and forwards its MIDI
 // to a hardware port into the G2 (MidiForwarder). Sending to the synth comes
 // with the USB bridge.
-class G2EditorProcessor final : public juce::AudioProcessor, private juce::ChangeListener {
+class G2EditorProcessor final : public juce::AudioProcessor,
+                                public g2ui::BuiltinSound,
+                                private juce::ChangeListener {
 public:
     G2EditorProcessor();
     ~G2EditorProcessor() override;
@@ -45,6 +49,11 @@ public:
     MidiForwarder& midiOutput() { return midiOut_; }
     g2ui::SynthSync& synth() { return synth_; }
 
+    // BuiltinSound: the patch played by G2fresh itself, while no G2 plays it.
+    bool builtinSoundEnabled() const override { return builtinOn_; }
+    void setBuiltinSoundEnabled(bool on) override;
+    juce::String builtinSoundStatus() const override { return engine_->status(); }
+
 private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
     void loadState(std::vector<std::uint8_t> bytes);
@@ -55,6 +64,9 @@ private:
     MidiForwarder midiOut_;
     std::unique_ptr<AutomationBank> automation_;
     g2ui::SynthSync synth_{document_}; // the G2 connection outlives the editor window
+    std::unique_ptr<SoundEngine> engine_ = std::make_unique<NativeSoundEngine>();
+    std::atomic<bool> builtinOn_{true};
+    std::atomic<bool> synthPlays_{false}; // the patch is live on a G2: stay silent
     juce::SpinLock stateLock_;
     std::vector<std::uint8_t> stateBytes_; // the patch as a .pch2, for the host
     std::shared_ptr<int> alive_ = std::make_shared<int>(0); // guards deferred state loads
