@@ -41,7 +41,7 @@ jobs:
         if: runner.os == 'Windows'
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_extra }}
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DG2_BUILD_EMU=ON ${{ matrix.cmake_extra }}
 
       - name: Build
         run: cmake --build build
