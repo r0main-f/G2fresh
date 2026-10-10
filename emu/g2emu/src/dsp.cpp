@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <cstdio>
 #include <limits>
 
 using namespace dsp56k;
@@ -43,6 +44,12 @@ Dsp::Dsp(int index, Options options) : index_(index), options_(options)
     dsp_.getJit().setConfig(config);
 
     boot_ = std::make_unique<DspBoot>(dsp_);
+
+    // P memory the OS never uses (it loads stage 1 and the patch code below $2000 [§3.6.3, patch-load.md: P 6498
+    // words]) holds `bra *`. Zeros are nops, and the JIT links a run of them into one chain of blocks: a DSP that
+    // jumped there by mistake slid to the end of P memory within one dispatch and the JIT then recursed without end
+    // compiling past it (§3.9.6). Now such a DSP stops on the first word it reaches, and runTo() reports it.
+    for(TWord a = WildPcFrom; a < mem_.sizeP(); ++a) mem_.set(MemArea_P, a, 0x050C00);
 }
 
 Dsp::~Dsp() = default;
@@ -61,21 +68,30 @@ std::uint8_t Dsp::isr()
 {
     std::uint8_t v = 0;
     if(rxLatched_ || hdi_.hasTX()) v |= 0x01 | 0x80;              // RXDF, HREQ
-    if(hdi_.rxData().size() < 8000) v |= 0x02;                    // TXDE: the host may write ahead, the queue keeps order
-    if(hdi_.rxData().empty()) v |= 0x04;                          // TRDY
+    const auto queued = hostHead_.load(std::memory_order_relaxed) - hostTail_.load(std::memory_order_acquire);
+    if(queued < HostQueueSize - 64) v |= 0x02;                   // TXDE: the host may write ahead, the queue keeps order
+    if(queued == 0 && hdi_.rxData().empty()) v |= 0x04;          // TRDY
     v |= std::uint8_t(hdi_.readControlRegister() & 0x18);        // HF2, HF3
     return v;
 }
 
+void Dsp::pushHost(HostEvent::Kind kind, dsp56k::TWord value)
+{
+    const auto h = hostHead_.load(std::memory_order_relaxed);
+    if(h - hostTail_.load(std::memory_order_acquire) >= HostQueueSize) return;  // the host ignored TXDE: lost, as on the chip
+    hostQueue_[h % HostQueueSize] = {kind, value};
+    hostHead_.store(h + 1, std::memory_order_release);
+    periphX_.setDelayCycles(0);  // the DSP's peripherals run, and deliver it, at its next instruction
+}
+
 std::uint8_t Dsp::hostRead(int reg)
 {
-    retryHostCommand();
     switch(reg)
     {
     case 0: return icr_;
     case 1:
         // HC stays set until the DSP has taken the command
-        if((cvr_ & 0x80) && !hcPending_ && !dsp_.hasPendingExternalInterrupts()) cvr_ &= 0x7f;
+        if((cvr_ & 0x80) && commandsOutstanding_.load(std::memory_order_acquire) == 0) cvr_ &= 0x7f;
         return cvr_;
     case 2: return isr();
     case 3: return ivr_;
@@ -97,12 +113,11 @@ std::uint8_t Dsp::hostRead(int reg)
 
 void Dsp::hostWrite(int reg, std::uint8_t v)
 {
-    retryHostCommand();
     switch(reg)
     {
     case 0:
         icr_ = v & 0x7f;  // INIT completes at once
-        hdi_.setPendingHostFlags01(v & 0x18);
+        pushHost(HostEvent::Flags, v & 0x18);
         break;
     case 1:
         cvr_ = v;
@@ -110,25 +125,70 @@ void Dsp::hostWrite(int reg, std::uint8_t v)
         {
             // the host command vector is P:2*HV; the DSP takes it when HCIE allows (stage 1 enables HCIE before the
             // host sends any command)
-            hcVector_ = TWord(v & 0x7f) * 2;
-            if(hdi_.hostCommandsFull())
-                hcPending_ = true;
-            else
-                hdi_.injectHostCommand(hcVector_);
+            commandsOutstanding_.fetch_add(1, std::memory_order_relaxed);
+            pushHost(HostEvent::Command, TWord(v & 0x7f) * 2);
         }
         break;
     case 3: ivr_ = v; break;
     case 5: case 6: case 7:
         tx_[reg - 5] = v;
         if(reg == 7)
-        {
-            const TWord w = (icr_ & 0x20) ? (TWord(tx_[2]) << 16 | TWord(tx_[1]) << 8 | tx_[0])
-                                          : (TWord(tx_[0]) << 16 | TWord(tx_[1]) << 8 | tx_[2]);
-            hdi_.writeRX(&w, 1);
-        }
+            pushHost(HostEvent::Data, (icr_ & 0x20) ? (TWord(tx_[2]) << 16 | TWord(tx_[1]) << 8 | tx_[0])
+                                                    : (TWord(tx_[0]) << 16 | TWord(tx_[1]) << 8 | tx_[2]));
         break;
     default: break;
     }
+}
+
+// The host's words, host commands and host flag changes reach the DSP on its own thread, in the order the host
+// wrote them, and paced as on the chip: what follows a host command waits until the DSP has taken it, and what
+// follows a flag change until the DSP has seen it. On the chip a host command is taken within a few clocks, before
+// the host can write its next word; the OS relies on it (it sends commands that read the host port without
+// writing a word first, $AE). Delivered at once, from the host's thread, such a command took the next word meant
+// for the following command, everything after it was off by one, and the DSP ran off the end of P memory when LA
+// was loaded with the wrong word (seen with the DSPs on their own threads). [§3.9.4]
+void Dsp::pumpHost()
+{
+    if(awaitingCommand_)
+    {
+        if(dsp_.hasPendingInterrupts()) return;  // queued, or being served
+        awaitingCommand_ = false;
+        commandsOutstanding_.fetch_sub(1, std::memory_order_release);
+    }
+    if(awaitingFlags_)
+    {
+        if(hdi_.hasPendingHostFlags01()) return;  // the DSP has not read its status register since
+        awaitingFlags_ = false;
+    }
+    auto t = hostTail_.load(std::memory_order_relaxed);
+    const auto h = hostHead_.load(std::memory_order_acquire);
+    while(t != h)
+    {
+        const auto& e = hostQueue_[t % HostQueueSize];
+        if(e.kind == HostEvent::Data)
+        {
+            if(hdi_.dataRXFull()) break;
+            hdi_.writeRX(&e.value, 1);
+        }
+        else if(e.kind == HostEvent::Command)
+        {
+            if(hdi_.hostCommandsFull()) break;
+            hdi_.injectHostCommand(e.value);
+            awaitingCommand_ = true;
+            ++t;
+            break;
+        }
+        else
+        {
+            hdi_.setPendingHostFlags01(e.value);
+            ++t;
+            if(booting_) continue;  // the boot ROM does not look at the flags (an INIT at reset writes them)
+            awaitingFlags_ = true;
+            break;
+        }
+        ++t;
+    }
+    hostTail_.store(t, std::memory_order_release);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -137,9 +197,11 @@ void Dsp::hostWrite(int reg, std::uint8_t v)
 void Dsp::feedBootRom()
 {
     // the boot ROM in host-boot mode: count, address, then the words into P; then it jumps there
+    pumpHost();
     while(booting_ && hdi_.hasRXData())
     {
         const TWord w = hdi_.readRX(Movep_Spp);
+        if(!hdi_.hasRXData()) pumpHost();
         if(boot_->hdiWriteTX(w))
         {
             booting_ = false;
@@ -149,17 +211,9 @@ void Dsp::feedBootRom()
     }
 }
 
-void Dsp::retryHostCommand()
-{
-    if(hcPending_ && !hdi_.hostCommandsFull())
-    {
-        hdi_.injectHostCommand(hcVector_);
-        hcPending_ = false;
-    }
-}
-
 void Dsp::runTo(std::uint64_t target)
 {
+    pumpHost();
     while(dsp_.getInstructionCounter() < target)
     {
         if(booting_)
@@ -175,6 +229,11 @@ void Dsp::runTo(std::uint64_t target)
             dsp_.getJit().getTrampoline().exec(&dsp_, dsp56k::JitTrampoline::UnrollSize);  // 8 blocks (a count below 8 means 2^32 rounds)
         else
             dsp_.execInterpreter();  // a DO FOREVER does not come back from here: debugging only
+        if(dsp_.getPC().toWord() >= WildPcFrom && dsp_.getPC().toWord() < 0xff0000 && !wild_)
+        {
+            wild_ = true;
+            std::fprintf(stderr, "g2emu: DSP %d jumped to P:%06x, where there is no code\n", index_, dsp_.getPC().toWord());
+        }
         if(dsp_.getPC().toWord() >= 0xff0000)  // a jump into the boot ROM: it loads P again
         {
             boot_->reset();
@@ -185,6 +244,7 @@ void Dsp::runTo(std::uint64_t target)
 
 std::uint32_t Dsp::onPeripherals()
 {
+    pumpHost();
     // Idle skipping: while the DSP spins in its background loop with nothing to do - the frame counter at most
     // `limit`, no interrupt pending, HF0 clear - nothing it does can change until the next serial slot, so its clock
     // moves on to that slot instead of running the loop. The loop only reads; skipping it changes no state.

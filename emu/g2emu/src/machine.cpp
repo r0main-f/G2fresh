@@ -43,7 +43,9 @@ void quietLog(const std::string& s)
     std::lock_guard lock(m);
     if(s.find("Write ESAI") != std::string::npos || s.find("Write Timer") != std::string::npos ||
        s.find("HPCR") != std::string::npos || s.find("underrun") != std::string::npos || s.find("DSP Boot") != std::string::npos ||
-       s.find("Clock speed") != std::string::npos)
+       s.find("Clock speed") != std::string::npos ||
+       s.find("Empty read") != std::string::npos ||  // the OS's $AE pings read the host port without a word first
+       s.find("Undefined opcode 000040") != std::string::npos)  // in the OS's DSP code, harmless (an empty vector)
         return;
     if(s == last) return;
     last = s;
@@ -768,6 +770,7 @@ struct Machine::Impl final : coldfire::Bus {
             s.dspExecuted[n] = dsps[std::size_t(n)]->executed();
             s.dspSkipped[n] = dsps[std::size_t(n)]->skipped();
             s.dspPc[n] = dsps[std::size_t(n)]->pc();
+            if(dsps[std::size_t(n)]->wild()) ++s.dspsWild;
         }
         for(const auto& l : links)
             if(l) { s.linkUnderruns += l->underruns; s.linkOverruns += l->overruns; }

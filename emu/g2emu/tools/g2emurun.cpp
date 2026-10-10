@@ -387,7 +387,12 @@ int main(int argc, char** argv)
         }
         client.sendPerformance(perf, "KbdTest");
         std::fprintf(stderr, "sending a performance with %s in slot A, keyboard on\n", kbd->c_str());
-        while(!client.idle()) step(chunk);
+        const double t0 = m.seconds();
+        while(!client.idle())
+        {
+            step(chunk);
+            if(m.seconds() - t0 > maxSync || proto::isFatal(client.status())) { report("upload failed"); return 1; }
+        }
         report("performance sent");
     }
     if(patch) uploads.emplace_back(0, *patch);
@@ -396,7 +401,12 @@ int main(int argc, char** argv)
     {
         const auto name = std::filesystem::path(path).stem().string().substr(0, 16);
         client.sendPatch(slot, loadPatch(path), name);
-        while(!client.idle()) step(chunk);
+        const double t0 = m.seconds();
+        while(!client.idle())
+        {
+            step(chunk);
+            if(m.seconds() - t0 > maxSync || proto::isFatal(client.status())) { report("upload failed"); return 1; }
+        }
         std::fprintf(stderr, "uploaded %s to slot %c\n", path.c_str(), 'A' + slot);
     }
     report("uploads done");
@@ -463,6 +473,7 @@ int main(int argc, char** argv)
     }
     const auto s = m.stats();
     const double emulated = double(frames) / g2emu::Machine::FrameRate;
+    if(s.dspsWild) std::printf("WARNING: %d DSP(s) ran into P memory without code\n", s.dspsWild);
     std::printf("speed: %.3f emulated s in %.3f wall s = %.2fx real time, %.2f CPU s per emulated s\n", emulated,
                 recWall, emulated / recWall, recCpu / emulated);
     std::printf("per thread: ColdFire (and the caller) %.2f CPU s per emulated s", recCfCpu / emulated);

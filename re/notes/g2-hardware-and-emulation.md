@@ -1263,9 +1263,16 @@ there, but it is the same code.
   ColdFire's time was such loops.
 * **Threads** (`threads = N`): the DSPs run on N threads of their own, each a stretch of the chain, no further than
   the stretch upstream of it (and the first no further than the ring's prefill past the last); the ColdFire runs at
-  most 2 frames ahead of the slowest DSP thread and the DSPs at most 2 frames ahead of the ColdFire. Host-port
-  accesses use only the thread-safe parts of the library's HDI08, as in the Python emulator. A repeated poll moves the
-  ColdFire's clock on by 128 cycles. Not deterministic (when a host access meets a DSP depends on the threads).
+  most 2 frames ahead of the slowest DSP thread and the DSPs at most 2 frames ahead of the ColdFire. A repeated poll
+  moves the ColdFire's clock on by 128 cycles. Not deterministic (when a host access meets a DSP depends on the
+  threads).
+* **The host port, in order and paced as on the chip** (both modes). Words, host commands and host-flag changes go
+  through one queue per DSP and reach the DSP on its own thread in the order the ColdFire wrote them; whatever follows
+  a host command waits until the DSP has taken it, whatever follows a flag change until the DSP has read its status
+  register (the same rules as Gearmulator's `HDI08Queue`). On the chip a host command is taken within a few clocks,
+  before the host writes its next word, and the OS relies on it: it sends `$AE` (echo, which reads the host port)
+  without writing a word first. Delivered at once from the ColdFire's thread, such a command could take the word
+  meant for the next command. The ColdFire reads only the library's thread-safe parts (the transmit queue, HF2/HF3).
 * **Links:** frame queues as in §3.7.4, non-blocking, with 2 frames of prefill per chain hop and **16 on the ring**
   (A3 → A6). The prefills add to the latency of an inter-slot bus (one ring turn, §3.7.2): 16 frames for the ring
   plus 2 per hop, on top of the frames the DSPs hold themselves (the board's own figure is not known; the community
@@ -1306,12 +1313,18 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
 
 ### 3.9.6 Open issues and risks
 
-* **More than one DSP thread is not proven safe.** With `threads = 2`, before poll skipping was added to the threaded
-  mode, about half the patch uploads crashed: an endless recursion in the dsp56300 JIT (`JitBlockChain::create` runs
-  the block it has just compiled, whose entry was still the "compile me" stub, so it compiled it again, and again),
-  even with 256 MB stacks; never with `threads = 0` or `1`, never in a RelWithDebInfo build. After the change, 0 of 16
-  runs crashed. The cause is not found (the timing of host commands against the DSP code changed; a library race or
-  an emit that fails silently are candidates). `threads = 1` is the safe parallel mode; 2 is experimental.
+* **More than one DSP thread is not proven safe.** With `threads = 2` a DSP sometimes jumped into P memory where
+  there is no code. The zeros there are NOPs; the JIT links a run of them into one chain of blocks, so the DSP slid to
+  the end of P memory within one dispatch and the JIT then recursed without end compiling past it (`JitBlockChain::
+  create` runs the block it has just compiled; caught at P:$80000 with LA = 0 in a RelWithDebInfo build): a crash,
+  in about half the patch uploads at first. Three changes since: poll skipping in the threaded mode, the ordered host
+  port (above), and `bra *` written over the P memory the OS never uses (from $4000), so a DSP that strays stops on
+  the first word (`Stats::dspsWild` counts them; the machine then needs a restart). Since then: 0 failures in 38 runs
+  with 2-4 DSP threads; but without poll skipping a DSP still strayed in about 1 of 8 runs (stopped by the trap, the OS
+  then lost USB contact). The cause is not found; it needs the DSPs on more than one thread and the ColdFire hammering
+  the host ports. `threads = 1` showed nothing in any test (also without poll skipping); 2-4 stay experimental.
+* The OS's DSP code runs the undefined opcode `$000040`: harmless (dsp56300 runs it as ILLEGAL; its vector is empty),
+  logged by the library when it compiles such a block; g2emu filters that line.
 * The core counts V2 cycles (§3.9.2): the emulated CPU is probably slower than the real one; nothing seen depends on it
   beyond background throughput.
 * The DSP clock still counts instructions, not cycles (§3.7.7).

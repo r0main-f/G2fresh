@@ -49,6 +49,7 @@ public:
         std::uint64_t dspExecuted[4] = {}, dspSkipped[4] = {};
         std::uint64_t linkUnderruns = 0, linkOverruns = 0;
         std::uint64_t unmapped = 0, exceptions = 0, midiOverruns = 0;
+        int dspsWild = 0;  // DSPs that jumped into P memory without code (stopped there: the machine needs a restart)
         std::uint32_t cfPc = 0;
         std::uint32_t dspPc[4] = {};
         std::uint64_t hostCommands = 0, hostReads = 0, dspSyncs = 0;

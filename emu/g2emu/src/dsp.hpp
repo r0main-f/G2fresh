@@ -2,8 +2,9 @@
 // seen from the ColdFire, its two ESAIs linked to the other DSPs, and stepping on the caller's thread, so that the
 // machine decides when each DSP runs and for how long (re/notes/g2-hardware-and-emulation.md §3.6.4, §3.7, §3.9).
 //
-// Threads: the host-port functions run on the ColdFire's thread, runTo() on the DSP's; they meet only in the
-// library's thread-safe parts of the HDI08 (its queues, host flags and host commands).
+// Threads: the host-port functions run on the ColdFire's thread, runTo() on the DSP's. What the host writes goes
+// through one ordered queue to the DSP's thread (pumpHost); the host reads only the library's thread-safe parts of
+// the HDI08 (its transmit queue, the host flags HF2/HF3).
 //
 // Time: a DSP's instruction counter is its clock. The ESAI clock ticks once per slot every 192 counts, 1536 per
 // frame (§3.7.1); the machine runs every DSP to the same count, so their frames stay aligned. While a DSP waits in
@@ -105,6 +106,7 @@ public:
     std::uint64_t txFrames(int esaiIndex) const { return txFrames_[esaiIndex & 1]; }
     std::uint64_t rxFrames(int esaiIndex) const { return rxFrames_[esaiIndex & 1]; }
     std::uint64_t skipped() const { return skipped_; }
+    bool wild() const { return wild_; }  // the DSP has run into P memory without code
     std::uint64_t executed() const { return clock() - skipped_; }
     std::uint32_t pc() const { return dsp_.getPC().toWord(); }
     std::uint32_t memRead(dsp56k::EMemArea area, std::uint32_t addr) const { return mem_.get(area, addr); }
@@ -115,7 +117,12 @@ private:
     void writeTx(int i, const dsp56k::Audio::TxFrame& f);
     std::uint32_t onPeripherals();
     void feedBootRom();
-    void retryHostCommand();  // the host's side: a host command that found the DSP's queue full
+    struct HostEvent {
+        enum Kind : std::uint8_t { Data, Command, Flags } kind = Data;
+        dsp56k::TWord value = 0;
+    };
+    void pushHost(HostEvent::Kind kind, dsp56k::TWord value);  // the host's thread
+    void pumpHost();                                             // the DSP's thread
     std::uint8_t isr();
 
     int index_;
@@ -139,8 +146,12 @@ private:
     std::uint8_t tx_[3] = {0, 0, 0};
     std::uint8_t rx_[3] = {0, 0, 0};
     bool rxLatched_ = false;
-    bool hcPending_ = false;  // a host command the DSP's interrupt queue had no room for yet
-    dsp56k::TWord hcVector_ = 0;
+    // what the host writes, on its way to the DSP's thread (single producer, single consumer), in order
+    static constexpr std::uint32_t HostQueueSize = 8192;
+    std::array<HostEvent, HostQueueSize> hostQueue_{};
+    std::atomic<std::uint32_t> hostHead_{0}, hostTail_{0};
+    std::atomic<int> commandsOutstanding_{0};  // host commands written and not yet taken by the DSP
+    bool awaitingCommand_ = false, awaitingFlags_ = false;  // the DSP's thread
 
     Link* in_[2] = {nullptr, nullptr};
     Link* out_[2] = {nullptr, nullptr};
@@ -149,6 +160,8 @@ private:
     std::uint64_t txFrames_[2] = {0, 0}, rxFrames_[2] = {0, 0};
 
     std::uint64_t skipped_ = 0;
+    static constexpr dsp56k::TWord WildPcFrom = 0x4000;  // no code above this
+    bool wild_ = false;
 };
 
 } // namespace g2emu
