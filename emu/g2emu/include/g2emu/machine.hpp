@@ -43,6 +43,9 @@ public:
         // time. Off: it cost 15-25 % of speed and no failure needed it once the host port was ordered (§3.9.6)
         bool causalReads = false;
         double usbAfter = 2.0;         // plugUsb() takes effect once the OS has run this long (seconds): it boots in 1.6
+        // The panel's master volume knob, 0..1 (read by the OS through the panel ADC, 128 steps). At 1, a signal of 1.0
+        // into an Out module (patch Level 127, no pad) gives DAC words of about -0.125 (inverted): -18 dBFS.
+        double masterVolume = 1.0;
         bool trace = false;            // log unusual events (unmapped accesses, exceptions) to stderr
     };
 

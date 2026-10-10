@@ -243,6 +243,7 @@ Firmware Firmware::load(const std::filesystem::path& path)
         throw std::runtime_error("firmware: no G2 OS image found in " + path.string());
     }
     const auto bytes = readFile(path);
+    if(isUdifImage(bytes)) return firmwareFromDisk(udifDisk(bytes));
     if(bytes.size() >= 3 && bytes[2] == 1 && bytes.size() > 0x2d4 && bytes[0] == 0)
     {
         try { return fromOsImage(bytes); } catch(const std::exception&) {}

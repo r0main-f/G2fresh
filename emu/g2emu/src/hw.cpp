@@ -211,7 +211,7 @@ std::uint8_t Sim::readI2c(std::uint32_t off)
     {
     case 0x28C: return i2cMsr_;
     case 0x288: return i2cMcr_;
-    case 0x290: i2cMsr_ |= 0x82; return 0x80;
+    case 0x290: i2cMsr_ |= 0x82; return panelAdc_[i2cReads_++ % panelAdc_.size()];  // the panel ADC's stream
     default: return r_[off];
     }
 }
@@ -230,7 +230,7 @@ void Sim::writeI2c(std::uint32_t off, std::uint8_t v)
         }
         break;
     case 0x28C: i2cMsr_ = std::uint8_t((i2cMsr_ & ~0x12) | (v & 0x12)); break;
-    case 0x290: i2cMsr_ = std::uint8_t((i2cMsr_ | 0x82) & ~0x01); break;  // ICF, IIF, acknowledged
+    case 0x290: i2cMsr_ = std::uint8_t((i2cMsr_ | 0x82) & ~0x01); i2cReads_ = 0; break;  // ICF, IIF, acknowledged
     default: break;
     }
 }
