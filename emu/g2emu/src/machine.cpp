@@ -10,7 +10,9 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <deque>
+#include <map>
 #include <mutex>
 #include <stdexcept>
 
@@ -96,6 +98,7 @@ struct Machine::Impl final : coldfire::Bus {
     // time
     std::uint64_t t = 0;         // master time in DSP clocks
     double cfPerDsp = 1.0;       // ColdFire cycles per DSP clock
+    double busPerCf = 1.0 / 3;   // bus clocks per ColdFire cycle
     std::uint64_t cfSkipped = 0; // ColdFire cycles skipped (stopped)
     std::uint64_t nextSimEvent = 0;
     bool irqDirty = true;
@@ -117,17 +120,36 @@ struct Machine::Impl final : coldfire::Bus {
 
     // statistics
     Stats st;
+    std::unique_ptr<std::map<std::uint32_t, std::uint64_t>> profile;  // G2EMU_CFPROFILE: ColdFire PCs, every 64th
+    std::uint64_t profileTick = 0, profileFrom = 0;
+    std::uint64_t profileIpl[8] = {};
+    ~Impl() override
+    {
+        if(!profile) return;
+        std::vector<std::pair<std::uint64_t, std::uint32_t>> v;
+        std::uint64_t total = 0;
+        for(auto [pc, n] : *profile) { v.emplace_back(n, pc); total += n; }
+        std::sort(v.rbegin(), v.rend());
+        std::fprintf(stderr, "ColdFire PC profile (%llu samples):\n", (unsigned long long)total);
+        std::fprintf(stderr, "  by interrupt mask: ");
+        for(int i = 0; i < 8; ++i) std::fprintf(stderr, "%d: %.1f%% ", i, 100.0 * double(profileIpl[i]) / double(total));
+        std::fprintf(stderr, "\n");
+        for(std::size_t i = 0; i < std::min<std::size_t>(40, v.size()); ++i)
+            std::fprintf(stderr, "  %08x %5.2f%%\n", v[i].second, 100.0 * double(v[i].first) / double(total));
+    }
 
     Impl(const Firmware& fw, Options o) : opt(o)
     {
         Logging::setLogFunc(&quietLog);
         cfPerDsp = opt.cfHz / (double(FrameRate) * Dsp::CyclesPerFrame);
+        busPerCf = double(Sim::BusHz) / opt.cfHz;
         load(fw);
         Dsp::Options dopt;
         dopt.jit = opt.jit;
         dopt.idleSkip = opt.idleSkip;
         for(int n = 0; n < 4; ++n) dsps[std::size_t(n)] = std::make_unique<Dsp>(n, dopt);
         wire();
+        cpu.setFastMemory(sdram.data(), SdramBase, SdramSize);
         cpu.setUnimplementedCallback([this](std::uint32_t pc, std::uint16_t op) {
             ++st.exceptions;
             if(opt.trace) std::fprintf(stderr, "g2emu: unimplemented opcode %04x at %08x\n", op, pc);
@@ -136,6 +158,11 @@ struct Machine::Impl final : coldfire::Bus {
         cpu.setSR(0x2700);
         cpu.setA(7, 0x30400000);
         cpu.setPC(fw.code()->address);
+        if(const char* p = std::getenv("G2EMU_CFPROFILE"))
+        {
+            profile = std::make_unique<std::map<std::uint32_t, std::uint64_t>>();
+            profileFrom = std::uint64_t(std::atof(p) * FrameRate * Dsp::CyclesPerFrame);
+        }
     }
 
     void load(const Firmware& fw)
@@ -180,7 +207,8 @@ struct Machine::Impl final : coldfire::Bus {
 
     // ---- time ----
     std::uint64_t cfNow() const { return cpu.getCycles() + cfSkipped; }
-    std::uint64_t busNow() const { return cfNow() / 3; }  // core : bus = 3 : 1 (162 / 54 MHz)
+    // The bus clock (54 MHz [C]: the OS's MIDI divider) runs with the master clock, whatever the core's speed.
+    std::uint64_t busNow() const { return std::uint64_t(double(cfNow()) * busPerCf); }
     std::uint64_t dspTimeOfCf(std::uint64_t cf) const { return std::uint64_t(double(cf) / cfPerDsp); }
     std::uint64_t cfTimeOfDsp(std::uint64_t d) const { return std::uint64_t(double(d) * cfPerDsp); }
 
@@ -399,12 +427,17 @@ struct Machine::Impl final : coldfire::Bus {
             if(cpu.isStopped() && sim.pendingLevel() == 0)
             {
                 // STOP: nothing runs until an interrupt; move on to the next event or the end of the slice
-                const auto next = std::min<std::uint64_t>(target, nextSimEvent == ~0ull ? target : nextSimEvent * 3);
+                const auto next = std::min<std::uint64_t>(target, nextSimEvent == ~0ull ? target : std::uint64_t(double(nextSimEvent) / busPerCf) + 1);
                 if(next > cfNow()) { cfSkipped += next - cfNow(); st.cfSkipped += 0; }
                 else cpu.step();
                 continue;
             }
             cpu.step();
+            if(profile && (++profileTick % 61) == 0 && t >= profileFrom)
+            {
+                ++(*profile)[cpu.getPC() & ~0x3fu];
+                ++profileIpl[(cpu.getSR() >> 8) & 7];
+            }
             if(cpu.isHalted())
             {
                 if(opt.trace) std::fprintf(stderr, "g2emu: the ColdFire halted at %08x\n", cpu.getPC());
@@ -517,10 +550,7 @@ struct Machine::Impl final : coldfire::Bus {
         // hand out the DAC frames produced so far
         const std::size_t words = dac.size() - dacTaken;
         if(out)
-        {
-            out->reserve(out->size() + words);
             for(std::size_t k = dacTaken; k < dac.size(); ++k) out->push_back(float(dac[k]) / 8388608.0f);
-        }
         st.frames += words / 4;
         dac.clear();
         dacTaken = 0;

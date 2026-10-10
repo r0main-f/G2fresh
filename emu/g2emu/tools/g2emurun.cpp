@@ -78,6 +78,7 @@ void writeWav(const std::string& path, const std::vector<float>& data, int chann
 
 struct Analysis {
     double peak = 0, rms = 0, dc = 0, freq = 0;
+    double onset = -1, end = -1;  // seconds: first and last sample above 10 % of the peak
 };
 
 // Frequency from the interpolated upward zero crossings of the DC-free signal (enough for a steady tone).
@@ -103,6 +104,13 @@ Analysis analyse(const std::vector<float>& x)
         }
     }
     if(n >= 2 && a.rms > 1e-7) a.freq = double(n - 1) * g2emu::Machine::FrameRate / (last - first);
+    if(a.peak > 1e-6)
+        for(std::size_t i = 0; i < x.size(); ++i)
+            if(std::fabs(x[i] - a.dc) > 0.1 * a.peak)
+            {
+                if(a.onset < 0) a.onset = double(i) / g2emu::Machine::FrameRate;
+                a.end = double(i) / g2emu::Machine::FrameRate;
+            }
     return a;
 }
 
@@ -316,7 +324,8 @@ int main(int argc, char** argv)
     for(int c = 0; c < 4; ++c)
     {
         const auto a = analyse(ch[std::size_t(c)]);
-        std::printf("out %d: peak %.6f rms %.6f dc %.7f freq %.3f Hz\n", c + 1, a.peak, a.rms, a.dc, a.freq);
+        std::printf("out %d: peak %.6f rms %.6f dc %.7f freq %.3f Hz, above 10%% of the peak %.4f-%.4f s\n", c + 1, a.peak,
+                    a.rms, a.dc, a.freq, a.onset, a.end);
     }
     const auto s = m.stats();
     const double emulated = double(frames) / g2emu::Machine::FrameRate;

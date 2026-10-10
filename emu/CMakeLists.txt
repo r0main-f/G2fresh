@@ -96,6 +96,66 @@ endforeach()
 set(_cf_dir ${CMAKE_CURRENT_BINARY_DIR}/gearmulator/coldfire)
 configure_file(${gm_cfcpu_cpp_SOURCE_DIR}/cfCpu.cpp ${_cf_dir}/cfCpu.cpp COPYONLY)
 configure_file(${gm_cfcpu_h_SOURCE_DIR}/cfCpu.h ${_cf_dir}/cfCpu.h COPYONLY)
+
+# A speed-up (G2FRESH): a window of plain RAM (the G2's SDRAM, where the OS runs) that the core fetches from, reads
+# and writes directly instead of through the virtual Bus calls; everything else still goes to the bus. Edits the
+# copies above; configure fails if an anchor is missing (a new pin).
+function(g2_patch_file _file)
+  file(READ ${_file} _src)
+  if(_src MATCHES "G2FRESH")
+    return()
+  endif()
+  math(EXPR _last "${ARGC} - 1")
+  foreach(_i RANGE 1 ${_last} 2)
+    math(EXPR _j "${_i} + 1")
+    set(_from "${ARGV${_i}}")
+    set(_to "${ARGV${_j}}")
+    string(FIND "${_src}" "${_from}" _pos)
+    if(_pos EQUAL -1)
+      message(FATAL_ERROR "g2_patch_file: anchor not found in ${_file}: ${_from}")
+    endif()
+    string(REPLACE "${_from}" "${_to}" _src "${_src}")
+  endforeach()
+  file(WRITE ${_file} "${_src}")
+endfunction()
+g2_patch_file(${_cf_dir}/cfCpu.h
+  "		void setUnimplementedCallback(UnimplementedCallback _cb)"
+  "		// G2FRESH: plain RAM at [_base, _base + _size) that is accessed directly, not through the bus
+		void setFastMemory(uint8_t* _mem, const uint32_t _base, const uint32_t _size)
+		{
+			m_fastMem = _mem; m_fastBase = _base;
+			m_fastEnd2 = _size >= 2 ? _size - 1 : 0; m_fastEnd4 = _size >= 4 ? _size - 3 : 0;
+		}
+
+		void setUnimplementedCallback(UnimplementedCallback _cb)"
+  "		Bus& m_bus;"
+  "		Bus& m_bus;
+		uint8_t* m_fastMem = nullptr;	// G2FRESH: see setFastMemory
+		uint32_t m_fastBase = 0, m_fastEnd2 = 0, m_fastEnd4 = 0;
+		uint16_t fast16(const uint32_t _o) const { return static_cast<uint16_t>(m_fastMem[_o] << 8 | m_fastMem[_o + 1]); }
+		uint32_t fast32(const uint32_t _o) const { return static_cast<uint32_t>(m_fastMem[_o]) << 24 | static_cast<uint32_t>(m_fastMem[_o + 1]) << 16 | static_cast<uint32_t>(m_fastMem[_o + 2]) << 8 | m_fastMem[_o + 3]; }")
+g2_patch_file(${_cf_dir}/cfCpu.cpp
+  "		const uint16_t w = m_bus.fetch16(m_pc);"
+  "		const uint32_t fo = m_pc - m_fastBase;
+		const uint16_t w = fo < m_fastEnd2 ? fast16(fo) : m_bus.fetch16(m_pc);"
+  "			return m_bus.read8(_addr);"
+  "			if(_addr - m_fastBase < m_fastEnd2) return m_fastMem[_addr - m_fastBase];
+			return m_bus.read8(_addr);"
+  "			return m_bus.read16(_addr);"
+  "			if(_addr - m_fastBase < m_fastEnd2) return fast16(_addr - m_fastBase);
+			return m_bus.read16(_addr);"
+  "			return m_bus.read32(_addr);"
+  "			if(_addr - m_fastBase < m_fastEnd4) return fast32(_addr - m_fastBase);
+			return m_bus.read32(_addr);"
+  "			m_bus.write8(_addr, static_cast<uint8_t>(_value));"
+  "			if(_addr - m_fastBase < m_fastEnd2) { m_fastMem[_addr - m_fastBase] = static_cast<uint8_t>(_value); break; }
+			m_bus.write8(_addr, static_cast<uint8_t>(_value));"
+  "			m_bus.write16(_addr, static_cast<uint16_t>(_value));"
+  "			if(_addr - m_fastBase < m_fastEnd2) { m_fastMem[_addr - m_fastBase] = static_cast<uint8_t>(_value >> 8); m_fastMem[_addr - m_fastBase + 1] = static_cast<uint8_t>(_value); break; }
+			m_bus.write16(_addr, static_cast<uint16_t>(_value));"
+  "			m_bus.write32(_addr, _value);"
+  "			if(_addr - m_fastBase < m_fastEnd4) { uint8_t* p = m_fastMem + (_addr - m_fastBase); p[0] = static_cast<uint8_t>(_value >> 24); p[1] = static_cast<uint8_t>(_value >> 16); p[2] = static_cast<uint8_t>(_value >> 8); p[3] = static_cast<uint8_t>(_value); break; }
+			m_bus.write32(_addr, _value);")
 add_library(g2coldfire STATIC ${_cf_dir}/cfCpu.cpp)
 target_include_directories(g2coldfire SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/gearmulator)
 target_compile_features(g2coldfire PUBLIC cxx_std_17)
