@@ -73,3 +73,49 @@ add_executable(g2dspccr dsptest/g2dspccr.cpp)
 target_include_directories(g2dspccr PRIVATE ${dsp56300_SOURCE_DIR}/source)
 target_link_libraries(g2dspccr PRIVATE dsp56kEmu)
 target_compile_features(g2dspccr PRIVATE cxx_std_17)
+
+# ---------------------------------------------------------------------------------------------------------------
+# g2emu: the real-time C++ emulator of the whole G2 (re/notes/g2-hardware-and-emulation.md 3.9): the user's own OS
+# on Gearmulator's ColdFire core, the board's hardware, four DSP56367s on dsp56300's JIT, USB and MIDI.
+#
+# Gearmulator's ColdFire core (source/cpu/coldfire/cfCpu.*, GPL-3.0, https://github.com/dsp56300/gearmulator) is
+# fetched file by file at a pinned commit: the repository's archive is 160 MB and we need two files of it.
+set(G2_GEARMULATOR_COMMIT fd3777fb63ecd6d4697706dfb3d4ada97953454f)
+set(_gm_raw https://raw.githubusercontent.com/dsp56300/gearmulator/${G2_GEARMULATOR_COMMIT}/source/cpu/coldfire)
+FetchContent_Declare(gm_cfcpu_cpp URL ${_gm_raw}/cfCpu.cpp DOWNLOAD_NO_EXTRACT TRUE
+  URL_HASH SHA256=ea959630200344fe9e419868d8950a14c8edc0124c5ce5c4195c6dfc8128ba51)
+FetchContent_Declare(gm_cfcpu_h URL ${_gm_raw}/cfCpu.h DOWNLOAD_NO_EXTRACT TRUE
+  URL_HASH SHA256=5852758e419fc6174bf4074df1c078b0c023cd5ce0584286c59b9bfef8df2e89)
+foreach(_gm gm_cfcpu_cpp gm_cfcpu_h)
+  FetchContent_GetProperties(${_gm})
+  if(NOT ${_gm}_POPULATED)
+    FetchContent_Populate(${_gm})
+  endif()
+endforeach()
+# laid out as Gearmulator has them (#include "coldfire/cfCpu.h")
+set(_cf_dir ${CMAKE_CURRENT_BINARY_DIR}/gearmulator/coldfire)
+configure_file(${gm_cfcpu_cpp_SOURCE_DIR}/cfCpu.cpp ${_cf_dir}/cfCpu.cpp COPYONLY)
+configure_file(${gm_cfcpu_h_SOURCE_DIR}/cfCpu.h ${_cf_dir}/cfCpu.h COPYONLY)
+add_library(g2coldfire STATIC ${_cf_dir}/cfCpu.cpp)
+target_include_directories(g2coldfire SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/gearmulator)
+target_compile_features(g2coldfire PUBLIC cxx_std_17)
+set_target_properties(g2coldfire PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(NOT MSVC)
+  target_compile_options(g2coldfire PRIVATE -w)
+endif()
+
+add_library(g2emu STATIC
+  g2emu/src/firmware.cpp
+  g2emu/src/hw.cpp
+  g2emu/src/dsp.cpp
+  g2emu/src/machine.cpp)
+target_include_directories(g2emu PUBLIC g2emu/include)
+target_include_directories(g2emu SYSTEM PRIVATE ${dsp56300_SOURCE_DIR}/source)
+target_link_libraries(g2emu PUBLIC g2proto PRIVATE g2coldfire dsp56kEmu)
+target_compile_features(g2emu PUBLIC cxx_std_20)
+set_target_properties(g2emu PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# g2emurun: boots the user's firmware, connects our protocol client, uploads patches, plays notes, records the DACs
+# and reports the speed (the firmware-gated check of the whole machine).
+add_executable(g2emurun g2emu/tools/g2emurun.cpp)
+target_link_libraries(g2emurun PRIVATE g2emu g2core)

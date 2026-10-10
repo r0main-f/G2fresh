@@ -1,0 +1,616 @@
+#include "g2emu/machine.hpp"
+
+#include "dsp.hpp"
+#include "hw.hpp"
+
+#include "coldfire/cfCpu.h"
+#include "dsp56kBase/logging.h"
+
+#include <algorithm>
+#include <array>
+#include <cstdio>
+#include <cstring>
+#include <deque>
+#include <mutex>
+#include <stdexcept>
+
+namespace g2emu {
+
+namespace {
+
+constexpr std::uint32_t SdramBase = 0x30000000, SdramSize = 0x400000;
+constexpr std::uint32_t SramBase = 0x20000000, SramSize = 0x1000;
+constexpr std::uint32_t BootSize = 0x80000;
+
+inline std::uint16_t be16(const std::uint8_t* p) { return std::uint16_t(p[0] << 8 | p[1]); }
+inline std::uint32_t be32(const std::uint8_t* p) { return std::uint32_t(p[0]) << 24 | std::uint32_t(p[1]) << 16 | std::uint32_t(p[2]) << 8 | p[3]; }
+inline void put16(std::uint8_t* p, std::uint16_t v) { p[0] = std::uint8_t(v >> 8); p[1] = std::uint8_t(v); }
+inline void put32(std::uint8_t* p, std::uint32_t v) { p[0] = std::uint8_t(v >> 24); p[1] = std::uint8_t(v >> 16); p[2] = std::uint8_t(v >> 8); p[3] = std::uint8_t(v); }
+
+// The library logs every ESAI control register write and each transmit underrun; drop those and repeats.
+void quietLog(const std::string& s)
+{
+    static std::mutex m;
+    static std::string last;
+    std::lock_guard lock(m);
+    if(s.find("Write ESAI") != std::string::npos || s.find("Write Timer") != std::string::npos ||
+       s.find("HPCR") != std::string::npos || s.find("underrun") != std::string::npos || s.find("DSP Boot") != std::string::npos ||
+       s.find("Clock speed") != std::string::npos)
+        return;
+    if(s == last) return;
+    last = s;
+    std::fprintf(stderr, "dsp56300: %s\n", s.c_str());
+}
+
+// A host port of an absent DSP (the expansion board's A7..A10): INIT completes at once, a host command is taken at
+// once, HF0 is echoed as HF2 (as g2hostemu.py's stubs).
+struct StubPort {
+    std::uint8_t icr = 0, cvr = 0, ivr = 0x0f, hf23 = 0;
+    std::uint8_t read(int reg) const
+    {
+        switch(reg)
+        {
+        case 0: return icr;
+        case 1: return cvr;
+        case 2: return std::uint8_t(0x02 | 0x04 | hf23);
+        case 3: return ivr;
+        default: return 0;
+        }
+    }
+    void write(int reg, std::uint8_t v)
+    {
+        switch(reg)
+        {
+        case 0: icr = v & 0x7f; hf23 = (v & 0x08) ? 0x08 : 0; break;
+        case 1: cvr = v & 0x7f; break;
+        case 3: ivr = v; break;
+        default: break;
+        }
+    }
+};
+
+} // namespace
+
+// ---------------------------------------------------------------------------------------------------------------
+
+struct Machine::Impl final : coldfire::Bus {
+    Options opt;
+
+    // memories
+    std::vector<std::uint8_t> boot = std::vector<std::uint8_t>(BootSize, 0xff);
+    std::vector<std::uint8_t> sram = std::vector<std::uint8_t>(SramSize, 0);
+    std::vector<std::uint8_t> sdram = std::vector<std::uint8_t>(SdramSize, 0);
+
+    // devices
+    coldfire::Cpu cpu{*this};
+    Sim sim{[this] { return busNow(); }};
+    Flash flashChip;
+    Isp1181 usb;
+    std::array<std::unique_ptr<Dsp>, 4> dsps;
+    std::array<StubPort, 4> stubs;
+    std::array<std::unique_ptr<Link>, 8> links;
+    std::array<int, 4> chain{3, 2, 1, 0};  // A6 (clock master, ADCs) -> A5 -> A4 -> A3 (DACs) [§3.7.3]
+    std::vector<std::int32_t> dac;          // the DACs' words, 4 per frame
+    std::size_t dacTaken = 0;
+
+    // time
+    std::uint64_t t = 0;         // master time in DSP clocks
+    double cfPerDsp = 1.0;       // ColdFire cycles per DSP clock
+    std::uint64_t cfSkipped = 0; // ColdFire cycles skipped (stopped)
+    std::uint64_t nextSimEvent = 0;
+    bool irqDirty = true;
+    std::uint32_t waitCycles = 0;
+
+    // USB host side
+    struct UsbHostState {
+        bool plugged = false, arrived = false, setupSent = false;
+        std::uint64_t plugFrame = 0;
+        std::vector<std::uint8_t> announce, bulk;
+        std::size_t expect = 0;
+        std::deque<std::vector<std::uint8_t>> ints;
+    } host;
+    mutable std::mutex ioMutex;            // guards the queues below
+    std::deque<std::vector<std::uint8_t>> usbOut;  // from the client
+    std::deque<UsbIn> usbIn;               // to the client
+    bool plugRequest = false;
+    std::vector<std::uint8_t> midiInQueue, midiOutQueue;
+
+    // statistics
+    Stats st;
+
+    Impl(const Firmware& fw, Options o) : opt(o)
+    {
+        Logging::setLogFunc(&quietLog);
+        cfPerDsp = opt.cfHz / (double(FrameRate) * Dsp::CyclesPerFrame);
+        load(fw);
+        Dsp::Options dopt;
+        dopt.jit = opt.jit;
+        dopt.idleSkip = opt.idleSkip;
+        for(int n = 0; n < 4; ++n) dsps[std::size_t(n)] = std::make_unique<Dsp>(n, dopt);
+        wire();
+        cpu.setUnimplementedCallback([this](std::uint32_t pc, std::uint16_t op) {
+            ++st.exceptions;
+            if(opt.trace) std::fprintf(stderr, "g2emu: unimplemented opcode %04x at %08x\n", op, pc);
+        });
+        // as the boot loader leaves it when it jumps to CODE (g2hostemu.py starts here too)
+        cpu.setSR(0x2700);
+        cpu.setA(7, 0x30400000);
+        cpu.setPC(fw.code()->address);
+    }
+
+    void load(const Firmware& fw)
+    {
+        std::copy_n(fw.bootLoader.begin(), std::min<std::size_t>(fw.bootLoader.size(), BootSize), boot.begin());
+        for(const auto& s : fw.sections)
+        {
+            if(s.address >= SdramBase && s.address + s.data.size() <= SdramBase + SdramSize)
+                std::copy(s.data.begin(), s.data.end(), sdram.begin() + (s.address - SdramBase));
+            else if(s.address >= SramBase && s.address + s.data.size() <= SramBase + SramSize)
+                std::copy(s.data.begin(), s.data.end(), sram.begin() + (s.address - SramBase));
+            else
+                throw std::runtime_error("g2emu: section " + s.name + " outside the memory map");
+        }
+    }
+
+    // Serial audio (§3.7): the chain on ESAI (TX0/TX1 -> RX0/RX1), ending in A3's DACs, and the ring on ESAI_1
+    // (TX2/TX3 -> RX0/RX1) back to A6. The converter sides have 2 slots per frame: 4 clock ticks per slot.
+    void wire()
+    {
+        const int first = chain.front(), last = chain.back();
+        for(int n = 0; n < 4; ++n)
+            dsps[std::size_t(n)]->setDividers(n == last ? 3 : 0, n == first ? 3 : 0, 0, 0);
+        std::size_t li = 0;
+        auto link = [&](int up, int upEsai, int txBase, int down, int downEsai, std::uint32_t prefill) {
+            auto l = std::make_unique<Link>();
+            l->up = dsps[std::size_t(up)].get(); l->upEsai = upEsai; l->txBase = txBase;
+            l->down = dsps[std::size_t(down)].get(); l->downEsai = downEsai;
+            l->prefill = prefill;
+            l->up->setLinkOut(upEsai, l.get());
+            l->down->setLinkIn(downEsai, l.get());
+            links[li++] = std::move(l);
+        };
+        for(std::size_t k = 0; k + 1 < chain.size(); ++k)
+        {
+            link(chain[k], 0, 0, chain[k + 1], 0, opt.chainPrefill);
+            link(chain[k], 1, 2, chain[k + 1], 1, opt.chainPrefill);
+        }
+        link(last, 1, 2, first, 1, opt.ringPrefill);
+        dsps[std::size_t(last)]->setSink(&dac);
+    }
+
+    // ---- time ----
+    std::uint64_t cfNow() const { return cpu.getCycles() + cfSkipped; }
+    std::uint64_t busNow() const { return cfNow() / 3; }  // core : bus = 3 : 1 (162 / 54 MHz)
+    std::uint64_t dspTimeOfCf(std::uint64_t cf) const { return std::uint64_t(double(cf) / cfPerDsp); }
+    std::uint64_t cfTimeOfDsp(std::uint64_t d) const { return std::uint64_t(double(d) * cfPerDsp); }
+
+    // Catches the DSPs up to the ColdFire's time, in chain order up to DSP n (each needs its upstream's frames).
+    void syncDsps(int n)
+    {
+        const auto target = dspTimeOfCf(cfNow());
+        ++st.dspSyncs;
+        for(int k : chain)
+        {
+            dsps[std::size_t(k)]->runTo(target);
+            if(k == n) break;
+        }
+    }
+
+    // ---- the ColdFire bus ----
+    std::uint32_t mmioRead(std::uint32_t a, int size)
+    {
+        switch(a >> 24)
+        {
+        case 0x10:
+            if(a < 0x10001000) { irqDirty = true; waitCycles += 6; return sim.read(a & 0xfff, size); }
+            break;
+        case 0x11:
+            if(a < 0x11001000)
+            {
+                std::uint32_t v = 0;
+                for(int k = 0; k < size; ++k) v = v << 8 | hostRead8((a + std::uint32_t(k)) & 0xfff);
+                return v;
+            }
+            break;
+        case 0x12: waitCycles += 15; return flashChip.read(a & (Flash::Size - 1), size);
+        case 0x13:
+            if(a < 0x13010000)
+            {
+                waitCycles += 12;
+                const auto v = usb.read(a & 0xffff, size);
+                usbIrqChanged();
+                return v;
+            }
+            break;
+        case 0x14: case 0x15: case 0x16: case 0x17:
+            if((a & 0xffffff) < 0x10000) { waitCycles += 12; return 0; }  // panel latches: read 0 (stub)
+            break;
+        default: break;
+        }
+        unmapped(a, size, false, 0);
+        return 0;
+    }
+
+    void mmioWrite(std::uint32_t a, int size, std::uint32_t v)
+    {
+        switch(a >> 24)
+        {
+        case 0x10:
+            if(a < 0x10001000)
+            {
+                waitCycles += 6;
+                sim.write(a & 0xfff, size, v);
+                irqDirty = true;
+                nextSimEvent = 0;
+                return;
+            }
+            break;
+        case 0x11:
+            if(a < 0x11001000)
+            {
+                for(int k = 0; k < size; ++k) hostWrite8((a + std::uint32_t(k)) & 0xfff, std::uint8_t(v >> (8 * (size - 1 - k))));
+                return;
+            }
+            break;
+        case 0x12: waitCycles += 15; flashChip.write(a & (Flash::Size - 1), size, v); return;
+        case 0x13:
+            if(a < 0x13010000) { waitCycles += 12; usb.write(a & 0xffff, size, v); usbIrqChanged(); return; }
+            break;
+        case 0x14: case 0x15: case 0x16: case 0x17:
+            if((a & 0xffffff) < 0x10000) { waitCycles += 12; return; }  // panel latches, LEDs/LCD (not modelled)
+            break;
+        default: break;
+        }
+        unmapped(a, size, true, v);
+    }
+
+    void unmapped(std::uint32_t a, int size, bool write, std::uint32_t v)
+    {
+        if(++st.unmapped <= 20 && opt.trace)
+            std::fprintf(stderr, "g2emu: unmapped %s %08x/%d = %x at pc %08x\n", write ? "write" : "read", a, size, v,
+                         cpu.getInstructionPC());
+    }
+
+    void usbIrqChanged()
+    {
+        sim.setExternalIrq(3, usb.irq());
+        irqDirty = true;
+    }
+
+    // CS1, 0x11000000-0x110007FF: the DSP host ports. Address lines A3..A10 are one-hot, active-low DSP selects (A3..A6
+    // the main board's DSPs, A7..A10 the expansion's), A0-A2 the HDI08 register [C, §2.6]. Several selected: a write
+    // goes to all of them, a read ANDs them (inferred). The bus splits word and long accesses into byte cycles.
+    std::uint8_t hostRead8(std::uint32_t off)
+    {
+        waitCycles += 12;
+        const unsigned sel = (~off >> 3) & 0xff;
+        const int reg = int(off & 7);
+        std::uint8_t v = 0xff;
+        for(int n = 0; n < 8; ++n)
+        {
+            if(!(sel & (1u << n))) continue;
+            if(n < 4)
+            {
+                auto& d = *dsps[std::size_t(n)];
+                if(d.hostReadDependsOnDsp(reg)) syncDsps(n);
+                ++st.hostReads;
+                v &= d.hostRead(reg);
+            }
+            else
+                v &= stubs[std::size_t(n - 4)].read(reg);
+        }
+        return v;
+    }
+
+    void hostWrite8(std::uint32_t off, std::uint8_t v)
+    {
+        waitCycles += 12;
+        const unsigned sel = (~off >> 3) & 0xff;
+        const int reg = int(off & 7);
+        for(int n = 0; n < 8; ++n)
+        {
+            if(!(sel & (1u << n))) continue;
+            if(n < 4)
+            {
+                syncDsps(n);
+                if(reg == 1 && (v & 0x80)) ++st.hostCommands;
+                dsps[std::size_t(n)]->hostWrite(reg, v);
+            }
+            else
+                stubs[std::size_t(n - 4)].write(reg, v);
+        }
+    }
+
+    // coldfire::Bus
+    std::uint8_t read8(std::uint32_t a) override
+    {
+        if(a - SdramBase < SdramSize) return sdram[a - SdramBase];
+        if(a - SramBase < SramSize) return sram[a - SramBase];
+        if(a < BootSize) return boot[a];
+        return std::uint8_t(mmioRead(a, 1));
+    }
+    std::uint16_t read16(std::uint32_t a) override
+    {
+        if(a - SdramBase < SdramSize - 1) return be16(&sdram[a - SdramBase]);
+        if(a - SramBase < SramSize - 1) return be16(&sram[a - SramBase]);
+        if(a < BootSize - 1) return be16(&boot[a]);
+        return std::uint16_t(mmioRead(a, 2));
+    }
+    std::uint32_t read32(std::uint32_t a) override
+    {
+        if(a - SdramBase < SdramSize - 3) return be32(&sdram[a - SdramBase]);
+        if(a - SramBase < SramSize - 3) return be32(&sram[a - SramBase]);
+        if(a < BootSize - 3) return be32(&boot[a]);
+        return mmioRead(a, 4);
+    }
+    void write8(std::uint32_t a, std::uint8_t v) override
+    {
+        if(a - SdramBase < SdramSize) { sdram[a - SdramBase] = v; return; }
+        if(a - SramBase < SramSize) { sram[a - SramBase] = v; return; }
+        mmioWrite(a, 1, v);
+    }
+    void write16(std::uint32_t a, std::uint16_t v) override
+    {
+        if(a - SdramBase < SdramSize - 1) { put16(&sdram[a - SdramBase], v); return; }
+        if(a - SramBase < SramSize - 1) { put16(&sram[a - SramBase], v); return; }
+        mmioWrite(a, 2, v);
+    }
+    void write32(std::uint32_t a, std::uint32_t v) override
+    {
+        if(a - SdramBase < SdramSize - 3) { put32(&sdram[a - SdramBase], v); return; }
+        if(a - SramBase < SramSize - 3) { put32(&sram[a - SramBase], v); return; }
+        mmioWrite(a, 4, v);
+    }
+    std::uint16_t fetch16(const std::uint32_t a) override
+    {
+        if(a - SdramBase < SdramSize - 1) return be16(&sdram[a - SdramBase]);
+        return read16(a);
+    }
+    std::uint8_t interruptAcknowledge(std::uint8_t level) override { return sim.acknowledge(level); }
+    void writeControlRegister(std::uint16_t, std::uint32_t) override
+    {
+        // CACR, ACR0-3, RAMBAR0/1 ($C04/$C05), MBAR ($C0F): the caches are not modelled, and the OS maps the SRAM at
+        // 0x20000000 and MBAR at 0x10000000 as the memory map above has them [C, §2.3, §3.6.1]
+    }
+    std::uint32_t consumeWaitCycles() override
+    {
+        const auto w = waitCycles;
+        waitCycles = 0;
+        return w;
+    }
+
+    // ---- scheduling ----
+    void runCf(std::uint64_t dspEnd)
+    {
+        const std::uint64_t target = cfTimeOfDsp(dspEnd);
+        while(cfNow() < target)
+        {
+            if(busNow() >= nextSimEvent)
+            {
+                sim.advance(busNow());
+                nextSimEvent = sim.nextEvent();
+                irqDirty = true;
+            }
+            if(irqDirty)
+            {
+                irqDirty = false;
+                cpu.setInterruptLevel(std::uint8_t(sim.pendingLevel()));
+            }
+            if(cpu.isStopped() && sim.pendingLevel() == 0)
+            {
+                // STOP: nothing runs until an interrupt; move on to the next event or the end of the slice
+                const auto next = std::min<std::uint64_t>(target, nextSimEvent == ~0ull ? target : nextSimEvent * 3);
+                if(next > cfNow()) { cfSkipped += next - cfNow(); st.cfSkipped += 0; }
+                else cpu.step();
+                continue;
+            }
+            cpu.step();
+            if(cpu.isHalted())
+            {
+                if(opt.trace) std::fprintf(stderr, "g2emu: the ColdFire halted at %08x\n", cpu.getPC());
+                cfSkipped += target - std::min(target, cfNow());
+                break;
+            }
+        }
+    }
+
+    void usbStep()
+    {
+        {
+            std::lock_guard lock(ioMutex);
+            if(plugRequest && !host.plugged)
+            {
+                plugRequest = false;
+                host.plugged = true;
+                host.plugFrame = t / Dsp::CyclesPerFrame;
+                usb.attach();
+                usb.busReset();
+                usbIrqChanged();
+            }
+            if(!midiInQueue.empty())
+            {
+                sim.midiIn(midiInQueue.data(), midiInQueue.size());
+                midiInQueue.clear();
+                nextSimEvent = 0;
+            }
+            auto mo = sim.takeMidiOut();
+            midiOutQueue.insert(midiOutQueue.end(), mo.begin(), mo.end());
+        }
+        if(!host.plugged) return;
+        const std::uint64_t ms = (t / Dsp::CyclesPerFrame - host.plugFrame) / (FrameRate / 1000);
+        if(!host.setupSent && ms >= 5)
+        {
+            // what a host does before it uses the pipes: SET_ADDRESS 1, SET_CONFIGURATION 1
+            const std::uint8_t setAddress[8] = {0x00, 0x05, 0x01, 0, 0, 0, 0, 0};
+            const std::uint8_t setConfig[8] = {0x00, 0x09, 0x01, 0, 0, 0, 0, 0};
+            usb.out(0, setAddress, 8, true);
+            usb.out(0, setConfig, 8, true);
+            host.setupSent = true;
+            usbIrqChanged();
+        }
+        if(ms < 15) return;
+        // interrupt-IN is polled all the time; bulk-IN only while an extended announcement (b0 & 3 == 1, BE16
+        // length) waits for its data
+        auto& inp = usb.inPackets();
+        while(!inp.empty())
+        {
+            if(inp.front().first == 2) host.ints.push_back(std::move(inp.front().second));
+            inp.pop_front();
+        }
+        std::vector<UsbIn> delivered;
+        for(;;)
+        {
+            if(host.expect)
+            {
+                std::vector<std::uint8_t> d;
+                if(!usb.pollBulkIn(d)) break;
+                usbIrqChanged();
+                const bool shortPacket = !d.empty() && d.size() < 64;
+                host.bulk.insert(host.bulk.end(), d.begin(), d.end());
+                if(host.bulk.size() >= host.expect || shortPacket)
+                {
+                    delivered.push_back({false, host.announce});
+                    delivered.push_back({true, std::move(host.bulk)});
+                    host.bulk.clear();
+                    host.expect = 0;
+                }
+                continue;
+            }
+            if(host.ints.empty()) break;
+            auto p = std::move(host.ints.front());
+            host.ints.pop_front();
+            if(p.size() >= 3 && (p[0] & 3) == 1)
+            {
+                host.announce = p;
+                host.expect = std::size_t(p[1]) << 8 | p[2];
+            }
+            else
+                delivered.push_back({false, std::move(p)});
+        }
+        std::deque<std::vector<std::uint8_t>> frames;
+        {
+            std::lock_guard lock(ioMutex);
+            host.arrived = true;
+            for(auto& d : delivered) usbIn.push_back(std::move(d));
+            frames.swap(usbOut);
+        }
+        for(const auto& f : frames)
+        {
+            for(std::size_t k = 0; k < f.size(); k += 64)
+                usb.out(4, f.data() + k, std::min<std::size_t>(64, f.size() - k));
+            if(f.size() % 64 == 0) usb.out(4, nullptr, 0);
+            usbIrqChanged();
+        }
+    }
+
+    void run(std::uint32_t frames, std::vector<float>* out)
+    {
+        const std::uint64_t end = t + std::uint64_t(frames) * Dsp::CyclesPerFrame;
+        while(t < end)
+        {
+            const std::uint64_t q = std::min<std::uint64_t>(end, t + opt.quantum);
+            runCf(q);
+            for(int k : chain) dsps[std::size_t(k)]->runTo(q);
+            t = q;
+            usbStep();
+        }
+        // hand out the DAC frames produced so far
+        const std::size_t words = dac.size() - dacTaken;
+        if(out)
+        {
+            out->reserve(out->size() + words);
+            for(std::size_t k = dacTaken; k < dac.size(); ++k) out->push_back(float(dac[k]) / 8388608.0f);
+        }
+        st.frames += words / 4;
+        dac.clear();
+        dacTaken = 0;
+    }
+
+    Stats stats()
+    {
+        Stats s = st;
+        s.cfInstructions = cpu.getInstructionCount();
+        s.cfCycles = cfNow();
+        s.cfSkipped = cfSkipped;
+        s.cfPc = cpu.getPC();
+        for(int n = 0; n < 4; ++n)
+        {
+            s.dspExecuted[n] = dsps[std::size_t(n)]->executed();
+            s.dspSkipped[n] = dsps[std::size_t(n)]->skipped();
+            s.dspPc[n] = dsps[std::size_t(n)]->pc();
+        }
+        for(const auto& l : links)
+            if(l) { s.linkUnderruns += l->underruns; s.linkOverruns += l->overruns; }
+        s.midiOverruns = sim.midiOverruns();
+        return s;
+    }
+};
+
+// ---------------------------------------------------------------------------------------------------------------
+
+Machine::Machine(const Firmware& firmware) : Machine(firmware, Options{}) {}
+Machine::Machine(const Firmware& firmware, Options options) : impl_(std::make_unique<Impl>(firmware, options)) {}
+Machine::~Machine() = default;
+
+void Machine::run(std::uint32_t frames, std::vector<float>* out) { impl_->run(frames, out); }
+std::uint64_t Machine::frame() const { return impl_->t / Dsp::CyclesPerFrame; }
+
+void Machine::plugUsb()
+{
+    std::lock_guard lock(impl_->ioMutex);
+    impl_->plugRequest = true;
+}
+
+bool Machine::usbArrived() const
+{
+    std::lock_guard lock(impl_->ioMutex);
+    return impl_->host.arrived;
+}
+
+void Machine::usbSend(std::span<const std::uint8_t> frame)
+{
+    std::lock_guard lock(impl_->ioMutex);
+    impl_->usbOut.emplace_back(frame.begin(), frame.end());
+}
+
+bool Machine::usbTake(UsbIn& in)
+{
+    std::lock_guard lock(impl_->ioMutex);
+    if(impl_->usbIn.empty()) return false;
+    in = std::move(impl_->usbIn.front());
+    impl_->usbIn.pop_front();
+    return true;
+}
+
+void Machine::midiIn(std::span<const std::uint8_t> bytes)
+{
+    std::lock_guard lock(impl_->ioMutex);
+    impl_->midiInQueue.insert(impl_->midiInQueue.end(), bytes.begin(), bytes.end());
+}
+
+std::vector<std::uint8_t> Machine::takeMidiOut()
+{
+    std::lock_guard lock(impl_->ioMutex);
+    std::vector<std::uint8_t> v;
+    v.swap(impl_->midiOutQueue);
+    return v;
+}
+
+std::vector<std::uint8_t>& Machine::flash() { return impl_->flashChip.data(); }
+
+Machine::Stats Machine::stats() const { return impl_->stats(); }
+
+std::uint32_t Machine::dspMemory(int n, int area, std::uint32_t address) const
+{
+    return impl_->dsps[std::size_t(n & 3)]->memRead(dsp56k::EMemArea(area), address);
+}
+
+std::uint32_t Machine::cfRead32(std::uint32_t address) const
+{
+    auto& i = *impl_;
+    if(address - SdramBase < SdramSize - 3) return be32(&i.sdram[address - SdramBase]);
+    if(address - SramBase < SramSize - 3) return be32(&i.sram[address - SramBase]);
+    return 0;
+}
+
+} // namespace g2emu
