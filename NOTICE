@@ -23,3 +23,10 @@ editor's look. They are not covered by this project's license.
 This program uses JUCE (https://juce.com), licensed under the GNU Affero
 General Public License version 3, and the Steinberg VST3 SDK (MIT License).
 VST is a registered trademark of Steinberg Media Technologies GmbH.
+
+The optional G2 emulator (emu/, built with -DG2_BUILD_EMU=ON) uses the DSP56300
+emulator by The Usual Suspects (https://github.com/dsp56300/dsp56300) and the
+ColdFire CPU core of Gearmulator (https://github.com/dsp56300/gearmulator), both
+licensed under the GNU General Public License version 3 and fetched at build
+time. No Clavia firmware is included: the emulator runs the user's own copy of
+the G2 OS.
