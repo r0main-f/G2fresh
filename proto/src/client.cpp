@@ -763,4 +763,10 @@ void Client::playNote(u8 note, bool on)
     enqueueUser([note, on] { return Bubble::synth({PlayNote{!on, static_cast<u8>(note & 0x7F)}}); });
 }
 
+void Client::setSynthSettings(const SynthSettings& settings)
+{
+    state_.settings = settings;
+    enqueueUser([settings] { return Bubble::synth({SynthData{settings}}); });
+}
+
 } // namespace g2::proto

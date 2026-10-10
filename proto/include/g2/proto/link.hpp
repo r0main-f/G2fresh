@@ -58,6 +58,8 @@ public:
     virtual void loadFromFlash(int slot, u8 bank, u8 prog) = 0;
     virtual void storeToFlash(int slot, u8 bank, u8 prog) = 0;
     virtual void playNote(u8 note, bool on) = 0;
+    // The synth settings (Client::setSynthSettings). Not every link can (the bridge: not yet).
+    virtual void setSynthSettings(const SynthSettings& settings) { (void)settings; }
     virtual void edit(int slot, std::vector<Molecule> molecules) = 0;
 };
 
@@ -113,6 +115,7 @@ public:
     void loadFromFlash(int slot, u8 bank, u8 prog) override { client_.loadFromFlash(slot, bank, prog); }
     void storeToFlash(int slot, u8 bank, u8 prog) override { client_.storeToFlash(slot, bank, prog); }
     void playNote(u8 note, bool on) override { client_.playNote(note, on); }
+    void setSynthSettings(const SynthSettings& settings) override { client_.setSynthSettings(settings); }
     void edit(int slot, std::vector<Molecule> molecules) override { client_.edit(slot, std::move(molecules)); }
 
 private:

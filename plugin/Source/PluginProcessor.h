@@ -56,6 +56,11 @@ public:
     juce::String startEmulator(const juce::File& firmware) override;
     bool emulatorRunning() const override { return emulated_ != nullptr; }
     void emulatorMidi(std::span<const std::uint8_t> bytes) override;
+    g2ui::PanelSnapshot panel() const override;
+    void panelButton(g2ui::PanelButton button, bool down) override;
+    void panelEncoder(int encoder, int steps) override;
+    void panelAnalog(g2ui::PanelAnalog control, float value) override;
+    bool panelKey(int midiNote, bool down, float velocity) override;
 #endif
 
 private:
@@ -74,6 +79,7 @@ private:
     // it: the only sound G2fresh makes. Before synth_, whose link uses it.
     std::unique_ptr<SoundEngine> emulated_;
     bool emulatedSent_ = false; // the document went to the emulated G2 once it was up
+    bool emulatedLocal_ = false; // its MIDI Local switched on (its panel's keys play), once it was up
     double sampleRate_ = 0.0;
     int blockSize_ = 512;
     g2ui::SynthSync synth_{document_}; // the G2 connection outlives the editor window

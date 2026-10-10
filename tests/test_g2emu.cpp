@@ -957,3 +957,79 @@ TEST_CASE("The user's G2 OS drives the emulated front panel", "[g2emu][firmware]
     CHECK(int(adc(2)) == 0x00);
     CHECK(m.stats().exceptions == 0);
 }
+
+TEST_CASE("The user's G2 OS: MIDI Local switched on over USB (synth settings), then the panel's keys play",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    Machine m(fw);
+    m.run(Machine::FrameRate * 2);
+    MachineTransport transport(m);
+    g2::proto::ManualClock clock;
+    g2::proto::Client client(transport, clock);
+    m.plugUsb();
+    auto step = [&] {
+        m.run(Machine::FrameRate / 1000);
+        clock.set(std::uint64_t(m.seconds() * 1000));
+        client.tick();
+    };
+    auto run = [&](double s) {
+        const double end = m.seconds() + s;
+        while(m.seconds() < end) step();
+    };
+    while(!client.synced() && m.seconds() < 4) step();
+    REQUIRE(client.synced());
+    CHECK_FALSE(client.state().settings.localOn);  // an erased flash: Local Off
+
+    client.sendPerformance(g2::Performance::playing(keyboardSine(), "Local"), "Local");
+    auto settings = client.state().settings;
+    settings.localOn = true;
+    client.setSynthSettings(settings);
+    while(!client.idle() && m.seconds() < 6) step();
+    REQUIRE(client.idle());
+    run(0.3);
+
+    // the OS's own System menu says so too
+    auto press = [&](PanelButton b) {
+        m.panelButton(b, true);
+        run(0.03);
+        m.panelButton(b, false);
+        run(0.05);
+    };
+    press(PanelButton::System);
+    press(PanelButton::NavDown);
+    INFO(m.panel().displays[0].text(0) << " / " << m.panel().displays[0].text(1));
+    CHECK(m.panel().displays[0].text(0).rfind("MIDI Local", 0) == 0);
+    CHECK(m.panel().displays[0].text(1).rfind("On", 0) == 0);
+    press(PanelButton::System);
+
+    // and the keyboard plays: key 21 of the G2's 37 is A, 440 Hz
+    m.panelKey(21, true, 100);
+    run(0.1);
+    std::vector<float> out;
+    m.run(Machine::FrameRate / 4, &out);
+    m.panelKey(21, false);
+    std::size_t crossings = 0;
+    double first = -1, last = -1;
+    for(std::size_t f = 0; f + 1 < out.size() / 4; ++f)
+    {
+        const double a = out[f * 4], b = out[(f + 1) * 4];
+        if(a < 0 && b >= 0)
+        {
+            const double tc = double(f) + a / (a - b);
+            if(first < 0) first = tc;
+            last = tc;
+            ++crossings;
+        }
+    }
+    REQUIRE(crossings > 50);
+    CHECK_THAT(double(crossings - 1) * Machine::FrameRate / (last - first), Catch::Matchers::WithinAbs(440.0, 0.2));
+}

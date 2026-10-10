@@ -39,6 +39,9 @@ public:
     virtual void panelEncoder(int encoder, int steps) { juce::ignoreUnused(encoder, steps); }
     // A continuous control moved: 0 .. 1 (the pitch stick rests at 0.5).
     virtual void panelAnalog(PanelAnalog control, float value) { juce::ignoreUnused(control, value); }
+    // A key of the panel's keyboard (the G2X's 61 keys, C1-C6: MIDI notes 36-96), velocity 0 .. 1. The OS plays it
+    // as its own keyboard (focus, octave shift, KB Hold, split); false when there is no emulated panel.
+    virtual bool panelKey(int midiNote, bool down, float velocity) { juce::ignoreUnused(midiNote, down, velocity); return false; }
 };
 
 } // namespace g2ui

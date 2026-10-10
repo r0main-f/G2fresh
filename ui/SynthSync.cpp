@@ -134,6 +134,12 @@ void SynthSync::connectEmulated(std::unique_ptr<g2::proto::SynthLink> link)
     startLink(std::move(link), Kind::Emulated);
 }
 
+void SynthSync::setSynthSettings(const g2::proto::SynthSettings& settings)
+{
+    if (ready())
+        link_->setSynthSettings(settings);
+}
+
 void SynthSync::disconnect()
 {
     startLink(nullptr, Kind::None);

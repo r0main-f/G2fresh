@@ -155,6 +155,9 @@ public:
     void loadFromFlash(int slot, u8 bank, u8 prog);  // slot 4 = a performance; the synth releases
     void storeToFlash(int slot, u8 bank, u8 prog);
     void playNote(u8 note, bool on);                  // 56: no velocity, no channel (§12)
+    // 03 CMSynthDataDump: the synth settings (MIDI channels, Local, ...). Clavia's editor sends it only to change
+    // perfMode; the OS reads every field (CSynthMap::ReadStream).
+    void setSynthSettings(const SynthSettings& settings);
     // Any patch edit: applied to the slot's mirror, sent as one T bubble.
     void edit(int slot, std::vector<Molecule> molecules);
     // Any request; `handler` gets the reply's molecules.

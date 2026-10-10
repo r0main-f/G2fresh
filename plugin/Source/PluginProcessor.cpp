@@ -74,6 +74,7 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
     engine->prepare(sampleRate_ > 0 ? sampleRate_ : 48000.0, blockSize_);
     synth_.connectEmulated(g2emu::emulatedG2Link(engine->machine()));
     emulatedSent_ = false;
+    emulatedLocal_ = false;
     setEmulated(std::move(engine));
     return {};
 }
@@ -88,12 +89,166 @@ void G2EditorProcessor::emulatorMidi(std::span<const std::uint8_t> bytes)
 }
 #endif
 
+namespace {
+
+// The Live view's panel (ui/G2Panel.h) <-> the emulated panel (g2emu/panel.hpp).
+std::optional<g2emu::PanelButton> toEmu(g2ui::PanelButton b)
+{
+    using U = g2ui::PanelButton;
+    using E = g2emu::PanelButton;
+    const int i = static_cast<int>(b);
+    auto offset = [](E first, int n) { return static_cast<E>(static_cast<int>(first) + n); };
+    if (b >= U::Knob1 && b <= U::Knob8)
+        return offset(E::Button1, i - static_cast<int>(U::Knob1));
+    if (b >= U::Var1 && b <= U::Var8)
+        return offset(E::Variation1, i - static_cast<int>(U::Var1));
+    if (b >= U::PageA && b <= U::PageE)
+        return offset(E::PageA, i - static_cast<int>(U::PageA));
+    if (b >= U::Column1 && b <= U::Column3)
+        return offset(E::Page1, i - static_cast<int>(U::Column1));
+    if (b >= U::SlotA && b <= U::SlotD)
+        return offset(E::SlotA, i - static_cast<int>(U::SlotA));
+    switch (b) {
+    case U::System: return E::System;
+    case U::Patch: return E::Patch;
+    case U::Store: return E::Store;
+    case U::DisplayMode: return E::DisplayMode;
+    case U::NavUp: return E::NavUp;
+    case U::NavLeft: return E::NavLeft;
+    case U::NavRight: return E::NavRight;
+    case U::NavDown: return E::NavDown;
+    case U::LoadPatch: return E::LoadPatch;
+    case U::PerformanceMode: return E::PerfMode;
+    case U::KbSplit: return E::KbSplit;
+    case U::OctaveDown: return E::OctaveDown;
+    case U::OctaveUp: return E::OctaveUp;
+    case U::KbHold: return E::KbHold;
+    case U::FocusCopy: return E::FocusCopy;
+    case U::Shift: return E::Shift;
+    case U::Morph: return E::Morph;
+    case U::PatchSettings: return E::PatchSettings;
+    default: return std::nullopt;
+    }
+}
+
+// The view's LED for each emulated one (g2emu::PanelLed order).
+g2ui::PanelLed toUi(g2emu::PanelLed l)
+{
+    using U = g2ui::PanelLed;
+    using E = g2emu::PanelLed;
+    const int i = static_cast<int>(l);
+    auto from = [i](E first, U uiFirst) { return static_cast<U>(static_cast<int>(uiFirst) + i - static_cast<int>(first)); };
+    if (l >= E::SlotA && l <= E::SlotD) return from(E::SlotA, U::FocusA);       // Active Slots/Focus, below the buttons
+    if (l >= E::SlotKbA && l <= E::SlotKbD) return from(E::SlotKbA, U::SlotA);  // Keyboard Assign, above them
+    if (l >= E::OctaveMinus2 && l <= E::OctavePlus2) return from(E::OctaveMinus2, U::Octave1);
+    if (l >= E::KbSplit1 && l <= E::KbSplit4) return from(E::KbSplit1, U::Split1);
+    if (l >= E::Variation1 && l <= E::Variation8) return from(E::Variation1, U::Var1);
+    if (l >= E::PageA && l <= E::PageE) return from(E::PageA, U::PageA);
+    if (l >= E::Page1 && l <= E::Page3) return from(E::Page1, U::Column1);
+    if (l >= E::Knob1 && l <= E::Knob8) return from(E::Knob1, U::KnobUpper1);
+    if (l >= E::Button1 && l <= E::Button8) return from(E::Button1, U::KnobLower1);
+    switch (l) {
+    case E::Midi: return U::Midi;
+    case E::Mic20: return U::MicLow;
+    case E::Mic12: return U::MicMid;
+    case E::Mic0: return U::MicHigh;
+    case E::System: return U::System;
+    case E::Patch: return U::Patch;
+    case E::Store: return U::Store;
+    case E::LoadPatch: return U::LoadPatch;
+    case E::KbHold: return U::KbHold;
+    case E::KbSplit: return U::KbSplit;
+    case E::PerfMode: return U::PerformanceMode;
+    case E::SubFunc: return U::SubFunc;
+    case E::PatchSettings: return U::PatchSettings;
+    case E::GlobalPanel: return U::GlobalPanel;
+    case E::Morph: return U::Morph;
+    default: return U::Count;
+    }
+}
+
+} // namespace
+
+g2ui::PanelSnapshot G2EditorProcessor::panel() const
+{
+    g2ui::PanelSnapshot s;
+    if (emulated_ == nullptr)
+        return s;
+    const auto p = static_cast<EmulatedSoundEngine&>(*emulated_).machine().panel();
+    s.live = true;
+    s.generation = p.generation;
+    for (std::size_t d = 0; d < p.displays.size() && d < s.displays.size(); ++d) {
+        if (!p.displays[d].on)
+            continue;
+        auto& out = s.displays[d];
+        out.columns = g2emu::PanelDisplay::Columns;
+        out.rows = g2emu::PanelDisplay::Rows;
+        for (int r = 0; r < out.rows; ++r)
+            out.text.push_back(p.displays[d].text(r));
+    }
+    for (int i = 0; i < g2emu::PanelLedCount; ++i)
+        if (const auto u = toUi(static_cast<g2emu::PanelLed>(i)); u != g2ui::PanelLed::Count)
+            s.leds[static_cast<std::size_t>(u)] = p.leds[static_cast<std::size_t>(i)] ? 1.0f : 0.0f;
+    // the wheels' LEDs are not the OS's: lit while the instrument is on
+    for (auto l : {g2ui::PanelLed::ModWheel, g2ui::PanelLed::GlobalWheel1, g2ui::PanelLed::GlobalWheel2})
+        s.leds[static_cast<std::size_t>(l)] = 1.0f;
+    for (std::size_t k = 0; k < s.rings.size(); ++k)
+        for (const bool on : p.rings[k])
+            s.rings[k].push_back(on ? 1.0f : 0.0f);
+    return s;
+}
+
+void G2EditorProcessor::panelButton(g2ui::PanelButton button, bool down)
+{
+    if (emulated_ != nullptr)
+        if (const auto b = toEmu(button))
+            static_cast<EmulatedSoundEngine&>(*emulated_).machine().panelButton(*b, down);
+}
+
+void G2EditorProcessor::panelEncoder(int encoder, int steps)
+{
+    if (emulated_ != nullptr && encoder >= 0 && encoder < g2emu::PanelEncoderCount)
+        static_cast<EmulatedSoundEngine&>(*emulated_).machine().panelEncoder(static_cast<g2emu::PanelEncoder>(encoder), steps);
+}
+
+void G2EditorProcessor::panelAnalog(g2ui::PanelAnalog control, float value)
+{
+    using U = g2ui::PanelAnalog;
+    using E = g2emu::PanelAnalog;
+    if (emulated_ == nullptr)
+        return;
+    const E e = control == U::MasterLevel ? E::MasterLevel : control == U::PitchStick ? E::PitchStick
+              : control == U::ModWheel    ? E::ModWheel    : control == U::GlobalWheel1 ? E::GlobalWheel1
+                                                                                         : E::GlobalWheel2;
+    static_cast<EmulatedSoundEngine&>(*emulated_).machine().panelAnalog(e, value);
+}
+
+bool G2EditorProcessor::panelKey(int midiNote, bool down, float velocity)
+{
+    // The G2X's 61 keys: key 0 is C1 (MIDI 36). (Which note key 0 plays on a G2X is not verified; the G2's 37 keys
+    // start at C3.)
+    const int key = midiNote - 36;
+    if (emulated_ == nullptr || key < 0 || key > 60)
+        return false;
+    static_cast<EmulatedSoundEngine&>(*emulated_).machine().panelKey(key, down, std::clamp(static_cast<int>(std::lround(velocity * 127)), 1, 127));
+    return true;
+}
+
 void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
     if (source == &synth_) {
         using Kind = g2ui::SynthSync::Kind;
         if (emulated_ != nullptr && synth_.kind() != Kind::Emulated)
             setEmulated(nullptr); // the editor left the emulated G2
+        // An erased flash leaves the OS's MIDI Local Off: its panel's keys and controls would only go out as MIDI.
+        if (synth_.kind() == Kind::Emulated && synth_.ready() && !emulatedLocal_) {
+            emulatedLocal_ = true;
+            if (const auto* link = synth_.link(); link != nullptr && !link->state().settings.localOn) {
+                auto settings = link->state().settings;
+                settings.localOn = true;
+                synth_.setSynthSettings(settings);
+            }
+        }
         // Once up, the emulated G2 plays the document (later, the user sends what they want).
         if (synth_.kind() == Kind::Emulated && synth_.ready() && !synth_.bound() && !emulatedSent_) {
             emulatedSent_ = true;
