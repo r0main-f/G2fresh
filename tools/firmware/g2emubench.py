@@ -65,6 +65,12 @@ def parse(out):
         r['gaps'] = int(m.group(4))
         r['blocks'] = int(m.group(5))
         r['rt_speed'] = float(m.group(6))
+    else:
+        # g2emurun before 2026-10-10's speed work: no block count
+        m = re.search(r'realtime: ([\d.]+) s of audio, (\d+) frames missing \(([\d.]+)%\)', out)
+        if m:
+            r.update(missing=int(m.group(2)), missing_pct=float(m.group(3)), gaps=-1, blocks=int(float(m.group(1)) * 100),
+                     rt_speed=0.0)
     m = re.search(r'out 1: peak ([\d.]+) rms ([\d.]+)', out)
     if m:
         r['peak'] = float(m.group(1))

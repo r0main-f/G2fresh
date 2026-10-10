@@ -84,7 +84,8 @@ extraction tool `tools/firmware/g2os.py` and this note. No Clavia bytes are comm
   in 2 ms, the post-upload level in 50 ms.
 * The JIT needed `dynamicFastInterrupts` (stage 1 keeps subroutines in the vector area): that was the "TFS poll".
 * Real time on an M1: typical patches on two threads (1.4-1.5 ×), heavy patches with chords on three (1.5-1.8 ×,
-  experimental: a JIT crash seen before a timing change, cause not found).
+  experimental: a JIT crash seen before a timing change, cause not found). Since the second pass (§3.9.7): three
+  threads by default, light patches 2.7-2.8 ×, heavy ones 1.8-2.4 ×, no underruns beside three busy processes.
 
 ## 1. Hardware (Part A)
 
@@ -1156,7 +1157,8 @@ DSPs in C++, with no Python and no Unicorn:
 * an uploaded patch sounds (the 1 kHz test patch: **1000.328 Hz** on all four DACs, peak 0.00838, as in §3.7.5);
 * notes play through the OS's MIDI IN (UART0) and through the protocol's PlayNote;
 * OS time and audio time come from one clock: the OS's timer ticks 8272 times per emulated second;
-* real time on an M1 for typical and heavy patches with two or three threads (§3.9.7).
+* real time on an M1 for typical and heavy patches: 2.7-2.8 × and 1.8-2.4 × with three threads (the ColdFire and
+  two DSP threads, the default), §3.9.7.
 
 Files:
 * `emu/g2emu/include/g2emu/`: `firmware.hpp` (the updater's resources, the OS image, LZO1X: `g2os.py` in C++),
@@ -1261,11 +1263,15 @@ there, but it is the same code.
   one DSP from the same instruction and gets the same value (a wait for a host command to be taken, or for data), the
   DSPs run ahead until it changes (at most a frame) and the ColdFire's clock moves on by as much: 18-38 % of the
   ColdFire's time was such loops.
-* **Threads** (`threads = N`): the DSPs run on N threads of their own, each a stretch of the chain, no further than
-  the stretch upstream of it (and the first no further than the ring's prefill past the last); the ColdFire runs at
-  most 2 frames ahead of the slowest DSP thread and the DSPs at most 2 frames ahead of the ColdFire. A repeated poll
-  moves the ColdFire's clock on by 128 cycles. Not deterministic (when a host access meets a DSP depends on the
-  threads).
+* **Threads** (`threads = N`; `-1`: two where the computer has 4 performance cores, else one, §3.9.7): the DSPs
+  run on N threads of their own, each a stretch of the chain, no further than the stretch upstream of it (and the
+  first no further than the ring's prefill past the last); the ColdFire runs at most 2 frames ahead of the slowest
+  DSP thread (`skew`) and the DSPs at most 8 frames ahead of the ColdFire (`dspLead`, 2 until 2026-10-10). The
+  asymmetry is deliberate: while the ColdFire is ahead it waits for the DSPs' answers in emulated time (its OS gets
+  less done), while the DSPs are ahead a host command reaches its DSP up to 83 us late, as jitter on a parameter or
+  note; the DSPs' lead absorbs the two sides' uneven pace. A repeated poll moves the ColdFire's clock on by 128
+  cycles. A thread that waits spins for 50 us, then sleeps until the other side rings (`Doorbell`, thread.hpp).
+  Not deterministic (when a host access meets a DSP depends on the threads).
 * **The host port, in order and paced as on the chip** (both modes). Words, host commands and host-flag changes go
   through one queue per DSP and reach the DSP on its own thread in the order the ColdFire wrote them; whatever follows
   a host command waits until the DSP has taken it, whatever follows a flag change until the DSP has read its status
@@ -1333,6 +1339,11 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
   an OS wait counted in loop iterations expired before a lagging DSP thread got there; with it, 0 failures in 22 runs
   of the failing configuration, but also 0 in 20 without it (the ordered host port had made the failure rare), and it
   costs 15-25 % of speed: off by default.
+  **2026-10-10, second pass: `threads = 2` is the default since** (§3.9.7). Evidence: 100 runs of three uploads each
+  (a performance and two patches from the factory banks, different every run) with two DSP threads, plus the 100-odd
+  benchmark and real-time runs of §3.9.7 (each with a performance upload): no DSP strayed (`dspsWild` 0), no run lost
+  its sync. The cause of the old failure is still not known; if it comes back, the trap stops the DSP and the plugin
+  has to restart the machine. 3 and 4 threads stay experimental (and are no faster).
 * The OS's DSP code runs the undefined opcode `$000040`: harmless (dsp56300 runs it as ILLEGAL; its vector is empty),
   logged by the library when it compiles such a block; g2emu filters that line.
 * The core counts V2 cycles (§3.9.2): the emulated CPU is probably slower than the real one; nothing seen depends on it
@@ -1346,7 +1357,118 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
 * macOS hardened runtime: the JIT needs `MAP_JIT` (a host application with the `allow-jit` entitlement); Gearmulator's
   plugins have the same requirement. **Check which DAWs allow it.**
 
-### 3.9.7 Speed [measured, M1, 4 performance cores, while other programs kept the machine busy (load ~10)]
+### 3.9.7 Speed [measured, M1, 4 performance + 4 efficiency cores]
+
+**Summary (2026-10-10, second pass).** Two DSP threads (`threads = 2`, the default since, `-1`: §3.9.4) run light
+patches at **2.7-2.8 x** real time (before: 1.5-1.6 x) and heavy ones at **1.8-2.4 x** (before: 1.7-2.1 x). In real
+time (Runner, a held chord, 20 ms buffer) the plugin's setting had underruns in 9 of 9 patches before (0.01-24 % of
+the audio with one DSP thread, the old default), and has none in 7 of 9 now, a few blocks in the others (below);
+with three busy processes beside it, 14-44 % of the audio was missing before, 0-0.04 % now. Nothing the machine
+computes changed: `threads = 0` gives bit-identical DAC output, instruction counts and host traffic.
+
+**How it is measured.** `tools/firmware/g2emubench.py` runs `g2emurun --model g2x --kbd PATCH` with a 3-note chord
+held through MIDI over 3 emulated seconds (best of 2), per patch and DSP thread count, and reports x real time,
+CPU per emulated second (all threads) and the *busy* CPU per thread (its waits taken out: `Stats::cfWaitNs`,
+`dspThreadWaitNs`); `--realtime S` plays S seconds through Runner + LocalLink at the wall clock and counts the 10 ms
+blocks with frames missing, `--load N` keeps N `yes` processes busy meanwhile. Two things matter on macOS:
+* **The emulator must run with an application's scheduling policies** (`taskpolicy -a`, which the script uses; a
+  DAW has them). A process started by a daemon (here: an agent's shell) runs its user-interactive threads at
+  priority 31, like any process (`ps -M`: 31; with `-a`: 46), and then competes with every busy process.
+* g2emurun's own thread (the ColdFire in all modes, the DSPs too with `--threads 0`) is set to user-interactive
+  QoS; before, it could land on an efficiency core and the speeds varied by 30 %.
+The machine was not idle (a system daemon held one core at 100 %, load average about 5); the before/after runs
+alternated under the same conditions. Before = c8fbcf6 (with the waits counted), after = this commit.
+
+| Patch | threads 0 before / after | 1 before / after | **2** before / after | busy CPU after, threads 2 (ColdFire; DSP threads) |
+|---|---|---|---|---|
+| Drone (the user's, light) | 0.72 / 0.91 | 1.51 / 1.66 | 1.50 / **2.67** | 0.37; 0.32, 0.30 |
+| 1 kHz test | 0.75 / 0.94 | 1.54 / 1.69 | 1.64 / **2.84** | 0.35; 0.32, 0.30 |
+| kbd_sine | 0.76 / 0.95 | 1.60 / 1.70 | 1.61 / **2.84** | 0.35; 0.31, 0.30 |
+| organ (VintageOrgan3 test) | 0.72 / 0.78 | 1.02 / 1.05 | 1.97 / **2.24** | 0.22; 0.45, 0.44 |
+| compkeys (test) | 0.60 / 0.63 | 0.87 / 0.85 | 1.78 / **2.00** | 0.21; 0.50, 0.47 |
+| bigsynth (heavy) | 0.68 / 0.73 | 1.00 / 1.02 | 2.07 / **2.26** | 0.20; 0.44, 0.43 |
+| Vangel (factory bank 1, the user's test patch) | 0.72 / 0.78 | 1.18 / 1.18 | 2.03 / **2.44** | 0.23; 0.41, 0.41 |
+| Comp Keys1 (factory bank 2) | 0.58 / 0.61 | 0.81 / 0.79 | 1.70 / **1.84** | 0.21; 0.54, 0.50 |
+| VintageOrgan3 (factory bank 2) | 0.72 / 0.77 | 1.03 / 1.03 | 1.93 / **2.24** | 0.22; 0.45, 0.44 |
+
+With one DSP thread the four DSPs need 0.6 s per emulated second on a light patch and 0.85-1.26 s on a heavy one:
+one thread caps light patches at about 1.7 x and does not keep up with heavy chords. Three or four DSP threads gain
+nothing (three put two DSPs on one thread; four make five busy threads on four performance cores: 1.5-1.75 x).
+
+Real time, 20 s each, a 3-note chord held, Runner with its 20 ms buffer, frames missing (blocks of 10 ms with a gap):
+
+| Patch | before, threads 1 (old default) | before, threads 2 | **after, threads 2 (default)** | after, threads 1 |
+|---|---|---|---|---|
+| no other load: light (Drone, 1 kHz, kbd_sine) | 0.01-1.24 % | 0.10-0.46 % | 0 (one block in one run) | 0 |
+| no other load: heavy (6 patches) | 0.13-23.6 % | 0-0.95 % | 0 (3 blocks, bigsynth) | 0-21.9 % |
+| 3 x `yes`: light | 42-44 % | 21-24 % | **0** | 0 |
+| 3 x `yes`: heavy | 14.5-37.9 % | 19.9-33.8 % | **0** (1 block Vangel, 3 Comp Keys1) | 0-23.9 % |
+
+The remaining gaps are single stalls of 10-20 ms (`Runner::Stats::longestChunkMs`: a 1 ms chunk that took a
+scheduler quantum), not a lack of speed; a 30 ms buffer would absorb them, at 10 ms more latency. CPU in real time
+(18 s of a run): the light patch 1.3 cores with one or two DSP threads alike, the heavy one 1.55 cores with two (1.9
+with one, overloaded). MIDI timing is unchanged: note-on to sound 22.5-23.6 ms, ±0.04 ms within a run
+(`--timed-midi`, 8 notes; an occasional note 2.5 ms late in both versions).
+
+What changed, and why it helped:
+* **The waits.** A thread that waited spun 64 times and then called `sched_yield` until the other side moved. When
+  the cores are taken, every yield hands the core to another process for a scheduler quantum (10 ms): that alone
+  made the old version lose 14-44 % of the audio beside three busy processes, light patches included, and it is the
+  likely cause of what was heard in Ableton (1.7 s missing in 20 s). Now a waiting thread spins 50 us and then sleeps
+  on a condition variable until the other side rings (`Doorbell`, thread.hpp; a ring costs a fence and a load while
+  nobody sleeps). Idle machine threads (the Runner's buffer full) cost no CPU.
+* **The DSPs' lead.** The ColdFire and the DSP threads were held within 2 frames of each other in both directions,
+  so each side waited for the other's slowest moments. The DSPs may now run 8 frames ahead (`dspLead`, §3.9.4);
+  the ColdFire's own lead stays at 2 frames, because while it is ahead its OS waits for answers in emulated time
+  (a symmetric 8 or 32 frames was as fast but cut the OS's host commands per emulated second by 15 or 30 %).
+  Drone, 2 DSP threads: about 1.4 -> 1.5-1.75 x by itself (noisy).
+* **The ColdFire core** (Gearmulator's, patched at configure time, `emu/g2emu/coldfire`): 76 -> **132 M
+  instructions/s** (`G2EMU_TIMING`, threads 0, "ColdFire alone"). In order of gain: dispatch through a table of plain
+  function pointers, one per handler, into which the compiler inlines the handler (the member function pointers
+  took 16 bytes and a test per call: +19 %); the address decoding and memory helpers forced inline and a stepping
+  loop inside the core (`Cpu::run`) with the bus's wait cycles in a field of the core instead of a virtual call per
+  instruction (+25 %); specialised handlers (size and address mode as template arguments) for MOVE, MOVEA, CLR,
+  TST, CMP, LEA, JSR, PEA, ADDQ/SUBQ and Bcc (+14 %). A test steps random code through both paths and compares
+  every register, flag, cycle count and memory byte after each instruction.
+* **Cache lines.** The atomics each thread writes (its time, the horizon, the host queue's two ends) on lines of their
+  own; the DSP no longer stores its host queue's tail when nothing was taken. No measurable gain alone.
+* **The choice of threads.** With the waits and the lead fixed, two DSP threads were faster than one for every
+  patch, light ones included, at the same CPU per emulated second (the work is the same, spread on more cores), and
+  were the only setting without underruns under load. A switch at run time from measured DSP load (the plan) would
+  have nothing to choose: `threads = -1` takes 2 where there are 4 performance cores (`Machine::autoThreads`), 1
+  elsewhere, and the Runner and the plugin use it.
+
+Where the time goes now:
+* **ColdFire:** the OS runs 45-50 M instructions per emulated second (its main loop polls; 20-30 % of its time is
+  skipped host-port polls), 0.35-0.4 s of a core. 90 % of the thread is the interpreter; host-port and bus code, USB
+  and the panel the rest. It limits light patches with two DSP threads (2.7-2.8 x).
+* **DSPs:** the library's per-slot work, not the DSP code: per DSP and frame about 10 peripheral passes, 8 serial
+  slots and 29 DMA word transfers (two-dimensional line transfers between X memory and the ESAI registers), about
+  1.5 us; `DmaChannel::execTransfer` alone is 30 % of a DSP thread. Heavy patches add the JIT code. They limit heavy
+  patches (0.4-0.55 s per DSP thread).
+* **The front panel** (dea4aff): no measurable cost (the commit before it and c8fbcf6 both 1.51-1.53 x on Drone,
+  one DSP thread).
+
+Tried and dropped:
+* Specialised MOVE handlers called through m_table's member function pointers: slower (80 against 92 M/s); through
+  plain function pointers they gain 7 %.
+* A two-level dispatch table (a byte per opcode, then the handler): slower (85 against 97 M/s): the extra load is
+  on the critical path.
+* Each DSP thread running its DSPs 8 frames at a time instead of one: 12 % less DSP CPU on heavy patches, but the
+  last DSP of the chain lags and the ColdFire's skipped polls went from 45 to 63 % of its time (its OS gets less
+  done).
+* The Runner resting until a quarter of its buffer is used (fewer starts of the threads): no measurable gain, 5 ms
+  less tolerance to a stall.
+* A DSP running its own code asking for its peripherals every 128 or 256 instructions instead of 64 (fewer passes
+  on heavy patches): no measurable change in DSP time (bigsynth, threads 0: 6.14 / 6.22 / 6.02 s).
+
+Next, if more is needed: the DSPs' per-slot cost (a direct path for the G2's two-dimensional ESAI DMA in dsp56300;
+it would make one DSP thread enough for light patches and speed heavy ones up), a three-thread split that balances
+the chain (A6 | A5 A4 | A3 by load), more specialised ColdFire handlers (MOVEM, ADD/SUB, AND, shifts) or a
+predecoded instruction cache.
+
+The first version's speed (2026-10-10 morning, before the work above; other programs kept the machine busy, load
+about 10, threads at priority 31):
 
 `g2emurun --kbd PATCH --midi 60/64/67` (a 3-note chord through MIDI) over 3 emulated seconds; "x real time" is
 emulated seconds per wall second; CPU is per emulated second (waits count as CPU: the threads spin, then yield).
@@ -1365,7 +1487,7 @@ emulated seconds per wall second; CPU is per emulated second (waits count as CPU
 | BigDualVCFSynth3, chord | 2 | 162 MHz | **1.76** | 1.61 | 0.53; 0.54, 0.54 |
 | VintageOrgan3, chord | 2 | 162 MHz | 1.52 | 1.79 | 0.59; 0.60, 0.60 |
 
-Where the time goes:
+Where the time went:
 * **ColdFire:** the interpreter at 65-75 M instructions/s; the OS runs 55-65 M instructions per emulated second at
   162 MHz, all of it busy (no idle loop: the main loop polls the DSPs). So the ColdFire thread alone needs about 0.6
   of a core at the nominal speed, roughly in proportion to `cfHz`.
@@ -1396,7 +1518,8 @@ Where the time goes:
 5. **State:** keep the flash image (`Machine::flash()`) in the plugin state or a user file, so the synth's banks
    persist; a snapshot of the whole machine (CPU, memories, DSPs) would skip the boot (not done).
 6. **Threads and CPU:** 2-3 threads of an M1's 4 performance cores; a "lighter" setting can lower `cfHz` (less meter
-   and LED polling, slower uploads, same audio).
+   and LED polling, slower uploads, same audio). Since 2026-10-10 (§3.9.7): three threads (the ColdFire, two DSP
+   threads: `threads = -1`), about 1.3-1.55 cores per instance in real time.
 7. **Risks:** the JIT entitlement in DAWs (§3.9.6), the multi-DSP-thread crash, CPU on smaller machines.
 
 **Done (2026-10-10), as built:** `plugin/Source/EmulatedSoundEngine` (with `-DG2_BUILD_EMU=ON`). The editor's
@@ -1434,10 +1557,14 @@ build/tests/g2emutests                               # the [firmware] case needs
 nice -n 10 build/emu/g2emurun --threads 1 --patch original/firmware/esai-links/test-patches/1khz_on.pch2 --seconds 1
 nice -n 10 build/emu/g2emurun --threads 1 --kbd PATCH.pch2 --midi 60@0.1-0.9:1 --wav out.wav
 nice -n 10 build/emu/g2emurun --realtime 3 --kbd PATCH.pch2 --midi 69@0.5-2.5:1    # Runner + LocalLink at the wall clock
+tools/firmware/g2emubench.py --threads 0,1,2                      # speed and busy CPU per thread over the test patches
+tools/firmware/g2emubench.py --realtime 20 --threads 2 --load 3  # underruns in real time beside 3 busy processes
 build/venv/bin/python tools/firmware/g2emucompare.py ref/dac.wav out.wav
 ```
-Debugging: `G2EMU_CFPROFILE=S` (ColdFire PC profile after S seconds), `G2EMU_TIMING=1`, `G2EMU_USBLOG=FILE` (the
-protocol traffic), `--trace` (unmapped accesses, exceptions).
+Debugging: `G2EMU_CFPROFILE=S` (ColdFire PC profile after S seconds; with `G2EMU_CFPROFILE_EXACT=1` by
+instruction), `G2EMU_TIMING=1` (time in the ColdFire alone and its instructions per second, the ColdFire's waits),
+`G2EMU_GAPS=1` (`--realtime`: when a block had a gap), `G2EMU_USBLOG=FILE` (the protocol traffic), `--trace`
+(unmapped accesses, exceptions). On macOS measure speed under `taskpolicy -a` (§3.9.7).
 
 ## 3.10 The front panel (2026-10-10)
 
