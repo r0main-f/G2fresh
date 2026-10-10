@@ -38,9 +38,11 @@ std::unique_ptr<juce::AudioPluginInstance> load(const juce::String& path, double
     return *onMessageThread([&]() -> std::unique_ptr<juce::AudioPluginInstance> {
         // a .component is an Audio Unit (as Live uses it), anything else a VST3
         std::unique_ptr<juce::AudioPluginFormat> format;
+#if JUCE_PLUGINHOST_AU && JUCE_MAC
         if (path.endsWithIgnoreCase(".component"))
             format = std::make_unique<juce::AudioUnitPluginFormat>();
         else
+#endif
             format = std::make_unique<juce::VST3PluginFormat>();
         juce::OwnedArray<juce::PluginDescription> types;
         format->findAllTypesForFile(types, path);
