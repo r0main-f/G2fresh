@@ -37,6 +37,8 @@ public:
     // The flash while the machine runs (any thread): how many times the OS changed it, and a copy.
     std::uint64_t flashChanges() const { return runner_->machine().flashChanges(); }
     std::vector<std::uint8_t> flashSnapshot() const { return runner_->machine().flashSnapshot(); }
+    // 96 kHz frames the audio thread asked for that the machine had not produced yet (heard as dropouts).
+    std::uint64_t framesMissing() const { return runner_->stats().framesMissing; }
     // From a MIDI event to the DACs, in host samples (the runner's buffer, the resampler).
     int latencySamples() const;
 

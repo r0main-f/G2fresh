@@ -95,6 +95,13 @@ private:
     // plugin instance keeps its own synth memory in the host's project.
     bool emulatorWanted_ = true;
     juce::MemoryBlock flashGz_;
+    // Diagnostics: a file named "capture" in G2fresh's settings folder makes the plugin record 20 s of its output
+    // to "G2fresh capture.wav" on the Desktop (with the dropouts counted), for checking what a host hears.
+    std::vector<float> capture_; // interleaved stereo
+    std::atomic<std::size_t> captured_{0};
+    std::atomic<bool> capturing_{false};
+    std::uint64_t captureMissing_ = 0;
+    void checkCapture();
     std::uint64_t flashSeen_ = 0;
     int flashQuiet_ = 0;
     double sampleRate_ = 0.0;

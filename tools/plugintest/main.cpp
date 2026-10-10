@@ -246,7 +246,8 @@ void run(const juce::String& path, const juce::File& patch)
     const auto flash = tree["emulatorFlash"].toString();
     check(flash.isNotEmpty(), "it holds the synth's memory (" + juce::String(flash.length()) + " base64 characters)");
 
-    std::cout << "A second instance from that state (a project reopened)" << std::endl;
+    std::cout << "A second instance from that state (a project reopened: the first one is gone)" << std::endl;
+    onMessageThread([&] { a.reset(); }); // one emulated G2 starts by itself per host
     auto b = load(path, rate, block);
     check(b != nullptr, "the plugin loads again");
     if (b == nullptr)
@@ -291,10 +292,7 @@ void run(const juce::String& path, const juce::File& patch)
     check(longestSilence(bounce, 0, bounce.size()) < static_cast<std::size_t>(rate * 0.005),
           "without dropouts, faster or slower than real time");
 
-    onMessageThread([&] {
-        a.reset();
-        b.reset();
-    });
+    onMessageThread([&] { b.reset(); });
 }
 
 } // namespace
@@ -318,7 +316,7 @@ public:
         const juce::File file = args.size() > (restoring ? 2 : 1) ? juce::File::getCurrentWorkingDirectory().getChildFile(args[restoring ? 2 : 1]) : juce::File();
         test_ = std::thread([this, path, file, restoring] {
             if (restoring)
-                restore(path, file, 8.0);
+                restore(path, file, juce::SystemStats::getEnvironmentVariable("G2TEST_SECONDS", "8").getDoubleValue());
             else
                 run(path, file);
             std::cout << (failures == 0 ? "all checks passed" : juce::String(failures) + " check(s) failed") << std::endl;

@@ -116,8 +116,42 @@ void G2EditorProcessor::captureFlash()
     refreshState();
 }
 
+void G2EditorProcessor::checkCapture()
+{
+    const auto folder = EmulatedSoundEngine::defaultFlashFile().getParentDirectory();
+    const auto rate = sampleRate_ > 0 ? sampleRate_ : 48000.0;
+    if (!capturing_ && folder.getChildFile("capture").existsAsFile()) {
+        folder.getChildFile("capture").deleteFile();
+        capture_.assign(static_cast<std::size_t>(rate * 20) * 2, 0.0f);
+        captured_ = 0;
+        captureMissing_ = emulated_ != nullptr ? static_cast<EmulatedSoundEngine&>(*emulated_).framesMissing() : 0;
+        capturing_.store(true, std::memory_order_release);
+        return;
+    }
+    if (!capturing_ || captured_.load(std::memory_order_acquire) < capture_.size() / 2)
+        return;
+    capturing_ = false;
+    const auto missing = (emulated_ != nullptr ? static_cast<EmulatedSoundEngine&>(*emulated_).framesMissing() : 0) - captureMissing_;
+    const auto file = juce::File::getSpecialLocation(juce::File::userDesktopDirectory).getChildFile("G2fresh capture.wav");
+    juce::AudioBuffer<float> audio(2, static_cast<int>(capture_.size() / 2));
+    for (int i = 0; i < audio.getNumSamples(); ++i)
+        for (int c = 0; c < 2; ++c)
+            audio.setSample(c, i, capture_[static_cast<std::size_t>(i) * 2 + static_cast<std::size_t>(c)]);
+    file.deleteFile();
+    if (auto stream = file.createOutputStream()) {
+        juce::WavAudioFormat wav;
+        if (auto writer = std::unique_ptr<juce::AudioFormatWriter>(wav.createWriterFor(stream.release(), rate, 2, 32, {}, 0)))
+            writer->writeFromAudioSampleBuffer(audio, 0, audio.getNumSamples());
+    }
+    file.withFileExtension(".txt").replaceWithText("sample rate " + juce::String(rate) + ", block " + juce::String(blockSize_)
+                                                   + ", wrapper " + juce::String(static_cast<int>(wrapperType))
+                                                   + ", 96 kHz frames missing during the capture: " + juce::String(missing)
+                                                   + "\n");
+}
+
 void G2EditorProcessor::timerCallback()
 {
+    checkCapture();
     if (emulated_ == nullptr)
         return;
     // The emulated G2 runs but the link gave up on it (it ran too slowly to answer in time, e.g. while the host
@@ -421,6 +455,14 @@ void G2EditorProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         emulated.setOffline(isNonRealtime());
         emulated.render(buffer, midi);
         midi.clear();
+        if (capturing_.load(std::memory_order_acquire)) {
+            const auto at = captured_.load(std::memory_order_relaxed);
+            const auto n = std::min<std::size_t>(static_cast<std::size_t>(buffer.getNumSamples()), capture_.size() / 2 - at);
+            for (std::size_t i = 0; i < n; ++i)
+                for (int c = 0; c < 2; ++c)
+                    capture_[(at + i) * 2 + static_cast<std::size_t>(c)] = buffer.getSample(std::min(c, buffer.getNumChannels() - 1), static_cast<int>(i));
+            captured_.store(at + n, std::memory_order_release);
+        }
         return;
     }
 #endif
