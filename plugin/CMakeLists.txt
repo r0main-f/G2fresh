@@ -48,6 +48,10 @@ target_link_libraries(G2Editor
 # The emulated G2 as a sound engine, in builds with the emulator (-DG2_BUILD_EMU=ON).
 if(TARGET g2emu)
   target_sources(G2Editor PRIVATE Source/EmulatedSoundEngine.cpp)
+  if(APPLE)
+    target_sources(G2Editor PRIVATE Source/NoAppNap.mm)
+    target_compile_definitions(G2Editor PRIVATE G2FRESH_NO_APP_NAP=1)
+  endif()
   target_link_libraries(G2Editor PRIVATE g2emu)
   target_compile_definitions(G2Editor PRIVATE G2FRESH_EMULATOR=1)
 endif()

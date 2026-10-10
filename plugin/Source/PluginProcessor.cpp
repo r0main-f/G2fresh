@@ -146,6 +146,7 @@ void G2EditorProcessor::checkCapture()
     file.withFileExtension(".txt").replaceWithText("sample rate " + juce::String(rate) + ", block " + juce::String(blockSize_)
                                                    + ", wrapper " + juce::String(static_cast<int>(wrapperType))
                                                    + ", 96 kHz frames missing during the capture: " + juce::String(missing)
+                                                   + (emulated_ != nullptr ? "\n" + static_cast<EmulatedSoundEngine&>(*emulated_).diagnostics() : juce::String())
                                                    + "\n");
 }
 

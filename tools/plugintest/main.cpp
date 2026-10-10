@@ -2,6 +2,13 @@
 // exits with 0 when all pass.
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#if JUCE_MAC
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <mach/thread_policy.h>
+#include <pthread.h>
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -47,6 +54,26 @@ std::unique_ptr<juce::AudioPluginInstance> load(const juce::String& path, double
     });
 }
 
+// This thread as a host's audio thread: real-time scheduling, as CoreAudio gives its I/O thread (on macOS; an
+// ordinary thread wakes late under load and then pulls several blocks at once, which a host never does).
+void makeRealtime(double period)
+{
+#if JUCE_MAC
+    mach_timebase_info_data_t tb;
+    mach_timebase_info(&tb);
+    const auto toAbs = [&](double s) { return static_cast<uint32_t>(s * 1e9 * tb.denom / tb.numer); };
+    thread_time_constraint_policy_data_t policy;
+    policy.period = toAbs(period);
+    policy.computation = toAbs(period * 0.5);
+    policy.constraint = toAbs(period * 0.9);
+    policy.preemptible = 1;
+    thread_policy_set(pthread_mach_thread_np(pthread_self()), THREAD_TIME_CONSTRAINT_POLICY,
+                      reinterpret_cast<thread_policy_t>(&policy), THREAD_TIME_CONSTRAINT_POLICY_COUNT);
+#else
+    juce::ignoreUnused(period);
+#endif
+}
+
 // Plays `seconds` of audio through the plugin, in real time (or as fast as it goes when offline), with a note held
 // from `noteOn` to `noteOff` (seconds; negative: none). Returns the left channel.
 std::vector<float> play(juce::AudioPluginInstance& p, double rate, int block, double seconds, double noteOn,
@@ -55,6 +82,8 @@ std::vector<float> play(juce::AudioPluginInstance& p, double rate, int block, do
     std::vector<float> out;
     juce::AudioBuffer<float> buffer(2, block);
     const auto blocks = static_cast<int>(seconds * rate / block);
+    if (!offline)
+        makeRealtime(block / rate);
     auto next = std::chrono::steady_clock::now();
     for (int b = 0; b < blocks; ++b) {
         juce::MidiBuffer midi;

@@ -17,6 +17,10 @@
 
 #include "SoundEngine.h"
 
+#if G2FRESH_NO_APP_NAP
+#include "NoAppNap.h"
+#endif
+
 #include "g2emu/runner.hpp"
 
 #include <juce_core/juce_core.h>
@@ -39,6 +43,8 @@ public:
     std::vector<std::uint8_t> flashSnapshot() const { return runner_->machine().flashSnapshot(); }
     // 96 kHz frames the audio thread asked for that the machine had not produced yet (heard as dropouts).
     std::uint64_t framesMissing() const { return runner_->stats().framesMissing; }
+    // For diagnostics: the runner's speed while running, its longest chunk, the DSP threads in use.
+    juce::String diagnostics() const;
     // From a MIDI event to the DACs, in host samples (the runner's buffer, the resampler).
     int latencySamples() const;
 
@@ -63,6 +69,9 @@ private:
     juce::File saveTo_;
     std::vector<std::uint8_t> savedFlash_; // as loaded: only a changed flash is written back
     std::unique_ptr<g2emu::Runner> runner_;
+#if G2FRESH_NO_APP_NAP
+    NoAppNap noAppNap_; // while it runs, the process is not throttled
+#endif
 
     // Audio thread.
     bool offline_ = false;

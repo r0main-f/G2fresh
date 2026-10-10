@@ -46,6 +46,14 @@ EmulatedSoundEngine::EmulatedSoundEngine(const g2emu::Firmware& firmware, std::v
     ++running_;
 }
 
+juce::String EmulatedSoundEngine::diagnostics() const
+{
+    const auto s = runner_->stats();
+    return "emulator speed while running " + juce::String(s.speed, 2) + "x, longest chunk "
+         + juce::String(s.longestChunkMs, 1) + " ms, DSP threads " + juce::String(runner_->machine().stats().dspThreads)
+         + ", buffered " + juce::String(static_cast<int>(runner_->available())) + " frames";
+}
+
 int EmulatedSoundEngine::latencySamples() const
 {
     // the runner's fixed delay, plus the samples the resampler holds back
@@ -68,6 +76,8 @@ void EmulatedSoundEngine::prepare(double sampleRate, int maxBlock)
 {
     hostRate_ = sampleRate > 0 ? sampleRate : 96000.0;
     const auto room = static_cast<std::size_t>(std::ceil(maxBlock * g2emu::Machine::FrameRate / hostRate_)) + 64;
+    // the machine keeps a whole host block ready on top of its buffer (a block takes this many frames at once)
+    runner_->setReadSize(static_cast<std::uint32_t>(std::ceil(maxBlock * g2emu::Machine::FrameRate / hostRate_)) + 8);
     frames_.reserve(room * 4);
     for (int c = 0; c < 2; ++c) {
         resamplers_[c].reset();
