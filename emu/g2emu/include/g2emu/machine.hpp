@@ -11,6 +11,7 @@
 #pragma once
 
 #include "g2emu/firmware.hpp"
+#include "g2emu/panel.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -46,6 +47,9 @@ public:
         // The panel's master volume knob, 0..1 (read by the OS through the panel ADC, 128 steps). At 1, a signal of 1.0
         // into an Out module (patch Level 127, no pad) gives DAC words of about -0.125 (inverted): -18 dBFS.
         double masterVolume = 1.0;
+        // The instrument the panel says it is (read by the OS at boot): the G2 keyboard, the G2X (adds the two global
+        // wheels, 61 keys) or the G2 Engine (rack).
+        PanelModel model = PanelModel::G2;
         bool trace = false;            // log unusual events (unmapped accesses, exceptions) to stderr
     };
 
@@ -97,6 +101,34 @@ public:
     // or at once if that is past. A note-on's three bytes then reach the OS 0.96 ms later, always the same.
     void midiInAt(std::span<const std::uint8_t> bytes, std::uint64_t frame);
     std::vector<std::uint8_t> takeMidiOut();
+
+    // ---- the front panel (thread-safe; re/notes §3.10, g2emu/panel.hpp) ----
+    // What the panel shows: a snapshot the machine's thread publishes at most once per emulated millisecond, when
+    // something visible changed (PanelState::generation).
+    PanelState panel() const;
+    // The inputs reach the OS at the start of the machine's next millisecond, in order. Each press and release is
+    // held until the OS has scanned it (its scan takes 5 ms), so none is lost however short.
+    void panelButton(PanelButton button, bool down);
+    // Knobs: one step is one quadrature transition, which the OS counts as one step of the parameter. The dial: one
+    // step is one detent (4 transitions); detents are spaced 8 ms apart so the OS's acceleration does not kick in.
+    // Positive: clockwise. The OS scans an encoder about 2400 times a second, one transition per scan.
+    void panelEncoder(PanelEncoder encoder, int steps);
+    // 0..1 (pitch stick: 0.5 at rest), 8 bits as the panel ADC gives them. The master level starts at
+    // Options::masterVolume.
+    void panelAnalog(PanelAnalog control, float value);
+    // A key of the keyboard (0 = the lowest; 37 keys on the G2, 61 on the G2X): its two contacts close (or open)
+    // the time apart that the OS turns into `velocity` (1-127, approximate). Notes play only with the OS's
+    // MIDI Local On (System menu); an erased flash starts with Local Off.
+    void panelKey(int key, bool down, int velocity = 100);
+    // A sustain pedal (normally open, plugged in at the first call): down closes its contact.
+    void panelSustainPedal(bool down);
+    // By scan position (button: multiplexer byte * 8 + bit; encoder: 0-7 the knobs' pairs as scanned, 8 the dial,
+    // in transitions; ADC: stream position 0-6), for debugging.
+    void panelRawButton(int raw, bool down);
+    void panelRawEncoder(int raw, int transitions);
+    void panelRawAdc(int position, std::uint8_t value);
+    void panelRawKey(int raw, bool down, double contactMs);
+    std::string panelDebug() const;  // machine thread only: scan counters, for debugging
 
     // ---- flash (patches and settings the OS stores) ----
     std::vector<std::uint8_t>& flash();

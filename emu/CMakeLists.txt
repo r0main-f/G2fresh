@@ -198,6 +198,7 @@ add_library(g2emu STATIC
   g2emu/src/hw.cpp
   g2emu/src/dsp.cpp
   g2emu/src/machine.cpp
+  g2emu/src/panel.cpp
   g2emu/src/runner.cpp
   g2emu/src/dmg.cpp)
 target_include_directories(g2emu PUBLIC g2emu/include)

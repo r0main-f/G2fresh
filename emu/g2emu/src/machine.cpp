@@ -2,6 +2,7 @@
 
 #include "dsp.hpp"
 #include "hw.hpp"
+#include "panel.hpp"
 #include "thread.hpp"
 
 #include "coldfire/cfCpu.h"
@@ -97,6 +98,7 @@ struct Machine::Impl final : coldfire::Bus {
     Sim sim{[this] { return busNow(); }};
     Flash flashChip;
     Isp1181 usb;
+    Panel panelHw;
     std::array<std::unique_ptr<Dsp>, 4> dsps;
     std::array<StubPort, 4> stubs;
     std::array<std::unique_ptr<Link>, 8> links;
@@ -141,6 +143,102 @@ struct Machine::Impl final : coldfire::Bus {
     };
     std::vector<MidiIn> midiInQueue;
 
+    // front panel: the UI's inputs (any thread) are applied at the start of a quantum; a snapshot of what the panel
+    // shows is published at most once per emulated millisecond, when something changed
+    struct PanelInput {
+        enum Kind { Button, Encoder, Adc, Key, Sustain } kind = Button;
+        int index = 0, value = 0, extra = 0;
+    };
+    mutable std::mutex panelMutex;
+    std::vector<PanelInput> panelInputs;
+    std::atomic<bool> panelInputsPending{false};
+    PanelState panelPublished;
+    std::array<int, 8> knobDirection{};  // the last direction each knob was turned (panelEncoder)
+    std::uint64_t panelChanges = ~0ull, panelPublishAt = 0;
+
+    static bool samePanel(const PanelState& a, const PanelState& b)
+    {
+        if(a.rawLeds != b.rawLeds || a.model != b.model) return false;
+        for(std::size_t i = 0; i < a.displays.size(); ++i)
+        {
+            const auto &x = a.displays[i], &y = b.displays[i];
+            if(x.chars != y.chars || x.cgram != y.cgram || x.on != y.on || x.cursor != y.cursor || x.cursorLine != y.cursorLine ||
+               x.cursorBlink != y.cursorBlink)
+                return false;
+        }
+        return true;
+    }
+    void panelStep()
+    {
+        if(panelInputsPending.load(std::memory_order_acquire))
+        {
+            std::vector<PanelInput> in;
+            {
+                std::lock_guard lock(panelMutex);
+                in.swap(panelInputs);
+                panelInputsPending.store(false, std::memory_order_relaxed);
+            }
+            for(const auto& e : in)
+                switch(e.kind)
+                {
+                case PanelInput::Button: panelHw.button(e.index, e.value != 0); break;
+                case PanelInput::Encoder: panelHw.turn(e.index, e.value); break;
+                case PanelInput::Adc: sim.setPanelAdc(std::size_t(e.index), std::uint8_t(e.value)); break;
+                case PanelInput::Key: panelHw.key(e.index, e.value != 0, std::uint64_t(e.extra), busNow()); break;
+                case PanelInput::Sustain:
+                    panelHw.sustain(true, e.value != 0);
+                    sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
+                    break;
+                }
+        }
+        if(panelHw.advance(busNow())) sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
+        if(panelHw.changes() != panelChanges && t >= panelPublishAt)
+        {
+            PanelState s;
+            panelHw.snapshot(s);
+            panelChanges = panelHw.changes();
+            std::lock_guard lock(panelMutex);
+            s.generation = panelPublished.generation;
+            if(!samePanel(s, panelPublished))
+            {
+                s.generation = panelPublished.generation + 1;
+                panelPublished = s;
+            }
+            panelPublishAt = t + std::uint64_t(FrameRate / 1000) * Dsp::CyclesPerFrame;
+        }
+    }
+    std::string panelDebug() const
+    {
+        const auto& tr = panelHw.trace();
+        char b[512];
+        std::snprintf(b, sizeof b,
+                      "cs5 writes %llu %llu %llu %llu %llu %llu %llu %llu, reads %llu (selects %llu %llu %llu %llu %llu %llu %llu %llu, none %llu); "
+                      "cs4 writes %llu; lcd writes %llu %llu %llu %llu %llu",
+                      (unsigned long long)tr.cs5Writes[0], (unsigned long long)tr.cs5Writes[1], (unsigned long long)tr.cs5Writes[2],
+                      (unsigned long long)tr.cs5Writes[3], (unsigned long long)tr.cs5Writes[4], (unsigned long long)tr.cs5Writes[5],
+                      (unsigned long long)tr.cs5Writes[6], (unsigned long long)tr.cs5Writes[7], (unsigned long long)tr.cs5Reads,
+                      (unsigned long long)tr.selectReads[0], (unsigned long long)tr.selectReads[1], (unsigned long long)tr.selectReads[2],
+                      (unsigned long long)tr.selectReads[3], (unsigned long long)tr.selectReads[4], (unsigned long long)tr.selectReads[5],
+                      (unsigned long long)tr.selectReads[6], (unsigned long long)tr.selectReads[7], (unsigned long long)tr.selectReads[8],
+                      (unsigned long long)tr.cs4Writes, (unsigned long long)panelHw.lcds()[0].writes,
+                      (unsigned long long)panelHw.lcds()[1].writes, (unsigned long long)panelHw.lcds()[2].writes,
+                      (unsigned long long)panelHw.lcds()[3].writes, (unsigned long long)panelHw.lcds()[4].writes);
+        std::string r = b;
+        for(int n = 0; n < 256; ++n)
+            if(panelHw.ledHistory(n))
+            {
+                std::snprintf(b, sizeof b, " led%d=%08x/%llu", n, panelHw.ledHistory(n), (unsigned long long)panelHw.ledStrobes(n));
+                r += b;
+            }
+        return r;
+    }
+    void panelInput(PanelInput e)
+    {
+        std::lock_guard lock(panelMutex);
+        panelInputs.push_back(e);
+        panelInputsPending.store(true, std::memory_order_release);
+    }
+
     // statistics
     Stats st;
     std::unique_ptr<std::map<std::uint32_t, std::uint64_t>> profile;  // G2EMU_CFPROFILE: ColdFire PCs, every 64th
@@ -170,7 +268,13 @@ struct Machine::Impl final : coldfire::Bus {
         Logging::setLogFunc(&quietLog);
         cfPerDsp = opt.cfHz / (double(FrameRate) * Dsp::CyclesPerFrame);
         busPerCf = double(Sim::BusHz) / opt.cfHz;
-        sim.setPanelAdc(1, std::uint8_t(std::lround(std::clamp(opt.masterVolume, 0.0, 1.0) * 255)));  // the volume knob
+        // The panel's analogue controls at rest (stream positions, §3.10): G.Wheel 2, the master level, the control
+        // pedal, the aftertouch sensor (0xFF: no pressure), the pitch stick (centre; the OS's boot calibration needs
+        // 0x80 here), the mod wheel, G.Wheel 1
+        const std::uint8_t rest[7] = {0, std::uint8_t(std::lround(std::clamp(opt.masterVolume, 0.0, 1.0) * 255)), 0, 0xFF, 0x80, 0, 0};
+        for(std::size_t i = 0; i < 7; ++i) sim.setPanelAdc(i, rest[i]);
+        panelHw.setModel(opt.model == PanelModel::G2X ? 3 : opt.model == PanelModel::G2Engine ? 2 : 0);
+        sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
         load(fw);
         Dsp::Options dopt;
         dopt.jit = opt.jit;
@@ -289,6 +393,17 @@ struct Machine::Impl final : coldfire::Bus {
         return std::uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
     }
     bool timing = std::getenv("G2EMU_TIMING") != nullptr;
+    std::vector<std::uint32_t> pcWatch = [] {
+        std::vector<std::uint32_t> v;
+        if(const char* p = std::getenv("G2EMU_PCWATCH"))
+            for(const char* q = p; *q;)
+            {
+                char* e = nullptr;
+                v.push_back(std::uint32_t(std::strtoul(q, &e, 16)));
+                q = *e ? e + 1 : e;
+            }
+        return v;
+    }();
     std::uint64_t syncNs = 0, cfNs = 0, dspNs = 0;
 
     // ---- the ColdFire bus ----
@@ -317,8 +432,17 @@ struct Machine::Impl final : coldfire::Bus {
                 return v;
             }
             break;
-        case 0x14: case 0x15: case 0x16: case 0x17:
-            if((a & 0xffffff) < 0x10000) { waitCycles += 12; return 0; }  // panel latches: read 0 (stub)
+        case 0x15:
+            if((a & 0xffffff) < 0x10000)
+            {
+                waitCycles += 12;
+                std::uint32_t v = 0;
+                for(int k = 0; k < size; ++k) v = v << 8 | panelHw.readCs5((a + std::uint32_t(k)) & 7);
+                return v;
+            }
+            break;
+        case 0x14: case 0x16: case 0x17:
+            if((a & 0xffffff) < 0x10000) { waitCycles += 12; return 0; }  // write-only latches (CS4), nothing (CS6/7)
             break;
         default: break;
         }
@@ -351,8 +475,26 @@ struct Machine::Impl final : coldfire::Bus {
         case 0x13:
             if(a < 0x13010000) { waitCycles += 12; usb.write(a & 0xffff, size, v); usbIrqChanged(); return; }
             break;
-        case 0x14: case 0x15: case 0x16: case 0x17:
-            if((a & 0xffffff) < 0x10000) { waitCycles += 12; return; }  // panel latches, LEDs/LCD (not modelled)
+        case 0x14:
+            if((a & 0xffffff) < 0x10000)
+            {
+                // the keyboard matrix's column latch (16 bits) [C 0x30029d78]
+                waitCycles += 12;
+                panelHw.writeCs4(std::uint16_t(v));
+                sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
+                return;
+            }
+            break;
+        case 0x15:
+            if((a & 0xffffff) < 0x10000)
+            {
+                waitCycles += 12;
+                for(int k = 0; k < size; ++k) panelHw.writeCs5((a + std::uint32_t(k)) & 7, std::uint8_t(v >> (8 * (size - 1 - k))));
+                return;
+            }
+            break;
+        case 0x16: case 0x17:
+            if((a & 0xffffff) < 0x10000) { waitCycles += 12; return; }
             break;
         default: break;
         }
@@ -572,7 +714,18 @@ struct Machine::Impl final : coldfire::Bus {
                 continue;
             }
             const std::uint64_t stepLimit = limit - cfSkipped;  // in the core's own cycle count
-            if(profile)
+            if(!pcWatch.empty())
+            {
+                // G2EMU_PCWATCH=ADDR,ADDR,...: report when the ColdFire reaches these addresses (debugging)
+                while(cpu.getCycles() < stepLimit && !irqDirty && !cpu.isStopped())
+                {
+                    const auto pc = cpu.getPC();
+                    if(std::find(pcWatch.begin(), pcWatch.end(), pc) != pcWatch.end())
+                        std::fprintf(stderr, "pcwatch %08x at %.4f s d0 %08x d1 %08x\n", pc, double(t) / (FrameRate * Dsp::CyclesPerFrame), cpu.getD(0), cpu.getD(1));
+                    cpu.step();
+                }
+            }
+            else if(profile)
             {
                 while(cpu.getCycles() < stepLimit && !irqDirty)
                 {
@@ -717,6 +870,7 @@ struct Machine::Impl final : coldfire::Bus {
             if(timing) cfNs += clockNs() - t0;
             t = q;
             usbStep();
+            panelStep();
         }
         if(opt.threads)
             waitFor([&] { return dspTime.load(std::memory_order_acquire) >= end; });
@@ -878,6 +1032,77 @@ std::vector<std::uint8_t> Machine::takeMidiOut()
 }
 
 std::vector<std::uint8_t>& Machine::flash() { return impl_->flashChip.data(); }
+
+PanelState Machine::panel() const
+{
+    std::lock_guard lock(impl_->panelMutex);
+    return impl_->panelPublished;
+}
+
+namespace {
+// The scan positions of the knobs' quadrature pairs, knob 1 to 8 [emulated: each knob turned changes the parameter
+// shown above it]: byte 7 holds knobs 1, 3, 5, 7, byte 6 knobs 2, 4, 6, 8
+constexpr int KnobScan[8] = {7, 3, 6, 2, 5, 1, 4, 0};
+// The panel ADC's stream positions of the analogue controls [C: the OS's handlers 0x30012588 and the morph groups
+// they feed, see re/notes §3.10]
+constexpr int AdcPosition[PanelAnalogCount] = {1, 4, 5, 2, 3, 6, 0};
+} // namespace
+
+void Machine::panelButton(PanelButton button, bool down)
+{
+    if(int(button) < PanelButtonCount) panelRawButton(int(button), down);
+}
+
+void Machine::panelEncoder(PanelEncoder encoder, int steps)
+{
+    if(!steps) return;
+    if(encoder == PanelEncoder::Dial) panelRawEncoder(8, 4 * steps);
+    else if(int(encoder) < 8)
+    {
+        // The OS ignores the first transition after a knob changes direction [C 0x30057aac: a step whose sign
+        // cancels the previous one is dropped]; one more makes a step back a step.
+        int extra = 0;
+        {
+            std::lock_guard lock(impl_->panelMutex);
+            auto& dir = impl_->knobDirection[std::size_t(encoder)];
+            if(dir && (dir > 0) != (steps > 0)) extra = steps > 0 ? 1 : -1;
+            dir = steps > 0 ? 1 : -1;
+        }
+        panelRawEncoder(KnobScan[int(encoder)], steps + extra);
+    }
+}
+
+void Machine::panelAnalog(PanelAnalog control, float value)
+{
+    if(int(control) >= PanelAnalogCount) return;
+    auto v = std::uint8_t(std::lround(std::clamp(double(value), 0.0, 1.0) * 255));
+    if(control == PanelAnalog::Aftertouch) v = std::uint8_t(255 - v);  // the sensor reads 0xFF at rest [C 0x300125d0]
+    panelRawAdc(AdcPosition[int(control)], v);
+}
+
+void Machine::panelKey(int key, bool down, int velocity)
+{
+    // The OS times contact A closing to contact B closing in ticks (8272 Hz), halves it and looks the velocity up
+    // in a falling curve [C 0x30029468]; about 127 * 0.97^(i - 6) for i = ticks / 2 (fitted; a per-key offset the OS
+    // adds is not modelled)
+    const double v = std::clamp(velocity, 1, 127);
+    const double i = 6.0 + std::log(127.0 / v) / 0.03046;
+    panelRawKey(key, down, 2.0 * i / 8.272);
+}
+
+void Machine::panelSustainPedal(bool down) { impl_->panelInput({Impl::PanelInput::Sustain, 1, down ? 1 : 0, 0}); }
+
+void Machine::panelRawButton(int raw, bool down) { impl_->panelInput({Impl::PanelInput::Button, raw, down ? 1 : 0, 0}); }
+void Machine::panelRawEncoder(int raw, int transitions) { impl_->panelInput({Impl::PanelInput::Encoder, raw, transitions, 0}); }
+void Machine::panelRawAdc(int position, std::uint8_t value)
+{
+    if(position >= 0 && position < 7) impl_->panelInput({Impl::PanelInput::Adc, position, value, 0});
+}
+void Machine::panelRawKey(int raw, bool down, double contactMs)
+{
+    impl_->panelInput({Impl::PanelInput::Key, raw, down ? 1 : 0, int(contactMs * 1e-3 * Sim::BusHz)});
+}
+std::string Machine::panelDebug() const { return impl_->panelDebug(); }
 
 Machine::Stats Machine::stats() const { return impl_->stats(); }
 

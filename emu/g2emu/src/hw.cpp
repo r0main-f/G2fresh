@@ -269,6 +269,12 @@ std::uint32_t Sim::read(std::uint32_t off, int size)
             if(o >= UartBase[i] && o < UartBase[i] + 0x40)
                 b = (o - UartBase[i]) % 4 == 0 ? std::uint8_t(readUart(uart_[i], o - UartBase[i])) : 0;
         if(o >= 0x280 && o < 0x2A0) b = readI2c(o);
+        if(o == 0x248 || o == 0x249)  // PADAT: the inputs the board drives
+        {
+            const int sh = o == 0x248 ? 8 : 0;
+            const auto mask = std::uint8_t(gpioInMask_ >> sh);
+            b = std::uint8_t((b & ~mask) | (std::uint8_t(gpioIn_ >> sh) & mask));
+        }
         if(o >= IPR && o < IPR + 4)
         {
             std::uint32_t ipr = 0;

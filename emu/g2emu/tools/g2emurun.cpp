@@ -3,6 +3,13 @@
 //   g2emurun [--fw PATH] [--patch FILE | --kbd FILE] [--to B:FILE ...] [--settle S] [--seconds S]
 //            [--note N@ON-OFF ...] [--midi N@ON-OFF[:CH] ...] [--wav OUT.wav] [--json OUT.json]
 //            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0|1] [--skew N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
+//            [--no-usb] [--panel] [--panel-at T] [--press RAW@T[-T2]] [--turn RAW:N@T] [--adc POS:V@T] [--key K@T-T2[:MS]] [--var V@T]
+//
+// The front panel (re/notes §3.10): --panel prints the displays, the LEDs and the knobs' rings at the end (and
+// MIDI OUT), --panel-at T during the recording; --press a button by scan position, --turn an encoder by scan
+// position (0-7 knob pairs, 8 the dial) and quadrature transitions, --adc an ADC stream position (0-255), --key a key
+// of the keyboard matrix (MS between its contacts), --var selects a variation of slot A over USB; --no-usb runs
+// without our client.
 //
 // Boots the user's own firmware (--fw: the updater's .rsrc, the updater app, or G2fresh's original/firmware),
 // plugs in our protocol client (proto::Client over the emulated USB chip) after --boot emulated seconds, waits for
@@ -167,12 +174,154 @@ void parseNotes(const std::string& s, bool midi, std::vector<NoteEvent>& ev)
     ev.push_back({off, note, false, midi, ch - 1});
 }
 
+// --press RAW@T[-T2], --turn ENC:N@T, --adc POS:V@T, --key K@T-T2[:MS], --panel-at T: the front panel (times as for notes)
+struct PanelEvent {
+    double at = 0;
+    enum Kind { Press, Release, Turn, Adc, KeyDown, KeyUp, Print } kind = Print;
+    int index = 0, value = 0;
+    double ms = 2;
+};
+
+std::vector<PanelEvent> g_panelEvents;
+std::vector<std::pair<double, int>> g_variations;  // --var V@T: select variation V (1-8) of slot A over USB
+bool g_panelPrint = false;
+
+void parsePanel(const std::string& opt, const std::string& s)
+{
+    PanelEvent e;
+    if(opt == "--press")
+    {
+        double t2 = -1;
+        if(std::sscanf(s.c_str(), "%d@%lf-%lf", &e.index, &e.at, &t2) < 2) throw std::runtime_error("bad --press " + s);
+        e.kind = PanelEvent::Press;
+        g_panelEvents.push_back(e);
+        e.kind = PanelEvent::Release;
+        e.at = t2 >= 0 ? t2 : e.at + 0.05;
+    }
+    else if(opt == "--turn")
+    {
+        if(std::sscanf(s.c_str(), "%d:%d@%lf", &e.index, &e.value, &e.at) != 3) throw std::runtime_error("bad --turn " + s);
+        e.kind = PanelEvent::Turn;
+    }
+    else if(opt == "--adc")
+    {
+        if(std::sscanf(s.c_str(), "%d:%d@%lf", &e.index, &e.value, &e.at) != 3) throw std::runtime_error("bad --adc " + s);
+        e.kind = PanelEvent::Adc;
+    }
+    else if(opt == "--key")
+    {
+        double t2 = 0;
+        if(std::sscanf(s.c_str(), "%d@%lf-%lf:%lf", &e.index, &e.at, &t2, &e.ms) < 3) throw std::runtime_error("bad --key " + s);
+        e.kind = PanelEvent::KeyDown;
+        g_panelEvents.push_back(e);
+        e.kind = PanelEvent::KeyUp;
+        e.at = t2;
+    }
+    else
+    {
+        e.at = std::stod(s);
+        e.kind = PanelEvent::Print;
+    }
+    g_panelEvents.push_back(e);
+}
+
+// --panel: the displays as boxes, the lit LEDs by name, the knobs' LED rings and the OS's user characters
+void printPanel(const g2emu::Machine& m)
+{
+    const auto p = m.panel();
+    std::printf("panel at %.3f s (generation %llu)\n", m.seconds(), (unsigned long long)p.generation);
+    static const char* names[5] = {"main", "1-2", "3-4", "5-6", "7-8"};
+    for(std::size_t i = 0; i < p.displays.size(); ++i)
+    {
+        const auto& d = p.displays[i];
+        std::printf("  LCD %zu %-4s %s+----------------+\n", i, names[i], d.on ? "  " : "(off) ");
+        for(int r = 0; r < 2; ++r) std::printf("  %s|%s|\n", d.on ? "            " : "                  ", d.text(r).c_str());
+        std::printf("  %s+----------------+", d.on ? "            " : "                  ");
+        if(d.cursor >= 0 && (d.cursorLine || d.cursorBlink))
+            std::printf(" cursor at %d:%d%s%s", d.cursor / 16, d.cursor % 16, d.cursorLine ? " line" : "", d.cursorBlink ? " blink" : "");
+        std::printf("\n");
+    }
+    std::printf("  LEDs lit:");
+    for(int l = 0; l < g2emu::PanelLedCount; ++l)
+        if(p.leds[std::size_t(l)]) std::printf(" [%s]", g2emu::panelName(g2emu::PanelLed(l)));
+    std::printf("\n  rings: ");
+    for(int k = 0; k < 8; ++k)
+    {
+        std::printf(" %d:", k + 1);
+        for(int i = 0; i < g2emu::PanelRingLeds; ++i) std::printf("%c", p.rings[std::size_t(k)][std::size_t(i)] ? 'o' : '.');
+    }
+    std::printf("\n  raw LEDs:");
+    for(int n = 0; n < 256; ++n)
+        if(p.rawLeds[std::size_t(n)]) std::printf(" %d", n);
+    std::printf("\n");
+    if(std::getenv("G2EMU_CGRAM"))  // the OS's user characters of the main display, as dots
+        for(int r = 0; r < 8; ++r)
+        {
+            std::printf("  ");
+            for(int c = 0; c < 8; ++c)
+            {
+                const auto bits = p.displays[0].cgram[std::size_t(c * 8 + r)];
+                for(int b = 4; b >= 0; --b) std::printf("%c", (bits >> b) & 1 ? '#' : '.');
+                std::printf("  ");
+            }
+            std::printf("\n");
+        }
+    if(std::getenv("G2EMU_LEDBUF"))  // the OS's own LED buffer (OS 1.62: 0x302BCB42, active low), for checking the model
+    {
+        std::printf("  OS LED buffer on:");
+        for(int n = 0; n < 256; ++n)
+        {
+            const std::uint32_t a = 0x302BCB42 + std::uint32_t(n >> 3);
+            const std::uint32_t w = m.cfRead32(a & ~3u);
+            const auto byte = std::uint8_t(w >> (8 * (3 - (a & 3))));
+            if(!(byte & (1u << (n & 7)))) std::printf(" %d", n);
+        }
+        std::printf("\n");
+    }
+    std::fflush(stdout);
+}
+
+void panelEvent(g2emu::Machine& m, const PanelEvent& e)
+{
+    switch(e.kind)
+    {
+    case PanelEvent::Press: m.panelRawButton(e.index, true); break;
+    case PanelEvent::Release: m.panelRawButton(e.index, false); break;
+    case PanelEvent::Turn: m.panelRawEncoder(e.index, e.value); break;
+    case PanelEvent::Adc: m.panelRawAdc(e.index, std::uint8_t(e.value)); break;
+    case PanelEvent::KeyDown: m.panelRawKey(e.index, true, e.ms); break;
+    case PanelEvent::KeyUp: m.panelRawKey(e.index, false, e.ms); break;
+    case PanelEvent::Print:
+        printPanel(m);
+        if(const char* d = std::getenv("G2EMU_MEMDUMP"))  // debugging: the SDRAM at each --panel-at, appended
+        {
+            std::ofstream f(d, std::ios::binary | std::ios::app);
+            for(std::uint32_t a = 0x30000000; a < 0x30400000; a += 4)
+            {
+                const auto w = m.cfRead32(a);
+                const char b[4] = {char(w >> 24), char(w >> 16), char(w >> 8), char(w)};
+                f.write(b, 4);
+            }
+        }
+        break;
+    }
+}
+
 struct Listener : proto::Client::Listener {
     int leds = 0;
     void ledsChanged(int) override { ++leds; }
     void statusChanged(proto::Status s) override { std::fprintf(stderr, "proto: status %s\n", proto::statusText(s)); }
     void synced() override { std::fprintf(stderr, "proto: synced\n"); }
     void error(std::uint8_t code) override { std::fprintf(stderr, "proto: synth exception %02x\n", code); }
+    // what the synth reports (the panel's effects, among others)
+    void variationChanged(int slot, u8 v) override { std::printf("event: slot %c variation %d\n", 'A' + slot, v + 1); std::fflush(stdout); }
+    void paramChanged(int slot, const proto::ParamChange& c) override
+    {
+        std::printf("event: slot %c param loc %d module %d param %d = %d (variation %d)\n", 'A' + slot, int(c.location), int(c.module),
+                    int(c.param), int(c.value), int(c.variation) + 1);
+        std::fflush(stdout);
+    }
+    void performanceChanged() override { std::printf("event: performance changed\n"); std::fflush(stdout); }
 };
 
 // --realtime S: the Runner as a sound engine would use it. The machine runs on its own threads; this thread plays
@@ -294,6 +443,7 @@ int main(int argc, char** argv)
     std::optional<std::string> patch, kbd;
     std::vector<std::pair<int, std::string>> more;
     double boot = 2.0, settle = 1.0, seconds = 1.0, maxSync = 30, realtime = 0;
+    bool noUsb = false;
     std::vector<NoteEvent> notes;
     g2emu::Machine::Options opt;
     for(int i = 1; i < argc; ++i)
@@ -333,6 +483,16 @@ int main(int argc, char** argv)
         else if(a == "--no-poll-skip") opt.pollSkip = false;
         else if(a == "--causal-reads") opt.causalReads = true;
         else if(a == "--trace") opt.trace = true;
+        else if(a == "--panel") g_panelPrint = true;
+        else if(a == "--var")
+        {
+            int v = 0;
+            double at = 0;
+            if(std::sscanf(next().c_str(), "%d@%lf", &v, &at) != 2) throw std::runtime_error("bad --var");
+            g_variations.emplace_back(at, v);
+        }
+        else if(a == "--no-usb") noUsb = true;
+        else if(a == "--press" || a == "--turn" || a == "--adc" || a == "--key" || a == "--panel-at") parsePanel(a, next());
         else
         {
             std::fprintf(stderr, "unknown option %s\n", a.c_str());
@@ -340,6 +500,7 @@ int main(int argc, char** argv)
         }
     }
     std::sort(notes.begin(), notes.end(), [](const NoteEvent& x, const NoteEvent& y) { return x.at < y.at; });
+    std::stable_sort(g_panelEvents.begin(), g_panelEvents.end(), [](const PanelEvent& x, const PanelEvent& y) { return x.at < y.at; });
 
     const auto fw = g2emu::Firmware::load(fwPath);
     if(realtime > 0)
@@ -404,14 +565,14 @@ int main(int argc, char** argv)
     proto::Client client(transport, clock);
     Listener listener;
     client.setListener(&listener);
-    m.plugUsb();
+    if(!noUsb) m.plugUsb();
     auto step = [&](std::uint32_t frames) {
         m.run(frames);
         clock.set(std::uint64_t(m.seconds() * 1000.0));
-        client.tick();
+        if(!noUsb) client.tick();
     };
     const double syncStart = m.seconds();
-    while(!client.synced())
+    while(!noUsb && !client.synced())
     {
         step(chunk);
         if(m.seconds() - syncStart > maxSync) { report("no sync"); return 1; }
@@ -467,7 +628,7 @@ int main(int argc, char** argv)
     std::vector<float> out;
     const std::uint64_t f0 = m.frame();
     const auto total = std::uint64_t(seconds * g2emu::Machine::FrameRate);
-    std::size_t ni = 0;
+    std::size_t ni = 0, pi = 0;
     // the OS's tick counter, incremented by its timer 1 handler [C] (0x30001894 adds 1 to 0x3010A13C)
     const std::uint32_t ticks0 = m.cfRead32(0x3010A13C);
     const int leds0 = listener.leds;
@@ -488,10 +649,18 @@ int main(int argc, char** argv)
             else
                 client.playNote(std::uint8_t(e.note), e.on);
         }
+        while(pi < g_panelEvents.size() && g_panelEvents[pi].at <= tRec) panelEvent(m, g_panelEvents[pi++]);
+        for(auto& [at, v] : g_variations)
+            if(v > 0 && at <= tRec) { client.selectVariation(0, std::uint8_t(v - 1)); v = 0; }
         const auto n = std::uint32_t(std::min<std::uint64_t>(chunk, total - (m.frame() - f0)));
         m.run(n, &out);
         clock.set(std::uint64_t(m.seconds() * 1000.0));
-        client.tick();
+        if(!noUsb) client.tick();
+    }
+    if(g_panelPrint)
+    {
+        printPanel(m);
+        std::fprintf(stderr, "panel: %s\n", m.panelDebug().c_str());
     }
     const double recWall = std::chrono::duration<double>(std::chrono::steady_clock::now() - w1).count();
     const double recEmulated = double(m.frame() - f0) / g2emu::Machine::FrameRate;
@@ -499,6 +668,12 @@ int main(int argc, char** argv)
     std::printf("OS time: %.1f timer ticks per emulated second, %.1f LED messages per second; MIDI out %zu bytes\n",
                 double(m.cfRead32(0x3010A13C) - ticks0) / recEmulated, double(listener.leds - leds0) / recEmulated,
                 midiOut.size());
+    if(!midiOut.empty() && g_panelPrint)
+    {
+        std::printf("MIDI out:");
+        for(auto b : midiOut) std::printf(" %02x", b);
+        std::printf("\n");
+    }
     const double recCpu = cpuSeconds() - c1, recCfCpu = threadCpuSeconds() - t1;
     const auto s2 = m.stats();
     report("recorded");

@@ -61,6 +61,13 @@ public:
     // (a lock-free queue of 1024 events of up to 16 bytes; longer messages take several).
     void midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset);
     std::uint32_t latencyFrames() const;
+    // The front panel (any thread, not real-time safe: they take a mutex): see Machine.
+    PanelState panel() const { return machine_->panel(); }
+    void panelButton(PanelButton b, bool down) { machine_->panelButton(b, down); }
+    void panelEncoder(PanelEncoder e, int steps) { machine_->panelEncoder(e, steps); }
+    void panelAnalog(PanelAnalog a, float value) { machine_->panelAnalog(a, value); }
+    void panelKey(int key, bool down, int velocity = 100) { machine_->panelKey(key, down, velocity); }
+    void panelSustainPedal(bool down) { machine_->panelSustainPedal(down); }
     Machine& machine() { return *machine_; }
     Stats stats() const;
 

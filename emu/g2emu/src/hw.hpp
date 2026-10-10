@@ -38,6 +38,10 @@ public:
     void midiIn(const std::uint8_t* data, std::size_t n);
     // The panel ADC's inputs (see panelAdc_): position 1 is the master volume knob.
     void setPanelAdc(std::size_t position, std::uint8_t value) { panelAdc_.at(position) = value; }
+    std::uint8_t panelAdc(std::size_t position) const { return panelAdc_.at(position); }
+    // Inputs on the parallel port (PADAT, MBAR + 0x248): the bits in `mask` read `value` instead of what was written
+    // (the keyboard matrix's rows, the sustain pedal; see panel.hpp).
+    void setGpioInputs(std::uint16_t mask, std::uint16_t value) { gpioInMask_ = mask; gpioIn_ = value; }
     // The same, the first byte starting on the line at bus clock `notBefore` at the earliest.
     void midiInAt(const std::uint8_t* data, std::size_t n, std::uint64_t notBefore);
     std::vector<std::uint8_t> takeMidiOut();
@@ -100,6 +104,7 @@ private:
     std::uint8_t i2cMsr_ = 0x81, i2cMcr_ = 0;
     std::array<std::uint8_t, 7> panelAdc_{0x80, 0xFF, 0x80, 0x80, 0x80, 0x80, 0x80};
     unsigned i2cReads_ = 0;
+    std::uint16_t gpioInMask_ = 0, gpioIn_ = 0;
 };
 
 // ---------------------------------------------------------------------------------------------------------------

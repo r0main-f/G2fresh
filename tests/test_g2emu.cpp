@@ -3,6 +3,7 @@
 // (G2_FIRMWARE, or original/firmware) and is skipped otherwise.
 #include "dsp.hpp"
 #include "hw.hpp"
+#include "panel.hpp"
 
 #include "dsp56kEmu/assembler.h"
 
@@ -453,6 +454,186 @@ TEST_CASE("DSP on the JIT: host boot, a subroutine in the vector area, a host co
     CHECK(echo == 0x123456);
 }
 
+
+// ---- the front panel (re/notes §3.10) ----
+
+namespace {
+// The OS's way of writing to LCD n [C 0x3005c046]: RS on the control latch, then RS | E, the data on +4, E falls.
+void lcdWrite(Panel& p, int n, bool rs, std::uint8_t v)
+{
+    const std::uint32_t ctrl = n == 0 ? 6 : 5;
+    const auto e = std::uint8_t(n == 0 ? 0x01 : 0x40 >> (2 * (n - 1))), r = std::uint8_t(n == 0 ? 0x02 : 0x80 >> (2 * (n - 1)));
+    p.writeCs5(ctrl, rs ? r : 0);
+    p.writeCs5(ctrl, std::uint8_t((rs ? r : 0) | e));
+    p.writeCs5(4, v);
+    p.writeCs5(ctrl, rs ? r : 0);
+}
+void lcdText(Panel& p, int n, std::uint8_t address, const char* s)
+{
+    lcdWrite(p, n, false, std::uint8_t(0x80 | address));
+    for(; *s; ++s) lcdWrite(p, n, true, std::uint8_t(*s));
+}
+// One multiplexer read as the OS does it [C 0x3005bd74]: select (active low) with the enable bit, then read +0.
+std::uint8_t muxRead(Panel& p, int select)
+{
+    if(select < 8)
+    {
+        p.writeCs5(0, 0x80);
+        p.writeCs5(7, std::uint8_t(~(1u << select)));
+    }
+    else
+    {
+        p.writeCs5(0, 0x00);
+        p.writeCs5(7, 0xff);
+    }
+    return p.readCs5(0);
+}
+} // namespace
+
+TEST_CASE("Panel: five HD44780 LCDs on the shared data latch", "[g2emu]")
+{
+    Panel p;
+    for(int n = 0; n < 5; ++n)
+        for(std::uint8_t c : {0x30, 0x30, 0x30, 0x38, 0x08, 0x01, 0x06, 0x0c}) lcdWrite(p, n, false, c);  // the OS's init
+    lcdText(p, 0, 0x00, "Nord Modular G2");
+    lcdText(p, 0, 0x40, "Version 1.62");
+    lcdText(p, 3, 0x48, "x");
+    PanelState s;
+    p.snapshot(s);
+    CHECK(s.displays[0].on);
+    CHECK(s.displays[0].text(0) == "Nord Modular G2 ");
+    CHECK(s.displays[0].text(1) == "Version 1.62    ");
+    CHECK(s.displays[3].text(1) == "        x       ");
+    CHECK(s.displays[1].text(0) == "                ");  // the other LCDs saw only their init
+    CHECK(s.displays[3].cursor == 16 + 9);               // the address counter moved on
+    CHECK_FALSE(s.displays[3].cursorLine);
+
+    // a user character (CGRAM 0) drawn as a "g" with its descender, shown as code 0 and code 8
+    const std::uint8_t g[8] = {0x00, 0x00, 0x0f, 0x11, 0x11, 0x0f, 0x01, 0x0e};
+    lcdWrite(p, 2, false, 0x40);
+    for(auto r : g) lcdWrite(p, 2, true, r);
+    lcdWrite(p, 2, false, 0x80);
+    for(int c : {int('S'), int('t'), int('r'), int('i'), int('n'), 0x08}) lcdWrite(p, 2, true, std::uint8_t(c));
+    lcdWrite(p, 2, false, 0x0e);  // underline cursor on
+    p.snapshot(s);
+    CHECK(s.displays[2].text(0) == "String          ");
+    std::array<std::uint8_t, 8> dots{};
+    REQUIRE(s.displays[2].userGlyph(8, dots));
+    CHECK(dots[7] == 0x0e);
+    CHECK_FALSE(s.displays[2].userGlyph('A', dots));
+    CHECK(s.displays[2].cursorLine);
+    CHECK(s.displays[2].cursor == 6);
+
+    lcdWrite(p, 0, false, 0x01);  // clear
+    p.snapshot(s);
+    CHECK(s.displays[0].text(0) == "                ");
+    CHECK(hd44780Unicode(0x7e) == U'→');
+    CHECK(hd44780Unicode('A') == U'A');
+}
+
+TEST_CASE("Panel: the LED matrix, 8 columns of 24 rows, as the OS numbers its LEDs", "[g2emu]")
+{
+    Panel p;
+    // column c (strobe bit 7 - c) shows bytes 0x1E - 4c (+2), 0x1D - 4c (+0, bits 0-6) and 0x1C - 4c (+1) of the OS's
+    // buffer, active low: light Variation 2 (19: byte 2 bit 3, column 7), ring LED 0 of knob 1 (0: byte 0 bit 0,
+    // column 7) and Morph (243: byte 30 bit 3, column 0)
+    auto strobe = [&](int column, std::uint8_t l2, std::uint8_t l0, std::uint8_t l1) {
+        p.writeCs5(3, 0xff);
+        p.writeCs5(2, l2);
+        p.writeCs5(0, std::uint8_t(0x80 | l0));
+        p.writeCs5(1, l1);
+        p.writeCs5(3, std::uint8_t(~(0x80 >> column)));
+    };
+    for(int c = 0; c < 8; ++c) strobe(c, 0xff, 0x7f, 0xff);
+    strobe(7, std::uint8_t(~0x08), 0x7f, std::uint8_t(~0x01));
+    strobe(0, std::uint8_t(~0x08), 0x7f, 0xff);
+    PanelState s;
+    p.snapshot(s);
+    CHECK(s.led(PanelLed::Variation2));
+    CHECK(s.led(PanelLed::Morph));
+    CHECK(s.rings[0][0]);
+    CHECK_FALSE(s.led(PanelLed::Variation1));
+    int lit = 0;
+    for(bool b : s.rawLeds) lit += b;
+    CHECK(lit == 3);
+    // every named LED is a distinct position of the matrix, none of them a ring LED
+    std::array<int, 256> used{};
+    for(int l = 0; l < PanelLedCount; ++l)
+    {
+        const auto n = panelLedNumber(PanelLed(l));
+        CHECK(++used[n] == 1);
+        CHECK((n & 31) < 15 + 16);
+        CHECK((n & 31) >= 16);
+        CHECK(std::string(panelName(PanelLed(l))).size() > 0);
+    }
+}
+
+TEST_CASE("Panel: buttons and encoders through the input multiplexer", "[g2emu]")
+{
+    Panel p;
+    for(int s = 0; s < 6; ++s) CHECK(muxRead(p, s) == 0xff);
+    // nothing selected: the dial at rest (bits 6-7 high), the model in bits 4-5
+    CHECK((muxRead(p, 8) & 0xf0) == 0xc0);
+    p.setModel(3);
+    CHECK((muxRead(p, 8) & 0x30) == 0x30);
+
+    // a press and its release, queued faster than the OS scans: each one is seen by one scan
+    p.button(int(PanelButton::Variation3), true);
+    p.button(int(PanelButton::Variation3), false);
+    CHECK(muxRead(p, 3) == std::uint8_t(~0x04));  // Variation 3: byte 3, bit 2
+    CHECK(muxRead(p, 3) == 0xff);
+    CHECK(muxRead(p, 3) == 0xff);
+
+    // knob 1 is the pair in bits 1-0 of byte 7 (scan position 7); clockwise in the OS's decoding is 0 -> 2 -> 3 -> 1
+    // [C table 0x300EC540], from rest (3)
+    p.turn(7, 3);
+    std::vector<int> seen;
+    for(int i = 0; i < 4; ++i) seen.push_back(muxRead(p, 7) & 3);
+    CHECK(seen == std::vector<int>{3, 1, 0, 2});
+    p.turn(7, -1);  // the OS has seen state 2: the step back goes out at once
+    CHECK((muxRead(p, 7) & 3) == 0);
+    CHECK((muxRead(p, 7) & 3) == 0);
+    CHECK(muxRead(p, 6) == 0xff);  // the other byte did not move
+
+    // the dial (scanned above): one detent is 4 transitions from rest to rest; the next one waits 8 ms
+    p.turn(8, 8);
+    std::vector<int> dial;
+    for(int i = 0; i < 6; ++i)
+    {
+        const auto v = muxRead(p, 8);
+        dial.push_back((v >> 6 & 1) << 1 | (v >> 7));  // the OS's pair value: bit 6 high, bit 7 low [C 0x300EC758]
+    }
+    CHECK(dial == std::vector<int>{2, 0, 1, 3, 3, 3});
+    p.advance(54000 * 9);
+    muxRead(p, 8);
+    const auto v = muxRead(p, 8);
+    CHECK(((v >> 6 & 1) << 1 | (v >> 7)) == 2);
+}
+
+TEST_CASE("Panel: the keyboard matrix's two contacts per key", "[g2emu]")
+{
+    Panel p;
+    CHECK((p.gpioInputs() & 0xff) == 0xff);
+    CHECK((p.gpioInputs() & 0x3000) == 0x3000);  // no sustain pedal
+    p.key(21, true, 1000, 0);  // key 21: columns 5 (contact A) and 4 (contact B), row bit 7 - 5 = 2
+    p.advance(0);
+    p.writeCs4(std::uint16_t(~(1u << 5)));
+    CHECK((p.gpioInputs() & 0xff) == std::uint8_t(~0x04));
+    p.writeCs4(std::uint16_t(~(1u << 4)));
+    CHECK((p.gpioInputs() & 0xff) == 0xff);  // B closes 1000 bus clocks later
+    p.advance(1000);
+    CHECK((p.gpioInputs() & 0xff) == std::uint8_t(~0x04));
+    p.key(21, false, 1000, 2000);
+    p.advance(2000);
+    CHECK((p.gpioInputs() & 0xff) == 0xff);  // B opens first
+    p.writeCs4(std::uint16_t(~(1u << 5)));
+    CHECK((p.gpioInputs() & 0xff) == std::uint8_t(~0x04));
+    p.advance(3000);
+    CHECK((p.gpioInputs() & 0xff) == 0xff);
+    p.sustain(true, true);
+    CHECK((p.gpioInputs() & 0x3000) == 0);
+}
+
 namespace {
 
 std::filesystem::path firmwarePath()
@@ -628,4 +809,151 @@ TEST_CASE("The user's G2 OS in real time: the plugin's path (Runner, a link over
     runner.stop();
     CHECK(runner.machine().stats().exceptions == 0);
     CHECK(runner.machine().stats().dspsWild == 0);
+}
+
+TEST_CASE("The user's G2 OS drives the emulated front panel", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    Machine m(fw);
+    m.run(Machine::FrameRate * 2);  // boot
+
+    // after the boot: the main display shows the (empty) patch, the assignable displays the patch settings
+    auto p = m.panel();
+    CHECK(p.generation > 0);
+    for(const auto& d : p.displays) CHECK(d.on);
+    CHECK(p.displays[0].text(0).find("No Cat") != std::string::npos);
+    CHECK(p.displays[1].text(0).find("BPM") != std::string::npos);  // Master Clock, above knob 1
+    CHECK(p.led(PanelLed::PatchSettings));
+    CHECK(p.led(PanelLed::Octave0));
+
+    struct Events : g2::proto::Client::Listener {
+        int variation = -1;
+        std::vector<g2::proto::ParamChange> params;
+        void variationChanged(int slot, std::uint8_t v) override { if(slot == 0) variation = v; }
+        void paramChanged(int slot, const g2::proto::ParamChange& c) override { if(slot == 0) params.push_back(c); }
+    } events;
+    MachineTransport transport(m);
+    g2::proto::ManualClock clock;
+    g2::proto::Client client(transport, clock);
+    client.setListener(&events);
+    m.plugUsb();
+    auto step = [&] {
+        m.run(Machine::FrameRate / 1000);
+        clock.set(std::uint64_t(m.seconds() * 1000));
+        client.tick();
+    };
+    auto run = [&](double s) {
+        const double end = m.seconds() + s;
+        while(m.seconds() < end) step();
+    };
+    auto press = [&](PanelButton b) {
+        m.panelButton(b, true);
+        run(0.03);
+        m.panelButton(b, false);
+        run(0.05);
+    };
+    while(!client.synced() && m.seconds() < 4) step();
+    REQUIRE(client.synced());
+
+    // a patch with knob 1 of page A1 on the oscillator's Coarse
+    auto patch = keyboardSine();
+    const auto* osc = [&]() -> const g2::Module* {
+        for(const auto& mod : patch.va.modules)
+            if(std::string(mod.def()->shortName) == "OscA") return &mod;
+        return nullptr;
+    }();
+    REQUIRE(osc);
+    std::uint8_t coarse = 0;
+    for(std::size_t i = 0; i < osc->def()->params.size(); ++i)
+        if(std::string(osc->def()->params[i].name) == "Coarse") coarse = std::uint8_t(i);
+    const auto oscIndex = osc->index;
+    g2::edit::assignKnob(patch, 0, g2::Location::Va, oscIndex, coarse);
+    client.sendPerformance(g2::Performance::playing(patch, "Panel Test"), "Panel Test");  // slot A on the keyboard
+    while(!client.idle() && m.seconds() < 6) step();
+    REQUIRE(client.idle());
+    run(0.2);
+    INFO(m.panel().displays[0].text(0) << " / " << m.panel().displays[0].text(1));
+    CHECK(m.panel().displays[0].text(1) == "Panel Test      ");
+
+    // The OS's MIDI Local is Off on an erased flash (variations and keys would only go out as MIDI): System, down to
+    // "MIDI Local", one detent of the dial, System again
+    press(PanelButton::System);
+    press(PanelButton::NavDown);
+    CHECK(m.panel().displays[0].text(0).rfind("MIDI Local", 0) == 0);
+    m.panelEncoder(PanelEncoder::Dial, 1);
+    run(0.05);
+    CHECK(m.panel().displays[0].text(1).rfind("On", 0) == 0);
+    press(PanelButton::System);
+
+    // a variation button: the client hears of it, the LEDs follow
+    press(PanelButton::Variation3);
+    run(0.05);
+    CHECK(events.variation == 2);
+    p = m.panel();
+    CHECK(p.led(PanelLed::Variation3));
+    CHECK_FALSE(p.led(PanelLed::Variation1));
+
+    // page A1 on the assignable displays, then knob 1 five steps clockwise: Coarse 64 -> 69 in variation 3
+    press(PanelButton::PageA);
+    p = m.panel();
+    CHECK(p.led(PanelLed::PageA));
+    CHECK(p.led(PanelLed::Page1));
+    CHECK_FALSE(p.led(PanelLed::PatchSettings));
+    events.params.clear();
+    m.panelEncoder(PanelEncoder::Knob1, 5);
+    run(0.1);
+    REQUIRE_FALSE(events.params.empty());
+    CHECK(events.params.back().module == oscIndex);
+    CHECK(events.params.back().param == coarse);
+    CHECK(events.params.back().value == 69);
+    CHECK(events.params.back().variation == 2);
+    m.panelEncoder(PanelEncoder::Knob1, -5);
+    run(0.1);
+    CHECK(events.params.back().value == 64);
+
+    // the keyboard: key 21 of the G2's 37 is A (MIDI 69 with no octave shift): 440 Hz
+    m.panelKey(21, true, 100);
+    run(0.1);
+    std::vector<float> out;
+    m.run(Machine::FrameRate / 4, &out);
+    m.panelKey(21, false);
+    run(0.1);
+    std::size_t crossings = 0;
+    double first = -1, last = -1;
+    for(std::size_t f = 0; f + 1 < out.size() / 4; ++f)
+    {
+        const double a = out[f * 4], b = out[(f + 1) * 4];
+        if(a < 0 && b >= 0)
+        {
+            const double tc = double(f) + a / (a - b);
+            if(first < 0) first = tc;
+            last = tc;
+            ++crossings;
+        }
+    }
+    REQUIRE(crossings > 50);
+    CHECK_THAT(double(crossings - 1) * Machine::FrameRate / (last - first), Catch::Matchers::WithinAbs(440.0, 0.1));
+
+    // the analogue controls reach the OS's copy of the ADC inputs (OS 1.62: bytes at 0x302A0DB0, index = stream
+    // position - 1): mod wheel (position 5), pitch stick (4), control pedal (2), aftertouch (3, inverted)
+    auto adc = [&](int index) { return std::uint8_t(m.cfRead32(0x302A0DB0 + std::uint32_t(index & ~3)) >> (8 * (3 - (index & 3)))); };
+    CHECK(int(adc(3)) == 0x80);  // the pitch stick at rest
+    m.panelAnalog(PanelAnalog::ModWheel, 1.0f);
+    m.panelAnalog(PanelAnalog::PitchStick, 0.0f);
+    m.panelAnalog(PanelAnalog::ControlPedal, 0.5f);
+    m.panelAnalog(PanelAnalog::Aftertouch, 1.0f);
+    run(0.05);
+    CHECK(int(adc(4)) == 0xff);
+    CHECK(int(adc(3)) == 0x00);
+    CHECK(std::abs(int(adc(1)) - 0x80) <= 1);
+    CHECK(int(adc(2)) == 0x00);
+    CHECK(m.stats().exceptions == 0);
 }

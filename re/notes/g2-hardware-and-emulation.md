@@ -119,7 +119,7 @@ extraction tool `tools/firmware/g2os.py` and this note. No Clavia bytes are comm
 | | Open: the parts list has a 56.620363 MHz oscillator; 56.620363 MHz / 576 = 98.30 kHz, the measured rate of the sibling Nord Lead 2X. The real G2 rate may be about 98.3 kHz, not 96.000 | service manual; Gearmulator n2xtypes.h (NL2X measured 98.2 kHz) | low (unverified) |
 | Inter-DSP links | "the interslot connections are in fact a real hardware connection between the dsps… 24 samples of latency (@96 kHz)" (measured behaviour); service manual error "Serial bus error" on "SDO 1-SDO 3" (serial audio links) | https://electro-music.com/forum/topic-69081.html, post-280718; service manual | medium / low |
 | | **The real topology is not documented anywhere I found.** It must be reverse-engineered from the OS and the DSP kernel | — | — |
-| Panel | Panel board: LCDs, encoders, MAX1039 ADC for the pedals, 74HC/LCX logic, no separate microcontroller in the parts list. The OS drives byte latches at `0x15000000..07` (CS5) and a 16-bit device at `0x14000000` (CS4) | service manual; [C] BOOT @0x118, OS @0x3005BD7A, @0x30029D8E | medium |
+| Panel | Panel board: LCDs, encoders, MAX1039 ADC for the pedals, 74HC/LCX logic, no separate microcontroller in the parts list. The OS drives byte latches at `0x15000000..07` (CS5: LED matrix, five HD44780 16×2 LCDs, input multiplexer) and the keyboard matrix's 16-bit column latch at `0x14000000` (CS4), rows on the GPIO port: §3.10 | service manual; [C] BOOT @0x118, OS @0x3005BD7A, @0x30029D8E; [emulated] | high |
 | FPGA | None in the parts list, none mentioned anywhere | service manual | medium |
 | Expansion board | Part 60179, 4 DSPs ("23280") plus "Sram NMG2/NS 4MB" (probably 4 Mbit per DSP), plugs into two sockets, auto-detected by the OS ("Exp"). Standard in the G2X | https://www.nordkeyboards.com/wt/documents/236/…Expansion…Installation…pdf; https://www.encoreelectronics.com/cont_dsp1.html; service manual | high |
 | G2 Engine vs keyboard vs G2X | Same main board family. Same OS and boot image for all; the OS has the strings "Nord Modular G2", "G2X", "G2 Rack", "G2 Engine" | [C] OS strings @0x300E9F86, 0x300EC05C | high |
@@ -572,7 +572,7 @@ The four workarounds, each found by a failure:
 | CS1 `0x11000000` | 8 HDI08 ports (A3..A10 one-hot, active low, A0–A2 register), word/long accesses split into byte cycles (the OS writes words as `move.l d,4(a0)` → bytes 4..7) [C] | see 3.6.3 |
 | CS2 `0x12000000` | 8 MB AMD-style flash, **CFI**, erased | the OS identifies the chip by CFI (`0x98` at word `0x55`, "QRY", then command set 1 = Intel 64×128 KB or 2 = AMD 128×64 KB) [C] `0x300042E6`; anything else gives "FLASH FAILURE / UNKNOWN CHIP" and a halt. We answer 2. Which chip the G2 has is not known |
 | CS3 `0x13000000` | ISP1181 model (`Isp1181`): command port `+0x10`, data port `+0`, IRQ3 | standard ISP1181 command set used [C]: `B0` unlock (`AA37`), `B2/B3`, `B4`, `B5` chip ID, `B6/B7` address, `B8/B9` mode, `BA/BB` hardware config, `C0` interrupt register (4 bytes), `C2/C3` interrupt enable, `F0–F3` DMA, `F4` ack setup, `F6` reset, endpoint index i: `0x00+i` write / `0x10+i` read (LE16 length, data) / `0x20+i` config / `0x50+i` status / `0x60+i` validate / `0x70+i` clear. The OS configures index 2 = `E1` (IN, 16 B: interrupt-IN 0x81), 3 = `E3` (IN, 64 B: bulk-IN 0x82), 4 = `83` (OUT, 64 B: bulk-OUT 0x03) and enables interrupts `0x1F07`; the IRQ3 handler `0x30053C38` dispatches bit 8 → EP0 OUT, 9 → EP0 IN, 10+ → handlers at `0x30119C62` (registered by `0x300553C2`: bulk-OUT handler `0x30055D36` reads the LE16-prefixed buffer, gathers a frame by its BE16 length and posts it for parsing) [C] |
-| CS4 `0x14000000`, CS5 `0x15000000` | latches, read 0 | panel scanning (`CS4 +0` ← `7FFF/BFFF/DFFF…`), LEDs/LCD (`CS5 +0..7`) (inferred) |
+| CS4 `0x14000000`, CS5 `0x15000000` | latches, read 0 (the C++ emulator models them since: §3.10) | keyboard matrix columns (`CS4 +0` ← `7FFF/BFFF/DFFF…`), LEDs, LCDs, input multiplexer (`CS5 +0..7`) |
 
 ### 3.6.3 How the OS boots the DSPs [C]
 
@@ -1338,8 +1338,8 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
 * The core counts V2 cycles (§3.9.2): the emulated CPU is probably slower than the real one; nothing seen depends on it
   beyond background throughput.
 * The DSP clock still counts instructions, not cycles (§3.7.7).
-* Stubs: the I2C ADC (the boot's calibration takes about 1 s against a constant 0x80), the panel (latches read 0),
-  the analogue inputs (silence), the expansion board's DSPs.
+* Stubs: the I2C ADC (the boot's calibration takes about 1 s against a constant 0x80), the analogue inputs
+  (silence), the expansion board's DSPs. The panel is modelled since (§3.10).
 * The flash is erased at power-on unless the caller loads an image (`Machine::flash()`, `g2emurun --flash`); with
   one, the OS does not format it again; the boot still takes about 1.6 s (the calibration).
 * Not deterministic with threads; deterministic and slower without.
@@ -1418,7 +1418,8 @@ half-way. The knob is on the panel ADC (MAX1039, I2C `0x65`): the OS writes setu
 the knob: the OS uses byte >> 1 as the step in its 128-step level table at `0x3010C094` (0 → 0, 64 → `0x08BC40`
 = 0.068, 127 → `0x7FAA80` = 0.997) and sends it to A3's X:`$1739` through `0x3001FDD4` [C]. Position 4 feeds the DSP
 timer calibration and must read `0x80` (any other constant stalls the boot). Only a period of 7 gives table values
-(6 and 8 give blends: the OS averages the knob). Positions 0, 2, 3, 5, 6 are unidentified (pedals?) and read `0x80`.
+(6 and 8 give blends: the OS averages the knob). The other positions are identified in §3.10.4 (G.Wheel 2, control
+pedal, aftertouch, pitch stick, mod wheel, G.Wheel 1; the OS's own index is the position − 1).
 `Machine::Options::masterVolume` (default 1, the knob all the way up) sets position 1. At 1, a signal of 1.0 into an
 Out module (Level 127, no pad) gives DAC words of about −0.125 (−18 dBFS, inverted: the internal scale is 1/64, then
 A3's ×0.997×8). `EmulatedSoundEngine` multiplies by −8, so both engines output signal units: the Drone test patch
@@ -1437,6 +1438,180 @@ build/venv/bin/python tools/firmware/g2emucompare.py ref/dac.wav out.wav
 ```
 Debugging: `G2EMU_CFPROFILE=S` (ColdFire PC profile after S seconds), `G2EMU_TIMING=1`, `G2EMU_USBLOG=FILE` (the
 protocol traffic), `--trace` (unmapped accesses, exceptions).
+
+## 3.10 The front panel (2026-10-10)
+
+**Result.** The panel board is emulated at the level the OS drives it, so Clavia's own menus, displays and LEDs work:
+`emu/g2emu/src/panel.{hpp,cpp}` (the hardware), wired into `machine.cpp` in place of the CS4/CS5 stubs, with a
+thread-safe API on `Machine` (and `Runner`) and a stable header for a UI, `emu/g2emu/include/g2emu/panel.hpp`
+(the controls by the names printed on the panel). `g2emurun --panel` prints the displays, the LEDs by name and the
+knobs' LED rings; `--press RAW@T[-T2]`, `--turn RAW:N@T`, `--adc POS:V@T`, `--key K@T-T2[:MS]`, `--var V@T` and
+`--panel-at T` drive it from the command line (`G2EMU_CGRAM=1`, `G2EMU_LEDBUF=1`, `G2EMU_MEMDUMP=FILE`,
+`G2EMU_PCWATCH=ADDR,...` for debugging). Tests: `Panel: ...` (hardware only) and the `[firmware]` case "The user's
+G2 OS drives the emulated front panel".
+
+The board has no processor (service manual): every LED, character and switch goes through latches the ColdFire
+strobes from its timer tasks (the 8272 Hz tick scheduler, §3.9.2).
+
+### 3.10.1 Bus map [C, emulated]
+
+| Address | Direction | Function | Source |
+|---|---|---|---|
+| CS5 `0x15000000` | write | bits 0-6: LED rows 8-14; bit 7: enable of the input multiplexer (set while +7 selects a byte) | [C 0x3005bd74, 0x3005bf3e] |
+| CS5 `+1` | write | LED rows 16-23 | [C 0x3005bf3e] |
+| CS5 `+2` | write | LED rows 0-7 | [C] |
+| CS5 `+3` | write | LED column strobe, active low; the OS strobes one column per call, 0x80 first, and writes `0xFF` (none) before changing the rows | [C] |
+| CS5 `+4` | write | data bus of the five LCDs | [C 0x3005c046] |
+| CS5 `+5` | write | LCD 1-4 control: RS/E = `0x80/0x40` (LCD 1), `0x20/0x10`, `0x08/0x04`, `0x02/0x01` (LCD 4) | [C table 0x3011A0A2: data latch, control latch, RS mask, E mask per LCD] |
+| CS5 `+6` | write | LCD 0 control: RS `0x02`, E `0x01` | [C] |
+| CS5 `+7` | write | input multiplexer select, active low: bytes 0-5 buttons, 6-7 encoders; `0xFF` with `+0` bit 7 clear: nothing | [C 0x3005bd74, schedule table 0x300EC760] |
+| CS5 `+0` | read | the selected byte (active low); nothing selected: bits 6-7 the dial's quadrature (the OS swaps them), bits 4-5 the model | [C] |
+| CS4 `0x14000000` | write (16 bit) | keyboard matrix column, active low, one of 16 | [C 0x30029d78] |
+| PADAT `MBAR+0x248` | read | bits 0-7: keyboard matrix rows, active low; bit 12: high while no sustain pedal is plugged in; bit 13: sustain pedal contact (low = closed); bit 9: low = expansion board present; bits 14-15: the EEPROM's bit-banged lines (outputs) | [C 0x30029d78, 0x30027926, 0x30037f64, 0x30053218] |
+| I2C `0x65` (MAX1039) | read | the analogue controls (below) | §3.9 "Master volume" |
+
+Timing [emulated, measured at boot]: the multiplexer task reads one byte per tick in a 42-step cycle (table at
+`0x300EC760`): the encoder bytes 6 and 7 and the no-select byte 12 times each, each button byte once (every 5 ms).
+The LED task strobes about 460 columns per second (each column about 58 times a second). The keyboard task drives
+all 16 columns about 3900 times a second. The ADC stream runs continuously.
+
+### 3.10.2 Displays [C, emulated]
+
+Five **HD44780-type character LCDs, 2 lines × 16 characters**, 8-bit interface, write-only (the OS never reads the
+busy flag; it waits with delay loops). The OS initialises each one with `30 30 30 38 08 01 06 0C` [C 0x3005664c]
+(function set: 8 bits, 2 lines, 5×8 dots; display on, cursor off), addresses characters with `0x80 + column` (line 1)
+and `0xC0 + column` (line 2) [C 0x3005687c], keeps a 32-character shadow and a dirty mask per LCD
+(`0x302A0DB8 + 298 × n`) and sends one changed character per call. `0x0E`/`0x0C` switch an underline cursor on and off
+(text entry, e.g. Synth Name).
+
+* **LCD 0 = the main display** (its own control latch `+6`), **LCDs 1-4 = the four assignable displays**, left to
+  right: LCD 1 shows knobs 1-2 (8 characters each), LCD 4 knobs 7-8 [emulated: each knob turned changes the display
+  above it]. Line 1: the module name (or a parameter value while a knob is turned); line 2: the two parameter names
+  (Display Mode switches to values) [emulated].
+* **Character set:** the controller's own ROM (A00, Japanese standard). The OS defines 8 **user characters** (CGRAM)
+  on each LCD [C 0x30056bba]: the descender letters g, p, q, y, j (codes 0-4; the OS maps the ASCII letters to them
+  through a 256-byte table per LCD, `+0x2A` in its LCD record), then ±, a symbol and a bar [emulated]. The model keeps
+  the CGRAM; `PanelDisplay::text()` names the descender letters by their shape (no copy of the OS's dots in the source).
+  A UI draws codes 0-15 from `cgram`, the rest with an A00 font (`hd44780Unicode()` maps them to Unicode).
+* Seen [emulated]: during boot "Nord Modular G2" / "Version 1.62"; after boot "-:-       No Cat" (no stored patch)
+  and the patch settings on the assignable displays (" 30 BPM", "1/16T", "50 cnt", "2 semi" ...); after an upload
+  the patch name on line 2 of the main display; the System menu ("Master Tune  |Sy", "MIDI Local   |Sy" ...).
+
+### 3.10.3 LEDs [C, emulated]
+
+An **8 × 23 matrix** (184 LEDs; row 15 is the multiplexer enable bit), refreshed from a 32-byte buffer at
+`0x302BCB42`, **active low** (0 = lit). The OS's LED number n is bit `n & 7` of byte `n >> 3` [C 0x30057224 and its
+siblings]; byte `0x1E − 4c` goes to rows 0-7, `0x1D − 4c` to rows 8-14 and `0x1C − 4c` to rows 16-23 of column c
+(strobe bit `7 − c`) [C 0x3005bf3e]. Bytes 3, 7, ... 31 are not shown. The model latches the rows at each strobe;
+checked against the OS's buffer (`G2EMU_LEDBUF`): identical once a column has been refreshed. There is no dimming:
+the LEDs are on or off, and blink by toggling (one blink group, every 3072 ticks = 0.37 s [C 0x3001b5ec,
+0x30057810]). Column c is the column of knob 8 − c.
+
+| LED (OS number) | Function | Evidence |
+|---|---|---|
+| 32k + 0..14 | knob k+1's LED graph (15 LEDs), lowest value first; rows 16-23 then 8-14; the middle one (7) at a centred value | [C 0x300ECD36: base per knob; emulated: knob 1 swept from −64 to +63 lit 0, 1, ... 14] |
+| 32k + 21 | the LED above assignable button k+1 (a module LED or meter assigned to the knob) | [C table 0x300ECD26, modes at 0x30066daa] |
+| 32k + 22 | assignable button k+1 | [C table 0x300ECD2E; emulated: buttons 1, 3, 5, 6 lit 22, 86, 150, 182] |
+| 242, 19, 51, 83, 115, 147, 179, 211 | Variation 1-8 | [C table 0x300ECEB5; emulated: variations 1-8 selected over USB and with the buttons] |
+| 243 | Morph | [emulated: Morph button] |
+| 177, 209, 241, 18 | Slot A-D (slot active; blinks on the focused slot when several are active) | [C table 0x300ECE88 from the slot's "enabled" flag (performance header +0x2B), 0x3006a9d2] |
+| 49, 81, 113, 145 | a second LED per slot: the keyboard plays the slot (performance header "keyboard" flag) | [C table 0x300ECE84, same function]; **its label on the panel is not known** |
+| 50, 82, 114, 146, 178 | Octave shift −2, −1, 0, +1, +2 | [C table 0x300ECE8C; emulated: Octave Down lit 82, Up 146] |
+| 87, 119, 151, 183, 215 | Parameter page rows A-E | [emulated: Page A-E buttons] |
+| 20, 52, 84 | Parameter page columns 1-3 | [emulated] |
+| 23 / 55 | Patch Settings / Global Panel | [emulated: Patch Settings, double press] |
+| 144 / 176 / 208 | System / Patch / Store | [emulated] |
+| 148 | Load Patch (blinks while a patch is selected but not loaded) | [emulated] |
+| 17 | Perf.Mode | [emulated] |
+| 210 / 112 | KB Hold / KB Split | [C 0x3006af44/af6a; emulated] |
+| 116, 80, 247, 48 | the four split point LEDs above the keyboard, in the order Shift+KB Split steps through them; left to right is [inferred] from the split notes rising with each step (table at `0x300ECEA1`) | [emulated] |
+| 240 | Sub Func. (Shift+Display Mode) | [emulated] |
+| 16 | MIDI (incoming MIDI) | [emulated: a note on MIDI IN] |
+| 244, 212, 180 | Mic/In 1 level −20, −12, 0 dB (0 dB held for 128 calls) | [C 0x3006bd98: thresholds 0.1, 0.25, 0.89 of full scale on DSP data] |
+
+All 64 positions of rows 0-7 have a function; the G2X's wheel LEDs are not in the matrix (probably lit by the power
+supply, not the OS) [inferred].
+
+### 3.10.4 Inputs [C, emulated]
+
+**Buttons:** 46 switches in multiplexer bytes 0-5 (scan position = byte × 8 + bit, the OS's button number is
+byte × 16 + bit), active low, no debouncing in software. Changes become events (press, release, auto-repeat, double
+press within 50 scans) [C 0x30057cc0]. Six are modifiers held in a mask the events carry [C table 0x3010A3D8]:
+Shift (7, bit 0), Focus/Copy (6, bit 1), Slot A-D (40-43, bits 2-5).
+
+| Scan | Button | Evidence |
+|---|---|---|
+| 0, 1, 2, 3 | Navigator Up, Down, Right, Left | [emulated: Down steps through the System menu; Right/Left step the variation in play mode] |
+| 4 | Load Patch | [emulated: "No patches stored", Load LED] |
+| 5 | KB Hold (Shift: Panic) | [C 0x3006af44: Shift → all notes off 0x30025f68] |
+| 6, 7 | Focus/Copy, Shift | [C modifier table; emulated: Shift+Display Mode = Sub Func.] |
+| 8, 9, 10 | System, Patch, Store | [emulated: "Master Tune |Sy", "Patch Parameters", "Store to 1:1"] |
+| 11 | Display Mode | [emulated] |
+| 12 | Performance mode (Shift: Perf. Transfer) | [emulated: "Empty Perf.", Perf.Mode LED] |
+| 13 | KB Split (Shift: next split point) | [C 0x3006af6a; emulated] |
+| 14 | Patch Settings (double press / Shift: Global Panel) | [emulated] |
+| 15 | Morph (Shift: Vari.Init) | [emulated] |
+| 16-20, 21-23 | Parameter pages A-E, 1-3 | [emulated] |
+| 24-31 | Variation 1-8 | [emulated: the client hears variation 2, 3, 8] |
+| 32-39 | assignable buttons 1-8 | [emulated: the parameter under the knob toggles] |
+| 40-43 | Slot A-D | [emulated] |
+| 44, 45 | Octave Shift Down, Up | [C 0x3006aefa/af2a; emulated] |
+| 46, 47 | not connected (ignored by the OS) | [C dispatch table 0x3005d8c6] |
+
+**Encoders** (quadrature, active low pairs):
+* The 8 knobs: bytes 6-7, 4 pairs each (bits 7-6 first). Knob 1-8 = scan pairs 7, 3, 6, 2, 5, 1, 4, 0 (byte 7 holds
+  the odd knobs) [emulated]. Every transition counts one step of the parameter [C 0x30057aac, table 0x300EC540;
+  emulated: 10 transitions = 10 semitones], except the first after a change of direction, which the OS drops.
+  Clockwise (increasing) is the pair sequence 0 → 2 → 3 → 1.
+* The dial: no-select byte, bits 6-7. One step per detent of 4 transitions, counted from the rest position (both
+  contacts open, pair value 3) [C 0x300580fa]; detents less than 30 scans apart accelerate (step size up to 15).
+* `Machine::panelEncoder` makes one UI step one parameter step (adds the dropped transition) and one dial step one
+  detent spaced 8 ms (no acceleration).
+
+**Analogue (panel ADC stream positions; the OS's index is position − 1, after its dummy read)** [C 0x30056536,
+0x30004e46, 0x30012588 and the morph groups their messages feed at 0x300124e2; emulated: each position's change
+reaches its handler]:
+
+| Position | Control | OS handling |
+|---|---|---|
+| 0 | G.Wheel 2 (G2X) | ignored unless the model is G2X; morph group 8 |
+| 1 | Master Level | output level table, A3's X:$1739 (§3.9) |
+| 2 | Control pedal | × (Ctrl Ped Gain + 64) / 64; morph group 6 (Ctrl.Pd) |
+| 3 | Aftertouch | inverted (0xFF = no pressure) through a 128-step curve [table 0x30114E5C]; morph group 4 (Aft.Tch) |
+| 4 | Pitch stick | raw, centred at 0x80 (which the boot calibration requires); morph group 7 (P.Stick) |
+| 5 | Mod wheel | raw; morph group 1 (Wheel) |
+| 6 | G.Wheel 1 (G2X) | ignored unless G2X; morph group 5 (G.Wh1/Sus.P) |
+
+The values in this table's "Control" column are the matching of handlers to morph groups (the group list "Wheel,
+Vel, Keyb, Aft.Tch, Sust.Pd, Ctrl.Pd, P.Stick, G.Wh 2" is in the OS); the Ctrl Ped Gain scaling and the centred
+pitch stick confirm two of them independently. The direction of each control (e.g. which end of the pitch stick is
+0xFF) is not verified. The model's rest values: 0, master, 0, 0xFF, 0x80, 0, 0.
+
+**Model:** bits 4-5 of the no-select byte: 0 = Nord Modular G2, 3 = G2X, 2 = G2 Rack/Engine ("G2R"); 1 is not
+handled; `MBAR+0x1D0` bit 0 set selects a fourth model (3) without a name [C 0x30050864, strings at 0x300E9F86].
+`Machine::Options::model`.
+
+**Keyboard:** 64 keys × 2 contacts on a 16 × 8 matrix: key k is on columns 2(k >> 3) + 1 (contact A, closes first) and
+2(k >> 3) (contact B), row bit 7 − (k & 7) [C 0x30029d78, 0x30029468/0x30029570]. Note = key + 48 (`0x302437ED`, before
+octave shift) on the G2: key 21 played 440 Hz [emulated]. Velocity: the ticks from A to B, halved, plus a per-key
+offset, through a falling 128-entry table (127 at ≤ 6, about 64 at 31, 3 at 127) [C 0x300EA860]; the model's
+velocity → contact time is a fit of that curve (127 × 0.97^(i − 6)) without the per-key offset: approximate.
+
+**Sustain pedal:** GPIO bits 12/13; with "Sust Ped Pol" 0 the pedal is down while bit 13 is low [C 0x30027926]. Not
+verified on the OS's sound.
+
+### 3.10.5 What the emulator does differently, and what is unknown
+
+* **MIDI Local is Off with an erased flash.** Variation buttons, KB Hold, octave shift and the keyboard then only
+  go out as MIDI (and the OS sent nothing on MIDI OUT in our runs, so they seem to do nothing). The firmware test sets
+  Local On through the System menu; a UI should keep the flash (`Machine::flash()`) so the setting persists.
+* Not modelled: the LCD controller's timing and busy flag (unused), its 4-bit mode and font ROM (a UI draws A00),
+  contact bounce, the encoders' detent feel. Rings and LEDs are latched at their strobes: a UI sees exactly what the
+  OS last wrote.
+* Unknown: the label of the second slot LED (49, 81, 113, 145); the physical left-to-right order of the split point
+  LEDs; the direction of the pitch stick and wheels; whether an unplugged control pedal reads 0; the velocity
+  table's per-key offsets (`0x302437EE`); MIDI OUT (nothing sent, so the panel's MIDI echo could not be used to
+  check the controls).
 
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source
