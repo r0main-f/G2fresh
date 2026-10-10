@@ -47,11 +47,17 @@ constexpr float kVarX[8] = {105, 213, 320, 428, 537, 645, 753, 861};
 constexpr float kPageY[5][2] = {{325, 367}, {398, 440}, {470, 512}, {542, 584}, {616, 658}};
 constexpr float kLcdX[4] = {0, 400, 803, 1210};
 
-const juce::Colour kNavy{0xff2f2c5e}, kCheek{0xff5a486f}, kRed{0xffc8283a}, kPanel{0xffcbcdd2}, kInset{0xffa9a49c},
-    kLcdLit{0xffb4cc74}, kLcdOff{0xff8ca188}, kLcdInk{0xff1f2a12}, kBezel{0xff2a292c}, kButton{0xff3b3b3d},
-    kStore{0xffec564d}, kLedOff{0xff6b6869}, kLedOn{0xffff3b2f}, kText{0xff2b2b2e}, kSubText{0xff4d4d52},
-    kKnobRing{0xff3e3e3e}, kSegment{0xff5b5656}, kKnobCap{0xff2a2a2c}, kWood{0xffa45823}, kStone{0xffc9c5bd},
-    kGreen{0xff3fd17a};
+// G2fresh's own look, not Clavia's: graphite surfaces, one cyan accent for what lights up, dark displays with
+// light characters, flat keys and buttons. The layout is the instrument's; the colours are not.
+const juce::Colour kBody{0xff17191d},   // around the panel and the keyboard (the red body on the instrument)
+    kNavy{0xff0f1114},                   // the panel's frame
+    kCheek{0xff1f2227},                  // the controllers' side
+    kPanel{0xff2a2e35},                  // the panel
+    kInset{0xff23272d},                  // its grouped areas
+    kLcdLit{0xff0b0f13}, kLcdOff{0xff14171b}, kLcdInk{0xff9fe8ff}, kBezel{0xff07080a},
+    kButton{0xff3a3f47}, kStore{0xffe0604f}, kLedOff{0xff3b4048}, kLedOn{0xff38d6ff},
+    kText{0xffd3d7de}, kSubText{0xff7e8795}, kKnobRing{0xff1b1e23}, kSegment{0xff343940}, kKnobCap{0xff464c55},
+    kWood{0xff8a929e}, kStone{0xff5c636e}, kGreen{0xff38d6ff};
 
 enum class Style { Normal, Red, Light };
 
@@ -170,17 +176,12 @@ std::vector<LabelSpec> labels()
 
 void drawButton(juce::Graphics& g, juce::Rectangle<float> r, Style style, bool down)
 {
-    const float corner = std::min(r.getWidth(), r.getHeight()) * 0.3f;
-    auto face = style == Style::Red ? kStore : style == Style::Light ? juce::Colour(0xffbcb8b8) : kButton;
-    if (down)
-        face = face.darker(0.4f);
-    g.setColour(juce::Colours::black.withAlpha(0.45f));
-    g.fillRoundedRectangle(r.translated(0, down ? 1.5f : 4.0f), corner);
-    const auto top = r.translated(0, down ? 2.0f : 0.0f);
-    g.setGradientFill(juce::ColourGradient(face.brighter(0.25f), top.getTopLeft(), face.darker(0.25f), top.getBottomLeft(), false));
-    g.fillRoundedRectangle(top, corner);
-    g.setColour(juce::Colours::white.withAlpha(style == Style::Normal ? 0.12f : 0.3f));
-    g.drawRoundedRectangle(top.reduced(2), corner, 2.0f);
+    const float corner = std::min(r.getWidth(), r.getHeight()) * 0.28f;
+    auto face = style == Style::Red ? kStore : style == Style::Light ? juce::Colour(0xff5a616c) : kButton;
+    g.setColour(down ? face.darker(0.35f) : face);
+    g.fillRoundedRectangle(r, corner);
+    g.setColour(down ? kLedOn : juce::Colours::white.withAlpha(0.08f));
+    g.drawRoundedRectangle(r.reduced(1.5f), corner, down ? 3.0f : 2.0f);
 }
 
 void drawLed(juce::Graphics& g, juce::Point<float> c, float level, float radius)
@@ -195,25 +196,20 @@ void drawLed(juce::Graphics& g, juce::Point<float> c, float level, float radius)
     g.drawEllipse(juce::Rectangle<float>(radius * 2, radius * 2).withCentre(c), 1.5f);
 }
 
-// A pot or encoder cap: grey with a light rim and a white pointer at `angle` (radians, 0 = up, clockwise).
+// A pot or encoder cap: a flat dark disc with a thin rim, and an accent pointer at `angle` (radians, 0 = up,
+// clockwise) for the pots.
 void drawCap(juce::Graphics& g, juce::Point<float> c, float radius, std::optional<float> angle)
 {
     auto r = juce::Rectangle<float>(radius * 2, radius * 2).withCentre(c);
-    g.setColour(juce::Colours::black.withAlpha(0.4f));
-    g.fillEllipse(r.translated(0, radius * 0.08f).expanded(radius * 0.06f));
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff4a4a4d), r.getTopLeft(), juce::Colour(0xff0e0e10),
-                                           r.getBottomRight(), false));
+    g.setColour(juce::Colours::black.withAlpha(0.35f));
+    g.fillEllipse(r.translated(0, radius * 0.06f));
+    g.setGradientFill(juce::ColourGradient(kKnobCap.brighter(0.15f), r.getTopLeft(), kKnobCap.darker(0.25f), r.getBottomRight(), false));
     g.fillEllipse(r);
-    g.setGradientFill(juce::ColourGradient(kKnobCap.brighter(0.35f), r.getCentre().translated(-radius * 0.3f, -radius * 0.3f),
-                                           kKnobCap.darker(0.4f), r.getBottomRight(), true));
-    g.fillEllipse(r.reduced(radius * 0.12f));
+    g.setColour(juce::Colours::white.withAlpha(0.1f));
+    g.drawEllipse(r.reduced(1.5f), 2.0f);
     if (angle) {
-        const auto tip = c.getPointOnCircumference(radius * 0.78f, *angle);
-        const auto base = c.getPointOnCircumference(radius * 0.2f, *angle);
-        g.setColour(juce::Colours::white);
-        g.drawLine({base, tip}, radius * 0.12f);
-        g.setColour(juce::Colours::black.withAlpha(0.6f));
-        g.drawLine({base.translated(radius * 0.06f, 0), tip.translated(radius * 0.06f, 0)}, radius * 0.04f);
+        g.setColour(kLedOn);
+        g.drawLine({c.getPointOnCircumference(radius * 0.35f, *angle), c.getPointOnCircumference(radius * 0.85f, *angle)}, radius * 0.1f);
     }
 }
 
@@ -246,7 +242,7 @@ void drawDisplay(juce::Graphics& g, juce::Rectangle<float> bezel, juce::Rectangl
                        juce::Justification::centredLeft, false);
     }
     // glass
-    g.setColour(juce::Colours::white.withAlpha(0.06f));
+    g.setColour(juce::Colours::white.withAlpha(0.025f));
     g.fillRect(lcd.withHeight(lcd.getHeight() * 0.4f));
 }
 
@@ -264,7 +260,7 @@ public:
     {
         const auto& s = owner_.snapshot_;
         g.addTransform(toScreen());
-        g.setColour(kRed);
+        g.setColour(kBody);
         g.fillRect(R(0, 0, kPanelW, kPanelH));
         g.setColour(kNavy);
         g.fillRoundedRectangle(R(20, 58, 3880, 990), 30);
@@ -467,7 +463,7 @@ public:
                       s.leds[static_cast<std::size_t>(i == 1 ? PanelLed::GlobalWheel1 : PanelLed::GlobalWheel2)]);
         // the pitch stick: a wooden block in a slot
         const auto stick = stickArea();
-        g.setColour(juce::Colour(0xff17152e));
+        g.setColour(kBezel);
         g.fillRoundedRectangle(stick.expanded(3), 3);
         const float w = stick.getWidth() * 0.45f;
         const auto block = juce::Rectangle<float>(w, stick.getHeight())
@@ -563,7 +559,7 @@ private:
 
     static void drawWheel(juce::Graphics& g, juce::Rectangle<float> slot, float value, bool standing, float led)
     {
-        g.setColour(juce::Colour(0xff17152e));
+        g.setColour(kBezel);
         g.fillRoundedRectangle(slot.expanded(3), 4);
         // the stone wheel shows a ridge where it is turned to
         g.setGradientFill(juce::ColourGradient(kStone.brighter(0.2f), slot.getTopLeft(), kStone.darker(0.35f),
@@ -578,28 +574,29 @@ private:
             g.drawLine(mark.x, slot.getY() + 2, mark.x, slot.getBottom() - 2, 2.0f);
         // the green LED in the middle of the wheel
         const float d = std::min(slot.getWidth(), slot.getHeight()) * 0.42f;
-        g.setColour(juce::Colour(0xff2b4a39).interpolatedWith(kGreen, std::clamp(led, 0.0f, 1.0f)));
+        g.setColour(kLedOff.interpolatedWith(kGreen, std::clamp(led, 0.0f, 1.0f)));
         g.fillEllipse(juce::Rectangle<float>(d, d).withCentre(slot.getCentre()));
     }
 
     void setPitch(float v)
     {
         pitch_ = v;
-        // MIDI pitch bend into the G2's MIDI IN, until the panel's own input is emulated
-        const int bend = std::clamp(static_cast<int>(8192 + v * 8191), 0, 16383);
-        owner_.midi({0xE0, static_cast<std::uint8_t>(bend & 0x7f), static_cast<std::uint8_t>(bend >> 7)});
-        if (auto* h = owner_.host_)
-            h->panelAnalog(PanelAnalog::PitchStick, (v + 1) / 2);
+        if (owner_.snapshot_.live && owner_.host_ != nullptr) {
+            owner_.host_->panelAnalog(PanelAnalog::PitchStick, (v + 1) / 2); // the panel's own stick
+        } else { // MIDI pitch bend into the G2's MIDI IN
+            const int bend = std::clamp(static_cast<int>(8192 + v * 8191), 0, 16383);
+            owner_.midi({0xE0, static_cast<std::uint8_t>(bend & 0x7f), static_cast<std::uint8_t>(bend >> 7)});
+        }
         repaint();
     }
 
     void setWheel(int i, float v)
     {
         wheels_[static_cast<std::size_t>(i)] = v;
-        if (i == 0) // the mod wheel is also MIDI CC 1
+        if (owner_.snapshot_.live && owner_.host_ != nullptr)
+            owner_.host_->panelAnalog(i == 0 ? PanelAnalog::ModWheel : i == 1 ? PanelAnalog::GlobalWheel1 : PanelAnalog::GlobalWheel2, v);
+        else if (i == 0) // the mod wheel as MIDI CC 1
             owner_.midi({0xB0, 1, static_cast<std::uint8_t>(std::lround(v * 127))});
-        if (auto* h = owner_.host_)
-            h->panelAnalog(i == 0 ? PanelAnalog::ModWheel : i == 1 ? PanelAnalog::GlobalWheel1 : PanelAnalog::GlobalWheel2, v);
         repaint();
     }
 
@@ -640,7 +637,7 @@ public:
                        juce::Colour) override
     {
         auto key = area.reduced(1, 0);
-        g.setGradientFill(juce::ColourGradient(juce::Colour(0xfff4f4f2), key.getTopLeft(), isDown ? juce::Colour(0xffcfd2d6) : juce::Colour(0xffe2e2df),
+        g.setGradientFill(juce::ColourGradient(juce::Colour(0xffeef0f3), key.getTopLeft(), isDown ? kLedOn.withAlpha(0.55f).withBrightness(0.95f) : juce::Colour(0xffdfe2e7),
                                                key.getBottomLeft(), false));
         g.fillRoundedRectangle(key.withTrimmedTop(-6), 4);
         if (isOver && !isDown) {
@@ -655,8 +652,8 @@ public:
     {
         g.setColour(juce::Colours::black.withAlpha(0.35f));
         g.fillRoundedRectangle(area.translated(1.5f, 2), 3);
-        g.setGradientFill(juce::ColourGradient(isDown ? juce::Colour(0xff3a3a3a) : juce::Colour(0xff2a2a2a), area.getTopLeft(),
-                                               juce::Colour(0xff0b0b0b), area.getBottomLeft(), false));
+        g.setGradientFill(juce::ColourGradient(isDown ? kLedOn.darker(0.6f) : juce::Colour(0xff2b2f35), area.getTopLeft(),
+                                               juce::Colour(0xff121417), area.getBottomLeft(), false));
         g.fillRoundedRectangle(area, 3);
         if (!isDown) {
             g.setColour(juce::Colours::white.withAlpha(isOver ? 0.22f : 0.14f));
@@ -723,7 +720,7 @@ void LiveView::paint(juce::Graphics& g)
     g.fillAll(juce::Colour(0xff1e1f22));
     // the instrument's red body around the cheek and the keyboard
     const auto body = controllers_->getBounds().getUnion(keyboard_->getBounds()).expanded(6).withTop(panel_->getBottom());
-    g.setColour(kRed);
+    g.setColour(kBody);
     g.fillRoundedRectangle(body.toFloat(), 6);
 }
 
@@ -770,7 +767,7 @@ void LiveView::timerCallback()
     backdrop_.setVisible(hint_.isVisible());
     hint_.setText(!available ? "This build of G2fresh has no emulated G2."
                   : !running ? "The Live panel plays the Emulated G2, running Clavia's G2 OS."
-                             : "The Emulated G2 runs; its panel is not emulated yet (the keyboard plays it).",
+                             : "The Emulated G2 is starting...",
                   juce::dontSendNotification);
 }
 
@@ -784,12 +781,17 @@ void LiveView::midi(std::initializer_list<std::uint8_t> bytes)
 
 void LiveView::handleNoteOn(juce::MidiKeyboardState*, int channel, int note, float velocity)
 {
+    // the emulated panel's own keyboard (the OS applies focus, octave shift, KB Hold and split), else MIDI
+    if (host_ != nullptr && snapshot_.live && host_->panelKey(note, true, velocity))
+        return;
     midi({static_cast<std::uint8_t>(0x90 | ((channel - 1) & 15)), static_cast<std::uint8_t>(note),
           static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::lround(velocity * 127)), 1, 127))});
 }
 
 void LiveView::handleNoteOff(juce::MidiKeyboardState*, int channel, int note, float)
 {
+    if (host_ != nullptr && snapshot_.live && host_->panelKey(note, false, 0.0f))
+        return;
     midi({static_cast<std::uint8_t>(0x80 | ((channel - 1) & 15)), static_cast<std::uint8_t>(note), 64});
 }
 
