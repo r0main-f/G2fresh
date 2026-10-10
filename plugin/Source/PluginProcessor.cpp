@@ -113,9 +113,17 @@ void G2EditorProcessor::captureFlash()
 
 void G2EditorProcessor::timerCallback()
 {
-    // The OS changed the flash (a stored patch, a setting): into the state once it is quiet for a second.
     if (emulated_ == nullptr)
         return;
+    // The emulated G2 runs but the link gave up on it (it ran too slowly to answer in time, e.g. while the host
+    // loaded a project): talk to it again, and send it the patch once it answers.
+    if (synth_.kind() == g2ui::SynthSync::Kind::Emulated && synth_.linkFailed()) {
+        emulatedSent_ = false;
+        emulatedLocal_ = false;
+        synth_.restartLink();
+        return;
+    }
+    // The OS changed the flash (a stored patch, a setting): into the state once it is quiet for a second.
     const auto changes = static_cast<EmulatedSoundEngine&>(*emulated_).flashChanges();
     if (changes == flashSeen_) {
         flashQuiet_ = 0;

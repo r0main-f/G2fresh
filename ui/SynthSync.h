@@ -51,6 +51,9 @@ public:
     // while kind() is Emulated.
     void connectEmulated(std::unique_ptr<g2::proto::SynthLink> link);
     void disconnect();
+    // The link gave up (no reply in time, an error): handshake and read the synth again, on the same link.
+    void restartLink();
+    bool linkFailed() const { return link_ != nullptr && g2::proto::isFatal(link_->status()); }
     // The synth's settings (MIDI channels, Local, ...), as the synth reported them, and a change to them.
     void setSynthSettings(const g2::proto::SynthSettings& settings);
     Kind kind() const { return kind_; }

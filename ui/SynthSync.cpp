@@ -140,6 +140,16 @@ void SynthSync::setSynthSettings(const g2::proto::SynthSettings& settings)
         link_->setSynthSettings(settings);
 }
 
+void SynthSync::restartLink()
+{
+    if (link_ == nullptr)
+        return;
+    unbind();
+    wasReady_ = false;
+    link_->restart();
+    sendChangeMessage();
+}
+
 void SynthSync::disconnect()
 {
     startLink(nullptr, Kind::None);

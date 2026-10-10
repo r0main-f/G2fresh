@@ -1151,3 +1151,52 @@ TEST_CASE("The user's G2 OS on a G2X: the lowest key, the pitch stick's directio
     CHECK(still < 1.0);
     CHECK(wobble > 5.0);
 }
+
+TEST_CASE("The user's G2 OS: after the client lost contact (the machine ran too slowly), a restart syncs again",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    Machine m(fw);
+    m.run(Machine::FrameRate * 2);
+    MachineTransport transport(m);
+    g2::proto::ManualClock clock;
+    g2::proto::Client client(transport, clock);
+    m.plugUsb();
+    std::uint64_t extraMs = 0;  // wall time the machine did not get
+    auto step = [&] {
+        m.run(Machine::FrameRate / 1000);
+        clock.set(std::uint64_t(m.seconds() * 1000) + extraMs);
+        client.tick();
+    };
+    while(!client.synced() && m.seconds() < 4) step();
+    REQUIRE(client.synced());
+
+    // a request, then the machine stalls for 25 s of wall time: the client gives up
+    client.sendPerformance(g2::Performance::playing(keyboardSine(), "Stall"), "Stall");
+    client.tick();
+    for(int i = 0; i < 25 && client.status() == g2::proto::Status::Connected; ++i)
+    {
+        extraMs += 1000;
+        clock.set(std::uint64_t(m.seconds() * 1000) + extraMs);
+        client.tick();
+    }
+    REQUIRE(client.status() == g2::proto::Status::LostContact);
+
+    // what the plugin does then: restart the handshake on the same link, the machine running again
+    client.restart();
+    const double until = m.seconds() + 6;
+    while(!client.synced() && m.seconds() < until) step();
+    REQUIRE(client.synced());
+    client.sendPerformance(g2::Performance::playing(keyboardSine(), "Again"), "Again");
+    while(!client.idle() && m.seconds() < until + 4) step();
+    CHECK(client.idle());
+    CHECK(client.state().slots[0].name == "Again");
+}
