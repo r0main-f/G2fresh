@@ -261,14 +261,16 @@ namespace coldfire
 		static const auto moves = []
 		{
 			std::array<std::array<std::array<FastHandler, 8>, g_eaIndices>, 4> t{};  // [line][source][destination mode]
+			// The constants are taken from the parameters' types in the innermost lambda: MSVC does not see a constexpr
+			// local of an enclosing lambda there.
 			staticFor<3>([&](auto l)
 			{
-				constexpr uint32_t line = static_cast<uint32_t>(decltype(l)::value) + 1;
 				staticFor<g_eaIndices>([&](auto s)
 				{
-					constexpr uint32_t src = static_cast<uint32_t>(decltype(s)::value);
 					staticFor<8>([&](auto d)
 					{
+						constexpr uint32_t line = static_cast<uint32_t>(decltype(l)::value) + 1;
+						constexpr uint32_t src = static_cast<uint32_t>(decltype(s)::value);
 						constexpr uint32_t dst = static_cast<uint32_t>(decltype(d)::value);
 						t[line][src][dst] = &Cpu::callHandler<&Cpu::opMoveT<line, eaModeOf(src), eaRegOf(src), dst>>;
 					});
@@ -292,9 +294,9 @@ namespace coldfire
 			std::array<std::array<ByEa, 3>, 2> t{};  // [clr, tst][size]
 			staticFor<3>([&](auto z)
 			{
-				constexpr uint32_t sz = static_cast<uint32_t>(decltype(z)::value);
 				staticFor<g_eaIndices>([&](auto s)
 				{
+					constexpr uint32_t sz = static_cast<uint32_t>(decltype(z)::value);
 					constexpr uint32_t ea = static_cast<uint32_t>(decltype(s)::value);
 					t[0][sz][ea] = &Cpu::callHandler<&Cpu::opClrT<sz, eaModeOf(ea), eaRegOf(ea)>>;
 					t[1][sz][ea] = &Cpu::callHandler<&Cpu::opTstT<sz, eaModeOf(ea), eaRegOf(ea)>>;

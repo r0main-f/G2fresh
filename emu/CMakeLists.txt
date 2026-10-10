@@ -273,7 +273,13 @@ g2_patch_file(${_cf_dir}/cfCpu.cpp
 add_library(g2coldfire STATIC ${_cf_dir}/cfCpu.cpp)
 target_include_directories(g2coldfire SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/gearmulator ${CMAKE_CURRENT_SOURCE_DIR}/g2emu/coldfire)
 target_compile_features(g2coldfire PUBLIC cxx_std_20)
-set_target_properties(g2coldfire PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# Hidden symbols: GCC refuses to force-inline a function another module could interpose (-fPIC), as the core's fast
+# path asks (always_inline fetch16 & co.).
+set_target_properties(g2coldfire PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  target_compile_options(g2coldfire PRIVATE -fno-semantic-interposition)
+endif()
 if(NOT MSVC)
   target_compile_options(g2coldfire PRIVATE -w)
 endif()
