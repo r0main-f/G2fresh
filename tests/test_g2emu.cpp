@@ -28,6 +28,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <fstream>
 #include <algorithm>
 #include <atomic>
@@ -725,7 +726,9 @@ TEST_CASE("ColdFire core: run()'s dispatch and specialised handlers do what step
     for(int program = 0; program < 200; ++program)
     {
         TestBus busA, busB;
-        coldfire::Cpu a(busA), b(busB);
+        // on the heap: a core's instruction tables take about 1.5 MB (Windows gives a thread 1 MB of stack)
+        auto coreA = std::make_unique<coldfire::Cpu>(busA), coreB = std::make_unique<coldfire::Cpu>(busB);
+        auto &a = *coreA, &b = *coreB;
         for(auto* c : {&a, &b}) c->setFastMemory((c == &a ? busA : busB).mem.data(), 0, TestBus::Size);
         // vectors to handlers inside RAM (some odd: an address error while taking an exception halts the core)
         for(std::uint32_t v = 0; v < 64; ++v) put32(busA.mem, 4 * v, 0x1000 + 0x40 * v + (rnd(16) == 0 ? 1 : 0));
@@ -796,8 +799,11 @@ TEST_CASE("Doorbell: no wake-up is lost between threads that wait for each other
         INFO("spin " << spin << " us");
         CHECK(turn.load() == 2 * rounds);
         // A timeout is a sleep that ended without a ring after 2 ms: a lost ring, or (on a busy shared machine such as
-        // a CI runner) a waiter the scheduler left asleep that long. Lost rings would show in every round.
+        // a CI runner) a waiter the scheduler left asleep that long. Lost rings would show in every round. Windows'
+        // timer is too coarse for the count to mean anything (the test's 0.2 ms naps last milliseconds there).
+#ifndef _WIN32
         CHECK(bell.timeouts() < rounds / 50);
+#endif
     }
 }
 
