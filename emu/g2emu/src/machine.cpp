@@ -1032,6 +1032,8 @@ std::vector<std::uint8_t> Machine::takeMidiOut()
 }
 
 std::vector<std::uint8_t>& Machine::flash() { return impl_->flashChip.data(); }
+std::vector<std::uint8_t> Machine::flashSnapshot() const { return impl_->flashChip.snapshot(); }
+std::uint64_t Machine::flashChanges() const { return impl_->flashChip.changes(); }
 
 PanelState Machine::panel() const
 {

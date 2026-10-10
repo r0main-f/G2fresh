@@ -1033,3 +1033,121 @@ TEST_CASE("The user's G2 OS: MIDI Local switched on over USB (synth settings), t
     REQUIRE(crossings > 50);
     CHECK_THAT(double(crossings - 1) * Machine::FrameRate / (last - first), Catch::Matchers::WithinAbs(440.0, 0.2));
 }
+
+TEST_CASE("The user's G2 OS on a G2X: the lowest key, the pitch stick's direction, the mod wheel", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    Machine::Options o;
+    o.model = PanelModel::G2X;
+    Machine m(fw, o);
+    m.run(Machine::FrameRate * 2);
+    MachineTransport transport(m);
+    g2::proto::ManualClock clock;
+    g2::proto::Client client(transport, clock);
+    m.plugUsb();
+    auto step = [&] {
+        m.run(Machine::FrameRate / 1000);
+        clock.set(std::uint64_t(m.seconds() * 1000));
+        client.tick();
+    };
+    auto run = [&](double s) {
+        const double end = m.seconds() + s;
+        while(m.seconds() < end) step();
+    };
+    while(!client.synced() && m.seconds() < 4) step();
+    REQUIRE(client.synced());
+
+    // the sine on the keyboard, pitch bend on (2 semitones), vibrato from the wheel at full depth
+    auto patch = keyboardSine();
+    using g2::edit::Setting;
+    for(std::uint8_t v = 0; v < g2::kFileVariations; ++v)
+    {
+        g2::edit::setSetting(patch, Setting::Bend, 0, v, 1);
+        g2::edit::setSetting(patch, Setting::Bend, 1, v, 2);
+        g2::edit::setSetting(patch, Setting::Vibrato, 0, v, 2);    // source: Wheel
+        g2::edit::setSetting(patch, Setting::Vibrato, 1, v, 127);  // depth: 127 cents
+    }
+    client.sendPerformance(g2::Performance::playing(patch, "Probe"), "Probe");
+    auto settings = client.state().settings;
+    settings.localOn = true;
+    client.setSynthSettings(settings);
+    while(!client.idle() && m.seconds() < 6) step();
+    REQUIRE(client.idle());
+    run(0.3);
+
+    // zero crossings of output 1 over `seconds`: the mean frequency and the spread of the per-cycle frequency
+    auto measure = [&](double seconds, double& mean, double& spread) {
+        std::vector<float> out;
+        m.run(std::uint32_t(Machine::FrameRate * seconds), &out);
+        std::vector<double> t;
+        for(std::size_t f = 0; f + 1 < out.size() / 4; ++f)
+        {
+            const double a = out[f * 4], b = out[(f + 1) * 4];
+            if(a < 0 && b >= 0) t.push_back(double(f) + a / (a - b));
+        }
+        mean = spread = 0;
+        if(t.size() < 3) return;
+        mean = double(t.size() - 1) * Machine::FrameRate / (t.back() - t.front());
+        double lo = 1e9, hi = 0;
+        for(std::size_t i = 1; i < t.size(); ++i)
+        {
+            const double f = Machine::FrameRate / (t[i] - t[i - 1]);
+            lo = std::min(lo, f);
+            hi = std::max(hi, f);
+        }
+        spread = hi - lo;
+    };
+    auto note = [](double hz) { return 69.0 + 12.0 * std::log2(hz / 440.0); };
+    double hz = 0, spread = 0;
+
+    // the lowest key
+    m.panelKey(0, true, 100);
+    run(0.1);
+    measure(0.5, hz, spread);
+    m.panelKey(0, false);
+    run(0.2);
+    INFO("key 0 plays " << hz << " Hz, MIDI note " << note(hz));
+    REQUIRE(hz > 0);
+    CHECK(std::lround(note(hz)) == 36);  // C1: the G2X's 61 keys are C1-C6
+
+    // the pitch stick on key 33 (A4, 440 Hz): 1.0 bends up, 0.0 down, by the patch's bend range (setting value 2:
+    // 3 semitones, as measured)
+    m.panelKey(33, true, 100);
+    run(0.1);
+    double rest = 0, up = 0, down = 0;
+    measure(0.3, rest, spread);
+    m.panelAnalog(PanelAnalog::PitchStick, 1.0f);
+    run(0.15);
+    measure(0.3, up, spread);
+    m.panelAnalog(PanelAnalog::PitchStick, 0.0f);
+    run(0.15);
+    measure(0.3, down, spread);
+    m.panelAnalog(PanelAnalog::PitchStick, 0.5f);
+    run(0.15);
+    INFO("stick at rest " << rest << " Hz, at 1.0 " << up << " Hz (" << note(up) - note(rest) << " semitones), at 0.0 "
+                          << down << " Hz (" << note(down) - note(rest) << ")");
+    CHECK_THAT(rest, Catch::Matchers::WithinAbs(440.0, 0.5));
+    CHECK_THAT(note(up) - note(rest), Catch::Matchers::WithinAbs(3.0, 0.1));
+    CHECK_THAT(note(down) - note(rest), Catch::Matchers::WithinAbs(-3.0, 0.1));
+
+    // the mod wheel: no vibrato at 0, vibrato at 1
+    double still = 0, wobble = 0;
+    m.panelAnalog(PanelAnalog::ModWheel, 0.0f);
+    run(0.2);
+    measure(0.6, hz, still);
+    m.panelAnalog(PanelAnalog::ModWheel, 1.0f);
+    run(0.3);
+    measure(0.6, hz, wobble);
+    m.panelKey(33, false);
+    INFO("per-cycle frequency spread: wheel at 0 " << still << " Hz, at 1 " << wobble << " Hz");
+    CHECK(still < 1.0);
+    CHECK(wobble > 5.0);
+}

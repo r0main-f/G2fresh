@@ -478,6 +478,11 @@ int main(int argc, char** argv)
         else if(a == "--cf-mhz") opt.cfHz = std::stod(next()) * 1e6;
         else if(a == "--threads") opt.threads = std::stoi(next());
         else if(a == "--skew") opt.skew = std::uint32_t(std::stoul(next()));
+        else if(a == "--model")
+        {
+            const auto m = next();
+            opt.model = m == "g2x" ? g2emu::PanelModel::G2X : m == "engine" ? g2emu::PanelModel::G2Engine : g2emu::PanelModel::G2;
+        }
         else if(a == "--no-jit") opt.jit = false;
         else if(a == "--no-idle-skip") opt.idleSkip = false;
         else if(a == "--no-poll-skip") opt.pollSkip = false;

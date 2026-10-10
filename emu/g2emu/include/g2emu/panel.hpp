@@ -51,7 +51,7 @@ constexpr int PanelEncoderCount = 9;
 // ---- analogue controls (the panel's ADC) ----
 enum class PanelAnalog : std::uint8_t {
     MasterLevel = 0,   // "Master Level" knob, 0..1
-    PitchStick = 1,    // 0..1, 0.5 = at rest (direction of 1.0 not verified)
+    PitchStick = 1,    // 0..1, 0.5 = at rest, 1.0 bends up (as the OS reads it: tests/test_g2emu.cpp)
     ModWheel = 2,      // 0..1
     ControlPedal = 3,  // "Ctrl.Pedal" jack, 0..1 (the OS applies its Ctrl Ped Gain)
     Aftertouch = 4,    // keyboard pressure, 0 = none .. 1

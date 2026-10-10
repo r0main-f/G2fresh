@@ -1,6 +1,8 @@
 #include "hw.hpp"
 
 #include <algorithm>
+#include <cstring>
+#include <thread>
 
 namespace g2emu {
 
@@ -446,8 +448,22 @@ std::uint32_t Flash::read(std::uint32_t off, int size)
     }
 }
 
+std::vector<std::uint8_t> Flash::snapshot() const
+{
+    std::vector<std::uint8_t> copy(mem_.size());
+    for(;;)
+    {
+        const auto before = seq_.load(std::memory_order_acquire);
+        if(before & 1) { std::this_thread::yield(); continue; }
+        std::memcpy(copy.data(), mem_.data(), mem_.size());
+        std::atomic_thread_fence(std::memory_order_acquire);
+        if(seq_.load(std::memory_order_relaxed) == before) return copy;
+    }
+}
+
 void Flash::erase(std::uint32_t off, bool chip)
 {
+    beginChange();
     if(chip)
         std::fill(mem_.begin(), mem_.end(), 0xff);
     else
@@ -456,6 +472,7 @@ void Flash::erase(std::uint32_t off, bool chip)
         std::fill(mem_.begin() + base, mem_.begin() + base + 0x10000, 0xff);
     }
     dirty_ = true;
+    endChange();
 }
 
 void Flash::write(std::uint32_t off, int size, std::uint32_t value)
@@ -464,11 +481,13 @@ void Flash::write(std::uint32_t off, int size, std::uint32_t value)
     const std::uint32_t w = off >> 1;
     if(state_ == State::Program)
     {
+        beginChange();
         for(int k = 0; k < size; ++k)
             mem_[(off + std::uint32_t(k)) & (Size - 1)] &= std::uint8_t(value >> (8 * (size - 1 - k)));
         state_ = State::Idle;
         ++programs_;
         dirty_ = true;
+        endChange();
         return;
     }
     const auto v = value & 0xff;

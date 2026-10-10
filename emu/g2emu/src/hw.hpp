@@ -5,6 +5,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -117,6 +118,10 @@ public:
     std::uint32_t read(std::uint32_t off, int size);
     void write(std::uint32_t off, int size, std::uint32_t value);
     std::vector<std::uint8_t>& data() { return mem_; }
+    // Another thread's consistent copy while the machine runs (a sequence lock around every change; the machine
+    // thread never waits), and how many changes there were so far.
+    std::vector<std::uint8_t> snapshot() const;
+    std::uint64_t changes() const { return seq_.load(std::memory_order_acquire) / 2; }
     std::uint64_t programs() const { return programs_; }
     bool dirty() const { return dirty_; }
     void clearDirty() { dirty_ = false; }
@@ -132,6 +137,9 @@ private:
     bool bypass_ = false;
     std::uint64_t programs_ = 0;
     bool dirty_ = false;
+    std::atomic<std::uint64_t> seq_{0};  // odd while mem_ changes
+    void beginChange() { seq_.fetch_add(1, std::memory_order_acq_rel); }
+    void endChange() { seq_.fetch_add(1, std::memory_order_release); }
 };
 
 // ---------------------------------------------------------------------------------------------------------------

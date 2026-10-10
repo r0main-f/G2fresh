@@ -131,7 +131,12 @@ public:
     std::string panelDebug() const;  // machine thread only: scan counters, for debugging
 
     // ---- flash (patches and settings the OS stores) ----
+    // The flash itself: the machine's thread, or any thread while the machine does not run.
     std::vector<std::uint8_t>& flash();
+    // A consistent copy from any thread while the machine runs, and the number of changes so far (it grows when
+    // the OS programs or erases the flash: storing a patch, a setting).
+    std::vector<std::uint8_t> flashSnapshot() const;
+    std::uint64_t flashChanges() const;
 
     Stats stats() const;
     // A word of DSP n's memory (n: chip select A(3+n); area 0 P, 1 X, 2 Y), for tests and debugging.
