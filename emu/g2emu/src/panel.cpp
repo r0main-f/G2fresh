@@ -411,17 +411,21 @@ char32_t hd44780Unicode(std::uint8_t c)
 {
     if(c < 0x10) return 0;
     if(c < 0x20) return 0;
-    if(c == 0x5c) return U'¥';
-    if(c == 0x7e) return U'→';
-    if(c == 0x7f) return U'←';
+    if(c == 0x5c) return char32_t(0x00A5);
+    if(c == 0x7e) return char32_t(0x2192);
+    if(c == 0x7f) return char32_t(0x2190);
     if(c < 0x7e) return c;
     if(c < 0xa0) return 0;
     if(c == 0xa0) return U' ';
     if(c < 0xe0) return char32_t(0xFF61 + (c - 0xa1));  // JIS X 0201 katakana, as half-width forms
-    static constexpr char32_t hi[32] = {U'α', U'ä', U'β', U'ε', U'μ', U'σ', U'ρ', U'g',
-                                        U'√', U'⁻', U'j', U'ˣ', U'¢', U'£', U'ñ', U'ö',
-                                        U'p', U'q', U'θ', U'∞', U'Ω', U'ü', U'Σ', U'π',
-                                        U'x', U'y', U'千', U'万', U'円', U'÷', U' ', U'█'};
+    // 0xE0-0xFF: Greek letters and symbols of the A00 set (written as code points: MSVC reads the source in the
+    // local code page)
+    static constexpr char32_t hi[32] = {
+        char32_t(0x03B1), char32_t(0x00E4), char32_t(0x03B2), char32_t(0x03B5), char32_t(0x03BC), char32_t(0x03C3), char32_t(0x03C1), U'g',
+        char32_t(0x221A), char32_t(0x207B), U'j', char32_t(0x02E3), char32_t(0x00A2), char32_t(0x00A3), char32_t(0x00F1), char32_t(0x00F6),
+        U'p', U'q', char32_t(0x03B8), char32_t(0x221E), char32_t(0x03A9), char32_t(0x00FC), char32_t(0x03A3), char32_t(0x03C0),
+        U'x', U'y', char32_t(0x5343), char32_t(0x4E07), char32_t(0x5186), char32_t(0x00F7), U' ', char32_t(0x2588),
+    };
     return hi[c - 0xe0];
 }
 

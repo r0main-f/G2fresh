@@ -527,7 +527,7 @@ TEST_CASE("Panel: five HD44780 LCDs on the shared data latch", "[g2emu]")
     lcdWrite(p, 0, false, 0x01);  // clear
     p.snapshot(s);
     CHECK(s.displays[0].text(0) == "                ");
-    CHECK(hd44780Unicode(0x7e) == U'→');
+    CHECK(hd44780Unicode(0x7e) == char32_t(0x2192));  // a right arrow
     CHECK(hd44780Unicode('A') == U'A');
 }
 
