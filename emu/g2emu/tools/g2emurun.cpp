@@ -158,7 +158,8 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
     ro.machine = opt;
     if(!ro.machine.threads) ro.machine.threads = 1;
     g2emu::Runner runner(fw, ro);
-    proto::LocalLink link(std::make_unique<g2emu::MachineTransport>(runner.machine()));
+    auto linkPtr = g2emu::emulatedG2Link(runner.machine());
+    auto& link = *linkPtr;
     Listener listener;
     link.setListener(&listener);
     std::vector<float> block(960 * 4), all;
@@ -177,7 +178,6 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
             std::this_thread::sleep_until(next);
         }
     };
-    runner.machine().plugUsb();
     while(!link.synced() && Clock::now() - t0 < std::chrono::seconds(20)) audio(false);
     if(!link.synced()) { std::fprintf(stderr, "no sync\n"); return 1; }
     std::fprintf(stderr, "synced after %.2f s wall (machine at %.2f s)\n",
@@ -436,8 +436,10 @@ int main(int argc, char** argv)
     }
     const double recWall = std::chrono::duration<double>(std::chrono::steady_clock::now() - w1).count();
     const double recEmulated = double(m.frame() - f0) / g2emu::Machine::FrameRate;
-    std::printf("OS time: %.1f timer ticks per emulated second, %.1f LED messages per second\n",
-                double(m.cfRead32(0x3010A13C) - ticks0) / recEmulated, double(listener.leds - leds0) / recEmulated);
+    const auto midiOut = m.takeMidiOut();
+    std::printf("OS time: %.1f timer ticks per emulated second, %.1f LED messages per second; MIDI out %zu bytes\n",
+                double(m.cfRead32(0x3010A13C) - ticks0) / recEmulated, double(listener.leds - leds0) / recEmulated,
+                midiOut.size());
     const double recCpu = cpuSeconds() - c1, recCfCpu = threadCpuSeconds() - t1;
     const auto s2 = m.stats();
     report("recorded");

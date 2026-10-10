@@ -459,7 +459,18 @@ struct Machine::Impl final : coldfire::Bus {
     }
     std::uint32_t read32(std::uint32_t a) override
     {
-        if(a - SdramBase < SdramSize - 3) return be32(&sdram[a - SdramBase]);
+        if(a - SdramBase < SdramSize - 3)
+        {
+            // The core fetches exception vectors through the bus (its RAM window is for instructions and data):
+            // count the error exceptions (access, address, illegal, divide by zero, privilege, trace, line A/F,
+            // format: vectors 2-15) taken through the OS's table at VBR = 0x30000000 [C]
+            if(a - SdramBase < 0x40 && a - SdramBase >= 8)
+            {
+                ++st.exceptions;
+                if(opt.trace) std::fprintf(stderr, "g2emu: exception vector %u at pc %08x\n", (a - SdramBase) / 4, cpu.getInstructionPC());
+            }
+            return be32(&sdram[a - SdramBase]);
+        }
         if(a - SramBase < SramSize - 3) return be32(&sram[a - SramBase]);
         if(a < BootSize - 3) return be32(&boot[a]);
         return mmioRead(a, 4);

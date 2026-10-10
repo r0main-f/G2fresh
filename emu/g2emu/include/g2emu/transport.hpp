@@ -3,8 +3,11 @@
 // over libusb. Thread-safe against the machine: the machine may run on another thread.
 #pragma once
 
+#include "g2/proto/link.hpp"
 #include "g2/proto/transport.hpp"
 #include "g2emu/machine.hpp"
+
+#include <memory>
 
 namespace g2emu {
 
@@ -39,5 +42,14 @@ private:
     Machine& machine_;
     bool announced_ = false;
 };
+
+// A SynthLink to the emulated G2, as LocalLink::virtualG2() is one to the protocol emulator: the whole editor stack
+// (SynthSync, the bank browser, live edits) can drive it. The link times out by the wall clock, so the machine has to
+// run in real time on another thread (Runner).
+inline std::unique_ptr<g2::proto::LocalLink> emulatedG2Link(Machine& machine)
+{
+    machine.plugUsb();
+    return std::make_unique<g2::proto::LocalLink>(std::make_unique<MachineTransport>(machine));
+}
 
 } // namespace g2emu

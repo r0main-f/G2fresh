@@ -75,6 +75,17 @@ extraction tool `tools/firmware/g2os.py` and this note. No Clavia bytes are comm
 * `emu/CMakeLists.txt` patches the fetched library. Now LFO rates and envelope times match the editor's display to
   within 0.6 %, and the control-rate code runs exactly once per 4 frames on all four DSPs.
 
+**Update (§3.9, 2026-10-10): a real-time C++ emulator.**
+* `emu/g2emu` runs the user's OS on Gearmulator's ColdFire core (unchanged OS, plain ISA_A) and the four DSPs on
+  dsp56300's JIT, with no Python and no Unicorn. Our protocol client talks to it over the emulated USB chip; notes
+  play through the OS's MIDI IN (UART0, 31250 baud).
+* One clock: per 96 kHz frame the ColdFire runs 1687.5 cycles (162 MHz) and its timers 562.5 bus clocks (54 MHz,
+  fixed by the OS's MIDI divider [C]); the OS ticks 8272 times per second. OS-timed behaviour is now right: note-on
+  in 2 ms, the post-upload level in 50 ms.
+* The JIT needed `dynamicFastInterrupts` (stage 1 keeps subroutines in the vector area): that was the "TFS poll".
+* Real time on an M1: typical patches on two threads (1.4-1.5 ×), heavy patches with chords on three (1.5-1.8 ×,
+  experimental: a JIT crash seen before a timing change, cause not found).
+
 ## 1. Hardware (Part A)
 
 ### 1.1 Summary table
@@ -1112,6 +1123,9 @@ So relative to the audio, everything the OS times runs roughly 40–170 × slow,
 DSP-side timing (rates, envelopes, pitch) is unaffected. A fix would gate the DSP frames by host ticks (about 11
 frames per tick at 8.4 kHz). That makes the full machine about 30 × slower, so it is not done.
 
+**Resolved in §3.9:** the C++ emulator drives the ColdFire's timers from the DSPs' frame clock (8272 ticks per
+emulated second); the slews, the note latency and the post-upload ramp now take their real times (§3.9.2).
+
 **DSP timer 0** (stage 1, A3) is the one the OS calibrates through the I2C ADC (§3.6.3).
 * The frame and control code of the patches looked at here (empty, 1 kHz, EnvADSR) does not read it, and no timer
   vector is set.
@@ -1134,6 +1148,244 @@ frames per tick at 8.4 kHz). That makes the full machine about 30 × slower, so 
     DSP time in the emulator (§3.8.5).
 * **§3.7.5 results** (pitch, routing) are audio-rate and stand.
 
+## 3.9 Real-time C++ emulator (2026-10-10)
+
+**Result.** `emu/g2emu` (library `g2emu`, built with `-DG2_BUILD_EMU=ON`) runs the user's own OS 1.62 and the four
+DSPs in C++, with no Python and no Unicorn:
+* it boots in 1.6 emulated seconds, our protocol client connects over the emulated USB chip and syncs in 74 ms;
+* an uploaded patch sounds (the 1 kHz test patch: **1000.328 Hz** on all four DACs, peak 0.00838, as in §3.7.5);
+* notes play through the OS's MIDI IN (UART0) and through the protocol's PlayNote;
+* OS time and audio time come from one clock: the OS's timer ticks 8272 times per emulated second;
+* real time on an M1 for typical and heavy patches with two or three threads (§3.9.7).
+
+Files:
+* `emu/g2emu/include/g2emu/`: `firmware.hpp` (the updater's resources, the OS image, LZO1X: `g2os.py` in C++),
+  `machine.hpp` (the machine), `transport.hpp` (a `proto::Transport` over the emulated USB, and
+  `emulatedG2Link()`, a `LocalLink` to it), `runner.hpp` (the machine in real time for a sound engine).
+* `emu/g2emu/src/`: `hw.*` (SIM, timers, UARTs, I2C, flash, ISP1181), `dsp.*` (a DSP56367 stepped on the JIT,
+  host port, serial links), `machine.cpp` (memory map, scheduling, USB host), `runner.cpp`, `thread.hpp`.
+* `emu/g2emu/tools/g2emurun.cpp`: boot, connect, upload (`--patch`, `--kbd`), notes (`--note` protocol, `--midi`
+  UART), record (`--wav`), speed; `--realtime S` plays it at the wall clock through `Runner` and a `LocalLink`.
+* `tests/test_g2emu.cpp` (`g2emutests`): firmware-free checks of every part, and one `[firmware]` case that boots the
+  user's OS when it is there (`G2_FIRMWARE`, else `original/firmware`) and plays a MIDI note at 440 Hz.
+* `tools/firmware/g2emucompare.py`: compares two DAC recordings (level, pitch, onset, band spectrum).
+
+### 3.9.1 The ColdFire core
+
+**Choice: Gearmulator's ColdFire core** (`source/cpu/coldfire/cfCpu.{h,cpp}`, GPL-3.0, "ColdFire V2 core as in the
+MCF5206e: ISA_A, hardware divide, MAC unit"), fetched with `FetchContent` at commit `fd3777fb63ec` file by file with
+SHA-256 pins (the repository's archive is 160 MB; we need two files).
+* **It runs OS 1.62 unchanged** [emulated]. The OS is plain ISA_A (§3.6.1), which is what the core implements. In the
+  runs checked (boot, sync, uploads of the test and corpus patches, notes): no unimplemented opcode, no error
+  exception (vectors 2-15, counted when the core fetches them: 0), no unmapped access.
+* **V4 differences that mattered: none.** MOVEC to CACR, ACR0-3, RAMBAR0/1 and MBAR goes to the bus, which ignores it
+  (no caches; SRAM and MBAR are where the boot loader puts them). The exception frame (format 4, vector, SR, PC) is the
+  same on V2 and V4. None of Unicorn's four workarounds (§3.6.1) is needed: the core takes interrupts and RTE itself,
+  between instructions, so condition codes cannot get lost.
+* **One patch** (`emu/CMakeLists.txt`, idempotent, fails on a moved anchor): a window of plain RAM (the SDRAM) that the
+  core fetches from, reads and writes directly instead of through the virtual `Bus` calls. Everything else (MBAR, chip
+  selects, exception vectors) still goes through the bus.
+* **Speed:** about 90 M instructions/s on a tight loop and 65-75 M/s on the OS (one M1 performance core; about 10 ns
+  an instruction: the table dispatch through member-function pointers and an indirect call per instruction).
+* **Alternatives, not needed:** Musashi is a 68000-family core (ColdFire has different addressing restrictions, MAC,
+  MOVEC registers; it would need the same glue plus fixes); an own ISA_A interpreter would mainly be faster (a 2-3x
+  faster dispatch is plausible), at the cost of writing and validating some 1,600 lines. Unicorn is not used:
+  QEMU-derived, probably GPL-2-only.
+
+### 3.9.2 Timing model and its confidence
+
+**One master clock: the DSPs' frames.** A frame is one 96 kHz sample, 1536 DSP clocks [C, §3.7.1]. Per frame:
+* each DSP runs 1536 instructions (its clock counts instructions, §3.7.4);
+* the ColdFire runs **1687.5 cycles** (162 MHz) of the core's own timing;
+* the timers and the UARTs see **562.5 bus clocks** (54 MHz), derived from the master time whatever speed the core is
+  given (`Options::cfHz`).
+
+| Quantity | Value | Basis | Confidence |
+|---|---|---|---|
+| Bus clock | **54.000 MHz** | the OS programs UART0 for MIDI with UBG = 54 [C] (0x30038004 calls the UART set-up 0x300583E2 with divider $36); MIDI is 31250 baud = f / (32 × UBG), so f = 54,000,000 exactly. A 5 % different clock would break MIDI | high |
+| UART0 is MIDI | vector $42, level 4, handler 0x3000286C parses status bytes $80-$E0, F1, F2, F3 [C] | [C] | high |
+| Core clock | 162 MHz = 3 × bus | the teardown's "MCF5407 @ 162MHz" (§1.1) and the usual 3:1 core:bus ratio | medium |
+| OS tick (timer 1) | TMR $7F3B (bus clock / 128, restart, interrupt), TRR 50 [C] (0x30038028 → 0x300582F0): 51 × 128 = 6528 bus clocks, **8272 Hz** (8437.5 Hz if the period is TRR rather than TRR + 1 counts) | [C] register values; the TRR + 1 period is from the timer's description (count reset after reaching TRR), not checked on hardware | high (values), medium (± 2 %) |
+| Intent | the OS's delay routine 0x30002094 waits n × 8 ticks for n ms [C]: the designers meant "8 ticks per ms"; 8272 Hz makes its milliseconds 0.97 ms | [C] | high |
+| Timer 0 | free-running counter of the bus clock (TMR $2B), read for short delays [C] | [C] | high |
+| Core speed | the core charges the MCF5206e (V2) cycle tables. A real MCF5407 (V4) runs about 1.4-1.5 Dhrystone MIPS per MHz against about 0.9-1.0 for V2, so at 162 MHz the emulated CPU executes roughly 2/3 of the real one's instructions per second | Freescale's published figures, from memory: **check** | low-medium |
+
+What depends on the core's speed and what does not:
+* **Not:** everything the OS times by its ticks (knob slews of about 130 ticks = 16 ms, the 128-slot scheduler, LED
+  and meter timing, timeouts), MIDI timing, audio. They follow the bus clock.
+* **Does:** how much background work fits between ticks: the OS's main loop polls the DSPs for meters and LEDs as
+  fast as it can (about 50,000-120,000 read-back host commands per emulated second), compiles uploaded patches, and
+  answers USB. Interrupt level 1 (the tick) takes 7 % of the core's instructions at 162 MHz, 13 % at 81 MHz, 24 % at
+  40 MHz [emulated], so the OS keeps up even at a quarter of the speed.
+
+**Measured** [emulated, `g2emurun`]:
+* timer ticks: 8272.0 per emulated second;
+* note-on latency: MIDI 1.7 ms (3 bytes at 31250 baud take 0.96 ms), PlayNote over USB 2-3 ms (the Python emulator:
+  33-108 ms, its OS time ran 40-170 × slow, §3.8.5);
+* after an upload, the output reaches its level within 50 ms (the Python emulator: 0.4 s to 50 %, about 2.5 s to
+  settle: **that ramp was the slow OS time**, as §3.8.5 suspected; `native-engine.md` §3.1's settle time is not the
+  G2's);
+* sync of our client: 74 ms; uploading a performance: 28 ms (162 MHz), 40 / 57 / 83 ms at 120 / 81 / 54 MHz.
+
+§3.8.5 is resolved: the ColdFire and the DSPs now share one time base.
+
+### 3.9.3 The DSPs on the JIT
+
+dsp56300's JIT now runs the G2's DSP code. What it took:
+* **`JitConfig::dynamicFastInterrupts`.** Stage 1 keeps subroutines inside the interrupt vector area (P:$B8, $D6, $F4;
+  called with `jsr` and `bsset`) [C]. Without this option the JIT compiles every block there as a two-word fast
+  interrupt that never advances the PC: the DSP sat on `brset #TFS,x:SAISR,*` at P:$B9 forever. **This was the "JIT never
+  left the TFS poll" of §3.6.4**; the silent DSPs of §3.7.6's `--jit` probably had the same cause. (The library's own
+  debug build asserts on it.)
+* `JitTrampoline::exec(dsp, n)` takes a multiple of 8: n = 1 means 2³² rounds.
+* `trackVolatilePMemory = false` (the OS loads whole routines into P on every upload; tracking them would slow the
+  frame code down for good), `doLoopExitOnPendingInterrupt = true` (a frame interrupt can preempt control-rate loops,
+  as on the chip).
+* The JIT compiles on the thread that runs a DSP, and a block it has just compiled runs nested inside the compiler's
+  call: the stack of the running thread must be big. Machine's DSP threads have 64 MB (address space); in
+  single-thread mode the caller's thread needs 8 MB or more (a 512 KB `std::thread` overflowed during an upload).
+
+**Idle skipping, corrected.** The skip (§3.7.4) moved a DSP's clock to one slot after the *instruction count* of the
+last slot tick. After a long frame program the serial clock is behind and serves its slots late; each late tick then
+also skipped a whole slot, so the clock never caught up and heavy patches lost about a quarter of their frames (link
+underruns, a 1.5 s recording came out 1.15 s long). It now skips to one slot after the clock's own last slot (read
+from `EsxiClock::getLastClock`). The Python bridge (`emu/dspbridge`) keeps the old logic; it did not show the loss
+there, but it is the same code.
+
+### 3.9.4 Scheduling
+
+* **Single thread** (`threads = 0`, deterministic): per quantum (1 frame) the ColdFire runs to the end of the
+  quantum, then the DSPs in chain order (A6, A5, A4, A3). Whenever the ColdFire touches a DSP's host port, that DSP and
+  the ones upstream of it are first run up to the ColdFire's time, so host commands are taken and answered within the
+  emulated microseconds the chip would need. **Poll skipping:** when the ColdFire reads the same status register of
+  one DSP from the same instruction and gets the same value (a wait for a host command to be taken, or for data), the
+  DSPs run ahead until it changes (at most a frame) and the ColdFire's clock moves on by as much: 18-38 % of the
+  ColdFire's time was such loops.
+* **Threads** (`threads = N`): the DSPs run on N threads of their own, each a stretch of the chain, no further than
+  the stretch upstream of it (and the first no further than the ring's prefill past the last); the ColdFire runs at
+  most 2 frames ahead of the slowest DSP thread and the DSPs at most 2 frames ahead of the ColdFire. Host-port
+  accesses use only the thread-safe parts of the library's HDI08, as in the Python emulator. A repeated poll moves the
+  ColdFire's clock on by 128 cycles. Not deterministic (when a host access meets a DSP depends on the threads).
+* **Links:** frame queues as in §3.7.4, non-blocking, with 2 frames of prefill per chain hop and **16 on the ring**
+  (A3 → A6). The prefills add to the latency of an inter-slot bus (one ring turn, §3.7.2): 16 frames for the ring
+  plus 2 per hop, on top of the frames the DSPs hold themselves (the board's own figure is not known; the community
+  measured 24 samples for an inter-slot connection, §1.1). Underruns happen only while the OS reprograms the DSPs
+  (boot, uploads).
+* **USB:** the host side of §3.6.6 in C++ (SETUPs 5 ms after the bus reset, the client 15 ms later, bulk-IN polled
+  only while an announcement waits). The cable goes in once the OS has run 2 s (`Options::usbAfter`): a host that
+  connects while the OS boots loses its first request (the OS initialises the ISP1181 again at the end of its boot)
+  and the client retries only after 10 s. The ISP1181's registers now read back what was written (the OS
+  read-modify-writes the mode register).
+* **MIDI IN** is UART0: bytes reach its receiver FIFO at 31250 baud, with RxRDY interrupts at level 4, vector $42 [C].
+  MIDI OUT (UART0 transmitter) is captured; OS 1.62 sent nothing in these tests.
+
+### 3.9.5 Results [emulated, full machine]
+
+| Test | Result |
+|---|---|
+| 1 kHz reference (`1khz_on.pch2`) | 1000.328 Hz on outputs 1-4, peak 0.008380 (Python: 1000.344 Hz, 0.0084) |
+| Keyboard → OscA → EnvADSR → 2-Out, MIDI note 69 | 440.0 Hz, onset 1.7 ms after the bytes, release at note-off |
+| The user's `Drone.pch2` | sounds; dominant 110.16 Hz in both emulators |
+| `Comp Keys1`, `VintageOrgan3`, `BigDualVCFSynth3` (Clavia bank 2), chords | all play; recordings complete (no lost frames) |
+
+Against the Python reference (`g2blackbox.py`, the same jobs, `g2emucompare.py`; the machines start their
+oscillators and LFOs at different phases, so the comparison is phase-blind):
+
+| Job | Level | Pitch | Onset | Band spectrum difference |
+|---|---|---|---|---|
+| drone | +1.8 dB | 110.16 / 110.16 Hz | - | 4.3 dB rms over 9 bands |
+| kbd_sine (PlayNote 69) | +0.1 dB | 439.99 / 439.99 Hz | 108 ms / 2.7 ms after the request | 2.1 dB |
+| organ (2 notes) | -1.0 / +2.8 dB | same partials | 46 / 3 ms | 3.0-3.6 dB |
+| bigsynth (1 note) | -1.3 / -0.6 dB | 131.4 / 130.5 Hz (note 48, detuned oscillators) | 34 / 3 ms | 2.3-2.4 dB |
+| compkeys (3 notes by PlayNote) | +1.3-1.6 dB | differs | 29 / 3 ms | 30 dB: different notes sound (below) |
+
+**PlayNote is the editor's monophonic on-screen keyboard** (`usb-protocol.md` §13). Three overlapping PlayNotes on
+`Comp Keys1` played a chord but left a note hanging after the three note-offs in the C++ emulator (they released in
+the Python run, where each message took about 100 ms); two overlapping notes, or three in a row, released. Through
+MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0), not as PlayNote.
+
+### 3.9.6 Open issues and risks
+
+* **More than one DSP thread is not proven safe.** With `threads = 2`, before poll skipping was added to the threaded
+  mode, about half the patch uploads crashed: an endless recursion in the dsp56300 JIT (`JitBlockChain::create` runs
+  the block it has just compiled, whose entry was still the "compile me" stub, so it compiled it again, and again),
+  even with 256 MB stacks; never with `threads = 0` or `1`, never in a RelWithDebInfo build. After the change, 0 of 16
+  runs crashed. The cause is not found (the timing of host commands against the DSP code changed; a library race or
+  an emit that fails silently are candidates). `threads = 1` is the safe parallel mode; 2 is experimental.
+* The core counts V2 cycles (§3.9.2): the emulated CPU is probably slower than the real one; nothing seen depends on it
+  beyond background throughput.
+* The DSP clock still counts instructions, not cycles (§3.7.7).
+* Stubs: the I2C ADC (the boot's calibration takes about 1 s against a constant 0x80), the panel (latches read 0),
+  the analogue inputs (silence), the expansion board's DSPs.
+* The flash is erased at power-on unless the caller loads an image (`Machine::flash()`, `g2emurun --flash`); with
+  one, the OS does not format it again; the boot still takes about 1.6 s (the calibration).
+* Not deterministic with threads; deterministic and slower without.
+* macOS hardened runtime: the JIT needs `MAP_JIT` (a host application with the `allow-jit` entitlement); Gearmulator's
+  plugins have the same requirement. **Check which DAWs allow it.**
+
+### 3.9.7 Speed [measured, M1, 4 performance cores, while other programs kept the machine busy (load ~10)]
+
+`g2emurun --kbd PATCH --midi 60/64/67` (a 3-note chord through MIDI) over 3 emulated seconds; "x real time" is
+emulated seconds per wall second; CPU is per emulated second (waits count as CPU: the threads spin, then yield).
+
+| Patch | Threads (DSP) | ColdFire | x real time | CPU s per s | per thread (ColdFire; DSP threads) |
+|---|---|---|---|---|---|
+| 1 kHz test | 0 | 162 MHz | 0.72 | 1.34 | 1.34 |
+| 1 kHz test | 1 | 162 MHz | **1.46** | 1.32 | 0.66; 0.66 |
+| 1 kHz test | 1 | 81 MHz | 1.62 | 1.19 | 0.59; 0.60 |
+| Drone | 1 | 162 MHz | 1.36 | 1.39 | 0.70; 0.70 |
+| Comp Keys1, chord | 0 | 162 MHz | 0.55 | 1.75 | 1.75 |
+| Comp Keys1, chord | 1 | 162 MHz | 0.77 | 2.44 | 1.20; 1.23 |
+| Comp Keys1, chord | 2 | 162 MHz | **1.64** | 1.74 | 0.58; 0.58, 0.58 |
+| Comp Keys1, chord | 2 | 81 MHz | 1.80 | 1.60 | 0.53; 0.54, 0.54 |
+| BigDualVCFSynth3, chord | 1 | 162 MHz | 0.99 | 1.97 | 0.98; 0.99 |
+| BigDualVCFSynth3, chord | 2 | 162 MHz | **1.76** | 1.61 | 0.53; 0.54, 0.54 |
+| VintageOrgan3, chord | 2 | 162 MHz | 1.52 | 1.79 | 0.59; 0.60, 0.60 |
+
+Where the time goes:
+* **ColdFire:** the interpreter at 65-75 M instructions/s; the OS runs 55-65 M instructions per emulated second at
+  162 MHz, all of it busy (no idle loop: the main loop polls the DSPs). So the ColdFire thread alone needs about 0.6
+  of a core at the nominal speed, roughly in proportion to `cfHz`.
+* **DSPs, light patch:** about 0.15 of a core each, mostly the library's per-slot work (8 slots per frame: ESAI, DMA
+  of every slot word; `DmaChannel::execTransfer` alone is 14 %).
+* **DSPs, heavy patch:** the JIT code (about 1,000 instructions per frame on each DSP with a chord) is about 55 % of a
+  saturated DSP thread, the DMA and ESAI most of the rest: four heavy DSPs need about 1.2 cores, hence 2 DSP threads.
+* **Real time:** light and typical patches with two threads (`threads = 1`) at 1.4-1.5 ×; heavy patches with chords
+  need three (`threads = 2`, experimental) at 1.5-1.8 ×, or a slower ColdFire.
+
+### 3.9.8 What remains for a real-time `EmulatedSoundEngine` in the plugin
+
+`plugin/Source/SoundEngine.h` is the interface; `NativeSoundEngine` the existing engine. An `EmulatedSoundEngine` would:
+1. **Firmware:** let the user point at their updater: the `.rsrc`, the `.app`, or `g2os.py`'s output
+   (`Firmware::load`). Still missing: reading the `.dmg` (HFS+/APFS image) and the Windows `.zip`/`.exe` (Wise, §4.7).
+2. **Run it:** `g2emu::Runner` (machine on its own threads, `threads = 1` or 2) from `prepare()`; the audio thread
+   calls `Runner::read()` for 96 kHz frames (lock-free, real-time safe) and resamples to the host's rate (JUCE's
+   `LagrangeInterpolator` or better); `bufferMs` (20 ms in the tests) is the extra latency; boot takes about 2 s of
+   silence.
+3. **Patch:** `setPatch()` → `sendPatch` (or `sendPerformance` with the keyboard on slot A) through a link from
+   `emulatedG2Link()`, ticked off the audio thread; parameter changes as `setParam` (the OS slews them, as the G2 does).
+   The editor's whole synth connection (SynthSync) could also attach to this link instead of a G2.
+4. **MIDI:** the host's MIDI to `Runner::midiIn()` as raw bytes (UART0). Sample-accurate timing would need the MIDI
+   bytes scheduled against the emulated clock (today: at the next 1 ms chunk).
+5. **State:** keep the flash image (`Machine::flash()`) in the plugin state or a user file, so the synth's banks
+   persist; a snapshot of the whole machine (CPU, memories, DSPs) would skip the boot (not done).
+6. **Threads and CPU:** 2-3 threads of an M1's 4 performance cores; a "lighter" setting can lower `cfHz` (less meter
+   and LED polling, slower uploads, same audio).
+7. **Risks:** the JIT entitlement in DAWs (§3.9.6), the multi-DSP-thread crash, CPU on smaller machines.
+
+### 3.9.9 Reproducing
+
+```sh
+cmake -S . -B build -G Ninja -DG2_BUILD_EMU=ON && cmake --build build --target g2emurun g2emutests
+build/tests/g2emutests                               # the [firmware] case needs original/firmware or G2_FIRMWARE
+nice -n 10 build/emu/g2emurun --threads 1 --patch original/firmware/esai-links/test-patches/1khz_on.pch2 --seconds 1
+nice -n 10 build/emu/g2emurun --threads 1 --kbd PATCH.pch2 --midi 60@0.1-0.9:1 --wav out.wav
+nice -n 10 build/emu/g2emurun --realtime 3 --kbd PATCH.pch2 --midi 69@0.5-2.5:1    # Runner + LocalLink at the wall clock
+build/venv/bin/python tools/firmware/g2emucompare.py ref/dac.wav out.wav
+```
+Debugging: `G2EMU_CFPROFILE=S` (ColdFire PC profile after S seconds), `G2EMU_TIMING=1`, `G2EMU_USBLOG=FILE` (the
+protocol traffic), `--trace` (unmapped accesses, exceptions).
+
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source
    is unknown. The 56.620363 MHz oscillator, the PCTL ×4 and the cycle budget need reconciling. Read the board markings
@@ -1146,7 +1398,9 @@ frames per tick at 8.4 kHz). That makes the full machine about 30 × slower, so 
 4. **The DSP kernel:** where it lives (the 1,156-word FE/0x20 fragment?), its per-sample cycle overhead, how
    parameters, morphs, LEDs and meters are exchanged over HDI08.
 5. **ColdFire ISA subset.** Answered in §3.6.1: ISA_A only (no MAC/EMAC, no hardware divide), and QEMU's
-   ColdFire V4e model runs it. MCF5407 vs MCF5307 is still unconfirmed; the CACR branch-cache bits point to V4.
+   ColdFire V4e model runs it; so does Gearmulator's V2 core (§3.9.1). MCF5407 vs MCF5307 is still unconfirmed; the
+   CACR branch-cache bits point to V4. The bus clock is 54 MHz [C, §3.9.2]; the core clock (162 MHz) is not
+   confirmed.
 6. **The 12 OS fragments not found in the Demo:** modules missing from the Demo, or OS 1.62 changes after Demo 1.40?
    Mapping descriptors to module types would answer this and is needed for approach 3 anyway.
 7. **The Windows updater payload** (Wise) is not extracted. The Mac copy is enough, but users on Windows will have the

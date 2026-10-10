@@ -20,6 +20,7 @@ Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a 
 | `assets/clavia/` | Original module layouts and graphics, bundled into the app (Clavia's property, see NOTICE) |
 | `data/` | Module and parameter database (JSON), compiled into the core by `tools/moduledb/gen_cpp.py` |
 | `plugin/` | JUCE target: stand-alone app, VST3, AU |
+| `emu/` | Emulation, built with `-DG2_BUILD_EMU=ON`: `g2emu`, the whole G2 in C++ running the user's own firmware (`re/notes/g2-hardware-and-emulation.md` §3.9), and the DSP experiments |
 | `tests/` | Catch2 tests; `tests/corpus/` holds freely licensed patch files. Set `G2_EXTRA_CORPUS=<dir>` to also test your own patches |
 | `third_party/nord_g2_editor` | Bruno Verhue's editor (GPL-2-or-later), used as a reference |
 

@@ -148,7 +148,8 @@ DAC word = **−0.0085306** × (signal into Out 1 × patch Gain curve × 2-Out P
   editor's VolumeDb text says −7.7 dB.
 * **2-Out Pad:** ×2 (+6 dB), as the editor's OutPad text says.
 * **After an upload, the output level ramps** from 0: about half at 0.45 s, 95 % at 1 s, settled at **~2.5 s**. Settle
-  3 s before measuring.
+  3 s before measuring. (Update: this was the Python emulator's slow OS time. The C++ emulator, whose OS runs on the
+  DSPs' clock, reaches the level within 50 ms: `g2-hardware-and-emulation.md` §3.9.2.)
 * The DAC path passes DC; there is no blocking filter.
 
 ### 3.2 Notes
@@ -156,7 +157,8 @@ DAC word = **−0.0085306** × (signal into Out 1 × patch Gain curve × 2-Out P
   plays nothing.
   * `g2blackbox.py` first sends a performance with slot A focused and keyboard-enabled (`g2p_send_kbd_performance`).
   * After that, notes play slot A.
-* Note-on latency is 33–93 ms and varies (USB plus OS), so comparisons align on the onset.
+* Note-on latency is 33–93 ms and varies (USB plus OS), so comparisons align on the onset. (The C++ emulator: 2-3 ms
+  by PlayNote, 1.7 ms by MIDI; the long latencies were the Python emulator's slow OS time.)
 
 ### 3.3 Emulator faults that matter for timing
 * **Resolved (2026-10-10, g2-hardware-and-emulation.md §3.8):** the 2.21 × came from a bug in the dsp56300
