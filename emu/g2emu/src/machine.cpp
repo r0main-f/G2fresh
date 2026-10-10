@@ -9,7 +9,11 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <functional>
 #include <thread>
+#ifndef _WIN32
+#include <pthread.h>
+#endif
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -74,6 +78,62 @@ struct StubPort {
     }
 };
 
+// A thread with a big stack. The DSPs' JIT compiles on the thread that runs them, and a block it has just compiled
+// runs nested in the compiler's call (JitBlockChain::create), about 20 KB of stack per level: a freshly uploaded G2
+// frame program of many small blocks went deeper than a std::thread's 512 KB on macOS.
+class BigStackThread {
+public:
+    static constexpr std::size_t StackBytes = 64u << 20;  // address space; only the pages touched are used
+
+    BigStackThread() = default;
+    explicit BigStackThread(std::function<void()> fn) : fn_(std::make_unique<std::function<void()>>(std::move(fn)))
+    {
+#ifdef _WIN32
+        thread_ = std::thread([f = fn_.get()] { (*f)(); });
+#else
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setstacksize(&attr, StackBytes);
+        started_ = pthread_create(&thread_, &attr, [](void* f) -> void* {
+            (*static_cast<std::function<void()>*>(f))();
+            return nullptr;
+        }, fn_.get()) == 0;
+        pthread_attr_destroy(&attr);
+        if(!started_) throw std::runtime_error("g2emu: cannot start a DSP thread");
+#endif
+    }
+    BigStackThread(BigStackThread&& o) noexcept : fn_(std::move(o.fn_))
+    {
+#ifdef _WIN32
+        thread_ = std::move(o.thread_);
+#else
+        thread_ = o.thread_;
+        started_ = o.started_;
+        o.started_ = false;
+#endif
+    }
+    BigStackThread& operator=(BigStackThread&&) = delete;
+    ~BigStackThread() { join(); }
+    void join()
+    {
+#ifdef _WIN32
+        if(thread_.joinable()) thread_.join();
+#else
+        if(started_) pthread_join(thread_, nullptr);
+        started_ = false;
+#endif
+    }
+
+private:
+    std::unique_ptr<std::function<void()>> fn_;
+#ifdef _WIN32
+    std::thread thread_;
+#else
+    pthread_t thread_{};
+    bool started_ = false;
+#endif
+};
+
 } // namespace
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -98,8 +158,10 @@ struct Machine::Impl final : coldfire::Bus {
     std::vector<std::int32_t> dac;          // the DACs' words, 4 per frame
     std::mutex dacMutex;
 
-    // threads = 1: the DSPs' thread runs them up to `horizon`, and publishes how far they got in `dspTime`
-    std::thread worker;
+    // threads = N > 0: N DSP threads, each running a stretch of the chain (in chain order) up to `horizon`; each
+    // publishes how far it got in `workerTime`, and `dspTime` is the slowest of them
+    std::vector<BigStackThread> workers;
+    std::array<std::atomic<std::uint64_t>, 4> workerTime{};
     std::atomic<std::uint64_t> horizon{0}, dspTime{0};
     std::atomic<bool> quit{false};
 
@@ -618,7 +680,7 @@ struct Machine::Impl final : coldfire::Bus {
     void run(std::uint32_t frames, std::vector<float>* out)
     {
         const std::uint64_t end = t + std::uint64_t(frames) * Dsp::CyclesPerFrame;
-        if(opt.threads && !worker.joinable()) startWorker();
+        if(opt.threads && workers.empty()) startWorkers();
         while(t < end)
         {
             const std::uint64_t q = std::min<std::uint64_t>(end, t + opt.quantum);
@@ -661,33 +723,54 @@ struct Machine::Impl final : coldfire::Bus {
             if(i > 64) std::this_thread::yield();
     }
 
-    void startWorker()
+    // Each worker runs its DSPs one frame at a time. A worker never runs past the one upstream of it (its DSPs need
+    // that one's frames; the chain links hold chainPrefill frames of slack), and the first one never more than the ring's
+    // prefill past the last one (A6 needs A3's frames from around the ring). The ColdFire's thread moves `horizon`.
+    void startWorkers()
     {
-        dspTime.store(t);
+        const int n = std::clamp(opt.threads, 1, 4);
+        std::vector<std::vector<int>> parts(static_cast<std::size_t>(n));
+        for(std::size_t k = 0; k < chain.size(); ++k) parts[k * std::size_t(n) / chain.size()].push_back(chain[k]);
         horizon.store(t + opt.skew);
-        worker = std::thread([this] {
-            std::uint64_t done = dspTime.load();
-            while(!quit.load(std::memory_order_relaxed))
-            {
-                const auto h = horizon.load(std::memory_order_acquire);
-                if(done >= h)
+        dspTime.store(t);
+        for(int w = 0; w < n; ++w) workerTime[std::size_t(w)].store(t);
+        const std::uint64_t ringSlack = opt.ringPrefill > 2 ? std::uint64_t(opt.ringPrefill - 2) * Dsp::CyclesPerFrame : 0;
+        for(int w = 0; w < n; ++w)
+            workers.emplace_back([this, w, n, ringSlack, mine = parts[std::size_t(w)]] {
+                auto& my = workerTime[std::size_t(w)];
+                std::uint64_t done = my.load();
+                auto limit = [&] {
+                    std::uint64_t l = horizon.load(std::memory_order_acquire);
+                    if(w > 0) l = std::min(l, workerTime[std::size_t(w - 1)].load(std::memory_order_acquire));
+                    else if(n > 1) l = std::min(l, workerTime[std::size_t(n - 1)].load(std::memory_order_acquire) + ringSlack);
+                    return l;
+                };
+                while(!quit.load(std::memory_order_relaxed))
                 {
-                    waitFor([&] { return quit.load(std::memory_order_relaxed) || horizon.load(std::memory_order_acquire) > done; });
-                    continue;
+                    const auto l = limit();
+                    if(done >= l)
+                    {
+                        waitFor([&] { return quit.load(std::memory_order_relaxed) || limit() > done; });
+                        continue;
+                    }
+                    const auto target = std::min(l, done + Dsp::CyclesPerFrame);
+                    for(int k : mine) dsps[std::size_t(k)]->runTo(target);
+                    done = target;
+                    my.store(done, std::memory_order_release);
+                    std::uint64_t slowest = done;
+                    for(int v = 0; v < n; ++v) slowest = std::min(slowest, workerTime[std::size_t(v)].load(std::memory_order_acquire));
+                    // dspTime only grows: a lagging worker may publish an older minimum than another just did
+                    auto cur = dspTime.load(std::memory_order_relaxed);
+                    while(slowest > cur && !dspTime.compare_exchange_weak(cur, slowest)) {}
                 }
-                // one frame at a time, in chain order, so that each DSP finds its upstream's frames
-                const auto target = std::min(h, done + Dsp::CyclesPerFrame);
-                for(int k : chain) dsps[std::size_t(k)]->runTo(target);
-                done = target;
-                dspTime.store(done, std::memory_order_release);
-            }
-        });
+            });
     }
 
     void stopWorker()
     {
         quit = true;
-        if(worker.joinable()) worker.join();
+        for(auto& w : workers) w.join();
+        workers.clear();
     }
 
     Stats stats()

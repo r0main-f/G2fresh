@@ -148,7 +148,6 @@ private:
     std::mutex* sinkMutex_ = nullptr;
     std::uint64_t txFrames_[2] = {0, 0}, rxFrames_[2] = {0, 0};
 
-    std::uint64_t lastTick_ = 0;  // instruction count at the last slot tick
     std::uint64_t skipped_ = 0;
 };
 

@@ -61,3 +61,14 @@ if(Python3_FOUND)
   add_test(NAME reference_decoder_roundtrip
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/pch2/pch2dump.py roundtrip ${G2_CORPUS_FILES})
 endif()
+
+# The real-time G2 emulator (emu/g2emu, built with -DG2_BUILD_EMU=ON). Its [firmware] case boots the user's own OS
+# when it finds it (G2_FIRMWARE, or original/firmware) and is skipped otherwise.
+if(TARGET g2emu)
+  add_executable(g2emutests test_g2emu.cpp)
+  target_link_libraries(g2emutests PRIVATE g2emu g2coldfire dsp56kEmu Catch2::Catch2WithMain)
+  target_include_directories(g2emutests PRIVATE ${PROJECT_SOURCE_DIR}/emu/g2emu/src)
+  target_include_directories(g2emutests SYSTEM PRIVATE ${G2_DSP56300_SOURCE_DIR}/source)
+  target_compile_definitions(g2emutests PRIVATE G2_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+  catch_discover_tests(g2emutests)
+endif()

@@ -11,6 +11,14 @@ using namespace dsp56k;
 
 namespace g2emu {
 
+namespace {
+// The serial clock's time of its last slot, a protected member of the library's EsxiClock (read through a member
+// pointer formed in a derived class, which C++ allows).
+struct ClockAccess : EsxiClock {
+    static std::uint64_t lastClock(const EsxiClock& c) { return (c.*(&ClockAccess::getLastClock))(); }
+};
+} // namespace
+
 Dsp::Dsp(int index, Options options) : index_(index), options_(options)
 {
     auto& clock = periphX_.getEsaiClock();
@@ -20,7 +28,6 @@ Dsp::Dsp(int index, Options options) : index_(index), options_(options)
         esai(i).setReadRxCallback([this, i](std::uint64_t& frame, Audio::RxFrame& f) { readRx(i, f); ++frame; });
         esai(i).setWriteTxCallback([this, i](std::uint64_t& frame, const Audio::TxFrame& f) { writeTx(i, f); ++frame; });
     }
-    clock.setTickCallback([this] { lastTick_ = dsp_.getInstructionCounter(); });
     periphX_.setExecCallback([this] { return onPeripherals(); });
 
     // The OS loads whole routines into P memory whenever it compiles a patch: tracking written P addresses as
@@ -187,8 +194,11 @@ std::uint32_t Dsp::onPeripherals()
     if(std::int32_t(mem_.get(MemArea_X, idle_.counter) << 8) >> 8 > std::int32_t(idle_.limit)) return 64;
     if(dsp_.hasPendingInterrupts() || hdi_.hasPendingHostFlags01() || (hdi_.readStatusRegister() & (1 << HDI08::HSR_HF0)))
         return 64;
+    // The next slot is due one slot period after the last one the clock served. After a long interrupt (the frame
+    // program) the clock is behind and serves its slots one by one as the DSP runs on: nothing is skipped then,
+    // or the clock would never catch up and frames would be lost.
     const std::uint64_t now = dsp_.getInstructionCounter();
-    const std::uint64_t next = lastTick_ + CyclesPerSlot;
+    const std::uint64_t next = ClockAccess::lastClock(periphX_.getEsaiClock()) + CyclesPerSlot;
     if(next > now + 1)
     {
         const auto n = TWord(next - now - 1);

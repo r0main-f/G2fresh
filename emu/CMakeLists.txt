@@ -179,3 +179,4 @@ set_target_properties(g2emu PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # and reports the speed (the firmware-gated check of the whole machine).
 add_executable(g2emurun g2emu/tools/g2emurun.cpp)
 target_link_libraries(g2emurun PRIVATE g2emu g2core)
+set(G2_DSP56300_SOURCE_DIR ${dsp56300_SOURCE_DIR} PARENT_SCOPE)
