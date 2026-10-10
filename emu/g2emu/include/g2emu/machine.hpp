@@ -90,6 +90,9 @@ public:
 
     // ---- MIDI IN (UART0, 31250 baud) and OUT (thread-safe) ----
     void midiIn(std::span<const std::uint8_t> bytes);
+    // The same at a given time: the first byte starts on the line at the start of machine frame `frame` (see frame()),
+    // or at once if that is past. A note-on's three bytes then reach the OS 0.96 ms later, always the same.
+    void midiInAt(std::span<const std::uint8_t> bytes, std::uint64_t frame);
     std::vector<std::uint8_t> takeMidiOut();
 
     // ---- flash (patches and settings the OS stores) ----

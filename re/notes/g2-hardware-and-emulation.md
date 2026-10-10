@@ -1285,6 +1285,11 @@ there, but it is the same code.
   read-modify-writes the mode register).
 * **MIDI IN** is UART0: bytes reach its receiver FIFO at 31250 baud, with RxRDY interrupts at level 4, vector $42 [C].
   MIDI OUT (UART0 transmitter) is captured; OS 1.62 sent nothing in these tests.
+* **Sample-accurate MIDI:** `Machine::midiInAt(bytes, frame)` starts a message on the MIDI line at a given machine
+  frame; `Runner::midiInAt(bytes, offset)` (lock-free, from the audio thread before its `read()`) puts it `offset`
+  frames into the next block plus a fixed `latencyFrames()` (the buffer plus a chunk). Measured in real time
+  (`g2emurun --realtime --timed-midi`, 8 notes at odd times, 20 ms buffer): note-on to sound **23.39 ms ± 0.06 ms**,
+  against 22.8-31.7 ms when the bytes go in at once (`midiIn`).
 
 ### 3.9.5 Results [emulated, full machine]
 
@@ -1400,8 +1405,9 @@ to a G2. The processor swaps the engine under its callback lock; while it exists
 engine (outputs 1/2 = **words 0 and 2** of `Machine::run`'s frames, which are in DAC order 1, 3, 2, 4). Offline
 bounces wait for the machine (up to 2 s per block). The flash is kept in `Emulated G2 flash.bin` in the settings
 folder, written back when it changed. Test: `[firmware]` "the plugin's path" (440 Hz on Out 1 and Out 2, in real
-time). Still open from the list: `.dmg`/Windows firmware, sample-accurate MIDI, a machine snapshot, the JIT in
-hardened hosts; and each plugin instance runs its own G2 (2-3 cores each).
+time). Still open from the list: `.dmg`/Windows firmware, a machine snapshot, the JIT in hardened hosts; and each
+plugin instance runs its own G2 (2-3 cores each). Sample-accurate MIDI is in g2emu since (`Runner::midiInAt`,
+§3.9.4); the engine still uses `midiIn`.
 
 ### 3.9.9 Reproducing
 

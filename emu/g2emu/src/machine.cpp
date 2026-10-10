@@ -133,7 +133,12 @@ struct Machine::Impl final : coldfire::Bus {
     std::deque<std::vector<std::uint8_t>> usbOut;  // from the client
     std::deque<UsbIn> usbIn;               // to the client
     bool plugRequest = false;
-    std::vector<std::uint8_t> midiInQueue, midiOutQueue;
+    std::vector<std::uint8_t> midiOutQueue;
+    struct MidiIn {
+        std::vector<std::uint8_t> bytes;
+        std::uint64_t frame = 0;  // 0: as soon as possible
+    };
+    std::vector<MidiIn> midiInQueue;
 
     // statistics
     Stats st;
@@ -605,7 +610,13 @@ struct Machine::Impl final : coldfire::Bus {
             }
             if(!midiInQueue.empty())
             {
-                sim.midiIn(midiInQueue.data(), midiInQueue.size());
+                for(const auto& m : midiInQueue)
+                {
+                    // frame f starts at master time f * 1536 DSP clocks: in bus clocks via the ColdFire's clock
+                    const auto bus = std::uint64_t(double(m.frame) * Dsp::CyclesPerFrame * cfPerDsp * busPerCf);
+                    if(m.frame) sim.midiInAt(m.bytes.data(), m.bytes.size(), bus);
+                    else sim.midiIn(m.bytes.data(), m.bytes.size());
+                }
                 midiInQueue.clear();
                 nextSimEvent = 0;
             }
@@ -847,7 +858,13 @@ bool Machine::usbTake(UsbIn& in)
 void Machine::midiIn(std::span<const std::uint8_t> bytes)
 {
     std::lock_guard lock(impl_->ioMutex);
-    impl_->midiInQueue.insert(impl_->midiInQueue.end(), bytes.begin(), bytes.end());
+    impl_->midiInQueue.push_back({{bytes.begin(), bytes.end()}, 0});
+}
+
+void Machine::midiInAt(std::span<const std::uint8_t> bytes, std::uint64_t frame)
+{
+    std::lock_guard lock(impl_->ioMutex);
+    impl_->midiInQueue.push_back({{bytes.begin(), bytes.end()}, frame});
 }
 
 std::vector<std::uint8_t> Machine::takeMidiOut()

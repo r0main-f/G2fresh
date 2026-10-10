@@ -9,6 +9,7 @@
 
 #include "g2emu/machine.hpp"
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -54,6 +55,12 @@ public:
 
     // Any thread.
     void midiIn(std::span<const std::uint8_t> bytes) { machine_->midiIn(bytes); }
+    // Sample-accurate MIDI, from the audio thread before its read(): the bytes start on the G2's MIDI IN `offset`
+    // frames (96 kHz) after the first frame the next read() returns, plus latencyFrames(). So the delay from a
+    // block's MIDI event to its sound is the same for every event (plus the OS's own reaction). Real-time safe
+    // (a lock-free queue of 1024 events of up to 16 bytes; longer messages take several).
+    void midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset);
+    std::uint32_t latencyFrames() const;
     Machine& machine() { return *machine_; }
     Stats stats() const;
 
@@ -65,6 +72,15 @@ private:
     std::vector<float> ring_;
     std::size_t capacity_ = 0;  // frames
     std::atomic<std::uint64_t> written_{0}, read_{0};
+    std::atomic<std::int64_t> frameOffset_{0};  // machine frame - ring frame
+    struct MidiEvent {
+        static constexpr std::size_t MaxBytes = 16;
+        std::uint64_t frame = 0;
+        std::uint8_t size = 0;
+        std::array<std::uint8_t, MaxBytes> bytes{};
+    };
+    std::array<MidiEvent, 1024> midiRing_{};
+    std::atomic<std::uint64_t> midiHead_{0}, midiTail_{0};
     std::atomic<std::uint64_t> missing_{0};
     std::atomic<double> speed_{0};
     std::atomic<bool> quit_{false};

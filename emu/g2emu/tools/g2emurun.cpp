@@ -51,6 +51,8 @@ using namespace g2;
 
 namespace {
 
+bool g_timedMidi = false;
+
 struct NoteEvent {
     double at = 0;
     int note = 60;
@@ -233,13 +235,17 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
     while(double(audioFrames - f0) / 96000.0 < seconds)
     {
         const double t = double(audioFrames - f0) / 96000.0;
-        while(ni < notes.size() && notes[ni].at <= t)
+        // the events of this 10 ms block: at once (--midi), or at their frame in the block (--timed-midi)
+        while(ni < notes.size() && notes[ni].at < t + (g_timedMidi ? 0.01 : 0.0) + 1e-9)
         {
             const auto& e = notes[ni++];
             if(e.midi)
             {
                 const std::uint8_t b[3] = {std::uint8_t((e.on ? 0x90 : 0x80) | e.channel), std::uint8_t(e.note), std::uint8_t(e.on ? 100 : 64)};
-                runner.midiIn(b);
+                if(g_timedMidi)
+                    runner.midiInAt(b, std::uint32_t(std::max(0.0, e.at - t) * 96000.0 + 0.5));
+                else
+                    runner.midiIn(b);
             }
             else
                 link.playNote(std::uint8_t(e.note), e.on);
@@ -254,6 +260,21 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
                 double(ch.size()) / 96000.0, (unsigned long long)(st.framesMissing - missing0),
                 100.0 * double(st.framesMissing - missing0) / double(ch.size() ? ch.size() : 1), st.speed);
     std::printf("out 1: peak %.6f rms %.6f freq %.3f Hz, above 10%% of the peak %.4f-%.4f s\n", a.peak, a.rms, a.freq, a.onset, a.end);
+    // each note-on's onset: the first sample above 10 % of the peak after the event (the notes must be apart)
+    double lo = 1e9, hi = -1e9, sum = 0;
+    int count = 0;
+    for(const auto& e : notes)
+    {
+        if(!e.on) continue;
+        for(auto i = std::size_t(e.at * 96000.0); i < ch.size(); ++i)
+            if(std::fabs(ch[i]) > 0.1 * a.peak)
+            {
+                const double d = (double(i) / 96000.0 - e.at) * 1000.0;
+                lo = std::min(lo, d); hi = std::max(hi, d); sum += d; ++count;
+                break;
+            }
+    }
+    if(count) std::printf("note-on to sound: %.2f ms mean, %.2f-%.2f ms (%d notes)\n", sum / count, lo, hi, count);
     if(!wav.empty())
     {
         std::vector<float> w(all.size());
@@ -299,6 +320,7 @@ int main(int argc, char** argv)
         else if(a == "--wav") wav = next();
         else if(a == "--flash") flashPath = next();
         else if(a == "--realtime") realtime = std::stod(next());
+        else if(a == "--timed-midi") g_timedMidi = true;
         else if(a == "--json") json = next();
         else if(a == "--quantum") opt.quantum = std::uint32_t(std::stoul(next()));
         else if(a == "--ring-prefill") opt.ringPrefill = std::uint32_t(std::stoul(next()));
