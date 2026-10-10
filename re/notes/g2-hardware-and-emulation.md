@@ -1386,6 +1386,18 @@ Where the time goes:
    and LED polling, slower uploads, same audio).
 7. **Risks:** the JIT entitlement in DAWs (§3.9.6), the multi-DSP-thread crash, CPU on smaller machines.
 
+**Done (2026-10-10), as built:** `plugin/Source/EmulatedSoundEngine` (with `-DG2_BUILD_EMU=ON`). The editor's
+whole synth connection attaches to it (point 3's second option): *Synth > Connect to Emulated G2* starts a `Runner`
+from the updater chosen once (setting `emulatorFirmware`) and gives SynthSync an `emulatedG2Link()` (`Kind::Emulated`);
+once synced, the document goes out with `SynthSync::sendPatchAlone()` (a performance from `Performance::playing()`:
+slot A alone, on the keyboard; after a fresh boot slot A does not play from MIDI) and from then on every edit goes as
+to a G2. The processor swaps the engine under its callback lock; while it exists it plays instead of the native
+engine (outputs 1/2 = **words 0 and 2** of `Machine::run`'s frames, which are in DAC order 1, 3, 2, 4). Offline
+bounces wait for the machine (up to 2 s per block). The flash is kept in `Emulated G2 flash.bin` in the settings
+folder, written back when it changed. Test: `[firmware]` "the plugin's path" (440 Hz on Out 1 and Out 2, in real
+time). Still open from the list: `.dmg`/Windows firmware, sample-accurate MIDI, a machine snapshot, the JIT in
+hardened hosts; and each plugin instance runs its own G2 (2-3 cores each).
+
 ### 3.9.9 Reproducing
 
 ```sh
