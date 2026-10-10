@@ -10,6 +10,7 @@
 #include "g2/uprate.hpp"
 
 #include <cmath>
+#include <numbers>
 #include <complex>
 #include <map>
 #include <string>
@@ -303,8 +304,8 @@ TEST_CASE("Polyphony: each note gets its own voice; a full patch steals the olde
     auto level = [](const std::vector<float>& x, double f) { // Goertzel, normalised
         double re = 0, im = 0;
         for (std::size_t k = 0; k < x.size(); ++k) {
-            re += x[k] * std::cos(2 * M_PI * f * double(k) / 96000.0);
-            im += x[k] * std::sin(2 * M_PI * f * double(k) / 96000.0);
+            re += x[k] * std::cos(2 * std::numbers::pi * f * double(k) / 96000.0);
+            im += x[k] * std::sin(2 * std::numbers::pi * f * double(k) / 96000.0);
         }
         return std::hypot(re, im) / double(x.size());
     };
