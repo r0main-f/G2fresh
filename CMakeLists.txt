@@ -61,7 +61,8 @@ if(G2_BUILD_PLUGIN)
     ${PROJECT_SOURCE_DIR}/ui/MainView.cpp
     ${PROJECT_SOURCE_DIR}/ui/PatchSettingsBar.cpp
     ${PROJECT_SOURCE_DIR}/ui/Dialogs.cpp
-    ${PROJECT_SOURCE_DIR}/ui/MutatorWindow.cpp)
+    ${PROJECT_SOURCE_DIR}/ui/MutatorWindow.cpp
+    ${PROJECT_SOURCE_DIR}/ui/LiveView.cpp)
 
   add_subdirectory(plugin)
   add_subdirectory(tools/render)

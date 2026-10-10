@@ -19,7 +19,7 @@ enum MenuId {
     kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
-    kAudioSettings, kRemoveBendPoints,
+    kAudioSettings, kRemoveBendPoints, kLiveMode,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -170,6 +170,20 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     mutatorButton_.onClick = [this] { showMutator(); };
     addAndMakeVisible(randomizeButton_);
     addAndMakeVisible(mutatorButton_);
+    // Edit / Live: the patch, or the emulated G2 as an instrument
+    editButton_.setTooltip("Edit the patch: modules and cables (Cmd L switches)");
+    liveButton_.setTooltip("Play the Emulated G2: its front panel and a keyboard (Cmd L switches)");
+    for (auto* b : {&editButton_, &liveButton_}) {
+        b->setClickingTogglesState(false);
+        b->setRadioGroupId(4711);
+        addAndMakeVisible(b);
+    }
+    editButton_.setConnectedEdges(juce::Button::ConnectedOnRight);
+    liveButton_.setConnectedEdges(juce::Button::ConnectedOnLeft);
+    editButton_.setToggleState(true, juce::dontSendNotification);
+    editButton_.onClick = [this] { setLiveMode(false); };
+    liveButton_.onClick = [this] { setLiveMode(true); };
+    addChildComponent(live_);
     vaPort_.setScrollBarsShown(true, true);
     fxPort_.setScrollBarsShown(true, true);
     addAndMakeVisible(vaPane_);
@@ -279,6 +293,19 @@ void MainView::startEmulator(bool chooseFirmware)
                           });
 }
 
+void MainView::setLiveMode(bool live)
+{
+    liveMode_ = live;
+    (live ? liveButton_ : editButton_).setToggleState(true, juce::dontSendNotification);
+    for (juce::Component* c : std::initializer_list<juce::Component*>{&settings_, &browser_, &vaPane_, &divider_, &fxPane_})
+        c->setVisible(!live);
+    live_.setVisible(live);
+    resized();
+    if (live)
+        live_.focusKeyboard();
+    menuItemsChanged();
+}
+
 juce::PopupMenu MainView::synthMenu()
 {
     juce::PopupMenu m;
@@ -383,6 +410,8 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
         m.addItem(item(kPatchNotes, "Patch Notes..."));
     } else if (index == 2) {
+        m.addItem(item(kLiveMode, "Live (Emulated G2 Panel and Keyboard)", kCmd + "L", true, liveMode_));
+        m.addSeparator();
         m.addItem(item(kZoomIn, "Zoom In", kCmd + "+", zoom_ < kMaxZoom));
         m.addItem(item(kZoomOut, "Zoom Out", kCmd + "-", zoom_ > kMinZoom));
         m.addItem(item(kZoomReset, "Actual Size", kCmd + "0"));
@@ -537,6 +566,7 @@ void MainView::menuItemSelected(int id, int)
             a->deleteSelected();
         break;
     case kRename: name_.showEditor(); break;
+    case kLiveMode: setLiveMode(!liveMode_); break;
     case kZoomIn: setZoom(zoom_ * 1.25f); break;
     case kZoomOut: setZoom(zoom_ / 1.25f); break;
     case kZoomReset: setZoom(1.0f); break;
@@ -775,6 +805,8 @@ void MainView::resized()
         slotPrefix_.setBounds(bar.removeFromLeft(textWidth(slotPrefix_)));
     name_.setBounds(bar.removeFromLeft(std::max(150, textWidth(name_))));
     edited_.setBounds(bar.removeFromLeft(70));
+    editButton_.setBounds(bar.removeFromLeft(48));
+    liveButton_.setBounds(bar.removeFromLeft(48));
 
     zoomIn_.setBounds(bar.removeFromRight(28));
     zoomReset_.setBounds(bar.removeFromRight(54));
@@ -793,8 +825,6 @@ void MainView::resized()
         variations_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
     variationLabel_.setBounds(bar.removeFromRight(textWidth(variationLabel_)));
 
-    settings_.setBounds(r.removeFromTop(settings_.preferredHeight(r.getWidth())));
-    browser_.setBounds(r.removeFromTop(62));
     {
         auto bottom = r.removeFromBottom(24);
         load_.setBounds(bottom.removeFromRight(std::min(560, bottom.getWidth() / 2)));
@@ -802,6 +832,12 @@ void MainView::resized()
             synthStatus_.setBounds(bottom.removeFromRight(std::min(300, bottom.getWidth() / 2)));
         status_.setBounds(bottom);
     }
+    if (liveMode_) {
+        live_.setBounds(r);
+        return;
+    }
+    settings_.setBounds(r.removeFromTop(settings_.preferredHeight(r.getWidth())));
+    browser_.setBounds(r.removeFromTop(62));
     juce::Component* parts[] = {&vaPane_, &divider_, &fxPane_};
     layout_.layOutComponents(parts, 3, r.getX(), r.getY(), r.getWidth(), r.getHeight(), true, true);
     for (auto [port, area] : {std::pair{&vaPort_, &va_}, std::pair{&fxPort_, &fx_}})
@@ -840,6 +876,10 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     if (key == juce::KeyPress('=', cmd, 0) || key == juce::KeyPress('+', cmd, 0)
         || key == juce::KeyPress('=', cmd | juce::ModifierKeys::shiftModifier, 0))
         return setZoom(zoom_ * 1.25f), true;
+    if (key == juce::KeyPress('l', cmd, 0)) {
+        setLiveMode(!liveMode_);
+        return true;
+    }
     if (key == juce::KeyPress('-', cmd, 0))
         return setZoom(zoom_ / 1.25f), true;
     if (key == juce::KeyPress('0', cmd, 0))

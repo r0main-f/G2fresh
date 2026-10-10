@@ -7,6 +7,7 @@
 
 #include "AreaView.h"
 #include "EmulatorHost.h"
+#include "LiveView.h"
 #include "MidiOutputTarget.h"
 #include "SynthSync.h"
 #include "ModuleBrowser.h"
@@ -47,6 +48,7 @@ public:
     void setEmulator(EmulatorHost* emulator)
     {
         emulator_ = emulator;
+        live_.setHost(emulator);
         updateSynthStatus();
         menuItemsChanged();
     }
@@ -125,6 +127,11 @@ private:
     void updateSynthStatus();
     // Connects to the emulated G2, from the G2 OS chosen before (or asks where it is).
     void startEmulator(bool chooseFirmware);
+    // Edit (the patch's modules and cables) or Live (the emulated G2's panel and keyboard).
+    void setLiveMode(bool live);
+    bool liveMode_ = false;
+    juce::TextButton editButton_{"Edit"}, liveButton_{"Live"};
+    LiveView live_{nullptr, [this] { startEmulator(false); }};
     void updateLoad();
     juce::PopupMenu synthMenu();
     void showMutator();

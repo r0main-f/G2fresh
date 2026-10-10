@@ -7,6 +7,7 @@
 //
 // Set G2_LOOK=classic to draw with the original bitmaps instead of the modern look,
 // and G2_ZOOM=<factor> to render the editor window zoomed.
+#include "LiveView.h"
 #include "MainView.h"
 #include "MutatorWindow.h"
 #include "ModulePainter.h"
@@ -147,6 +148,45 @@ int renderUi(const juce::File& in, const juce::File& out)
     return 0;
 }
 
+// The Live view with a made-up panel state (the G2 OS draws the real one), to review the drawing.
+int renderLive(const juce::File& out, bool live)
+{
+    struct DemoHost : g2ui::EmulatorHost {
+        bool on = true;
+        bool emulatorAvailable() const override { return true; }
+        bool emulatorRunning() const override { return on; }
+        g2ui::PanelSnapshot panel() const override
+        {
+            g2ui::PanelSnapshot s;
+            s.live = on;
+            if (!on)
+                return s;
+            s.generation = 1;
+            s.displays[0] = {16, 2, {"A:Drone      Pa", "Bank 1  Patch 3 "}};
+            const char* const text[4][2] = {{"OscA1-----------", "Coarse   Fine   "}, {"FltLP1----------", "Freq     Res    "},
+                                            {"EnvADSR1--------", "Attack   Decay  "}, {"Mix2-1A1--------", "Lev1     Lev2   "}};
+            for (int i = 0; i < 4; ++i)
+                s.displays[static_cast<std::size_t>(i + 1)] = {16, 2, {text[i][0], text[i][1]}};
+            using L = g2ui::PanelLed;
+            for (auto l : {L::Patch, L::SlotA, L::FocusA, L::Octave3, L::Var1, L::PageA, L::Column1, L::Midi, L::ModWheel})
+                s.leds[static_cast<std::size_t>(l)] = 1.0f;
+            for (int k = 0; k < g2ui::kPanelKnobs; ++k) {
+                s.rings[static_cast<std::size_t>(k)].assign(25, 0.0f);
+                for (int i = 0; i <= 3 + k * 2 && i < 25; ++i)
+                    s.rings[static_cast<std::size_t>(k)][static_cast<std::size_t>(i)] = 1.0f;
+            }
+            return s;
+        }
+    } host;
+    host.on = live;
+    g2ui::LiveView view(&host, {});
+    view.setSize(1400, 700);
+    view.setHost(&host); // takes the snapshot
+    writePng(view.createComponentSnapshot(view.getLocalBounds(), true, 1.0f), out);
+    std::cout << "rendered the Live view\n";
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -166,6 +206,8 @@ int main(int argc, char* argv[])
         if (args.size() == 3 && args[0] == "ui")
             return renderUi(juce::File::getCurrentWorkingDirectory().getChildFile(args[1]),
                             juce::File::getCurrentWorkingDirectory().getChildFile(args[2]));
+        if (args.size() >= 2 && args[0] == "live")
+            return renderLive(juce::File::getCurrentWorkingDirectory().getChildFile(args[1]), !args.contains("--off"));
         if (args.size() == 3 && args[0] == "patch")
             return renderPatch(juce::File::getCurrentWorkingDirectory().getChildFile(args[1]),
                                juce::File::getCurrentWorkingDirectory().getChildFile(args[2]));
@@ -173,6 +215,6 @@ int main(int argc, char* argv[])
         std::cerr << "error: " << e.what() << "\n";
         return 1;
     }
-    std::cerr << "usage: g2render modules <out.png> [typeId...] | g2render patch <in.pch2> <out.png> | g2render ui <in.pch2> <out.png>\n";
+    std::cerr << "usage: g2render modules <out.png> [typeId...] | g2render patch <in.pch2> <out.png> | g2render ui <in.pch2> <out.png> | g2render live <out.png> [--off]\n";
     return 2;
 }
