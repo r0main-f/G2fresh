@@ -33,15 +33,13 @@ Builds for macOS (universal), Windows and Linux are attached to each [release](h
 
 ## Playing without a G2
 
-G2fresh can make the G2's sound itself, in the stand-alone app and in the plugin:
+G2fresh can make the G2's sound itself, in the stand-alone app and in the plugin, with the **Emulated G2 (experimental)**: a whole G2 in software (its processor, its four DSPs, the USB link) running Clavia's own G2 OS 1.62, which therefore plays every module and patch. G2fresh contains no Clavia code: download the free **Nord Modular G2 OS v1.62 update for the Mac** from Nord's website ([nordkeyboards.com](https://www.nordkeyboards.com), in the Nord Modular G2 downloads) and keep the `.dmg`; G2fresh reads the Mac download on every system. Then choose **Synth > Connect to Emulated G2**: the first time, G2fresh asks where the `.dmg` (or the updater app in it) is. The synth boots in about 2 seconds; your patch is then sent to it and plays from MIDI (the plugin's track, or a MIDI input in the app's Options), and every edit, variation, knob and memory bank works as with a G2. Its memory is kept in `Emulated G2 flash.bin` next to G2fresh's settings.
 
-- **Emulated G2 (experimental):** a whole G2 in software (its processor, its four DSPs, the USB link) running Clavia's own G2 OS 1.62, which therefore plays every module and patch. G2fresh contains no Clavia code: download the free **Nord Modular G2 OS v1.62 update for the Mac** from Nord's website ([nordkeyboards.com](https://www.nordkeyboards.com), in the Nord Modular G2 downloads) and keep the `.dmg`; G2fresh reads the Mac download on every system. Then choose **Synth > Connect to Emulated G2**: the first time, G2fresh asks where the `.dmg` (or the updater app in it) is. The synth boots in about 2 seconds; your patch is then sent to it and plays from MIDI (the plugin's track, or a MIDI input in the app's Options), and every edit, variation, knob and memory bank works as with a G2. Its memory is kept in `Emulated G2 flash.bin` next to G2fresh's settings.
-  - It needs a fast computer: one emulated G2 uses about 1.5 CPU cores of an Apple M1, and each plugin instance runs its own.
-  - The latency from a MIDI note to its sound is about 23 ms.
-  - The front panel, the audio inputs and the expansion ports are not emulated, and the pedal inputs read half-way.
-  - In a DAW on macOS, the emulator generates code at run time; a host that forbids it cannot run it (not seen so far).
-  - G2fresh is not affiliated with Clavia. The G2 OS is Clavia DMI AB's copyright: download it yourself from Nord's website and do not share the file; G2fresh never includes or distributes it.
-- **Built-in sound:** a native engine (**Synth > Built-in Sound**) for the few modules it knows (OscA, FltLP, EnvADSR, the mixers, the outputs and the keyboard). It is on when nothing else plays the patch.
+- It needs a fast computer: one emulated G2 uses about 1.5 CPU cores of an Apple M1, and each plugin instance runs its own.
+- The latency from a MIDI note to its sound is about 23 ms.
+- The front panel, the audio inputs and the expansion ports are not emulated, and the pedal inputs read half-way.
+- In a DAW on macOS, the emulator generates code at run time; a host that forbids it cannot run it (not seen so far).
+- G2fresh is not affiliated with Clavia. The G2 OS is Clavia DMI AB's copyright: download it yourself from Nord's website and do not share the file; G2fresh never includes or distributes it.
 
 ## Connecting a G2
 

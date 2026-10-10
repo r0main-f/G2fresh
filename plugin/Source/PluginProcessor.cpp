@@ -22,7 +22,6 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
     state.setProperty("midiOut", midiOut_.deviceIdentifier(), nullptr);
     state.setProperty("midiOutName", midiOut_.deviceName(), nullptr);
     state.setProperty("midiChannel", midiOut_.channel(), nullptr);
-    state.setProperty("builtinSound", builtinOn_.load(), nullptr);
     juce::MemoryOutputStream out;
     state.writeToStream(out);
     const auto* p = static_cast<const std::uint8_t*>(out.getData());
@@ -37,7 +36,6 @@ G2EditorProcessor::G2EditorProcessor()
     automation_ = std::make_unique<AutomationBank>(*this, document_);
     midiOut_.onChange = [this] { refreshState(); };
     synth_.addChangeListener(this);
-    engine_->setPatch(document_.patch(), document_.variation());
 }
 
 G2EditorProcessor::~G2EditorProcessor()
@@ -81,10 +79,17 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
 }
 #endif
 
+#if G2FRESH_EMULATOR
+void G2EditorProcessor::emulatorMidi(std::span<const std::uint8_t> bytes)
+{
+    // The machine's MIDI queue is thread-safe; emulated_ changes only on this thread.
+    if (emulated_ != nullptr)
+        static_cast<EmulatedSoundEngine&>(*emulated_).machine().midiIn(bytes);
+}
+#endif
+
 void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
-    // A patch live on a G2 is heard from the G2: the built-in sound stops.
-    synthPlays_ = synth_.ready() && synth_.bound();
     if (source == &synth_) {
         using Kind = g2ui::SynthSync::Kind;
         if (emulated_ != nullptr && synth_.kind() != Kind::Emulated)
@@ -99,13 +104,6 @@ void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
         }
         return;
     }
-    engine_->setPatch(document_.patch(), document_.variation());
-    refreshState();
-}
-
-void G2EditorProcessor::setBuiltinSoundEnabled(bool on)
-{
-    builtinOn_ = on;
     refreshState();
 }
 
@@ -127,7 +125,6 @@ void G2EditorProcessor::refreshState()
 void G2EditorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     midiOut_.prepare(sampleRate);
-    engine_->prepare(sampleRate, samplesPerBlock);
     const juce::ScopedLock lock(getCallbackLock());
     sampleRate_ = sampleRate;
     blockSize_ = samplesPerBlock;
@@ -153,10 +150,7 @@ void G2EditorProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         return;
     }
 #endif
-    if (builtinOn_ && !synthPlays_)
-        engine_->render(buffer, midi); // the patch played here
-    else
-        buffer.clear();
+    buffer.clear();
     midi.clear();
 }
 
@@ -204,7 +198,6 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         document_.setName(state["name"].toString());
         document_.applyLayoutJson(state["layout"].toString());
         midiOut_.restore(state["midiOut"].toString(), state["midiOutName"].toString(), state["midiChannel"]);
-        builtinOn_ = static_cast<bool>(state.getProperty("builtinSound", true));
         document_.markSaved();
     } catch (const std::exception& e) {
         DBG("G2fresh: could not restore the patch from the host: " << e.what());

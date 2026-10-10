@@ -1,11 +1,11 @@
 // The SoundEngine of the emulated G2 (emu/g2emu): the user's own G2 OS on an
 // emulated ColdFire and four emulated DSPs, running in real time on threads of
-// its own (g2emu::Runner). It plays any patch the OS can compile. Patches do
-// not come through setPatch(): the editor sends them over the emulated USB
-// cable (SynthSync::connectEmulated with a link on machine()), as to a G2.
+// its own (g2emu::Runner). It plays any patch the OS can compile. The editor
+// sends patches over the emulated USB cable (SynthSync::connectEmulated with a
+// link on machine()), as to a G2.
 //
 // Outputs 1/2 of the G2 at 96 kHz, resampled to the host's rate, in signal
-// units (as the native engine). The track's MIDI goes to the G2's MIDI IN,
+// units (a signal of 1.0 into an Out module is 1.0). The track's MIDI goes to the G2's MIDI IN,
 // sample-accurate (a fixed latency, Runner::latencyFrames). The flash (the
 // synth's banks) is kept in a file between sessions.
 //
@@ -37,7 +37,6 @@ public:
     void setOffline(bool offline) { offline_ = offline; }
 
     void prepare(double sampleRate, int maxBlock) override;
-    void setPatch(const g2::Patch&, int) override {} // over the USB link
     void render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi) override;
     juce::String status() const override;
 

@@ -10,7 +10,7 @@ juce_add_plugin(G2Editor
   PLUGIN_MANUFACTURER_CODE G2fr
   PLUGIN_CODE G2ed
   FORMATS ${G2_PLUGIN_FORMATS}
-  # An instrument so hosts route a MIDI track to it; it outputs silence.
+  # An instrument so hosts route a MIDI track to it; it plays the emulated G2.
   IS_SYNTH TRUE
   NEEDS_MIDI_INPUT TRUE
   NEEDS_MIDI_OUTPUT FALSE
@@ -24,7 +24,6 @@ target_sources(G2Editor PRIVATE
   Source/PluginProcessor.cpp
   Source/AutomationBank.cpp
   Source/MidiForwarder.cpp
-  Source/NativeSoundEngine.cpp
   Source/PluginEditor.cpp
   Source/StandaloneApp.cpp
   ${G2_UI_SOURCES})
@@ -39,7 +38,6 @@ target_compile_definitions(G2Editor PUBLIC
 target_link_libraries(G2Editor
   PRIVATE
     g2bridgelib # with g2proto and g2core
-    g2engine
     G2SkinData
     juce::juce_audio_utils
   PUBLIC

@@ -25,7 +25,7 @@ enum MenuId {
     kCablesBase = 300,        // + cable colour
     kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
     kMidiChannelBase = 600,   // + channel (0: as played)
-    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog, kBuiltinSound,
+    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
     kSynthEmulated = 730, kEmulatorFirmware,
@@ -236,9 +236,6 @@ void MainView::updateSynthStatus()
     if (synth_ == nullptr)
         return;
     juce::String text = synth_->statusText();
-    // Not playing on a G2: say what G2fresh itself plays.
-    if (!(synth_->ready() && synth_->bound()) && builtin_ != nullptr && builtin_->builtinSoundEnabled())
-        text = builtin_->builtinSoundStatus() + (synth_->kind() == SynthSync::Kind::None ? juce::String() : "  |  " + text);
     if (synth_->boundSlot() >= 0)
         text << "  |  live: slot " << juce::String::charToString(static_cast<juce::juce_wchar>('A' + synth_->boundSlot()));
     else if (synth_->performanceBound())
@@ -251,10 +248,10 @@ void MainView::updateSynthStatus()
 
 void MainView::startEmulator(bool chooseFirmware)
 {
-    if (builtin_ == nullptr || !builtin_->emulatorAvailable())
+    if (emulator_ == nullptr || !emulator_->emulatorAvailable())
         return;
     auto start = [this](const juce::File& firmware) {
-        const auto error = builtin_->startEmulator(firmware);
+        const auto error = emulator_->startEmulator(firmware);
         if (error.isNotEmpty()) {
             setStatus("Emulated G2: " + error);
             return;
@@ -288,15 +285,10 @@ juce::PopupMenu MainView::synthMenu()
     if (synth_ == nullptr)
         return m;
     using Kind = SynthSync::Kind;
-    if (builtin_ != nullptr) {
-        m.addItem(item(kBuiltinSound, "Built-in Sound (play the patch in G2fresh)", {}, true,
-                       builtin_->builtinSoundEnabled()));
-        m.addSeparator();
-    }
     m.addItem(item(kSynthG2, "Connect to G2 (USB)", {}, synth_->kind() != Kind::G2, synth_->kind() == Kind::G2));
     m.addItem(item(kSynthVirtual, "Connect to Virtual G2 (no hardware)", {}, synth_->kind() != Kind::Virtual,
                    synth_->kind() == Kind::Virtual));
-    if (builtin_ != nullptr && builtin_->emulatorAvailable()) {
+    if (emulator_ != nullptr && emulator_->emulatorAvailable()) {
         m.addItem(item(kSynthEmulated, "Connect to Emulated G2 (your G2 OS, plays in G2fresh)", {},
                        synth_->kind() != Kind::Emulated, synth_->kind() == Kind::Emulated));
         m.addItem(item(kEmulatorFirmware, "Choose the G2 OS for the Emulated G2..."));
@@ -449,10 +441,6 @@ void MainView::menuItemSelected(int id, int)
             confirmDiscard([this] { synth_->getPerformance(); });
         else if (id == kUnbind)
             synth_->unbind();
-        else if (id == kBuiltinSound && builtin_ != nullptr) {
-            builtin_->setBuiltinSoundEnabled(!builtin_->builtinSoundEnabled());
-            updateSynthStatus();
-        }
         else if (id == kShowUsbLog) {
             // Written by g2bridge while it talks to a real G2.
             const juce::File log{juce::String(g2::proto::defaultUsbLogPath())};

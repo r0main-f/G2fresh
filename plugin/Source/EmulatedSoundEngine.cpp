@@ -100,7 +100,7 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         frames_.resize(more * 4); // within the capacity reserved in prepare() for normal blocks
         runner_->read(frames_.data(), more); // silence for what is not there yet (booting, too slow)
         // Words: Out 1, Out 3, Out 2, Out 4 (Machine::run). With the volume knob all the way up, a signal of 1.0 into
-        // an Out module gives a word of about -0.125: scaled back to signal units, as the native engine outputs.
+        // an Out module gives a word of about -0.125: scaled back to signal units.
         constexpr float toSignal = -8.0f;
         for (std::size_t i = 0; i < more; ++i) {
             render96_[0].push_back(toSignal * frames_[4 * i]);
