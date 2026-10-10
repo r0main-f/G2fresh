@@ -120,6 +120,7 @@ public:
     std::uint32_t read(std::uint32_t off, int size);
     void write(std::uint32_t off, int size, std::uint32_t value);
     bool irq() const { return (intreg_ & inten_) != 0; }
+    bool softConnect() const { return mode_ & 1; }
 
     // host side
     void busReset() { intreg_ |= 1; }
@@ -152,6 +153,8 @@ private:
     std::deque<std::pair<int, std::vector<std::uint8_t>>> inPackets_;
     std::array<std::deque<std::vector<std::uint8_t>>, 16> held_;
     bool attached_ = false;
+    std::uint8_t mode_ = 0, address_ = 0;
+    std::uint8_t scratch_[2] = {0, 0}, hwConfig_[2] = {0, 0};
 };
 
 } // namespace g2emu

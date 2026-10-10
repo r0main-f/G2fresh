@@ -2,7 +2,7 @@
 //
 //   g2emurun [--fw PATH] [--patch FILE | --kbd FILE] [--to B:FILE ...] [--settle S] [--seconds S]
 //            [--note N@ON-OFF ...] [--midi N@ON-OFF[:CH] ...] [--wav OUT.wav] [--json OUT.json]
-//            [--boot S] [--quantum N] [--threads 0|1] [--skew N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
+//            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0|1] [--skew N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
 //
 // Boots the user's own firmware (--fw: the updater's .rsrc, the updater app, or G2fresh's original/firmware),
 // plugs in our protocol client (proto::Client over the emulated USB chip) after --boot emulated seconds, waits for
@@ -16,6 +16,8 @@
 #include "g2/proto/logging_transport.hpp"
 #include "g2emu/firmware.hpp"
 #include "g2emu/machine.hpp"
+#include "g2emu/runner.hpp"
+#include "g2/proto/link.hpp"
 #include "g2emu/transport.hpp"
 
 #include <algorithm>
@@ -26,6 +28,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <memory>
@@ -50,6 +54,13 @@ struct NoteEvent {
     bool midi = false;
     int channel = 0;
 };
+
+double threadCpuSeconds()
+{
+    timespec ts{};
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    return double(ts.tv_sec) + 1e-9 * double(ts.tv_nsec);
+}
 
 double cpuSeconds()
 {
@@ -129,19 +140,113 @@ void parseNotes(const std::string& s, bool midi, std::vector<NoteEvent>& ev)
 }
 
 struct Listener : proto::Client::Listener {
+    int leds = 0;
+    void ledsChanged(int) override { ++leds; }
     void statusChanged(proto::Status s) override { std::fprintf(stderr, "proto: status %s\n", proto::statusText(s)); }
     void synced() override { std::fprintf(stderr, "proto: synced\n"); }
     void error(std::uint8_t code) override { std::fprintf(stderr, "proto: synth exception %02x\n", code); }
 };
 
+// --realtime S: the Runner as a sound engine would use it. The machine runs on its own threads; this thread plays
+// the audio callback (10 ms blocks at the wall clock) and the editor (a LocalLink on the emulated USB, ticked every
+// millisecond, with real timeouts). Boot and sync first, upload, then S seconds of audio with the notes.
+int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const std::string& patchPath, bool keyboard,
+                std::vector<NoteEvent> notes, double seconds, const std::string& wav)
+{
+    using Clock = std::chrono::steady_clock;
+    g2emu::Runner::Options ro;
+    ro.machine = opt;
+    if(!ro.machine.threads) ro.machine.threads = 1;
+    g2emu::Runner runner(fw, ro);
+    proto::LocalLink link(std::make_unique<g2emu::MachineTransport>(runner.machine()));
+    Listener listener;
+    link.setListener(&listener);
+    std::vector<float> block(960 * 4), all;
+    auto next = Clock::now();
+    const auto t0 = next;
+    std::uint64_t audioFrames = 0;
+    auto audio = [&](bool keep) {
+        // one 10 ms callback, then the editor's ticks until the next one
+        runner.read(block.data(), 960);
+        audioFrames += 960;
+        if(keep) all.insert(all.end(), block.begin(), block.end());
+        for(int k = 0; k < 10; ++k)
+        {
+            link.tick();
+            next += std::chrono::milliseconds(1);
+            std::this_thread::sleep_until(next);
+        }
+    };
+    runner.machine().plugUsb();
+    while(!link.synced() && Clock::now() - t0 < std::chrono::seconds(20)) audio(false);
+    if(!link.synced()) { std::fprintf(stderr, "no sync\n"); return 1; }
+    std::fprintf(stderr, "synced after %.2f s wall (machine at %.2f s)\n",
+                 std::chrono::duration<double>(Clock::now() - t0).count(), runner.machine().seconds());
+    if(!patchPath.empty())
+    {
+        const auto patch = Patch::fromFile(file::read(readFile(patchPath)));
+        if(keyboard)
+        {
+            Performance perf;
+            for(auto& p : perf.slots) p = Patch::makeDefault();
+            perf.slots[0] = patch;
+            for(int i = 0; i < 4; ++i)
+            {
+                perf.header.slots[std::size_t(i)].enabled = i == 0;
+                perf.header.slots[std::size_t(i)].keyboard = i == 0;
+            }
+            link.sendPerformance(perf, "Test");
+        }
+        else
+            link.sendPatch(0, patch, "Test");
+        for(int i = 0; i < 100; ++i) audio(false);  // the upload, then a second of settling
+    }
+    const auto missing0 = runner.stats().framesMissing;
+    std::size_t ni = 0;
+    const std::uint64_t f0 = audioFrames;
+    while(double(audioFrames - f0) / 96000.0 < seconds)
+    {
+        const double t = double(audioFrames - f0) / 96000.0;
+        while(ni < notes.size() && notes[ni].at <= t)
+        {
+            const auto& e = notes[ni++];
+            if(e.midi)
+            {
+                const std::uint8_t b[3] = {std::uint8_t((e.on ? 0x90 : 0x80) | e.channel), std::uint8_t(e.note), std::uint8_t(e.on ? 100 : 64)};
+                runner.midiIn(b);
+            }
+            else
+                link.playNote(std::uint8_t(e.note), e.on);
+        }
+        audio(true);
+    }
+    const auto st = runner.stats();
+    std::vector<float> ch(all.size() / 4);
+    for(std::size_t f = 0; f < ch.size(); ++f) ch[f] = all[f * 4];
+    const auto a = analyse(ch);
+    std::printf("realtime: %.2f s of audio, %llu frames missing (%.2f%%), emulator speed while catching up %.2fx\n",
+                double(ch.size()) / 96000.0, (unsigned long long)(st.framesMissing - missing0),
+                100.0 * double(st.framesMissing - missing0) / double(ch.size() ? ch.size() : 1), st.speed);
+    std::printf("out 1: peak %.6f rms %.6f freq %.3f Hz, above 10%% of the peak %.4f-%.4f s\n", a.peak, a.rms, a.freq, a.onset, a.end);
+    if(!wav.empty())
+    {
+        std::vector<float> w(all.size());
+        const int order[4] = {0, 2, 1, 3};
+        for(std::size_t f = 0; f < all.size() / 4; ++f)
+            for(int c = 0; c < 4; ++c) w[f * 4 + std::size_t(c)] = all[f * 4 + std::size_t(order[c])];
+        writeWav(wav, w, 4, int(g2emu::Machine::FrameRate));
+    }
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
 {
-    std::string fwPath = "original/firmware", wav, json;
+    std::string fwPath = "original/firmware", wav, json, flashPath;
     std::optional<std::string> patch, kbd;
     std::vector<std::pair<int, std::string>> more;
-    double boot = 2.0, settle = 1.0, seconds = 1.0, maxSync = 30;
+    double boot = 2.0, settle = 1.0, seconds = 1.0, maxSync = 30, realtime = 0;
     std::vector<NoteEvent> notes;
     g2emu::Machine::Options opt;
     for(int i = 1; i < argc; ++i)
@@ -166,6 +271,8 @@ int main(int argc, char** argv)
         else if(a == "--note") parseNotes(next(), false, notes);
         else if(a == "--midi") parseNotes(next(), true, notes);
         else if(a == "--wav") wav = next();
+        else if(a == "--flash") flashPath = next();
+        else if(a == "--realtime") realtime = std::stod(next());
         else if(a == "--json") json = next();
         else if(a == "--quantum") opt.quantum = std::uint32_t(std::stoul(next()));
         else if(a == "--ring-prefill") opt.ringPrefill = std::uint32_t(std::stoul(next()));
@@ -186,9 +293,18 @@ int main(int argc, char** argv)
     std::sort(notes.begin(), notes.end(), [](const NoteEvent& x, const NoteEvent& y) { return x.at < y.at; });
 
     const auto fw = g2emu::Firmware::load(fwPath);
+    if(realtime > 0)
+        return runRealtime(fw, opt, kbd ? *kbd : (patch ? *patch : std::string()), bool(kbd), notes, realtime, wav);
     std::fprintf(stderr, "firmware: OS %d.%02d, CODE %zu bytes at %08x\n", fw.version / 100, fw.version % 100,
                  fw.code()->data.size(), fw.code()->address);
     g2emu::Machine m(fw, opt);
+    // --flash FILE: the synth's flash (patches, settings) from a previous run, saved again at the end
+    if(!flashPath.empty() && std::filesystem::exists(flashPath))
+    {
+        const auto img = readFile(flashPath);
+        if(img.size() == m.flash().size()) std::copy(img.begin(), img.end(), m.flash().begin());
+        std::fprintf(stderr, "flash: loaded %s\n", flashPath.c_str());
+    }
 
     std::atomic<bool> done{false};
     std::thread watch;
@@ -293,8 +409,12 @@ int main(int argc, char** argv)
     const std::uint64_t f0 = m.frame();
     const auto total = std::uint64_t(seconds * g2emu::Machine::FrameRate);
     std::size_t ni = 0;
+    // the OS's tick counter, incremented by its timer 1 handler [C] (0x30001894 adds 1 to 0x3010A13C)
+    const std::uint32_t ticks0 = m.cfRead32(0x3010A13C);
+    const int leds0 = listener.leds;
     const auto w1 = std::chrono::steady_clock::now();
-    const double c1 = cpuSeconds();
+    const double c1 = cpuSeconds(), t1 = threadCpuSeconds();
+    const auto s1 = m.stats();
     while(m.frame() - f0 < total)
     {
         const double tRec = double(m.frame() - f0) / g2emu::Machine::FrameRate;
@@ -315,7 +435,11 @@ int main(int argc, char** argv)
         client.tick();
     }
     const double recWall = std::chrono::duration<double>(std::chrono::steady_clock::now() - w1).count();
-    const double recCpu = cpuSeconds() - c1;
+    const double recEmulated = double(m.frame() - f0) / g2emu::Machine::FrameRate;
+    std::printf("OS time: %.1f timer ticks per emulated second, %.1f LED messages per second\n",
+                double(m.cfRead32(0x3010A13C) - ticks0) / recEmulated, double(listener.leds - leds0) / recEmulated);
+    const double recCpu = cpuSeconds() - c1, recCfCpu = threadCpuSeconds() - t1;
+    const auto s2 = m.stats();
     report("recorded");
 
     // outputs 1-4: the words per frame are DAC 1 L, DAC 2 L, DAC 1 R, DAC 2 R
@@ -339,6 +463,13 @@ int main(int argc, char** argv)
     const double emulated = double(frames) / g2emu::Machine::FrameRate;
     std::printf("speed: %.3f emulated s in %.3f wall s = %.2fx real time, %.2f CPU s per emulated s\n", emulated,
                 recWall, emulated / recWall, recCpu / emulated);
+    std::printf("per thread: ColdFire (and the caller) %.2f CPU s per emulated s", recCfCpu / emulated);
+    for(int w = 0; w < 4; ++w)
+        if(s2.dspThreadCpuNs[w])
+            std::printf("; DSP thread %d %.2f CPU s, of which waiting %.2f s", w,
+                        double(s2.dspThreadCpuNs[w] - s1.dspThreadCpuNs[w]) * 1e-9 / emulated,
+                        double(s2.dspThreadWaitNs[w] - s1.dspThreadWaitNs[w]) * 1e-9 / emulated);
+    std::printf("\n");
     std::printf("host port: %.0f reads/s, %.0f commands/s, %.0f DSP syncs/s; ColdFire time in skipped polls %.1f%%\n",
                 double(s.hostReads) / m.seconds(), double(s.hostCommands) / m.seconds(), double(s.dspSyncs) / m.seconds(),
                 100.0 * double(s.cfPollSkipped) / double(s.cfCycles));
@@ -347,6 +478,11 @@ int main(int argc, char** argv)
                 cpuSeconds() - cpu0, (unsigned long long)s.cfInstructions, double(s.cfInstructions) / m.seconds() / 1e6,
                 (unsigned long long)s.midiOverruns);
     if(!wav.empty()) writeWav(wav, wavData, 4, int(g2emu::Machine::FrameRate));
+    if(!flashPath.empty())
+    {
+        std::ofstream f(flashPath, std::ios::binary);
+        f.write(reinterpret_cast<const char*>(m.flash().data()), std::streamsize(m.flash().size()));
+    }
     if(!json.empty())
     {
         std::ofstream j(json);

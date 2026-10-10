@@ -39,6 +39,7 @@ public:
         // The caller's thread needs a big stack (8 MB or more): the JIT compiles there in single-thread mode.
         int threads = 0;
         std::uint32_t skew = 2 * 1536;
+        double usbAfter = 2.0;         // plugUsb() takes effect once the OS has run this long (seconds): it boots in 1.6
         bool trace = false;            // log unusual events (unmapped accesses, exceptions) to stderr
     };
 
@@ -51,6 +52,9 @@ public:
         std::uint32_t cfPc = 0;
         std::uint32_t dspPc[4] = {};
         std::uint64_t hostCommands = 0, hostReads = 0, dspSyncs = 0;
+        // threads > 0: each DSP thread's CPU time (as of its last wait) and the time it spent waiting (spinning or
+        // yielding: the waits count as CPU time too)
+        std::uint64_t dspThreadCpuNs[4] = {}, dspThreadWaitNs[4] = {};
     };
 
     explicit Machine(const Firmware& firmware);
@@ -66,8 +70,8 @@ public:
     double seconds() const { return double(frame()) / FrameRate; }
 
     // ---- USB: our protocol client on the other end of the cable (thread-safe) ----
-    // Plug the cable in: bus reset now, SET_ADDRESS/SET_CONFIGURATION 5 ms later, the client sees the device
-    // 15 ms later.
+    // Plug the cable in (at the earliest Options::usbAfter after power-on): bus reset, SET_ADDRESS/SET_CONFIGURATION
+    // 5 ms later, the client sees the device 15 ms later.
     void plugUsb();
     bool usbArrived() const;
     // One bulk-OUT transfer (a protocol frame).

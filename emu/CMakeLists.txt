@@ -168,7 +168,8 @@ add_library(g2emu STATIC
   g2emu/src/firmware.cpp
   g2emu/src/hw.cpp
   g2emu/src/dsp.cpp
-  g2emu/src/machine.cpp)
+  g2emu/src/machine.cpp
+  g2emu/src/runner.cpp)
 target_include_directories(g2emu PUBLIC g2emu/include)
 target_include_directories(g2emu SYSTEM PRIVATE ${dsp56300_SOURCE_DIR}/source)
 target_link_libraries(g2emu PUBLIC g2proto PRIVATE g2coldfire dsp56kEmu)

@@ -576,8 +576,13 @@ void Isp1181::command(std::uint8_t c)
         intreg_ &= ~0xffu;  // bus events clear on read; endpoint bits on a status read
     }
     else if(c == 0xB5) { rbuf_.push_back(0x81); rbuf_.push_back(0x81); }
-    else if(c == 0xB4 || c == 0xB3 || c == 0xBB) { rbuf_.push_back(0); rbuf_.push_back(0); }
-    else if(c == 0xB7 || c == 0xB9) rbuf_.push_back(0);
+    else if(c == 0xB4) { rbuf_.push_back(0); rbuf_.push_back(0); }  // frame number
+    // the registers read back what was written: scratch (B2/B3), address (B6/B7), mode (B8/B9), hardware
+    // configuration (BA/BB)
+    else if(c == 0xB3) { rbuf_.push_back(scratch_[0]); rbuf_.push_back(scratch_[1]); }
+    else if(c == 0xB7) rbuf_.push_back(address_);
+    else if(c == 0xB9) rbuf_.push_back(mode_);
+    else if(c == 0xBB) { rbuf_.push_back(hwConfig_[0]); rbuf_.push_back(hwConfig_[1]); }
     else if(c == 0xC3) put32(inten_);
     else if(c >= 0x10 && c <= 0x1F)
     {
@@ -634,6 +639,14 @@ void Isp1181::data(std::uint8_t b)
         inbuf_[c] = wbuf_;
     else if(c >= 0x20 && c <= 0x2F)
         epcfg_[c & 0x0f] = b;
+    else if(c == 0xB8)
+        mode_ = b;  // mode register: bit 0 SoftConnect (the pull-up that shows the device to the host)
+    else if(c == 0xB2 && wbuf_.size() <= 2)
+        scratch_[wbuf_.size() - 1] = b;
+    else if(c == 0xB6)
+        address_ = b;
+    else if(c == 0xBA && wbuf_.size() <= 2)
+        hwConfig_[wbuf_.size() - 1] = b;
     else if(c == 0xC2 && wbuf_.size() == 4)
         inten_ = std::uint32_t(wbuf_[0]) | std::uint32_t(wbuf_[1]) << 8 | std::uint32_t(wbuf_[2]) << 16 | std::uint32_t(wbuf_[3]) << 24;
 }

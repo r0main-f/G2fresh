@@ -2,6 +2,7 @@
 
 #include "dsp.hpp"
 #include "hw.hpp"
+#include "thread.hpp"
 
 #include "coldfire/cfCpu.h"
 #include "dsp56kBase/logging.h"
@@ -11,10 +12,8 @@
 #include <atomic>
 #include <functional>
 #include <thread>
-#ifndef _WIN32
-#include <pthread.h>
-#endif
 #include <chrono>
+#include <ctime>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -78,62 +77,6 @@ struct StubPort {
     }
 };
 
-// A thread with a big stack. The DSPs' JIT compiles on the thread that runs them, and a block it has just compiled
-// runs nested in the compiler's call (JitBlockChain::create), about 20 KB of stack per level: a freshly uploaded G2
-// frame program of many small blocks went deeper than a std::thread's 512 KB on macOS.
-class BigStackThread {
-public:
-    static constexpr std::size_t StackBytes = 64u << 20;  // address space; only the pages touched are used
-
-    BigStackThread() = default;
-    explicit BigStackThread(std::function<void()> fn) : fn_(std::make_unique<std::function<void()>>(std::move(fn)))
-    {
-#ifdef _WIN32
-        thread_ = std::thread([f = fn_.get()] { (*f)(); });
-#else
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        pthread_attr_setstacksize(&attr, StackBytes);
-        started_ = pthread_create(&thread_, &attr, [](void* f) -> void* {
-            (*static_cast<std::function<void()>*>(f))();
-            return nullptr;
-        }, fn_.get()) == 0;
-        pthread_attr_destroy(&attr);
-        if(!started_) throw std::runtime_error("g2emu: cannot start a DSP thread");
-#endif
-    }
-    BigStackThread(BigStackThread&& o) noexcept : fn_(std::move(o.fn_))
-    {
-#ifdef _WIN32
-        thread_ = std::move(o.thread_);
-#else
-        thread_ = o.thread_;
-        started_ = o.started_;
-        o.started_ = false;
-#endif
-    }
-    BigStackThread& operator=(BigStackThread&&) = delete;
-    ~BigStackThread() { join(); }
-    void join()
-    {
-#ifdef _WIN32
-        if(thread_.joinable()) thread_.join();
-#else
-        if(started_) pthread_join(thread_, nullptr);
-        started_ = false;
-#endif
-    }
-
-private:
-    std::unique_ptr<std::function<void()>> fn_;
-#ifdef _WIN32
-    std::thread thread_;
-#else
-    pthread_t thread_{};
-    bool started_ = false;
-#endif
-};
-
 } // namespace
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -162,6 +105,7 @@ struct Machine::Impl final : coldfire::Bus {
     // publishes how far it got in `workerTime`, and `dspTime` is the slowest of them
     std::vector<BigStackThread> workers;
     std::array<std::atomic<std::uint64_t>, 4> workerTime{};
+    std::array<std::atomic<std::uint64_t>, 4> workerCpuNs{}, workerWaitNs{};  // per DSP thread: CPU time, time waiting
     std::atomic<std::uint64_t> horizon{0}, dspTime{0};
     std::atomic<bool> quit{false};
 
@@ -299,6 +243,19 @@ struct Machine::Impl final : coldfire::Bus {
             if(k == n) break;
         }
         if(timing) syncNs += clockNs() - t0;
+    }
+    static std::uint64_t threadCpuNs()
+    {
+#ifdef _WIN32
+        FILETIME c, e, k, u;
+        if(!GetThreadTimes(GetCurrentThread(), &c, &e, &k, &u)) return 0;
+        const auto t = [](const FILETIME& f) { return (std::uint64_t(f.dwHighDateTime) << 32 | f.dwLowDateTime) * 100; };
+        return t(k) + t(u);
+#else
+        timespec ts{};
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+        return std::uint64_t(ts.tv_sec) * 1000000000ull + std::uint64_t(ts.tv_nsec);
+#endif
     }
     static std::uint64_t clockNs()
     {
@@ -602,7 +559,9 @@ struct Machine::Impl final : coldfire::Bus {
     {
         {
             std::lock_guard lock(ioMutex);
-            if(plugRequest && !host.plugged)
+            // a host that connects while the OS still boots loses its first request (the OS initialises its USB
+            // chip again at the end of its boot) and retries only after 10 s: the cable goes in once the OS runs
+            if(plugRequest && !host.plugged && t >= std::uint64_t(opt.usbAfter * FrameRate * Dsp::CyclesPerFrame))
             {
                 plugRequest = false;
                 host.plugged = true;
@@ -760,7 +719,10 @@ struct Machine::Impl final : coldfire::Bus {
                     const auto l = limit();
                     if(done >= l)
                     {
+                        const auto w0 = clockNs();
                         waitFor([&] { return quit.load(std::memory_order_relaxed) || limit() > done; });
+                        workerWaitNs[std::size_t(w)] += clockNs() - w0;
+                        workerCpuNs[std::size_t(w)].store(threadCpuNs(), std::memory_order_relaxed);
                         continue;
                     }
                     const auto target = std::min(l, done + Dsp::CyclesPerFrame);
@@ -799,6 +761,11 @@ struct Machine::Impl final : coldfire::Bus {
         for(const auto& l : links)
             if(l) { s.linkUnderruns += l->underruns; s.linkOverruns += l->overruns; }
         s.midiOverruns = sim.midiOverruns();
+        for(std::size_t w = 0; w < workers.size(); ++w)
+        {
+            s.dspThreadCpuNs[w] = workerCpuNs[w].load(std::memory_order_relaxed);
+            s.dspThreadWaitNs[w] = workerWaitNs[w].load(std::memory_order_relaxed);
+        }
         return s;
     }
 };

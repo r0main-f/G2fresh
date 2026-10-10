@@ -1,0 +1,68 @@
+// The emulated G2 running by itself, in real time, for a sound engine: a thread of its own (with the big stack the
+// DSPs' JIT needs) runs the Machine ahead of an audio thread that pulls the DAC output, keeping `bufferMs` of audio
+// ready. MIDI goes in from any thread; our protocol client talks to the machine through MachineTransport (the
+// machine's USB queues are thread-safe), e.g. a LocalLink built on it.
+//
+// The audio is the G2's own: 96 kHz, 4 channels (outputs 1-4). Resampling to the host's rate is the caller's job.
+#pragma once
+
+#include "g2emu/machine.hpp"
+
+#include <atomic>
+#include <cstdint>
+#include <memory>
+#include <span>
+
+namespace g2emu {
+
+class Runner {
+public:
+    struct Options {
+        Machine::Options machine = defaultMachineOptions();
+        double bufferMs = 20;      // audio kept ready ahead of the reader
+        std::uint32_t chunkFrames = 96;  // frames the machine runs at a time (1 ms)
+        static Machine::Options defaultMachineOptions()
+        {
+            Machine::Options o;
+            o.threads = 1;  // the DSPs on a second thread
+            return o;
+        }
+    };
+
+    struct Stats {
+        std::uint64_t framesRead = 0, framesMissing = 0;  // the reader asked for frames that were not there yet
+        double speed = 0;                                 // emulated seconds per wall second while catching up
+    };
+
+    explicit Runner(const Firmware& firmware);
+    Runner(const Firmware& firmware, Options options);
+    ~Runner();
+    Runner(const Runner&) = delete;
+    Runner& operator=(const Runner&) = delete;
+
+    // Audio thread, real-time safe (no locks, no allocation): up to `frames` frames of 4 floats into `out`.
+    // Returns how many were there; the rest of `out` is set to silence.
+    std::size_t read(float* out, std::size_t frames);
+    std::size_t available() const;
+
+    // Any thread.
+    void midiIn(std::span<const std::uint8_t> bytes) { machine_->midiIn(bytes); }
+    Machine& machine() { return *machine_; }
+    Stats stats() const;
+
+private:
+    void loop();
+
+    Options options_;
+    std::unique_ptr<Machine> machine_;
+    std::vector<float> ring_;
+    std::size_t capacity_ = 0;  // frames
+    std::atomic<std::uint64_t> written_{0}, read_{0};
+    std::atomic<std::uint64_t> missing_{0};
+    std::atomic<double> speed_{0};
+    std::atomic<bool> quit_{false};
+    struct Thread;
+    std::unique_ptr<Thread> thread_;
+};
+
+} // namespace g2emu
