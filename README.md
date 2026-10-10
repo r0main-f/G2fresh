@@ -40,6 +40,7 @@ G2fresh can make the G2's sound itself, in the stand-alone app and in the plugin
   - The latency from a MIDI note to its sound is about 23 ms.
   - The front panel, the audio inputs and the expansion ports are not emulated, and the pedal inputs read half-way.
   - In a DAW on macOS, the emulator generates code at run time; a host that forbids it cannot run it (not seen so far).
+  - G2fresh is not affiliated with Clavia. The G2 OS is Clavia DMI AB's copyright: download it yourself from Nord's website and do not share the file; G2fresh never includes or distributes it.
 - **Built-in sound:** a native engine (**Synth > Built-in Sound**) for the few modules it knows (OscA, FltLP, EnvADSR, the mixers, the outputs and the keyboard). It is on when nothing else plays the patch.
 
 ## Connecting a G2
