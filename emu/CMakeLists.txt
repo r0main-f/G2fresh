@@ -54,9 +54,14 @@ if(NOT TARGET dsp56kEmu)
   set(ASMJIT_STATIC TRUE)
   add_subdirectory(${dsp56300_SOURCE_DIR}/source/asmjit ${dsp56300_BINARY_DIR}/asmjit EXCLUDE_FROM_ALL)
   add_subdirectory(${dsp56300_SOURCE_DIR}/source/dsp56kBase ${dsp56300_BINARY_DIR}/dsp56kBase EXCLUDE_FROM_ALL)
+  # dsp56kEmu links its JIT profiling helper (Intel's ITT API) on Windows and Linux; the library's top-level
+  # CMakeLists adds it, which we skip.
+  if(WIN32 OR (UNIX AND NOT APPLE))
+    add_subdirectory(${dsp56300_SOURCE_DIR}/source/vtuneSdk ${dsp56300_BINARY_DIR}/vtuneSdk EXCLUDE_FROM_ALL)
+  endif()
   add_subdirectory(${dsp56300_SOURCE_DIR}/source/dsp56kEmu ${dsp56300_BINARY_DIR}/dsp56kEmu EXCLUDE_FROM_ALL)
   # g2emu goes into the plugin, a shared library
-  foreach(_t asmjit dsp56kBase dsp56kEmu)
+  foreach(_t asmjit dsp56kBase dsp56kEmu vtuneSdk)
     if(TARGET ${_t})
       set_target_properties(${_t} PROPERTIES POSITION_INDEPENDENT_CODE ON)
     endif()
