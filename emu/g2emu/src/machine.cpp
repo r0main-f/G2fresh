@@ -13,6 +13,7 @@
 #include <functional>
 #include <thread>
 #include <chrono>
+#include <cmath>
 #include <ctime>
 #include <cstdio>
 #include <cstring>
@@ -169,6 +170,7 @@ struct Machine::Impl final : coldfire::Bus {
         Logging::setLogFunc(&quietLog);
         cfPerDsp = opt.cfHz / (double(FrameRate) * Dsp::CyclesPerFrame);
         busPerCf = double(Sim::BusHz) / opt.cfHz;
+        sim.setPanelAdc(1, std::uint8_t(std::lround(std::clamp(opt.masterVolume, 0.0, 1.0) * 255)));  // the volume knob
         load(fw);
         Dsp::Options dopt;
         dopt.jit = opt.jit;

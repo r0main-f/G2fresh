@@ -1412,6 +1412,19 @@ time). Still open from the list: Windows firmware, a machine snapshot, the JIT i
 plugin instance runs its own G2 (2-3 cores each). The `.dmg` is read since (point 1). Sample-accurate MIDI is in g2emu since (`Runner::midiInAt`,
 §3.9.4); the engine still uses `midiIn`.
 
+**Master volume (2026-10-10).** The emulated G2 played 23 dB too quietly because the panel's master volume knob read
+half-way. The knob is on the panel ADC (MAX1039, I2C `0x65`): the OS writes setup `0xAA` and configuration `0x0D`
+(scan inputs 0–6), then reads one endless byte stream, one byte per input in turn [C, emulated]. Stream position 1 is
+the knob: the OS uses byte >> 1 as the step in its 128-step level table at `0x3010C094` (0 → 0, 64 → `0x08BC40`
+= 0.068, 127 → `0x7FAA80` = 0.997) and sends it to A3's X:`$1739` through `0x3001FDD4` [C]. Position 4 feeds the DSP
+timer calibration and must read `0x80` (any other constant stalls the boot). Only a period of 7 gives table values
+(6 and 8 give blends: the OS averages the knob). Positions 0, 2, 3, 5, 6 are unidentified (pedals?) and read `0x80`.
+`Machine::Options::masterVolume` (default 1, the knob all the way up) sets position 1. At 1, a signal of 1.0 into an
+Out module (Level 127, no pad) gives DAC words of about −0.125 (−18 dBFS, inverted: the internal scale is 1/64, then
+A3's ×0.997×8). `EmulatedSoundEngine` multiplies by −8, so both engines output signal units: the Drone test patch
+plays at −17.7 dBFS emulated and −17 dBFS native. [C] the table, its index and X:`$1739`; [emulated] the stream
+position. A real G2's knob position is the user's: unknown whether Clavia's analog stage adds gain after the DACs.
+
 ### 3.9.9 Reproducing
 
 ```sh

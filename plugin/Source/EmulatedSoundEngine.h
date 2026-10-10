@@ -4,9 +4,10 @@
 // not come through setPatch(): the editor sends them over the emulated USB
 // cable (SynthSync::connectEmulated with a link on machine()), as to a G2.
 //
-// Outputs 1/2 of the G2 at 96 kHz, resampled to the host's rate. The track's
-// MIDI goes to the G2's MIDI IN. The flash (the synth's banks) is kept in a
-// file between sessions.
+// Outputs 1/2 of the G2 at 96 kHz, resampled to the host's rate, in signal
+// units (as the native engine). The track's MIDI goes to the G2's MIDI IN,
+// sample-accurate (a fixed latency, Runner::latencyFrames). The flash (the
+// synth's banks) is kept in a file between sessions.
 //
 // Threads: made, prepared and destroyed on the message thread while the audio
 // thread does not use it (the processor swaps it in under its callback lock);

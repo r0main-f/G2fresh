@@ -36,6 +36,8 @@ public:
 
     // MIDI on UART0 (31250 baud: the OS programs UBG = 54, so the bus clock is 54 MHz [C]).
     void midiIn(const std::uint8_t* data, std::size_t n);
+    // The panel ADC's inputs (see panelAdc_): position 1 is the master volume knob.
+    void setPanelAdc(std::size_t position, std::uint8_t value) { panelAdc_.at(position) = value; }
     // The same, the first byte starting on the line at bus clock `notBefore` at the earliest.
     void midiInAt(const std::uint8_t* data, std::size_t n, std::uint64_t notBefore);
     std::vector<std::uint8_t> takeMidiOut();
@@ -87,9 +89,17 @@ private:
     std::uint64_t midiCompletion() const;
     std::uint64_t uartOverruns_ = 0;
 
-    // I2C master: every addressed slave acknowledges; reads return 0x80 (the OS servoes DSP timer 0 until a
-    // histogram of these ADC readings peaks at 0x80, 0x30055F28 [C]; a constant 0x80 satisfies it: stub)
+    // I2C master: every addressed slave acknowledges. The one slave the OS reads is the panel's ADC (MAX1039, address
+    // 0x65): it writes a setup byte (0xAA) and a configuration byte (0x0D: scan inputs 0-6, single-ended), then reads
+    // one endless stream, one byte per input in turn [C, emulated: 7 is the only period that gives table values].
+    // Position 1 is the master volume knob: the OS takes byte >> 1 as the step in its 128-step output level table at
+    // 0x3010C094 [C], A3's X:$1739 (0xFF: 0.997; 0x80: 0.068, 23 dB down). Position 4 feeds the DSP timer
+    // calibration, which servoes DSP timer 0 until a histogram of its readings peaks at 0x80 (0x30055F28 [C]): it
+    // must read 0x80. Positions 0, 2, 3, 5 and 6 are not identified (pedals?) and read 0x80. Positions count from the
+    // first read after the address byte; whether position 0 is AIN0 or a dummy read is not known.
     std::uint8_t i2cMsr_ = 0x81, i2cMcr_ = 0;
+    std::array<std::uint8_t, 7> panelAdc_{0x80, 0xFF, 0x80, 0x80, 0x80, 0x80, 0x80};
+    unsigned i2cReads_ = 0;
 };
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -619,6 +619,10 @@ TEST_CASE("The user's G2 OS in real time: the plugin's path (Runner, a link over
         REQUIRE(crossings > 100);
         const double hz = double(crossings - 1) * Machine::FrameRate / (last - first);
         CHECK_THAT(hz, Catch::Matchers::WithinAbs(440.0, 0.1));
+        // the master volume knob all the way up (Machine::Options::masterVolume): a full sine gives about 0.125
+        float peak = 0;
+        for(std::size_t f = Machine::FrameRate / 10; f < heard.size() / 4; ++f) peak = std::max(peak, std::fabs(heard[f * 4 + word]));
+        CHECK_THAT(peak, Catch::Matchers::WithinAbs(0.125, 0.01));
     }
     INFO("frames the reader missed: " << runner.stats().framesMissing << ", speed " << runner.stats().speed);
     runner.stop();

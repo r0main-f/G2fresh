@@ -75,15 +75,20 @@ juce::String EmulatedSoundEngine::status() const
 
 void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi)
 {
-    // The track's MIDI to the G2's MIDI IN, at the start of the block.
-    for (const auto meta : midi) {
-        const auto m = meta.getMessage();
-        if (!m.isSysEx())
-            runner_->midiIn({m.getRawData(), static_cast<std::size_t>(m.getRawDataSize())});
-    }
-
     const int frames = out.getNumSamples();
     const double ratio = g2emu::Machine::FrameRate / hostRate_;
+
+    // The track's MIDI to the G2's MIDI IN, at its place in the block: 96 kHz frames after the next frame read
+    // (the samples already read come first), plus the runner's fixed latency.
+    const auto have = static_cast<double>(render96_[0].size());
+    for (const auto meta : midi) {
+        const auto m = meta.getMessage();
+        if (m.isSysEx())
+            continue;
+        const auto at = std::max(0.0, std::round(meta.samplePosition * ratio - have));
+        runner_->midiInAt({m.getRawData(), static_cast<std::size_t>(m.getRawDataSize())}, static_cast<std::uint32_t>(at));
+    }
+
     const auto needed = static_cast<std::size_t>(std::ceil(frames * ratio)) + 8;
     if (render96_[0].size() < needed) {
         const auto more = needed - render96_[0].size();
@@ -94,9 +99,12 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         }
         frames_.resize(more * 4); // within the capacity reserved in prepare() for normal blocks
         runner_->read(frames_.data(), more); // silence for what is not there yet (booting, too slow)
-        for (std::size_t i = 0; i < more; ++i) { // words: Out 1, Out 3, Out 2, Out 4 (Machine::run)
-            render96_[0].push_back(frames_[4 * i]);
-            render96_[1].push_back(frames_[4 * i + 2]);
+        // Words: Out 1, Out 3, Out 2, Out 4 (Machine::run). With the volume knob all the way up, a signal of 1.0 into
+        // an Out module gives a word of about -0.125: scaled back to signal units, as the native engine outputs.
+        constexpr float toSignal = -8.0f;
+        for (std::size_t i = 0; i < more; ++i) {
+            render96_[0].push_back(toSignal * frames_[4 * i]);
+            render96_[1].push_back(toSignal * frames_[4 * i + 2]);
         }
     }
     if (stereo_.getNumSamples() < frames)
