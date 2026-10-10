@@ -19,8 +19,8 @@ Runner::Runner(const Firmware& firmware) : Runner(firmware, Options{}) {}
 Runner::Runner(const Firmware& firmware, Options options)
     : options_(options), machine_(std::make_unique<Machine>(firmware, options.machine))
 {
-    // room for the buffer plus a few chunks
-    capacity_ = std::size_t(options_.bufferMs * Machine::FrameRate / 1000.0) + 8 * options_.chunkFrames + 1;
+    // room for the buffer, the largest read size (setReadSize) and a few chunks
+    capacity_ = std::size_t(options_.bufferMs * Machine::FrameRate / 1000.0) + MaxReadSize + 8 * options_.chunkFrames + 1;
     ring_.assign(capacity_ * 4, 0.0f);
     if(!options_.flash.empty())
     {
@@ -36,6 +36,8 @@ Runner::~Runner() { stop(); }
 void Runner::stop()
 {
     quit_ = true;
+    consumed_.fetch_add(1, std::memory_order_release);
+    consumed_.notify_one();
     thread_.reset();
 }
 
@@ -56,23 +58,27 @@ std::size_t Runner::read(float* out, std::size_t frames)
         missing_.fetch_add(frames - n, std::memory_order_relaxed);
     }
     read_.store(r + n, std::memory_order_release);
+    consumed_.fetch_add(1, std::memory_order_release);
+    consumed_.notify_one();  // the machine's thread, if it waits for room (a wake-up, no lock)
     return n;
 }
 
 void Runner::loop()
 {
     using Clock = std::chrono::steady_clock;
-    const auto target = std::size_t(options_.bufferMs * Machine::FrameRate / 1000.0);
+    const auto buffer = std::size_t(options_.bufferMs * Machine::FrameRate / 1000.0);
     std::vector<float> chunk;
     // the speed while running (the rests left out), over about the last tenth of a second of running
     double busyWall = 0;
     std::uint64_t busyFrames = 0;
     while(!quit_.load(std::memory_order_relaxed))
     {
+        const auto target = buffer + readSize_.load(std::memory_order_relaxed);
         if(available() >= target)
         {
-            // full: the reader drains it at the audio rate
-            std::this_thread::sleep_for(std::chrono::microseconds(500));
+            // full: wait until the reader takes some (it wakes this thread)
+            const auto seen = consumed_.load(std::memory_order_acquire);
+            if(available() >= target && !quit_.load(std::memory_order_relaxed)) consumed_.wait(seen, std::memory_order_acquire);
             continue;
         }
         const auto chunkStart = Clock::now();
@@ -106,8 +112,10 @@ void Runner::loop()
 
 std::uint32_t Runner::latencyFrames() const
 {
-    // the reader takes frame R while the machine makes R + bufferMs (it runs in chunks until it is that far ahead)
-    return std::uint32_t(options_.bufferMs * Machine::FrameRate / 1000.0) + options_.chunkFrames;
+    // the reader takes frame R while the machine makes R + bufferMs + the read size (it runs in chunks until it is
+    // that far ahead)
+    return std::uint32_t(options_.bufferMs * Machine::FrameRate / 1000.0) + readSize_.load(std::memory_order_relaxed) +
+           options_.chunkFrames;
 }
 
 void Runner::midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset)

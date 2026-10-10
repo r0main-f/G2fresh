@@ -10,6 +10,7 @@
 #include "g2emu/machine.hpp"
 
 #include <array>
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -53,6 +54,10 @@ public:
     // Stops the machine's thread (for good). Then machine() may be used from the caller's thread, e.g. to save
     // machine().flash(). The destructor stops it too.
     void stop();
+    // The most frames one read() takes (a host's block, in 96 kHz frames): the machine then keeps that much more
+    // ready, so that after the reader's largest take bufferMs are still left. Part of latencyFrames(). Any thread.
+    static constexpr std::uint32_t MaxReadSize = 16384;  // 170 ms
+    void setReadSize(std::uint32_t frames) { readSize_.store(std::min(frames, MaxReadSize), std::memory_order_relaxed); }
 
     // Any thread.
     void midiIn(std::span<const std::uint8_t> bytes) { machine_->midiIn(bytes); }
@@ -93,6 +98,10 @@ private:
     std::atomic<std::uint64_t> missing_{0};
     std::atomic<double> speed_{0}, longestChunk_{0};
     std::atomic<bool> quit_{false};
+    std::atomic<std::uint32_t> readSize_{0};
+    // bumped by every read(): the machine's thread sleeps on it while the buffer is full (no polling: under load a
+    // short sleep could overrun by milliseconds and leave the reader short)
+    std::atomic<std::uint32_t> consumed_{0};
     struct Thread;
     std::unique_ptr<Thread> thread_;
 };
