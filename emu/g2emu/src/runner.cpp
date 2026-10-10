@@ -63,10 +63,6 @@ void Runner::loop()
 {
     using Clock = std::chrono::steady_clock;
     const auto target = std::size_t(options_.bufferMs * Machine::FrameRate / 1000.0);
-    // Once full, the machine rests until the reader has taken a quarter of the buffer, then runs until it is full
-    // again: a few longer runs rather than one chunk after every short sleep, each of which would start the machine's
-    // threads again from their sleep.
-    const auto resume = target - std::min(target, std::max<std::size_t>(options_.chunkFrames, target / 4));
     std::vector<float> chunk;
     // the speed while running (the rests left out), over about the last tenth of a second of running
     double busyWall = 0;
@@ -76,8 +72,7 @@ void Runner::loop()
         if(available() >= target)
         {
             // full: the reader drains it at the audio rate
-            while(available() > resume && !quit_.load(std::memory_order_relaxed))
-                std::this_thread::sleep_for(std::chrono::microseconds(500));
+            std::this_thread::sleep_for(std::chrono::microseconds(500));
             continue;
         }
         const auto chunkStart = Clock::now();

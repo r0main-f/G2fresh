@@ -12,6 +12,9 @@ g2emu::Runner::Options runnerOptions(std::vector<std::uint8_t> flash)
     g2emu::Runner::Options o;
     o.flash = std::move(flash);
     o.machine.model = g2emu::PanelModel::G2X; // the Live view is a G2X: 61 keys and the two global wheels
+    // The DSPs on two threads of their own where the computer has 4 performance cores, else one
+    // (Machine::autoThreads): two were faster for every patch measured, at the same CPU time
+    o.machine.threads = -1;
     return o;
 }
 

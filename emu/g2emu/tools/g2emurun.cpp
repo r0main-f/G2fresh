@@ -2,7 +2,7 @@
 //
 //   g2emurun [--fw PATH] [--patch FILE | --kbd FILE] [--to B:FILE ...] [--settle S] [--seconds S]
 //            [--note N@ON-OFF ...] [--midi N@ON-OFF[:CH] ...] [--wav OUT.wav] [--json OUT.json]
-//            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0|1] [--skew N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
+//            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0..4|-1] [--skew N] [--dsp-lead N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
 //            [--no-usb] [--panel] [--panel-at T] [--press RAW@T[-T2]] [--turn RAW:N@T] [--adc POS:V@T] [--key K@T-T2[:MS]] [--var V@T]
 //
 // The front panel (re/notes §3.10): --panel prints the displays, the LEDs and the knobs' rings at the end (and
@@ -63,6 +63,7 @@ using namespace g2;
 namespace {
 
 bool g_timedMidi = false;
+bool g_threadsGiven = false;  // --realtime without --threads: the Runner's default
 
 struct NoteEvent {
     double at = 0;
@@ -337,7 +338,7 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
     using Clock = std::chrono::steady_clock;
     g2emu::Runner::Options ro;
     ro.machine = opt;
-    if(!ro.machine.threads) ro.machine.threads = 1;
+    if(!g_threadsGiven) ro.machine.threads = g2emu::Runner::Options::defaultMachineOptions().threads;
     g2emu::Runner runner(fw, ro);
     auto linkPtr = g2emu::emulatedG2Link(runner.machine());
     auto& link = *linkPtr;
@@ -418,10 +419,10 @@ int runRealtime(const g2emu::Firmware& fw, g2emu::Machine::Options opt, const st
     std::vector<float> ch(all.size() / 4);
     for(std::size_t f = 0; f < ch.size(); ++f) ch[f] = all[f * 4];
     const auto a = analyse(ch);
-    std::printf("realtime: %.2f s of audio, %llu frames missing (%.2f%%) in %d of %zu blocks (at most %d in one), emulator speed while running %.2fx, longest chunk %.1f ms\n",
+    std::printf("realtime: %.2f s of audio, %llu frames missing (%.2f%%) in %d of %zu blocks (at most %d in one), emulator speed while running %.2fx, longest chunk %.1f ms, %d DSP thread(s)\n",
                 double(ch.size()) / 96000.0, (unsigned long long)(st.framesMissing - missing0),
                 100.0 * double(st.framesMissing - missing0) / double(ch.size() ? ch.size() : 1), gaps, ch.size() / 960, longestGap, st.speed,
-                st.longestChunkMs);
+                st.longestChunkMs, runner.machine().dspThreads());
     std::printf("out 1: peak %.6f rms %.6f freq %.3f Hz, above 10%% of the peak %.4f-%.4f s\n", a.peak, a.rms, a.freq, a.onset, a.end);
     // each note-on's onset: the first sample above 10 % of the peak after the event (the notes must be apart)
     double lo = 1e9, hi = -1e9, sum = 0;
@@ -495,7 +496,11 @@ int main(int argc, char** argv)
         else if(a == "--ring-prefill") opt.ringPrefill = std::uint32_t(std::stoul(next()));
         else if(a == "--chain-prefill") opt.chainPrefill = std::uint32_t(std::stoul(next()));
         else if(a == "--cf-mhz") opt.cfHz = std::stod(next()) * 1e6;
-        else if(a == "--threads") opt.threads = std::stoi(next());
+        else if(a == "--threads")
+        {
+            opt.threads = std::stoi(next());
+            g_threadsGiven = true;
+        }
         else if(a == "--skew") opt.skew = std::uint32_t(std::stoul(next()));
         else if(a == "--dsp-lead") opt.dspLead = std::uint32_t(std::stoul(next()));
         else if(a == "--model")

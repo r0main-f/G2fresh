@@ -34,11 +34,14 @@ public:
         std::uint32_t chainPrefill = 2;  // the same on each hop of the chain (absorbs the JIT's overshoot)
         std::uint32_t quantum = 1536;  // DSP clocks the ColdFire runs ahead of the DSPs at most (1 frame)
         // 0: everything on the caller's thread, deterministic. 1..4: the DSPs on that many threads of their own (each
-        // a stretch of the chain), running alongside the ColdFire at most `skew` DSP clocks apart (not deterministic:
-        // when a host-port access meets the DSPs depends on the threads' timing, as on the board). 2..4 are
-        // experimental: the dsp56300 JIT sometimes recursed without end while the OS uploaded a patch (§3.9.6).
-        // The caller's thread needs a big stack (8 MB or more): the JIT compiles there in single-thread mode.
+        // a stretch of the chain), running alongside the ColdFire (not deterministic: when a host-port access meets
+        // the DSPs depends on the threads' timing, as on the board). -1: autoThreads(). 3 and 4 are experimental
+        // (§3.9.6). The caller's thread needs a big stack (8 MB or more): the JIT compiles there in single-thread mode.
         int threads = 0;
+        // threads > 0: how far (DSP clocks) the ColdFire may run ahead of the slowest DSP thread (`skew`), and the DSP
+        // threads ahead of the ColdFire (`dspLead`). The ColdFire's lead is kept short: while it is ahead it waits for
+        // the DSPs' answers in emulated time. The DSPs' lead absorbs the threads' uneven pace; a host command then
+        // reaches its DSP up to dspLead late (8 frames: 83 us) (§3.9.4).
         std::uint32_t skew = 2 * 1536;
         std::uint32_t dspLead = 8 * 1536;
         // threads > 0: a status read of a DSP's host port waits (wall time) until that DSP has reached the ColdFire's
@@ -69,7 +72,14 @@ public:
         std::uint64_t dspThreadCpuNs[4] = {}, dspThreadWaitNs[4] = {};
         // threads > 0: the wall time the ColdFire's thread (the caller of run()) spent waiting for the DSP threads
         std::uint64_t cfWaitNs = 0;
+        int dspThreads = 0;  // Options::threads as resolved (-1: autoThreads())
     };
+
+    // The number of DSP threads for Options::threads = -1: 2 on a computer with at least 4 performance cores (or
+    // 6 hardware threads where the cores' kinds are not known), else 1. Two threads were faster than one for every
+    // patch measured, light ones included, at the same CPU time per emulated second (§3.9.7); they need three
+    // cores at once.
+    static int autoThreads();
 
     explicit Machine(const Firmware& firmware);
     Machine(const Firmware& firmware, Options options);
@@ -142,6 +152,7 @@ public:
     std::uint64_t flashChanges() const;
 
     Stats stats() const;
+    int dspThreads() const;  // Options::threads as resolved (any thread)
     // A word of DSP n's memory (n: chip select A(3+n); area 0 P, 1 X, 2 Y), for tests and debugging.
     std::uint32_t dspMemory(int n, int area, std::uint32_t address) const;
     std::uint32_t cfRead32(std::uint32_t address) const;

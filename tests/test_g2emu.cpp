@@ -4,6 +4,9 @@
 #include "dsp.hpp"
 #include "hw.hpp"
 #include "panel.hpp"
+#include "thread.hpp"
+
+#include "coldfire/cfCpu.h"
 
 #include "dsp56kEmu/assembler.h"
 
@@ -27,6 +30,9 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <atomic>
+#include <cstring>
+#include <random>
 #include <string>
 #include <thread>
 #include <vector>
@@ -674,6 +680,132 @@ g2::Patch keyboardSine()
 }
 
 } // namespace
+
+namespace {
+// RAM from address 0, all of it the core's fast window (as the G2's SDRAM); the rest of the bus reads 0
+struct TestBus final : coldfire::Bus {
+    static constexpr std::uint32_t Size = 0x40000;
+    Bytes mem = Bytes(Size, 0);
+    std::uint8_t read8(std::uint32_t a) override { return a < Size ? mem[a] : 0; }
+    std::uint16_t read16(std::uint32_t a) override { return std::uint16_t(read8(a) << 8 | read8(a + 1)); }
+    std::uint32_t read32(std::uint32_t a) override { return std::uint32_t(read16(a)) << 16 | read16(a + 2); }
+    void write8(std::uint32_t a, std::uint8_t v) override { if(a < Size) mem[a] = v; }
+    void write16(std::uint32_t a, std::uint16_t v) override { write8(a, std::uint8_t(v >> 8)); write8(a + 1, std::uint8_t(v)); }
+    void write32(std::uint32_t a, std::uint32_t v) override { write16(a, std::uint16_t(v >> 16)); write16(a + 2, std::uint16_t(v)); }
+    std::uint8_t interruptAcknowledge(std::uint8_t level) override { return std::uint8_t(24 + level); }
+};
+} // namespace
+
+TEST_CASE("ColdFire core: run()'s dispatch and specialised handlers do what step() does", "[g2emu]")
+{
+    // Two cores on equal memories from equal states, one stepped through the general handlers (step()), the other
+    // through run() (its function table and the specialised MOVE, MOVEA, CLR, TST, CMP, LEA, JSR, PEA, ADDQ/SUBQ and
+    // Bcc handlers), one instruction at a time: the registers, flags, cycle counts and memories stay equal, through
+    // the exceptions that random code takes (illegal opcodes, odd addresses, privilege)
+    std::mt19937 rng(12345);
+    auto rnd = [&](std::uint32_t n) { return std::uint32_t(rng() % n); };
+    auto opcode = [&]() -> std::uint16_t {
+        const std::uint32_t ea = rnd(64), size = rnd(3), reg = rnd(8);
+        switch(rnd(12))
+        {
+        case 0: case 1: return std::uint16_t((1 + rnd(3)) << 12 | reg << 9 | rnd(8) << 6 | ea);  // MOVE, MOVEA
+        case 2: return std::uint16_t(0x4200 | size << 6 | ea);                                    // CLR
+        case 3: return std::uint16_t(0x4a00 | size << 6 | ea);                                    // TST
+        case 4: return std::uint16_t(0xb080 | reg << 9 | ea);                                     // CMP.L
+        case 5: return std::uint16_t(0x41c0 | reg << 9 | ea);                                     // LEA
+        case 6: return std::uint16_t(0x4e80 | ea);                                                // JSR
+        case 7: return std::uint16_t(0x4840 | ea);                                                // PEA
+        case 8: return std::uint16_t(0x5080 | reg << 9 | rnd(2) << 8 | ea);                      // ADDQ/SUBQ.L
+        case 9: return std::uint16_t(0x6000 | rnd(16) << 8 | (rnd(4) == 0 ? (rnd(2) ? 0xff : 0) : rnd(256)));  // Bcc
+        case 10: return std::uint16_t(0x4e75);                                                    // RTS
+        default: return std::uint16_t(rng());                                                     // anything
+        }
+    };
+    std::uint64_t instructions = 0;
+    for(int program = 0; program < 200; ++program)
+    {
+        TestBus busA, busB;
+        coldfire::Cpu a(busA), b(busB);
+        for(auto* c : {&a, &b}) c->setFastMemory((c == &a ? busA : busB).mem.data(), 0, TestBus::Size);
+        // vectors to handlers inside RAM (some odd: an address error while taking an exception halts the core)
+        for(std::uint32_t v = 0; v < 64; ++v) put32(busA.mem, 4 * v, 0x1000 + 0x40 * v + (rnd(16) == 0 ? 1 : 0));
+        for(std::uint32_t o = 0x400; o < TestBus::Size; o += 2)
+            put16(busA.mem, o, rnd(3) == 0 ? std::uint16_t(rng()) : opcode());
+        busB.mem = busA.mem;
+        for(std::uint32_t r = 0; r < 8; ++r)
+        {
+            const std::uint32_t d = rnd(2) ? std::uint32_t(rng()) : rnd(TestBus::Size);
+            const std::uint32_t ad = 0x400 + rnd(TestBus::Size - 0x800) + (rnd(8) == 0 ? 1 : 0);
+            a.setD(r, d); b.setD(r, d);
+            a.setA(r, ad); b.setA(r, ad);
+        }
+        const std::uint32_t pc = 0x400 + 2 * rnd((TestBus::Size - 0x800) / 2);
+        const std::uint16_t sr = std::uint16_t((rnd(2) ? 0x2700 : 0x0000) | rnd(32));
+        for(auto* c : {&a, &b}) { c->setPC(pc); c->setSR(sr); c->setA(7, (a.getA(7) & ~3u) | 0x800); }
+        const bool never = false;
+        for(int i = 0; i < 400 && !a.isHalted() && !a.isStopped(); ++i)
+        {
+            a.step();
+            b.run(b.getCycles() + 1, never);
+            INFO("program " << program << ", instruction " << i << " at " << std::hex << a.getInstructionPC());
+            REQUIRE(b.getPC() == a.getPC());
+            REQUIRE(b.getSR() == a.getSR());
+            REQUIRE(b.getCycles() == a.getCycles());
+            REQUIRE(b.getInstructionCount() == a.getInstructionCount());
+            REQUIRE(b.isHalted() == a.isHalted());
+            REQUIRE(b.isStopped() == a.isStopped());
+            for(std::uint32_t r = 0; r < 8; ++r)
+            {
+                REQUIRE(b.getD(r) == a.getD(r));
+                REQUIRE(b.getA(r) == a.getA(r));
+            }
+            if((i & 15) == 15) REQUIRE(busB.mem == busA.mem);
+        }
+        REQUIRE(busB.mem == busA.mem);
+        instructions += a.getInstructionCount();
+    }
+    CHECK(instructions > 20000);
+}
+
+TEST_CASE("Doorbell: no wake-up is lost between threads that wait for each other", "[g2emu]")
+{
+    // A ping-pong of a counter: each side waits for its turn, takes it and rings. One side dawdles (0.2 ms) every
+    // other round, so that the other spins out and sleeps; a lost ring would show as a sleep that timed out.
+    for(const int spin : {0, 50})
+    {
+        Doorbell bell;
+        std::atomic<int> turn{0};
+        constexpr int rounds = 2000;
+        std::thread other([&] {
+            for(int i = 0; i < rounds; ++i)
+            {
+                bell.wait([&] { return turn.load() == 2 * i + 1; }, spin);
+                if(i & 1) std::this_thread::sleep_for(std::chrono::microseconds(200));
+                turn.store(2 * i + 2);
+                bell.ring();
+            }
+        });
+        for(int i = 0; i < rounds; ++i)
+        {
+            bell.wait([&] { return turn.load() == 2 * i; }, spin);
+            if(!(i & 1)) std::this_thread::sleep_for(std::chrono::microseconds(200));
+            turn.store(2 * i + 1);
+            bell.ring();
+        }
+        other.join();
+        INFO("spin " << spin << " us");
+        CHECK(turn.load() == 2 * rounds);
+        CHECK(bell.timeouts() == 0);
+    }
+}
+
+TEST_CASE("Machine::autoThreads: one or two DSP threads", "[g2emu]")
+{
+    const int n = Machine::autoThreads();
+    CHECK(n >= 1);
+    CHECK(n <= 2);
+    if(std::thread::hardware_concurrency() <= 2) CHECK(n == 1);
+}
 
 TEST_CASE("The user's G2 OS: boots, syncs with our client, plays a MIDI note", "[g2emu][firmware]")
 {

@@ -24,6 +24,10 @@
 #include <mutex>
 #include <stdexcept>
 
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#endif
+
 namespace g2emu {
 
 namespace {
@@ -286,6 +290,7 @@ struct Machine::Impl final : coldfire::Bus {
 
     Impl(const Firmware& fw, Options o) : opt(o)
     {
+        if(opt.threads < 0) opt.threads = Machine::autoThreads();
         Logging::setLogFunc(&quietLog);
         cfPerDsp = opt.cfHz / (double(FrameRate) * Dsp::CyclesPerFrame);
         busPerCf = double(Sim::BusHz) / opt.cfHz;
@@ -989,6 +994,7 @@ struct Machine::Impl final : coldfire::Bus {
         s.cfInstructions = cpu.getInstructionCount();
         s.cfCycles = cfNow();
         s.cfSkipped = cfSkipped;
+        s.dspThreads = opt.threads;
         s.cfPc = cpu.getPC();
         for(int n = 0; n < 4; ++n)
         {
@@ -1010,6 +1016,31 @@ struct Machine::Impl final : coldfire::Bus {
 };
 
 // ---------------------------------------------------------------------------------------------------------------
+
+int Machine::autoThreads()
+{
+    int cores = 0;
+#ifdef __APPLE__
+    // Apple Silicon: the performance cores (perflevel0); an Intel Mac: its physical cores
+    for(const char* name : {"hw.perflevel0.physicalcpu", "hw.physicalcpu"})
+    {
+        int n = 0;
+        std::size_t size = sizeof n;
+        if(sysctlbyname(name, &n, &size, nullptr, 0) == 0 && n > 0)
+        {
+            cores = n;
+            break;
+        }
+    }
+#endif
+    if(!cores)
+    {
+        // hardware threads: 6 or more are at least 3 cores, or 4 without SMT on most current processors
+        const auto t = int(std::thread::hardware_concurrency());
+        cores = t >= 6 ? 4 : (t >= 4 ? 3 : t);
+    }
+    return cores >= 4 ? 2 : 1;
+}
 
 Machine::Machine(const Firmware& firmware) : Machine(firmware, Options{}) {}
 Machine::Machine(const Firmware& firmware, Options options) : impl_(std::make_unique<Impl>(firmware, options)) {}
@@ -1141,6 +1172,7 @@ void Machine::panelRawKey(int raw, bool down, double contactMs)
 std::string Machine::panelDebug() const { return impl_->panelDebug(); }
 
 Machine::Stats Machine::stats() const { return impl_->stats(); }
+int Machine::dspThreads() const { return impl_->opt.threads; }
 
 std::uint32_t Machine::dspMemory(int n, int area, std::uint32_t address) const
 {

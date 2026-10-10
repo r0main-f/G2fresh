@@ -156,13 +156,18 @@ public:
         {
             const auto seq = seq_;
             // the timeout only bounds the damage of a missed ring; ring() does not miss one (see above)
-            cv_.wait_for(lock, std::chrono::milliseconds(2), [&] { return seq_ != seq; });
+            if(!cv_.wait_for(lock, std::chrono::milliseconds(2), [&] { return seq_ != seq; }))
+                timeouts_.fetch_add(1, std::memory_order_relaxed);
         }
         sleepers_.fetch_sub(1, std::memory_order_seq_cst);
     }
 
+    // sleeps that ended without a ring (a waiter that waited for more than 2 ms, or a lost ring)
+    std::uint64_t timeouts() const { return timeouts_.load(std::memory_order_relaxed); }
+
 private:
     alignas(128) std::atomic<int> sleepers_{0};
+    std::atomic<std::uint64_t> timeouts_{0};
     std::mutex mutex_;
     std::condition_variable cv_;
     std::uint64_t seq_ = 0;  // guarded by mutex_

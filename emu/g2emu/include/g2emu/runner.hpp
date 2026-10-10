@@ -28,7 +28,7 @@ public:
         static Machine::Options defaultMachineOptions()
         {
             Machine::Options o;
-            o.threads = 1;  // the DSPs on a second thread
+            o.threads = -1;  // the DSPs on threads of their own: two where the computer has the cores (Machine::autoThreads)
             return o;
         }
     };
