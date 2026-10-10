@@ -39,6 +39,12 @@ if(NOT TARGET dsp56kEmu)
   add_subdirectory(${dsp56300_SOURCE_DIR}/source/asmjit ${dsp56300_BINARY_DIR}/asmjit EXCLUDE_FROM_ALL)
   add_subdirectory(${dsp56300_SOURCE_DIR}/source/dsp56kBase ${dsp56300_BINARY_DIR}/dsp56kBase EXCLUDE_FROM_ALL)
   add_subdirectory(${dsp56300_SOURCE_DIR}/source/dsp56kEmu ${dsp56300_BINARY_DIR}/dsp56kEmu EXCLUDE_FROM_ALL)
+  # g2emu goes into the plugin, a shared library
+  foreach(_t asmjit dsp56kBase dsp56kEmu)
+    if(TARGET ${_t})
+      set_target_properties(${_t} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif()
+  endforeach()
 endif()
 
 # g2dsppoc: runs one DSP fragment of the G2 OS on the emulated DSP56300.

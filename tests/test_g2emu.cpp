@@ -13,17 +13,20 @@
 #include "g2/uprate.hpp"
 #include "g2emu/firmware.hpp"
 #include "g2emu/machine.hpp"
+#include "g2emu/runner.hpp"
 #include "g2emu/transport.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace g2emu;
@@ -486,4 +489,65 @@ TEST_CASE("The user's G2 OS: boots, syncs with our client, plays a MIDI note", "
     const double hz = double(crossings - 1) * Machine::FrameRate / (last - first);
     CHECK_THAT(hz, Catch::Matchers::WithinAbs(440.0, 0.1));
     CHECK(m.stats().exceptions == 0);
+}
+
+TEST_CASE("The user's G2 OS in real time: the plugin's path (Runner, a link over USB, MIDI)", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    Runner runner(fw);
+    auto link = emulatedG2Link(runner.machine());
+    // As the audio thread and the editor do: drain the audio, tick the link, 1 ms apart, in real time.
+    std::vector<float> heard, block(4 * 96);
+    auto step = [&](bool keep) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        while(const auto n = runner.read(block.data(), std::min<std::size_t>(96, runner.available())))
+            if(keep) heard.insert(heard.end(), block.begin(), block.begin() + std::ptrdiff_t(4 * n));
+        link->tick();
+    };
+    using Clock = std::chrono::steady_clock;
+    const auto start = Clock::now();
+    auto within = [&](double s) { return std::chrono::duration<double>(Clock::now() - start).count() < s; };
+    while(!link->synced() && within(20)) step(false);
+    REQUIRE(link->synced());
+    link->sendPerformance(g2::Performance::playing(keyboardSine(), "Sine"), "Sine");  // SynthSync::sendPatchAlone
+    while(!link->client().idle() && within(30)) step(false);
+    REQUIRE(link->client().idle());
+    for(int i = 0; i < 1000; ++i) step(false);  // the output ramps up after an upload
+
+    const std::uint8_t on[3] = {0x90, 69, 100};
+    runner.midiIn(on);
+    while(heard.size() < 4 * Machine::FrameRate / 2 && within(60)) step(true);
+    REQUIRE(heard.size() >= 4 * Machine::FrameRate / 2);
+    // Out 1 and Out 2 (words 0 and 2): the 440 Hz sine on both
+    for(const std::size_t word : {std::size_t(0), std::size_t(2)})
+    {
+        std::size_t crossings = 0;
+        double first = -1, last = -1;
+        for(std::size_t f = Machine::FrameRate / 10; f + 1 < heard.size() / 4; ++f)
+        {
+            const double a = heard[f * 4 + word], b = heard[(f + 1) * 4 + word];
+            if(a < 0 && b >= 0)
+            {
+                const double tc = double(f) + a / (a - b);
+                if(first < 0) first = tc;
+                last = tc;
+                ++crossings;
+            }
+        }
+        REQUIRE(crossings > 100);
+        const double hz = double(crossings - 1) * Machine::FrameRate / (last - first);
+        CHECK_THAT(hz, Catch::Matchers::WithinAbs(440.0, 0.1));
+    }
+    INFO("frames the reader missed: " << runner.stats().framesMissing << ", speed " << runner.stats().speed);
+    runner.stop();
+    CHECK(runner.machine().stats().exceptions == 0);
+    CHECK(runner.machine().stats().dspsWild == 0);
 }

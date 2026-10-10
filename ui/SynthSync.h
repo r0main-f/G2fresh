@@ -37,7 +37,7 @@ public:
     explicit SynthSync(PatchDocument& doc);
     ~SynthSync() override;
 
-    enum class Kind { None, G2, Virtual };
+    enum class Kind { None, G2, Virtual, Emulated };
     // A G2 on USB, through the g2bridge process (started if needed).
     void connectG2();
     // Whether the bridge's USB log includes patch contents (off: redacted).
@@ -46,6 +46,10 @@ public:
     static void setFullUsbLog(bool on);
     // The virtual G2: try the synth features without hardware.
     void connectVirtual();
+    // The emulated G2 (the user's own G2 OS running in G2fresh, which plays
+    // its sound): a link made by its owner, which keeps the emulator running
+    // while kind() is Emulated.
+    void connectEmulated(std::unique_ptr<g2::proto::SynthLink> link);
     void disconnect();
     Kind kind() const { return kind_; }
     // Connected and the synth fully read.
@@ -58,6 +62,10 @@ public:
     // Sends the document's patch to a slot (or the performance to the synth)
     // and binds it.
     void sendPatch(int slot);
+    // Sends the document's patch in a performance of its own (slot A alone,
+    // on the keyboard: g2::Performance::playing) and binds it to slot A: for
+    // a synth that should just play the patch, as the emulated G2 does.
+    void sendPatchAlone();
     void sendPerformance();
     // Replaces the document with a slot's patch (or the synth's performance)
     // and binds it.

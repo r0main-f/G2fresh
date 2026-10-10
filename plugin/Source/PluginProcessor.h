@@ -9,7 +9,9 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-// The G2 makes its own sound: this processor outputs silence. It owns the
+// The G2 makes its own sound: with a G2 playing the patch, this processor
+// outputs silence; otherwise it plays the patch itself (the native engine, or
+// the emulated G2 when the editor is connected to it). It owns the
 // patch being edited and stores it in the host's project, so the patch is
 // recalled with the project; exposes the patch's knobs, morph dials and
 // variation as automatable parameters (AutomationBank); and forwards its MIDI
@@ -53,16 +55,29 @@ public:
     bool builtinSoundEnabled() const override { return builtinOn_; }
     void setBuiltinSoundEnabled(bool on) override;
     juce::String builtinSoundStatus() const override { return engine_->status(); }
+#if G2FRESH_EMULATOR
+    bool emulatorAvailable() const override { return true; }
+    juce::String startEmulator(const juce::File& firmware) override;
+#endif
 
 private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
     void loadState(std::vector<std::uint8_t> bytes);
     std::vector<std::uint8_t> encodeState() const;
     void refreshState();
+    // Swaps the emulated G2's engine (nullptr: none) while the audio thread
+    // does not run; the old one is destroyed here, on the message thread.
+    void setEmulated(std::unique_ptr<SoundEngine> engine);
 
     g2ui::PatchDocument document_;
     MidiForwarder midiOut_;
     std::unique_ptr<AutomationBank> automation_;
+    // The emulated G2 (EmulatedSoundEngine) while the editor is connected to
+    // it: it plays instead of engine_. Before synth_, whose link uses it.
+    std::unique_ptr<SoundEngine> emulated_;
+    bool emulatedSent_ = false; // the document went to the emulated G2 once it was up
+    double sampleRate_ = 0.0;
+    int blockSize_ = 512;
     g2ui::SynthSync synth_{document_}; // the G2 connection outlives the editor window
     std::unique_ptr<SoundEngine> engine_ = std::make_unique<NativeSoundEngine>();
     std::atomic<bool> builtinOn_{true};

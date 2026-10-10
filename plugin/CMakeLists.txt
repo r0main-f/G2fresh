@@ -47,6 +47,13 @@ target_link_libraries(G2Editor
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
 
+# The emulated G2 as a sound engine, in builds with the emulator (-DG2_BUILD_EMU=ON).
+if(TARGET g2emu)
+  target_sources(G2Editor PRIVATE Source/EmulatedSoundEngine.cpp)
+  target_link_libraries(G2Editor PRIVATE g2emu)
+  target_compile_definitions(G2Editor PRIVATE G2FRESH_EMULATOR=1)
+endif()
+
 # The g2bridge executable goes with the app (next to its executable) and in
 # each plugin bundle's Resources, where SynthSync looks for it.
 if(TARGET g2bridge)

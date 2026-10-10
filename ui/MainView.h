@@ -123,6 +123,8 @@ private:
     std::unique_ptr<class BankBrowser> bankBrowser_;
     juce::Label synthStatus_;
     void updateSynthStatus();
+    // Connects to the emulated G2, from the G2 OS chosen before (or asks where it is).
+    void startEmulator(bool chooseFirmware);
     void updateLoad();
     juce::PopupMenu synthMenu();
     void showMutator();

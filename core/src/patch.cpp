@@ -401,6 +401,20 @@ std::vector<u8> savePatch(const Patch& patch)
     return write(patch.toFile());
 }
 
+Performance Performance::playing(const Patch& patch, const std::string& name)
+{
+    Performance perf;
+    for (auto& p : perf.slots)
+        p = Patch::makeDefault();
+    perf.slots[0] = patch;
+    for (std::size_t i = 0; i < perf.header.slots.size(); ++i) {
+        perf.header.slots[i].enabled = i == 0 ? 1 : 0;
+        perf.header.slots[i].keyboard = i == 0 ? 1 : 0;
+    }
+    perf.header.slots[0].patchName = name;
+    return perf;
+}
+
 Performance loadPerformance(std::span<const u8> bytes, LoadOptions options)
 {
     return Performance::fromFile(readChecked(bytes, options));

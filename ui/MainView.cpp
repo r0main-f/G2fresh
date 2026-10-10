@@ -28,6 +28,7 @@ enum MenuId {
     kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog, kBuiltinSound,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
+    kSynthEmulated = 730, kEmulatorFirmware,
 };
 
 juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
@@ -248,6 +249,39 @@ void MainView::updateSynthStatus()
     synthStatus_.setColour(juce::Label::textColourId, colour);
 }
 
+void MainView::startEmulator(bool chooseFirmware)
+{
+    if (builtin_ == nullptr || !builtin_->emulatorAvailable())
+        return;
+    auto start = [this](const juce::File& firmware) {
+        const auto error = builtin_->startEmulator(firmware);
+        if (error.isNotEmpty()) {
+            setStatus("Emulated G2: " + error);
+            return;
+        }
+        userSettings().setValue("emulatorFirmware", firmware.getFullPathName());
+        setStatus("Emulated G2: starting the G2 OS from " + firmware.getFileName()
+                  + " (a few seconds; the patch then plays in G2fresh)");
+        updateSynthStatus();
+    };
+    const juce::File known{userSettings().getValue("emulatorFirmware")};
+    if (!chooseFirmware && known.exists()) {
+        start(known);
+        return;
+    }
+    // Clavia's free OS updater, as downloaded from nordkeyboards.com (macOS: the
+    // updater app, or the .rsrc inside it).
+    chooser_ = std::make_unique<juce::FileChooser>(
+        "Locate the Nord Modular G2 OS updater (Nord Modular G2 OS Update.app, or its .rsrc file)",
+        known.exists() ? known : juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.app;*.rsrc;*.bin");
+    chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::canSelectDirectories,
+                          [this, start](const juce::FileChooser& fc) {
+                              if (const auto f = fc.getResult(); f != juce::File())
+                                  start(f);
+                          });
+}
+
 juce::PopupMenu MainView::synthMenu()
 {
     juce::PopupMenu m;
@@ -262,6 +296,11 @@ juce::PopupMenu MainView::synthMenu()
     m.addItem(item(kSynthG2, "Connect to G2 (USB)", {}, synth_->kind() != Kind::G2, synth_->kind() == Kind::G2));
     m.addItem(item(kSynthVirtual, "Connect to Virtual G2 (no hardware)", {}, synth_->kind() != Kind::Virtual,
                    synth_->kind() == Kind::Virtual));
+    if (builtin_ != nullptr && builtin_->emulatorAvailable()) {
+        m.addItem(item(kSynthEmulated, "Connect to Emulated G2 (your G2 OS, plays in G2fresh)", {},
+                       synth_->kind() != Kind::Emulated, synth_->kind() == Kind::Emulated));
+        m.addItem(item(kEmulatorFirmware, "Choose the G2 OS for the Emulated G2..."));
+    }
     m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
     m.addSeparator();
     const bool ready = synth_->ready();
@@ -393,6 +432,10 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
 
 void MainView::menuItemSelected(int id, int)
 {
+    if (synth_ != nullptr && (id == kSynthEmulated || id == kEmulatorFirmware)) {
+        startEmulator(id == kEmulatorFirmware);
+        return;
+    }
     if (synth_ != nullptr && id >= kSynthG2 && id < kGetPatchBase + 4) {
         if (id == kSynthG2)
             synth_->connectG2();

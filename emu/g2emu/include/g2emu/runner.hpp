@@ -3,7 +3,8 @@
 // ready. MIDI goes in from any thread; our protocol client talks to the machine through MachineTransport (the
 // machine's USB queues are thread-safe), e.g. a LocalLink built on it.
 //
-// The audio is the G2's own: 96 kHz, 4 channels (outputs 1-4). Resampling to the host's rate is the caller's job.
+// The audio is the G2's own: 96 kHz, 4 words per frame as Machine::run() gives them (outputs 1, 3, 2, 4). Resampling
+// to the host's rate is the caller's job.
 #pragma once
 
 #include "g2emu/machine.hpp"
@@ -12,6 +13,7 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <vector>
 
 namespace g2emu {
 
@@ -21,6 +23,7 @@ public:
         Machine::Options machine = defaultMachineOptions();
         double bufferMs = 20;      // audio kept ready ahead of the reader
         std::uint32_t chunkFrames = 96;  // frames the machine runs at a time (1 ms)
+        std::vector<std::uint8_t> flash;  // the flash's content at power-on (empty: as the machine starts it)
         static Machine::Options defaultMachineOptions()
         {
             Machine::Options o;
@@ -44,6 +47,10 @@ public:
     // Returns how many were there; the rest of `out` is set to silence.
     std::size_t read(float* out, std::size_t frames);
     std::size_t available() const;
+
+    // Stops the machine's thread (for good). Then machine() may be used from the caller's thread, e.g. to save
+    // machine().flash(). The destructor stops it too.
+    void stop();
 
     // Any thread.
     void midiIn(std::span<const std::uint8_t> bytes) { machine_->midiIn(bytes); }

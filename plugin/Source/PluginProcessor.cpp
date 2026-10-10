@@ -1,6 +1,11 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#if G2FRESH_EMULATOR
+#include "EmulatedSoundEngine.h"
+#include "g2emu/transport.hpp"
+#endif
+
 // The state stored in the host project (and by the stand-alone app between
 // sessions): the patch or performance as a .pch2/.prf2, its name and file.
 std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
@@ -39,14 +44,61 @@ G2EditorProcessor::~G2EditorProcessor()
 {
     synth_.removeChangeListener(this);
     document_.removeChangeListener(this);
+    synth_.disconnect(); // the emulated G2's link, before the emulator goes
 }
+
+void G2EditorProcessor::setEmulated(std::unique_ptr<SoundEngine> engine)
+{
+    {
+        const juce::ScopedLock lock(getCallbackLock());
+        std::swap(emulated_, engine);
+    }
+    engine.reset(); // the old one: stops its threads, saves its flash
+}
+
+#if G2FRESH_EMULATOR
+juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
+{
+    // One emulated G2 at a time: the running one saves its flash before the new one reads it.
+    if (emulated_ != nullptr) {
+        synth_.disconnect();
+        setEmulated(nullptr);
+    }
+    std::unique_ptr<EmulatedSoundEngine> engine;
+    try {
+        const auto fw = g2emu::Firmware::load(firmware.getFullPathName().toStdString());
+        if (fw.code() == nullptr)
+            return "no G2 OS in " + firmware.getFileName();
+        engine = std::make_unique<EmulatedSoundEngine>(fw, EmulatedSoundEngine::defaultFlashFile());
+    } catch (const std::exception& e) {
+        return juce::String("the emulated G2 cannot start: ") + e.what();
+    }
+    engine->prepare(sampleRate_ > 0 ? sampleRate_ : 48000.0, blockSize_);
+    synth_.connectEmulated(g2emu::emulatedG2Link(engine->machine()));
+    emulatedSent_ = false;
+    setEmulated(std::move(engine));
+    return {};
+}
+#endif
 
 void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
     // A patch live on a G2 is heard from the G2: the built-in sound stops.
     synthPlays_ = synth_.ready() && synth_.bound();
-    if (source == &synth_)
+    if (source == &synth_) {
+        using Kind = g2ui::SynthSync::Kind;
+        if (emulated_ != nullptr && synth_.kind() != Kind::Emulated)
+            setEmulated(nullptr); // the editor left the emulated G2
+        // Once up, the emulated G2 plays the document (later, the user sends what they want).
+        if (synth_.kind() == Kind::Emulated && synth_.ready() && !synth_.bound() && !emulatedSent_) {
+            emulatedSent_ = true;
+            if (document_.isPerformance())
+                synth_.sendPerformance();
+            else
+                synth_.sendPatchAlone();
+        }
         return;
+    }
     engine_->setPatch(document_.patch(), document_.variation());
     refreshState();
 }
@@ -76,6 +128,11 @@ void G2EditorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     midiOut_.prepare(sampleRate);
     engine_->prepare(sampleRate, samplesPerBlock);
+    const juce::ScopedLock lock(getCallbackLock());
+    sampleRate_ = sampleRate;
+    blockSize_ = samplesPerBlock;
+    if (emulated_ != nullptr)
+        emulated_->prepare(sampleRate, samplesPerBlock);
 }
 
 bool G2EditorProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -87,6 +144,15 @@ bool G2EditorProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 void G2EditorProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     midiOut_.process(midi); // the track's MIDI to the G2's MIDI IN
+#if G2FRESH_EMULATOR
+    if (emulated_ != nullptr) { // the editor's synth is the emulated G2: it plays
+        auto& emulated = static_cast<EmulatedSoundEngine&>(*emulated_);
+        emulated.setOffline(isNonRealtime());
+        emulated.render(buffer, midi);
+        midi.clear();
+        return;
+    }
+#endif
     if (builtinOn_ && !synthPlays_)
         engine_->render(buffer, midi); // the patch played here
     else

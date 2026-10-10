@@ -1,0 +1,117 @@
+#include "EmulatedSoundEngine.h"
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <thread>
+
+namespace {
+
+g2emu::Runner::Options runnerOptions(std::vector<std::uint8_t> flash)
+{
+    g2emu::Runner::Options o;
+    o.flash = std::move(flash);
+    return o;
+}
+
+std::vector<std::uint8_t> readFlash(const juce::File& file)
+{
+    juce::MemoryBlock data;
+    if (!file.existsAsFile() || !file.loadFileAsData(data))
+        return {};
+    const auto* p = static_cast<const std::uint8_t*>(data.getData());
+    return {p, p + data.getSize()};
+}
+
+} // namespace
+
+juce::File EmulatedSoundEngine::defaultFlashFile()
+{
+    return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+#if JUCE_MAC
+        .getChildFile("Application Support")
+#endif
+        .getChildFile("G2fresh")
+        .getChildFile("Emulated G2 flash.bin");
+}
+
+EmulatedSoundEngine::EmulatedSoundEngine(const g2emu::Firmware& firmware, juce::File flashFile)
+    : flashFile_(std::move(flashFile)), savedFlash_(readFlash(flashFile_)),
+      runner_(std::make_unique<g2emu::Runner>(firmware, runnerOptions(savedFlash_)))
+{
+}
+
+EmulatedSoundEngine::~EmulatedSoundEngine()
+{
+    runner_->stop();
+    const auto& flash = runner_->machine().flash();
+    if (flash == savedFlash_)
+        return;
+    flashFile_.getParentDirectory().createDirectory();
+    if (!flashFile_.replaceWithData(flash.data(), flash.size()))
+        DBG("G2fresh: cannot save the emulated G2's flash to " << flashFile_.getFullPathName());
+}
+
+void EmulatedSoundEngine::prepare(double sampleRate, int maxBlock)
+{
+    hostRate_ = sampleRate > 0 ? sampleRate : 96000.0;
+    const auto room = static_cast<std::size_t>(std::ceil(maxBlock * g2emu::Machine::FrameRate / hostRate_)) + 64;
+    frames_.reserve(room * 4);
+    for (int c = 0; c < 2; ++c) {
+        resamplers_[c].reset();
+        render96_[c].clear();
+        render96_[c].reserve(room * 2);
+    }
+    stereo_.setSize(2, std::max(1, maxBlock));
+}
+
+juce::String EmulatedSoundEngine::status() const
+{
+    const auto stats = runner_->stats();
+    if (stats.framesMissing > 0 && stats.speed > 0 && stats.speed < 1.0)
+        return "Emulated G2: this computer runs it at " + juce::String(stats.speed, 2) + "x real time (dropouts)";
+    return "Emulated G2";
+}
+
+void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi)
+{
+    // The track's MIDI to the G2's MIDI IN, at the start of the block.
+    for (const auto meta : midi) {
+        const auto m = meta.getMessage();
+        if (!m.isSysEx())
+            runner_->midiIn({m.getRawData(), static_cast<std::size_t>(m.getRawDataSize())});
+    }
+
+    const int frames = out.getNumSamples();
+    const double ratio = g2emu::Machine::FrameRate / hostRate_;
+    const auto needed = static_cast<std::size_t>(std::ceil(frames * ratio)) + 8;
+    if (render96_[0].size() < needed) {
+        const auto more = needed - render96_[0].size();
+        if (offline_) {
+            // A bounce asks faster than real time: wait for the machine (up to 2 s per block).
+            for (int i = 0; i < 2000 && runner_->available() < more; ++i)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        frames_.resize(more * 4); // within the capacity reserved in prepare() for normal blocks
+        runner_->read(frames_.data(), more); // silence for what is not there yet (booting, too slow)
+        for (std::size_t i = 0; i < more; ++i) { // words: Out 1, Out 3, Out 2, Out 4 (Machine::run)
+            render96_[0].push_back(frames_[4 * i]);
+            render96_[1].push_back(frames_[4 * i + 2]);
+        }
+    }
+    if (stereo_.getNumSamples() < frames)
+        stereo_.setSize(2, frames, false, false, true);
+    int used = 0;
+    for (int c = 0; c < 2; ++c)
+        used = resamplers_[c].process(ratio, render96_[c].data(), stereo_.getWritePointer(c), frames);
+    out.clear();
+    if (out.getNumChannels() >= 2) {
+        out.copyFrom(0, 0, stereo_, 0, 0, frames);
+        out.copyFrom(1, 0, stereo_, 1, 0, frames);
+    } else if (out.getNumChannels() == 1) { // mono host: (Out 1 + Out 2) / 2
+        out.copyFrom(0, 0, stereo_.getReadPointer(0), frames, 0.5f);
+        out.addFrom(0, 0, stereo_.getReadPointer(1), frames, 0.5f);
+    }
+    for (auto& r : render96_)
+        r.erase(r.begin(), r.begin() + static_cast<std::ptrdiff_t>(std::min<std::size_t>(static_cast<std::size_t>(used), r.size())));
+}

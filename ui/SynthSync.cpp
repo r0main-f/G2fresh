@@ -129,6 +129,11 @@ void SynthSync::connectVirtual()
     startLink(g2::proto::LocalLink::virtualG2(), Kind::Virtual);
 }
 
+void SynthSync::connectEmulated(std::unique_ptr<g2::proto::SynthLink> link)
+{
+    startLink(std::move(link), Kind::Emulated);
+}
+
 void SynthSync::disconnect()
 {
     startLink(nullptr, Kind::None);
@@ -140,6 +145,8 @@ juce::String SynthSync::statusText() const
         return "Not connected";
     if (kind_ == Kind::Virtual)
         return link_->synced() ? "Virtual G2" : "Virtual G2: connecting...";
+    if (kind_ == Kind::Emulated)
+        return link_->synced() ? "Emulated " + juce::String(link_->statusLine()) : "Emulated G2: starting...";
     if (link_->synced())
         return juce::String(link_->statusLine());
     if (link_->connected())
@@ -187,6 +194,19 @@ void SynthSync::sendPatch(int slot)
     binding_ = Binding::Patch;
     slot_ = slot;
     sent_[static_cast<std::size_t>(slot)] = doc_.patch();
+    ledMap_ = g2ui::ledMap(doc_.patch());
+    sendChangeMessage();
+}
+
+void SynthSync::sendPatchAlone()
+{
+    if (!ready() || doc_.isPerformance())
+        return;
+    unbind();
+    link_->sendPerformance(g2::Performance::playing(doc_.patch(), doc_.name().toStdString()), doc_.name().toStdString());
+    binding_ = Binding::Patch;
+    slot_ = 0;
+    sent_[0] = doc_.patch();
     ledMap_ = g2ui::ledMap(doc_.patch());
     sendChangeMessage();
 }

@@ -22,10 +22,18 @@ Runner::Runner(const Firmware& firmware, Options options)
     // room for the buffer plus a few chunks
     capacity_ = std::size_t(options_.bufferMs * Machine::FrameRate / 1000.0) + 8 * options_.chunkFrames + 1;
     ring_.assign(capacity_ * 4, 0.0f);
+    if(!options_.flash.empty())
+    {
+        auto& flash = machine_->flash();
+        std::copy_n(options_.flash.begin(), std::min(flash.size(), options_.flash.size()), flash.begin());
+        options_.flash = {};
+    }
     thread_ = std::make_unique<Thread>(Thread{BigStackThread([this] { loop(); })});
 }
 
-Runner::~Runner()
+Runner::~Runner() { stop(); }
+
+void Runner::stop()
 {
     quit_ = true;
     thread_.reset();

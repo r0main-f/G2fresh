@@ -159,6 +159,10 @@ struct Performance {
 
     static Performance fromFile(const file::File& file);
     file::File toFile() const;
+    // A performance that plays `patch` alone: in slot A, on the keyboard; the
+    // other slots empty and off. (A G2 plays slot A from the keyboard only
+    // when its performance says so.)
+    static Performance playing(const Patch& patch, const std::string& name = {});
 };
 
 // Thrown by the loaders when the file's checksum is wrong (the file may be

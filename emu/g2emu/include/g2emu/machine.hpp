@@ -64,8 +64,9 @@ public:
     Machine(const Machine&) = delete;
     Machine& operator=(const Machine&) = delete;
 
-    // Runs `frames` frames. The DACs' output, 4 channels per frame (outputs 1-4) as 24-bit words scaled to
-    // [-1, 1), is appended to `out` when it is not null.
+    // Runs `frames` frames. The DACs' output, 4 words per frame as 24-bit words scaled to [-1, 1), is appended to
+    // `out` when it is not null. The words are in the DACs' order: DAC 1 L, DAC 2 L, DAC 1 R, DAC 2 R, i.e. outputs
+    // 1, 3, 2, 4.
     void run(std::uint32_t frames, std::vector<float>* out = nullptr);
     std::uint64_t frame() const;
     double seconds() const { return double(frame()) / FrameRate; }
