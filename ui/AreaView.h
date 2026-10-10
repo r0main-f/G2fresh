@@ -34,6 +34,9 @@ public:
 
     // Selection (click; Shift-click toggles; drag a rectangle on the background).
     bool hasSelection() const { return !selection_.empty(); }
+    // A cable clicked on its cord: Delete removes it.
+    bool hasHighlightedCable() const { return highlighted_.has_value(); }
+    void deleteHighlightedCable();
     const std::vector<std::uint8_t>& selection() const { return selection_; }
     void selectAll();
     void clearSelection();

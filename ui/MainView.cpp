@@ -336,7 +336,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kCopy, "Copy", kCmd + "C", selected));
         m.addItem(item(kPaste, "Paste", kCmd + "V", !AreaView::clipboard().empty()));
         m.addItem(item(kDuplicate, "Duplicate", kCmd + "D", selected));
-        m.addItem(item(kDelete, "Delete", "Delete", selected));
+        m.addItem(item(kDelete, "Delete", "Delete", selected || va_.hasHighlightedCable() || fx_.hasHighlightedCable()));
         m.addItem(item(kSelectAll, "Select All", kCmd + "A"));
         m.addSeparator();
         juce::PopupMenu variations;
@@ -499,7 +499,10 @@ void MainView::menuItemSelected(int id, int)
     case kUndo: doc_.undo(); break;
     case kRedo: doc_.redo(); break;
     case kDelete:
-        if (auto* a = areaWithSelection())
+        // A highlighted cable first (clicked on its cord), else the selected modules.
+        if (activeArea().hasHighlightedCable())
+            activeArea().deleteHighlightedCable();
+        else if (auto* a = areaWithSelection())
             a->deleteSelected();
         break;
     case kRename: name_.showEditor(); break;

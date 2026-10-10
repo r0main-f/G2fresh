@@ -677,7 +677,7 @@ void AreaView::highlightCable(std::optional<g2::Cable> cable)
     updateTimer();
     overlay_->repaint();
     if (cable)
-        status(describeCable(*cable));
+        status(describeCable(*cable) + "  (Delete removes it)");
 }
 
 void AreaView::mouseMove(const juce::MouseEvent& e)
@@ -697,8 +697,8 @@ void AreaView::mouseMove(const juce::MouseEvent& e)
     const bool onControl = h.element && (ModulePainter::isJack(*h.element) || isEditable(*h.element));
     if (const auto cable = onControl ? std::nullopt : cableAt(e.getPosition())) {
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
-        status(describeCable(*cable) + (cable->bend ? "  (click to highlight, double-click to remove the bend point)"
-                                                    : "  (click to highlight, double-click to add a bend point)"));
+        status(describeCable(*cable) + (cable->bend ? "  (click to select, double-click to remove the bend point)"
+                                                    : "  (click to select, double-click to add a bend point)"));
         return;
     }
     setMouseCursor(juce::MouseCursor::NormalCursor);
@@ -722,6 +722,7 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
     // Bend points come first: drag one to move it.
     if (const auto bent = bendPointAt(e.getPosition())) {
         highlightCable(bent);
+        clearSelection();
         dragHit_ = {};
         if (e.mods.isPopupMenu())
             showCableMenu(*bent);
@@ -734,6 +735,7 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
     const bool onControl = dragHit_.element && (ModulePainter::isJack(*dragHit_.element) || isEditable(*dragHit_.element));
     if (const auto cable = onControl ? std::nullopt : cableAt(e.getPosition())) {
         highlightCable(cable);
+        clearSelection(); // the cable is what Delete acts on now
         dragHit_ = {};
         if (e.mods.isPopupMenu())
             showCableMenu(*cable);
@@ -991,10 +993,24 @@ juce::String AreaView::getTooltip()
     return m && m->def() ? moduleTooltip(*m->def()) : juce::String();
 }
 
+void AreaView::deleteHighlightedCable()
+{
+    const auto cable = highlightedCable();
+    highlightCable(std::nullopt);
+    if (!cable)
+        return;
+    const auto loc = location_;
+    doc_.perform("Delete cable", [&](g2::Patch& p) { g2::edit::disconnect(p, loc, *cable); });
+}
+
 bool AreaView::keyPressed(const juce::KeyPress& key)
 {
     if (key == juce::KeyPress::escapeKey && highlighted_) {
         highlightCable(std::nullopt);
+        return true;
+    }
+    if ((key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey) && highlighted_) {
+        deleteHighlightedCable();
         return true;
     }
     if ((key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey) && hasSelection()) {
