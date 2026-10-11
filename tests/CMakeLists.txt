@@ -15,6 +15,7 @@ add_executable(g2tests
   test_morph.cpp
   test_file.cpp
   test_patch.cpp
+  test_convert.cpp
   test_replace.cpp
   test_special.cpp
   test_mutate.cpp

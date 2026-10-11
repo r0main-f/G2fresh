@@ -21,6 +21,7 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
     state.setProperty("name", doc.name(), nullptr);
     state.setProperty("file", doc.file().getFullPathName(), nullptr);
     state.setProperty("edited", doc.isDirty(), nullptr); // edits never saved to the file stay marked edited
+    state.setProperty("convertedFrom", doc.convertedFrom(), nullptr); // an old file not saved since, which Save asks about
     state.setProperty("data", data.toBase64Encoding(), nullptr);
     state.setProperty("layout", doc.layoutJson(), nullptr); // cable shapes
     state.setProperty("midiOut", midiOut_.deviceIdentifier(), nullptr);
@@ -602,6 +603,7 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         if (file.isNotEmpty() && juce::File::isAbsolutePath(file))
             document_.setFile(juce::File(file));
         document_.setName(state["name"].toString());
+        document_.setConvertedFrom(static_cast<int>(state.getProperty("convertedFrom", 0)));
         document_.applyLayoutJson(state["layout"].toString());
         midiOut_.restore(state["midiOut"].toString(), state["midiOutName"].toString(), state["midiChannel"]);
         emulatorWanted_ = static_cast<bool>(state.getProperty("emulated", true));

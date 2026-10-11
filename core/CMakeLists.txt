@@ -4,6 +4,7 @@ add_library(g2core STATIC
   src/module_db.cpp
   src/module_db_data.cpp
   src/patch.cpp
+  src/convert.cpp
   src/replace.cpp
   src/special.cpp
   src/replace_data.cpp

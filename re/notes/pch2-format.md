@@ -410,23 +410,58 @@ Optional keys `_pad` and `_trailing` hold non-zero final pad bits and extra payl
 
 ## 7. Version history (`CFileConverter`, @00051224 loops `Convert` until the current version)
 
-The binary layout is the same for versions 13–23 (`CPatchFile_14`…`_23` add no
-Read/Write, only `Convert`). Each step `ConvertPatchNtoN+1` copies all molecules and then
-runs a per-version `UpdateModule` over the settings pseudo-modules and every module
-(table-driven parameter and selector remaps).
+Ported as `g2::convert` (core/src/convert.cpp), golden-tested against the original under
+emulation (tools/convert/emulate.py): all 2,375 old-version files of the public corpus
+convert byte for byte as the original converts them.
 
-| step | function | notable change |
+`CPatchFilePort::Load` @0006cba4 reads the file into the class named by the **text
+header's** `Version=` line (`CFileReader_G2_1::CreateDataFile` @00074ef8), then
+`CFileConverter` converts it to 23. The binary layout is the same for versions 13–23
+(`CPatchFile_14`…`_23` add no Read/Write, only `Convert`); 11 and 12 use
+`CPatchFile_11::ReadMolecules` @0005196c (17 sections: no settings `5B`). Each step
+`ConvertPatchNtoN+1` copies the molecules, then runs that step's `UpdateModule` on the
+seven settings pseudo-modules — (type, index) (6,1) (95,2) (135,3) (137,4) (138,5)
+(136,6) (153,7) — and on every VA, then FX module in list order. The performance
+variants (`CFileConverter::operator()(CPerformanceFile_N)`) copy the header and global
+knobs and convert the four slots; 20→21 and 21→22 also get the slot and the global
+knob map (`CPerformanceData`).
+
+Side effects of the copy (what the converted file differs in even when no module
+changes): custom data of 0 bytes is dropped (`CModuleCustomData_11::operator=`
+@000698ca → `CopyMap`/`AddCustomData`); maps are written in key order — parameters,
+custom data and names by module index, morphs by (location, module, param, group),
+controllers by (location, module, param), knobs by knob; a knob's target is unique
+(the second knob on the same parameter is dropped on read), as is a controller's;
+reserved bits and legacy fields are written 0.
+
+| step | function / `UpdateModule` | changes |
 |---|---|---|
-| 11 → 12 | – | `CPatchFile_11::Convert` @00052c70 throws "Unsupported file version": v11 can be read but not upgraded |
-| 12 → 13 | `ConvertPatch12to13` @000480c6 | layout: the 3rd `5B` section (location 2, morph labels) is added. 11/12 have only VA and FX custom data (object size 0x264 → 0x284) |
-| 13 → 14 | @000488f0 | module updates only |
-| 14 → 15 | @000490a0 | adds morph-map variation 8 (the 9th, "init" variation) |
-| 15 → 16 | @0004a042 | + `ValidateCables` |
-| 16 → 17 | @0004aaf0 | + `ValidatePartSelectors` |
-| 17 → 18, 18 → 19, 19 → 20 | @0004b2c4, @0004bc48, @0004c3d8 | module updates only |
-| 20 → 21 | @0004d910 | morph groups 4 and 5 are swapped in all morph assignments. The performance variant also touches the global knobs (`CPerformanceData*` argument) |
-| 21 → 22 | @0004e8ae | module type 69 (0x45) gets one extra selector value (0 appended) |
-| 22 → 23 | @0004f09c | the module "is_led" flag (§3.2) is computed from the type |
+| 11 → 12 | `CPatchFile_11::Convert` @00052c70 | throws "Unsupported file version" |
+| 12 → 13 | @000480c6 / @00047fa6 | settings `5B` added, empty. Type 88: param 0 removed. Settings module 5 (vibrato): param 2 = 64 inserted |
+| 13 → 14 | @000488f0 / @00048780 | type 102: params 9, 1, 0 removed, then 8, 9, 10 inserted (0). Types 3, 4: param 2 inserted (0). Type 123: param 9 inserted (0). Type 195: param 3 inserted (1) |
+| 14 → 15 | @000490a0 / @00048f9c | one on/off parameter per type inverted (`InvertParam` @00048efa; 46 types). Morph variation 8 added if missing (also in every later step up to 20→21) |
+| 15 → 16 | @0004a042 / @00049a50 | levels and times through the cubic `_gConvertTable` @001dcce0 (`HandleCubifyParam` @000497f8, morph ranges kept at the same end value), some only where another parameter is not 1; type 87: param 0 −5 (≤100) or −3 (≤110); type 108: param 16 removed; type 177: param 5 removed. `ValidateCables` @00049744: type 177 loses the cables of input 1 |
+| 16 → 17 | @0004aaf0 / @0004a7b6 | `TruncParam` @0004a716 limits (types 24, 25, 26, 190 to 3; 175, 176, 177, 182 to 1); type 158: param 2 removed; type 94: param 0 halved (and its morph ranges). `ValidatePartSelectors` @0004aaba: types 9 and 96, selector 0 above 1 moves up one (5 → 2) |
+| 17 → 18 | @0004b2c4 / @0004b226 | type 118: params 4, 3 removed; type 198: param 0 removed |
+| 18 → 19 | @0004bc48 / @0004bb60 | types 175, 176, 177, 182: one parameter zeroed; types 3, 4: param 2 limited to 1 (`LimitParam` @0004b9d6, morph ranges to ±1) |
+| 19 → 20 | @0004c3d8 / @0004c2ec | type 134: param 0 as type 87 in 15→16 |
+| 20 → 21 | @0004d910 / @0004d066 | morph map rebuilt with groups 4 and 5 swapped (keyboard morph assignments not copied: they become 0); settings morph module: dials 4/5 and modes 12/13 swapped with their knobs, controllers and global knobs (`SwapParamsWithoutMorph` @0004cc10, `CPerformanceData::SwapParam` @001ab0dc); morphs removed from some parameters of 16 types (the module's higher morphs shift down, as `CMorphMapData_11::RemoveParam` @00066836 does); types 98, 202, 206: parameters removed (also from the slot's global knobs), type 98 and 140 gain one; `ValidateCables` @0004cb22 (types 98, 206) and `ValidatePartSelectors` @0004cbec (type 206: selector 0 ≤ 1) |
+| 21 → 22 | @0004e8ae / @0004e646 | type 77 modules dropped (`CopyModules` @0004e350) with their cables and names (their parameters and custom data stay in the file); LFO rates of types 26 and 24 (selector 4/5) rescaled per rate mode (`Convert_LFORate*` @0004e1f0…), glide time of type 158 through `ScaleGlide` @0004e1dc when its mode is 1 (`ScaleParam` @0004e470); type 69 gets a second selector value (0) |
+| 22 → 23 | @0004f09c | the lock flag (§3.2) set from the type (`GetDefaultMutationLock` @0004f008) |
+
+Quirks of the original that only synthetic files reach: a parameter removed or
+added on a module without parameter data, or past the end of its list
+(`CModuleParamData_11::RemoveParam` @0006831e erases `end()`), corrupts the objects;
+`g2::convert` skips such an operation instead.
+
+The converted object is not what the original saves: `CPatch::LoadFromFile`
+@000d9308 builds the patch from it and keeps the converted flag (`CPatch+0x54`);
+`CPatch::SaveToFile` @000da3f4 then asks `CFilePortUtils::ConvertAlert` @000308c4
+("[WARN][Convert File]File will be converted to new format.[Cancel][OK]"), clears the
+flag on OK and writes a fresh `CPatchFileCurrent` (version 23, "Info=BUILD 320").
+Performances are converted the same way but saved without asking
+(`CPerformance::SaveToFile` @0010190c), and nothing is said when a file is opened
+(`SFileLoadInfo` is filled but not shown).
 
 Versions 1–7 (`CPatchFile_1`…`_7`, `CConvert1to2`…`5to6`) and `CFileReader_31` handle the
 original Nord Modular text format (`Version=Nord Modular patch 3.0`, `NSFile_V1`/`V7`

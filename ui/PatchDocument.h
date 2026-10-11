@@ -102,6 +102,19 @@ public:
     // invalid MIDI controller map, characters outside the G2 set in module
     // names), for a message; empty if nothing.
     juce::String loadReport() const { return loadReport_; }
+    // The version an old file was converted from when it was loaded (the
+    // original converts it on load: CFileConverter::Convert @00051224), until
+    // it is saved; 0 for a current file.
+    int convertedFrom() const { return convertedFrom_; }
+    // A patch converted on load and not saved since: the original asks before
+    // writing it (CPatch::SaveToFile @000da3f4 -> CFilePortUtils::ConvertAlert
+    // @000308c4). A performance is saved without asking
+    // (CPerformance::SaveToFile @0010190c).
+    bool conversionPending() const { return !perf_ && convertedFrom_ != 0; }
+    // Saved in the current format: no more question.
+    void conversionDone() { convertedFrom_ = 0; }
+    // A restored session's document that was converted and not saved yet.
+    void setConvertedFrom(int version) { convertedFrom_ = version; }
 
     // The name shown and edited in the toolbar: the patch's name, or in a
     // performance the current slot's patch name (stored in the file). G2 names
@@ -155,6 +168,7 @@ private:
     bool dirty_ = false;
     juce::String loadReport_;
     bool embeddedNameFiltered_ = false;
+    int convertedFrom_ = 0;
 };
 
 } // namespace g2ui

@@ -143,8 +143,10 @@ struct Patch {
     // An empty patch as the original editor creates it.
     static Patch makeDefault();
 
-    // Converts from / to the section codec. fromFile accepts the 18-section
-    // patch layout (versions 13..23); it throws FormatError otherwise.
+    // Converts from / to the section codec. fromFile converts a file of
+    // version 12..22 to version 23 first (g2::convert::toCurrent, as the
+    // original does on load); it throws FormatError for anything else
+    // (g2::convert::UnsupportedVersion for versions it cannot convert).
     static Patch fromFile(const file::File& file);
     static Patch fromSections(std::span<const file::Section> sections); // the 18 sections
     file::File toFile() const;
@@ -187,6 +189,9 @@ std::vector<u8> savePerformance(const Performance& perf);
 struct Loaded {
     std::variant<Patch, Performance> content;
     std::string embeddedName;
+    // The file's version if it was converted (the original then asks before
+    // saving: CFilePortUtils::ConvertAlert), else 0.
+    std::uint16_t convertedFrom = 0;
     bool isPerformance() const { return content.index() == 1; }
 };
 Loaded load(std::span<const u8> bytes, LoadOptions options = {});

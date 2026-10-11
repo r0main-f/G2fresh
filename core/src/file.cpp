@@ -595,7 +595,7 @@ File read(std::span<const u8> data)
         while (n < 16 && n < d.size() && d[n] >= 0x20 && d[n] < 0x7F)
             ++n;
         std::size_t b = n < 16 && n < d.size() && d[n] == 0 ? n + 1 : n;
-        const bool plausible = n > 0 && b + 4 <= d.size() && d[b] == 0 && d[b + 1] >= 13 && d[b + 1] <= kCurrentVersion
+        const bool plausible = n > 0 && b + 4 <= d.size() && d[b] == 0 && d[b + 1] >= 11 && d[b + 1] <= kCurrentVersion
                                && d[b + 2] <= 1 && (d[b + 3] == kPatchHeader || d[b + 3] == kPerfHeader);
         if (!plausible)
             throw FormatError(describeForeign(d));
