@@ -230,6 +230,142 @@ void restore(const juce::String& path, const juce::File& saved, double seconds)
     onMessageThread([&] { p.reset(); });
 }
 
+// The level of `hz` in v[from, to) (Goertzel), as the amplitude of a sine at that frequency.
+double toneLevel(const std::vector<float>& v, std::size_t from, std::size_t to, double rate, double hz)
+{
+    const double w = 2 * juce::MathConstants<double>::pi * hz / rate, c = 2 * std::cos(w);
+    double s1 = 0, s2 = 0;
+    std::size_t n = 0;
+    for (auto i = from; i < std::min(to, v.size()); ++i, ++n) {
+        const double s = v[i] + c * s1 - s2;
+        s2 = s1;
+        s1 = s;
+    }
+    const double power = s1 * s1 + s2 * s2 - c * s1 * s2;
+    return n > 0 ? 2 * std::sqrt(std::max(0.0, power)) / static_cast<double>(n) : 0.0;
+}
+
+// The plugin's outputs: a patch with a 440 Hz sine on Out 1/2 and a 659 Hz one on Out 3/4, played with the second
+// output bus on (each pair on its own) and off (Out 3/4 mixed into Out 1/2).
+void outputs(const juce::String& path, const juce::File& patch)
+{
+    constexpr double rate = 48000;
+    constexpr int block = 256;
+    for (const bool aux : {true, false}) {
+        std::cout << (aux ? "Out 3/4 bus on" : "Out 3/4 bus off") << std::endl;
+        auto p = load(path, rate, block);
+        if (p == nullptr)
+            return;
+        bool laidOut = false;
+        onMessageThread([&] {
+            auto layout = p->getBusesLayout();
+            if (layout.outputBuses.size() > 1)
+                layout.outputBuses.getReference(1) = aux ? juce::AudioChannelSet::stereo() : juce::AudioChannelSet::disabled();
+            laidOut = p->setBusesLayout(layout);
+            juce::MemoryBlock empty, data;
+            p->getStateInformation(empty);
+            patch.loadFileAsData(data);
+            auto s = pluginState(empty);
+            s.setProperty("data", data.toBase64Encoding(), nullptr);
+            const auto wrapped = withPluginState(empty, s);
+            p->setStateInformation(wrapped.getData(), static_cast<int>(wrapped.getSize()));
+            p->prepareToPlay(rate, block);
+        });
+        const int channels = p->getTotalNumOutputChannels();
+        check(laidOut && channels == (aux ? 4 : 2), "the layout is accepted: " + juce::String(channels) + " channels");
+        std::vector<std::vector<float>> out(static_cast<std::size_t>(channels));
+        juce::AudioBuffer<float> buffer(channels, block);
+        const int blocks = static_cast<int>(6.0 * rate / block);
+        auto next = std::chrono::steady_clock::now();
+        makeRealtime(block / rate);
+        for (int b = 0; b < blocks; ++b) {
+            juce::MidiBuffer midi;
+            buffer.clear();
+            {
+                const juce::ScopedLock lock(p->getCallbackLock());
+                p->processBlock(buffer, midi);
+            }
+            for (int c = 0; c < channels; ++c)
+                out[static_cast<std::size_t>(c)].insert(out[static_cast<std::size_t>(c)].end(), buffer.getReadPointer(c), buffer.getReadPointer(c) + block);
+            next += std::chrono::microseconds(static_cast<long long>(1e6 * block / rate));
+            std::this_thread::sleep_until(next);
+        }
+        const auto from = static_cast<std::size_t>(4 * rate), to = static_cast<std::size_t>(6 * rate);
+        for (int c = 0; c < channels; ++c) {
+            const auto& v = out[static_cast<std::size_t>(c)];
+            const double a = toneLevel(v, from, to, rate, 440.0), e = toneLevel(v, from, to, rate, 659.255);
+            std::cout << "  channel " << c + 1 << ": 440 Hz " << juce::String(a, 3) << ", 659 Hz " << juce::String(e, 3) << std::endl;
+            const bool has440 = a > 0.05, has659 = e > 0.05;
+            if (aux)
+                check(c < 2 ? (has440 && !has659) : (has659 && !has440), c < 2 ? "Out 1/2 alone on its bus" : "Out 3/4 alone on its bus");
+            else
+                check(has440 && has659, "Out 1/2 with Out 3/4 mixed in");
+        }
+        onMessageThread([&] { p.reset(); });
+    }
+}
+
+// A host's transport: a tempo, playing from the top, the beat position advancing with the samples played.
+struct Transport final : juce::AudioPlayHead {
+    double bpm = 100, rate = 48000;
+    std::atomic<std::int64_t> sample{0};
+    juce::Optional<PositionInfo> getPosition() const override
+    {
+        PositionInfo p;
+        p.setBpm(bpm);
+        p.setIsPlaying(true);
+        p.setTimeInSamples(sample.load());
+        p.setPpqPosition(static_cast<double>(sample.load()) / rate * bpm / 60.0);
+        return p;
+    }
+};
+
+// The host's tempo drives the emulated G2's master clock: 100 BPM, playing; the G2's Master Clock display then says
+// so (read from the capture's report).
+void clock(const juce::String& path)
+{
+    constexpr double rate = 48000;
+    constexpr int block = 512;
+    Transport transport;
+    auto p = load(path, rate, block);
+    if (p == nullptr)
+        return;
+    onMessageThread([&] {
+        p->setPlayHead(&transport);
+        p->prepareToPlay(rate, block);
+    });
+    const auto folder = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+#if JUCE_MAC
+                            .getChildFile("Application Support")
+#endif
+                            .getChildFile("G2fresh");
+    const auto report = juce::File::getSpecialLocation(juce::File::userDesktopDirectory).getChildFile("G2fresh capture.txt");
+    report.deleteFile();
+    juce::AudioBuffer<float> buffer(2, block);
+    makeRealtime(block / rate);
+    auto next = std::chrono::steady_clock::now();
+    const double seconds = juce::SystemStats::getEnvironmentVariable("G2TEST_SECONDS", "12").getDoubleValue();
+    for (int b = 0; b < static_cast<int>(seconds * rate / block); ++b) {
+        if (b == static_cast<int>((seconds - 6.0) * rate / block))
+            folder.getChildFile("capture").create(); // a 2 s capture (G2FRESH_CAPTURE_SECONDS), 6 s before the end
+        juce::MidiBuffer midi;
+        buffer.clear();
+        {
+            const juce::ScopedLock lock(p->getCallbackLock());
+            p->processBlock(buffer, midi);
+        }
+        transport.sample += block;
+        next += std::chrono::microseconds(static_cast<long long>(1e6 * block / rate));
+        std::this_thread::sleep_until(next);
+    }
+    waitMs(2000);
+    const auto text = report.loadFileAsString();
+    std::cout << text;
+    check(text.contains("Ext 100"), "the G2's master clock follows the host's 100 BPM");
+    check(text.contains("Run"), "and runs with the host's transport");
+    onMessageThread([&] { p.reset(); });
+}
+
 void run(const juce::String& path, const juce::File& patch)
 {
     constexpr double rate = 48000;
@@ -343,6 +479,31 @@ public:
             return;
         }
         const juce::String path(args[0]);
+        if (args.size() > 1 && args[1] == "--clock") {
+            const juce::String path(args[0]);
+            test_ = std::thread([this, path] {
+                clock(path);
+                std::cout << (failures == 0 ? "all checks passed" : juce::String(failures) + " check(s) failed") << std::endl;
+                juce::MessageManager::callAsync([this] {
+                    setApplicationReturnValue(failures == 0 ? 0 : 1);
+                    quit();
+                });
+            });
+            return;
+        }
+        if (args.size() > 2 && args[1] == "--outputs") {
+            const juce::String path(args[0]);
+            const auto patch = juce::File::getCurrentWorkingDirectory().getChildFile(args[2]);
+            test_ = std::thread([this, path, patch] {
+                outputs(path, patch);
+                std::cout << (failures == 0 ? "all checks passed" : juce::String(failures) + " check(s) failed") << std::endl;
+                juce::MessageManager::callAsync([this] {
+                    setApplicationReturnValue(failures == 0 ? 0 : 1);
+                    quit();
+                });
+            });
+            return;
+        }
         const bool restoring = args.size() > 2 && args[1] == "--restore";
         const juce::File file = args.size() > (restoring ? 2 : 1) ? juce::File::getCurrentWorkingDirectory().getChildFile(args[restoring ? 2 : 1]) : juce::File();
         test_ = std::thread([this, path, file, restoring] {

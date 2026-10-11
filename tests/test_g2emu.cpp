@@ -1340,3 +1340,53 @@ TEST_CASE("The user's G2 OS: after the client lost contact (the machine ran too 
     CHECK(client.idle());
     CHECK(client.state().slots[0].name == "Again");
 }
+
+TEST_CASE("The user's G2 OS follows an external MIDI clock (its Master Clock display shows the tempo)", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    Machine::Options o;
+    o.model = PanelModel::G2X;
+    if(const char* e = std::getenv("G2TEST_THREADS")) o.threads = std::atoi(e);
+    Machine m(fw, o);
+    m.run(Machine::FrameRate * 3);  // boot; the assignable displays show the patch settings, Master Clock first
+    const auto before = m.panel().displays[1].text(0) + "|" + m.panel().displays[1].text(1);
+    // MIDI clock at 100 BPM: a tick every 2400 frames (96 kHz)
+    const std::uint8_t tick[1] = {0xF8};
+    const int quarters = std::getenv("G2TEST_QUARTERS") ? std::atoi(std::getenv("G2TEST_QUARTERS")) : 8;
+    for(int i = 0; i < 24 * quarters; ++i)  // 8 quarter notes (G2TEST_QUARTERS: more)
+    {
+        m.midiInAt(tick, m.frame());
+        m.run(2400);
+    }
+    const auto after = m.panel().displays[1].text(0) + "|" + m.panel().displays[1].text(1);
+    INFO("Master Clock display before: '" << before << "', after 8 quarters of clock at 100 BPM: '" << after << "'");
+    CHECK(after.find("Ext 100") != std::string::npos);
+    CHECK(after.find("Stop") != std::string::npos);
+    // Start, then the clock goes on: the master clock runs; Stop stops it
+    const std::uint8_t start[1] = {0xFA}, stop[1] = {0xFC};
+    m.midiInAt(start, m.frame());
+    for(int i = 0; i < 24 * 2; ++i)
+    {
+        m.midiInAt(tick, m.frame());
+        m.run(2400);
+    }
+    const auto running = m.panel().displays[1].text(1);
+    m.midiInAt(stop, m.frame());
+    for(int i = 0; i < 24; ++i)
+    {
+        m.midiInAt(tick, m.frame());
+        m.run(2400);
+    }
+    const auto stopped = m.panel().displays[1].text(1);
+    INFO("after Start: '" << running << "', after Stop: '" << stopped << "'");
+    CHECK(running.find("Run") != std::string::npos);
+    CHECK(stopped.find("Stop") != std::string::npos);
+}

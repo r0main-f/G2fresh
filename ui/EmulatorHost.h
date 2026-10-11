@@ -26,6 +26,9 @@ public:
     }
     // Whether it runs now.
     virtual bool emulatorRunning() const { return false; }
+    // Whether the host's tempo and transport drive the emulated G2's master clock (MIDI clock into its MIDI IN).
+    virtual bool hostClock() const { return false; }
+    virtual void setHostClock(bool on) { juce::ignoreUnused(on); }
     // How many emulated G2s run in this host process (all plugin instances).
     virtual int emulatorsInHost() const { return 0; }
     // MIDI into its MIDI IN (e.g. the on-screen keyboard), from the message

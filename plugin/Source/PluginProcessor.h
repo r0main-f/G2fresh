@@ -4,6 +4,7 @@
 #include "EmulatorHost.h"
 #include "MidiForwarder.h"
 #include "PatchDocument.h"
+#include "HostClock.h"
 #include "SoundEngine.h"
 #include "SynthSync.h"
 
@@ -57,6 +58,8 @@ public:
     juce::String startEmulator(const juce::File& firmware) override;
     bool emulatorRunning() const override { return emulated_ != nullptr; }
     int emulatorsInHost() const override;
+    bool hostClock() const override { return hostClockOn_; }
+    void setHostClock(bool on) override;
     void emulatorMidi(std::span<const std::uint8_t> bytes) override;
     g2ui::PanelSnapshot panel() const override;
     void panelButton(g2ui::PanelButton button, bool down) override;
@@ -104,6 +107,11 @@ private:
     void checkCapture();
     std::uint64_t flashSeen_ = 0;
     int flashQuiet_ = 0;
+    // The host's tempo and transport as MIDI clock into the emulated G2 (HostClock: audio thread only).
+    std::atomic<bool> hostClockOn_{true};
+    std::atomic<bool> resetClock_{false};
+    HostClock hostClock_;
+    juce::MidiBuffer clockMidi_; // the track's MIDI plus the clock, made on the audio thread (sized in prepareToPlay)
     double sampleRate_ = 0.0;
     int blockSize_ = 512;
     g2ui::SynthSync synth_{document_}; // the G2 connection outlives the editor window

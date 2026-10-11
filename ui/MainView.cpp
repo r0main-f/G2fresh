@@ -28,7 +28,7 @@ enum MenuId {
     kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
-    kSynthEmulated = 730, kEmulatorFirmware,
+    kSynthEmulated = 730, kEmulatorFirmware, kHostClock,
 };
 
 juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
@@ -327,6 +327,7 @@ juce::PopupMenu MainView::synthMenu()
         m.addItem(item(kSynthEmulated, "Connect to Emulated G2 (your G2 OS, plays in G2fresh)", {},
                        synth_->kind() != Kind::Emulated, synth_->kind() == Kind::Emulated));
         m.addItem(item(kEmulatorFirmware, "Choose the G2 OS for the Emulated G2..."));
+        m.addItem(item(kHostClock, "Emulated G2 Follows the Host's Tempo (MIDI Clock)", {}, true, emulator_->hostClock()));
     }
     m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
     m.addSeparator();
@@ -461,6 +462,12 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
 
 void MainView::menuItemSelected(int id, int)
 {
+    if (id == kHostClock && emulator_ != nullptr) {
+        emulator_->setHostClock(!emulator_->hostClock());
+        setStatus(emulator_->hostClock() ? juce::String("The Emulated G2's master clock follows the host's tempo and transport")
+                                         : juce::String("The Emulated G2's master clock runs on its own"));
+        return;
+    }
     if (synth_ != nullptr && (id == kSynthEmulated || id == kEmulatorFirmware)) {
         startEmulator(id == kEmulatorFirmware);
         return;

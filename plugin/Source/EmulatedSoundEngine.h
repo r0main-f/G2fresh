@@ -4,8 +4,11 @@
 // sends patches over the emulated USB cable (SynthSync::connectEmulated with a
 // link on machine()), as to a G2.
 //
-// Outputs 1/2 of the G2 at 96 kHz, resampled to the host's rate, in signal
-// units (a signal of 1.0 into an Out module is 1.0). The track's MIDI goes to the G2's MIDI IN,
+// The G2's four outputs at 96 kHz, resampled to the host's rate, in signal
+// units (a signal of 1.0 into an Out module is 1.0): Out 1/2 on the first two
+// channels and Out 3/4 on the next two when the host gives four (the plugin's
+// second output bus), else mixed into Out 1/2, so that nothing a patch sends
+// to Out 3/4 is lost. The track's MIDI goes to the G2's MIDI IN,
 // sample-accurate (a fixed latency, Runner::latencyFrames). The flash (the
 // synth's banks) comes from the caller: the plugin keeps it in the host's
 // project, the stand-alone app in a file.
@@ -76,8 +79,8 @@ private:
     // Audio thread.
     bool offline_ = false;
     double hostRate_ = 96000.0;
-    juce::Interpolators::Lagrange resamplers_[2];
+    juce::Interpolators::Lagrange resamplers_[4];
     std::vector<float> frames_;      // 4 channels, interleaved, as the runner gives them
-    std::vector<float> render96_[2]; // outputs 1/2 at 96 kHz not consumed yet
-    juce::AudioBuffer<float> stereo_;
+    std::vector<float> render96_[4]; // outputs 1-4 at 96 kHz not consumed yet
+    juce::AudioBuffer<float> outs_;  // outputs 1-4 at the host's rate
 };

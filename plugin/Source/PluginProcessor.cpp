@@ -24,6 +24,7 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
     state.setProperty("midiOutName", midiOut_.deviceName(), nullptr);
     state.setProperty("midiChannel", midiOut_.channel(), nullptr);
     state.setProperty("emulated", emulatorWanted_, nullptr);
+    state.setProperty("hostClock", hostClockOn_.load(), nullptr);
     if (flashGz_.getSize() > 0)
         state.setProperty("emulatorFlash", flashGz_.toBase64Encoding(), nullptr);
     juce::MemoryOutputStream out;
@@ -33,7 +34,9 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
 }
 
 G2EditorProcessor::G2EditorProcessor()
-    : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true))
+    : AudioProcessor(BusesProperties()
+                         .withOutput("Out 1/2", juce::AudioChannelSet::stereo(), true)
+                         .withOutput("Out 3/4", juce::AudioChannelSet::stereo(), false)) // a second stereo output, if routed
 {
     stateBytes_ = encodeState();
     document_.addChangeListener(this);
@@ -93,6 +96,13 @@ std::vector<std::uint8_t> gunzip(const juce::MemoryBlock& gz)
 
 } // namespace
 
+void G2EditorProcessor::setHostClock(bool on)
+{
+    hostClockOn_ = on;
+    resetClock_ = true;
+    refreshState();
+}
+
 int G2EditorProcessor::emulatorsInHost() const
 {
     return EmulatedSoundEngine::running();
@@ -122,7 +132,8 @@ void G2EditorProcessor::checkCapture()
     const auto rate = sampleRate_ > 0 ? sampleRate_ : 48000.0;
     if (!capturing_ && folder.getChildFile("capture").existsAsFile()) {
         folder.getChildFile("capture").deleteFile();
-        capture_.assign(static_cast<std::size_t>(rate * 20) * 2, 0.0f);
+        const auto seconds = juce::jlimit(1, 120, juce::SystemStats::getEnvironmentVariable("G2FRESH_CAPTURE_SECONDS", "20").getIntValue());
+        capture_.assign(static_cast<std::size_t>(rate * seconds) * 2, 0.0f);
         captured_ = 0;
         captureMissing_ = emulated_ != nullptr ? static_cast<EmulatedSoundEngine&>(*emulated_).framesMissing() : 0;
         capturing_.store(true, std::memory_order_release);
@@ -393,9 +404,12 @@ void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
         // An erased flash leaves the OS's MIDI Local Off: its panel's keys and controls would only go out as MIDI.
         if (synth_.kind() == Kind::Emulated && synth_.ready() && !emulatedLocal_) {
             emulatedLocal_ = true;
-            if (const auto* link = synth_.link(); link != nullptr && !link->state().settings.localOn) {
+            // and its external clock followed (for the host's tempo, HostClock)
+            if (const auto* link = synth_.link();
+                link != nullptr && (!link->state().settings.localOn || link->state().settings.ignoreExternalClock)) {
                 auto settings = link->state().settings;
                 settings.localOn = true;
+                settings.ignoreExternalClock = false;
                 synth_.setSynthSettings(settings);
             }
         }
@@ -430,6 +444,8 @@ void G2EditorProcessor::refreshState()
 void G2EditorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     midiOut_.prepare(sampleRate);
+    clockMidi_.ensureSize(4096); // the track's MIDI plus a block's clock, without allocating on the audio thread
+    resetClock_ = true;
     const juce::ScopedLock lock(getCallbackLock());
     sampleRate_ = sampleRate;
     blockSize_ = samplesPerBlock;
@@ -444,7 +460,11 @@ void G2EditorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 bool G2EditorProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
     const auto& out = layouts.getMainOutputChannelSet();
-    return out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono();
+    // Out 3/4: off (then mixed into Out 1/2) or stereo, next to a stereo Out 1/2
+    const auto aux = layouts.outputBuses.size() > 1 ? layouts.getChannelSet(false, 1) : juce::AudioChannelSet::disabled();
+    if (aux == juce::AudioChannelSet::stereo())
+        return out == juce::AudioChannelSet::stereo();
+    return aux.isDisabled() && (out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono());
 }
 
 void G2EditorProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -454,7 +474,30 @@ void G2EditorProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     if (emulated_ != nullptr) { // the editor's synth is the emulated G2: it plays
         auto& emulated = static_cast<EmulatedSoundEngine&>(*emulated_);
         emulated.setOffline(isNonRealtime());
-        emulated.render(buffer, midi);
+        // The host's tempo and transport as MIDI clock, next to the track's MIDI
+        auto* toG2 = &midi;
+        if (resetClock_.exchange(false))
+            hostClock_.reset();
+        if (hostClockOn_.load(std::memory_order_relaxed)) {
+            if (auto* head = getPlayHead()) {
+                if (const auto pos = head->getPosition()) {
+                    HostClock::Position p;
+                    p.bpm = pos->getBpm().orFallback(0.0);
+                    p.playing = pos->getIsPlaying();
+                    if (const auto ppq = pos->getPpqPosition())
+                        p.ppq = *ppq;
+                    clockMidi_.clear();
+                    clockMidi_.addEvents(midi, 0, buffer.getNumSamples(), 0);
+                    hostClock_.process(p, getSampleRate(), buffer.getNumSamples(),
+                                       [this](int at, std::uint8_t status, std::uint8_t d1, std::uint8_t d2, int size) {
+                                           const std::uint8_t bytes[3] = {status, d1, d2};
+                                           clockMidi_.addEvent(bytes, size, at);
+                                       });
+                    toG2 = &clockMidi_;
+                }
+            }
+        }
+        emulated.render(buffer, *toG2);
         midi.clear();
         if (capturing_.load(std::memory_order_acquire)) {
             const auto at = captured_.load(std::memory_order_relaxed);
@@ -516,6 +559,7 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         document_.applyLayoutJson(state["layout"].toString());
         midiOut_.restore(state["midiOut"].toString(), state["midiOutName"].toString(), state["midiChannel"]);
         emulatorWanted_ = static_cast<bool>(state.getProperty("emulated", true));
+        hostClockOn_ = static_cast<bool>(state.getProperty("hostClock", true));
         flashGz_.reset();
         flashGz_.fromBase64Encoding(state["emulatorFlash"].toString());
 #if G2FRESH_EMULATOR

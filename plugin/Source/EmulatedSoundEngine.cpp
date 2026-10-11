@@ -51,7 +51,9 @@ juce::String EmulatedSoundEngine::diagnostics() const
     const auto s = runner_->stats();
     return "emulator speed while running " + juce::String(s.speed, 2) + "x, longest chunk "
          + juce::String(s.longestChunkMs, 1) + " ms, DSP threads " + juce::String(runner_->machine().stats().dspThreads)
-         + ", buffered " + juce::String(static_cast<int>(runner_->available())) + " frames";
+         + ", buffered " + juce::String(static_cast<int>(runner_->available())) + " frames"
+         + "\nMaster Clock display: '" + juce::String(runner_->machine().panel().displays[1].text(0)) + "' / '"
+         + juce::String(runner_->machine().panel().displays[1].text(1)) + "'";
 }
 
 int EmulatedSoundEngine::latencySamples() const
@@ -79,12 +81,12 @@ void EmulatedSoundEngine::prepare(double sampleRate, int maxBlock)
     // the machine keeps a whole host block ready on top of its buffer (a block takes this many frames at once)
     runner_->setReadSize(static_cast<std::uint32_t>(std::ceil(maxBlock * g2emu::Machine::FrameRate / hostRate_)) + 8);
     frames_.reserve(room * 4);
-    for (int c = 0; c < 2; ++c) {
+    for (int c = 0; c < 4; ++c) {
         resamplers_[c].reset();
         render96_[c].clear();
         render96_[c].reserve(room * 2);
     }
-    stereo_.setSize(2, std::max(1, maxBlock));
+    outs_.setSize(4, std::max(1, maxBlock));
 }
 
 juce::String EmulatedSoundEngine::status() const
@@ -124,23 +126,28 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         // Words: Out 1, Out 3, Out 2, Out 4 (Machine::run). With the volume knob all the way up, a signal of 1.0 into
         // an Out module gives a word of about -0.125: scaled back to signal units.
         constexpr float toSignal = -8.0f;
-        for (std::size_t i = 0; i < more; ++i) {
-            render96_[0].push_back(toSignal * frames_[4 * i]);
-            render96_[1].push_back(toSignal * frames_[4 * i + 2]);
-        }
+        constexpr int word[4] = {0, 2, 1, 3}; // Out 1, 2, 3, 4
+        for (std::size_t i = 0; i < more; ++i)
+            for (int c = 0; c < 4; ++c)
+                render96_[c].push_back(toSignal * frames_[4 * i + static_cast<std::size_t>(word[c])]);
     }
-    if (stereo_.getNumSamples() < frames)
-        stereo_.setSize(2, frames, false, false, true);
+    if (outs_.getNumSamples() < frames)
+        outs_.setSize(4, frames, false, false, true);
     int used = 0;
-    for (int c = 0; c < 2; ++c)
-        used = resamplers_[c].process(ratio, render96_[c].data(), stereo_.getWritePointer(c), frames);
+    for (int c = 0; c < 4; ++c)
+        used = resamplers_[c].process(ratio, render96_[c].data(), outs_.getWritePointer(c), frames);
     out.clear();
-    if (out.getNumChannels() >= 2) {
-        out.copyFrom(0, 0, stereo_, 0, 0, frames);
-        out.copyFrom(1, 0, stereo_, 1, 0, frames);
-    } else if (out.getNumChannels() == 1) { // mono host: (Out 1 + Out 2) / 2
-        out.copyFrom(0, 0, stereo_.getReadPointer(0), frames, 0.5f);
-        out.addFrom(0, 0, stereo_.getReadPointer(1), frames, 0.5f);
+    if (out.getNumChannels() >= 4) { // the second output bus: Out 3/4 on their own
+        for (int c = 0; c < 4; ++c)
+            out.copyFrom(c, 0, outs_, c, 0, frames);
+    } else if (out.getNumChannels() >= 2) { // Out 1/2, with Out 3/4 mixed in
+        for (int c = 0; c < 2; ++c) {
+            out.copyFrom(c, 0, outs_, c, 0, frames);
+            out.addFrom(c, 0, outs_, c + 2, 0, frames);
+        }
+    } else if (out.getNumChannels() == 1) { // mono host: (Out 1 + Out 2 + Out 3 + Out 4) / 2
+        for (int c = 0; c < 4; ++c)
+            out.addFrom(0, 0, outs_.getReadPointer(c), frames, 0.5f);
     }
     for (auto& r : render96_)
         r.erase(r.begin(), r.begin() + static_cast<std::ptrdiff_t>(std::min<std::size_t>(static_cast<std::size_t>(used), r.size())));
