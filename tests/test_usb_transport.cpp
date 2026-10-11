@@ -125,8 +125,8 @@ TEST_CASE("usb: a bulk-IN read that times out or fails is read again until the d
     const auto m = message(20);
     fakeusb::interrupt(announce(20));
     fakeusb::bulkInFails(fakeusb::Fail::Error);
-    // a failed read and at least one more after it, however slow the machine
-    REQUIRE(until(c.transport, [&] { return fakeusb::stats().bulkReads >= 2; }));
+    // a failed read, one that times out, and the next one waiting, however slow the machine
+    REQUIRE(until(c.transport, [&] { return fakeusb::stats().bulkReads >= 3; }));
     fakeusb::bulkIn(m);
     REQUIRE(until(c.transport, [&] { return c.sink.bulks.size() == 1; }));
     CHECK(c.sink.bulks[0] == m);
