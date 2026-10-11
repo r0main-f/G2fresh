@@ -16,6 +16,11 @@ TEST_CASE("loading and saving an unedited patch reproduces the file byte for byt
             continue;
         INFO(path.string());
         const auto bytes = g2test::readBytes(path);
+        if (g2::load(bytes).convertedFrom != 0) { // an older version saves as 23, then stays as it is
+            const auto converted = savePatch(loadPatch(bytes));
+            CHECK(savePatch(loadPatch(converted)) == converted);
+            continue;
+        }
         const Patch p = loadPatch(bytes);
         CHECK(savePatch(p) == bytes);
     }
