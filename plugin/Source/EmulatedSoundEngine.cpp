@@ -140,13 +140,16 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
     if (out.getNumChannels() >= 4) { // the second output bus: Out 3/4 on their own
         for (int c = 0; c < 4; ++c)
             out.copyFrom(c, 0, outs_, c, 0, frames);
-    } else if (out.getNumChannels() >= 2) { // Out 1/2, with Out 3/4 mixed in
+    } else if (out.getNumChannels() >= 2) { // Out 1/2 (as the G2's headphones), Out 3/4 mixed in if asked
+        const bool mix = mixOut34_.load(std::memory_order_relaxed);
         for (int c = 0; c < 2; ++c) {
             out.copyFrom(c, 0, outs_, c, 0, frames);
-            out.addFrom(c, 0, outs_, c + 2, 0, frames);
+            if (mix)
+                out.addFrom(c, 0, outs_, c + 2, 0, frames);
         }
-    } else if (out.getNumChannels() == 1) { // mono host: (Out 1 + Out 2 + Out 3 + Out 4) / 2
-        for (int c = 0; c < 4; ++c)
+    } else if (out.getNumChannels() == 1) { // mono host: (Out 1 + Out 2) / 2, and Out 3/4 likewise if asked
+        const int last = mixOut34_.load(std::memory_order_relaxed) ? 4 : 2;
+        for (int c = 0; c < last; ++c)
             out.addFrom(0, 0, outs_.getReadPointer(c), frames, 0.5f);
     }
     for (auto& r : render96_)

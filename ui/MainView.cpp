@@ -28,7 +28,7 @@ enum MenuId {
     kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
-    kSynthEmulated = 730, kEmulatorFirmware, kHostClock,
+    kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34,
 };
 
 juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
@@ -328,6 +328,8 @@ juce::PopupMenu MainView::synthMenu()
                        synth_->kind() != Kind::Emulated, synth_->kind() == Kind::Emulated));
         m.addItem(item(kEmulatorFirmware, "Choose the G2 OS for the Emulated G2..."));
         m.addItem(item(kHostClock, "Emulated G2 Follows the Host's Tempo (MIDI Clock)", {}, true, emulator_->hostClock()));
+        m.addItem(item(kMixOut34, "Mix Out 3/4 into Out 1/2 (when the Out 3/4 output is not used)", {}, true,
+                       emulator_->mixOut34()));
     }
     m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
     m.addSeparator();
@@ -462,6 +464,12 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
 
 void MainView::menuItemSelected(int id, int)
 {
+    if (id == kMixOut34 && emulator_ != nullptr) {
+        emulator_->setMixOut34(!emulator_->mixOut34());
+        setStatus(emulator_->mixOut34() ? juce::String("Out 3/4 are mixed into Out 1/2 unless the host takes the Out 3/4 output")
+                                        : juce::String("Out 1/2 only, as the G2's headphones: route the Out 3/4 output to hear Out 3/4"));
+        return;
+    }
     if (id == kHostClock && emulator_ != nullptr) {
         emulator_->setHostClock(!emulator_->hostClock());
         setStatus(emulator_->hostClock() ? juce::String("The Emulated G2's master clock follows the host's tempo and transport")

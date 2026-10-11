@@ -246,13 +246,14 @@ double toneLevel(const std::vector<float>& v, std::size_t from, std::size_t to, 
 }
 
 // The plugin's outputs: a patch with a 440 Hz sine on Out 1/2 and a 659 Hz one on Out 3/4, played with the second
-// output bus on (each pair on its own) and off (Out 3/4 mixed into Out 1/2).
+// output bus on (each pair on its own), off (Out 1/2 only, as the G2's headphones), and off with Out 3/4 mixed in.
 void outputs(const juce::String& path, const juce::File& patch)
 {
     constexpr double rate = 48000;
     constexpr int block = 256;
-    for (const bool aux : {true, false}) {
-        std::cout << (aux ? "Out 3/4 bus on" : "Out 3/4 bus off") << std::endl;
+    for (const int mode : {0, 1, 2}) {
+        const bool aux = mode == 0, mix = mode == 2;
+        std::cout << (aux ? "Out 3/4 bus on" : mix ? "Out 3/4 bus off, mixed into Out 1/2" : "Out 3/4 bus off") << std::endl;
         auto p = load(path, rate, block);
         if (p == nullptr)
             return;
@@ -267,6 +268,7 @@ void outputs(const juce::String& path, const juce::File& patch)
             patch.loadFileAsData(data);
             auto s = pluginState(empty);
             s.setProperty("data", data.toBase64Encoding(), nullptr);
+            s.setProperty("mixOut34", mix, nullptr);
             const auto wrapped = withPluginState(empty, s);
             p->setStateInformation(wrapped.getData(), static_cast<int>(wrapped.getSize()));
             p->prepareToPlay(rate, block);
@@ -298,8 +300,10 @@ void outputs(const juce::String& path, const juce::File& patch)
             const bool has440 = a > 0.05, has659 = e > 0.05;
             if (aux)
                 check(c < 2 ? (has440 && !has659) : (has659 && !has440), c < 2 ? "Out 1/2 alone on its bus" : "Out 3/4 alone on its bus");
-            else
+            else if (mix)
                 check(has440 && has659, "Out 1/2 with Out 3/4 mixed in");
+            else
+                check(has440 && !has659, "Out 1/2 only");
         }
         onMessageThread([&] { p.reset(); });
     }

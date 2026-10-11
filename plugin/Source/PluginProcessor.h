@@ -59,6 +59,8 @@ public:
     bool emulatorRunning() const override { return emulated_ != nullptr; }
     int emulatorsInHost() const override;
     bool hostClock() const override { return hostClockOn_; }
+    bool mixOut34() const override { return mixOut34_; }
+    void setMixOut34(bool on) override;
     void setHostClock(bool on) override;
     void emulatorMidi(std::span<const std::uint8_t> bytes) override;
     g2ui::PanelSnapshot panel() const override;
@@ -109,6 +111,7 @@ private:
     int flashQuiet_ = 0;
     // The host's tempo and transport as MIDI clock into the emulated G2 (HostClock: audio thread only).
     std::atomic<bool> hostClockOn_{true};
+    std::atomic<bool> mixOut34_{false}; // Out 3/4 into Out 1/2 when not routed (in the state)
     std::atomic<bool> resetClock_{false};
     HostClock hostClock_;
     juce::MidiBuffer clockMidi_; // the track's MIDI plus the clock, made on the audio thread (sized in prepareToPlay)

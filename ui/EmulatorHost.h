@@ -29,6 +29,10 @@ public:
     // Whether the host's tempo and transport drive the emulated G2's master clock (MIDI clock into its MIDI IN).
     virtual bool hostClock() const { return false; }
     virtual void setHostClock(bool on) { juce::ignoreUnused(on); }
+    // Whether Out 3/4 are mixed into Out 1/2 when the host does not take the Out 3/4 output (off: as the G2, whose
+    // headphones carry Out 1/2 only).
+    virtual bool mixOut34() const { return false; }
+    virtual void setMixOut34(bool on) { juce::ignoreUnused(on); }
     // How many emulated G2s run in this host process (all plugin instances).
     virtual int emulatorsInHost() const { return 0; }
     // MIDI into its MIDI IN (e.g. the on-screen keyboard), from the message

@@ -6,9 +6,9 @@
 //
 // The G2's four outputs at 96 kHz, resampled to the host's rate, in signal
 // units (a signal of 1.0 into an Out module is 1.0): Out 1/2 on the first two
-// channels and Out 3/4 on the next two when the host gives four (the plugin's
-// second output bus), else mixed into Out 1/2, so that nothing a patch sends
-// to Out 3/4 is lost. The track's MIDI goes to the G2's MIDI IN,
+// channels, and Out 3/4 on the next two when the host gives four (the plugin's
+// second output bus). Without them Out 3/4 are not heard, as on a G2 whose
+// headphones carry Out 1/2 only, unless setMixOut34() mixes them in. The track's MIDI goes to the G2's MIDI IN,
 // sample-accurate (a fixed latency, Runner::latencyFrames). The flash (the
 // synth's banks) comes from the caller: the plugin keeps it in the host's
 // project, the stand-alone app in a file.
@@ -55,6 +55,8 @@ public:
     // Offline rendering (a bounce): wait for the emulator instead of dropping
     // out when it runs slower than the host asks.
     void setOffline(bool offline) { offline_ = offline; }
+    // Out 3/4 mixed into Out 1/2 when the host gives no channels for them (any thread).
+    void setMixOut34(bool on) { mixOut34_ = on; }
 
     void prepare(double sampleRate, int maxBlock) override;
     void render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi) override;
@@ -75,6 +77,8 @@ private:
 #if G2FRESH_NO_APP_NAP
     NoAppNap noAppNap_; // while it runs, the process is not throttled
 #endif
+
+    std::atomic<bool> mixOut34_{false};
 
     // Audio thread.
     bool offline_ = false;

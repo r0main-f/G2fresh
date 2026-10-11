@@ -25,6 +25,7 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
     state.setProperty("midiChannel", midiOut_.channel(), nullptr);
     state.setProperty("emulated", emulatorWanted_, nullptr);
     state.setProperty("hostClock", hostClockOn_.load(), nullptr);
+    state.setProperty("mixOut34", mixOut34_.load(), nullptr);
     if (flashGz_.getSize() > 0)
         state.setProperty("emulatorFlash", flashGz_.toBase64Encoding(), nullptr);
     juce::MemoryOutputStream out;
@@ -95,6 +96,16 @@ std::vector<std::uint8_t> gunzip(const juce::MemoryBlock& gz)
 }
 
 } // namespace
+
+void G2EditorProcessor::setMixOut34(bool on)
+{
+    mixOut34_ = on;
+#if G2FRESH_EMULATOR
+    if (emulated_ != nullptr)
+        static_cast<EmulatedSoundEngine&>(*emulated_).setMixOut34(on);
+#endif
+    refreshState();
+}
 
 void G2EditorProcessor::setHostClock(bool on)
 {
@@ -223,6 +234,7 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
         return juce::String("the emulated G2 cannot start: ") + e.what();
     }
     engine->prepare(sampleRate_ > 0 ? sampleRate_ : 48000.0, blockSize_);
+    engine->setMixOut34(mixOut34_);
     flashSeen_ = engine->flashChanges();
     synth_.connectEmulated(g2emu::emulatedG2Link(engine->machine()));
     emulatedSent_ = false;
@@ -560,6 +572,7 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         midiOut_.restore(state["midiOut"].toString(), state["midiOutName"].toString(), state["midiChannel"]);
         emulatorWanted_ = static_cast<bool>(state.getProperty("emulated", true));
         hostClockOn_ = static_cast<bool>(state.getProperty("hostClock", true));
+        setMixOut34(static_cast<bool>(state.getProperty("mixOut34", false)));
         flashGz_.reset();
         flashGz_.fromBase64Encoding(state["emulatorFlash"].toString());
 #if G2FRESH_EMULATOR
