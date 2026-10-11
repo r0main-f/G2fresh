@@ -1,5 +1,6 @@
 #include "g2/edit.hpp"
 
+#include "g2/cables.hpp"
 #include "g2/patch_load.hpp"
 #include "g2/special.hpp"
 #include "g2/uprate.hpp"
@@ -40,6 +41,108 @@ const db::ConnectorDef& connector(const Module& m, Endpoint e)
 bool refersTo(u8 location, u8 module, Location loc, u8 index)
 {
     return location == static_cast<u8>(loc) && module == index;
+}
+
+// ---- Cable trees ----------------------------------------------------------------
+//
+// The original's cable edits are lists of molecules computed from the
+// current trees, then applied in order: CMCableDelete, CMCableConnect and
+// CMCableRecolor (each one CPatchData::DeleteCable, ConnectCable or
+// RecolorCable), followed by the uprate changes (GenerateBandwidthChange-
+// Molecules, here uprate::update).
+
+using cables::Connector;
+using Segment = cables::Tree::Segment;
+
+Connector connectorOf(Endpoint e)
+{
+    return {e.module, e.conn, e.isOutput};
+}
+
+Endpoint endpointOf(Connector c)
+{
+    return {c.module, c.conn, c.isOutput};
+}
+
+struct Molecule {
+    enum Kind { Connect, Delete, Recolor } kind;
+    Connector a, b;
+    CableColor color = CableColor::White;
+};
+using Molecules = std::vector<Molecule>;
+
+void recolorAll(Molecules& out, const std::vector<Segment>& segments, CableColor color)
+{
+    for (const auto& s : segments)
+        out.push_back({Molecule::Recolor, s.node, s.parent, color});
+}
+
+void applyMolecules(cables::Tree& tree, const Molecules& molecules)
+{
+    for (const auto& m : molecules)
+        switch (m.kind) {
+        case Molecule::Connect: tree.connect(m.a, m.b, m.color); break;
+        case Molecule::Delete: tree.erase(m.a, m.b); break;
+        case Molecule::Recolor: tree.recolor(m.a, m.b, m.color); break;
+        }
+}
+
+// Writes the trees back as the cable list (bends kept) and updates the rates.
+void store(Patch& patch, Location loc, const cables::Tree& tree)
+{
+    Area& area = patch.area(loc);
+    area.cables = tree.toCables(area.cables);
+    uprate::update(patch, loc);
+}
+
+// CPatchData::GenerateDeleteSelectionMolecules @000e7fe4 (with splicing):
+// the cables of the modules about to go. Per tree: a copy loses the
+// selection's connectors (CTree::erase: children move up), the real cables to
+// them are deleted, and every connector whose parent changed in the copy is
+// connected to its new parent; a root left over (its own root gone) is
+// connected to the next one. A tree whose output goes turns white.
+void spliceOut(Patch& patch, Location loc, const std::vector<u8>& indices)
+{
+    auto selected = [&](u8 module) { return std::find(indices.begin(), indices.end(), module) != indices.end(); };
+    if (loc == Location::Settings)
+        return;
+    cables::Tree tree(patch.area(loc));
+    Molecules molecules;
+    for (const Connector root : tree.roots()) {
+        cables::Tree copy = tree.treeOf(root);
+        const Connector chain = tree.chainId(root);
+        const bool white = chain.isOutput && selected(chain.module);
+        if (white)
+            recolorAll(molecules, tree.completeBranch(chain), CableColor::White);
+        bool touched = false;
+        for (const auto& s : tree.completeTree(root)) {
+            const bool node = selected(s.node.module), parent = selected(s.parent.module);
+            if (!node && !parent)
+                continue;
+            touched = true;
+            molecules.push_back({Molecule::Delete, s.node, s.parent});
+            if (node)
+                copy.eraseConnector(s.node);
+            if (parent)
+                copy.eraseConnector(s.parent);
+        }
+        if (!touched)
+            continue;
+        for (const Connector n : copy.nodes()) {
+            const auto parent = copy.parentOf(n);
+            if (parent == tree.parentOf(n))
+                continue;
+            const CableColor color = white ? CableColor::White : *copy.colorOf(n);
+            if (parent)
+                molecules.push_back({Molecule::Connect, n, *parent, color});
+            else if (const auto next = copy.nextRoot(n))
+                molecules.push_back({Molecule::Connect, n, *next, color});
+        }
+    }
+    if (molecules.empty())
+        return;
+    applyMolecules(tree, molecules);
+    store(patch, loc, tree);
 }
 
 } // namespace
@@ -170,6 +273,7 @@ void removeModule(Patch& patch, Location loc, u8 index)
                                  [&](const Module& m) { return m.index == index; });
     if (it == area.modules.end())
         throw std::invalid_argument("no module with this index");
+    spliceOut(patch, loc, {index});
     area.modules.erase(it);
     std::erase_if(area.cables, [&](const Cable& c) { return c.fromModule == index || c.toModule == index; });
     for (auto& v : patch.morphs)
@@ -266,33 +370,285 @@ CableColor cableColor(const Patch& patch, Location loc, Endpoint from)
     return CableColor::Red;
 }
 
+namespace {
+
+void checkJack(Patch& patch, Location loc, Endpoint e)
+{
+    connector(moduleAt(patch, loc, e.module), e);
+}
+
+bool sameEnds(const Cable& c, Connector a, Connector b)
+{
+    const Connector from{c.fromModule, c.fromConn, c.fromIsOutput}, to{c.toModule, c.toConn, false};
+    return (from == a && to == b) || (from == b && to == a);
+}
+
+} // namespace
+
+DropAction dropAction(const Patch& patch, Location loc, Endpoint source, std::optional<Endpoint> target, bool move)
+{
+    if (loc == Location::Settings)
+        return DropAction::None;
+    const cables::Tree tree(patch.area(loc));
+    const Connector s = connectorOf(source);
+    if (!move) {
+        if (target) {
+            const Connector t = connectorOf(*target);
+            if (tree.chainId(s) != tree.chainId(t) && (!tree.hasSignal(s) || !tree.hasSignal(t)))
+                return DropAction::Connect;
+        }
+        return DropAction::None;
+    }
+    if (!target)
+        return tree.contains(s) ? DropAction::Disconnect : DropAction::None;
+    const Connector t = connectorOf(*target);
+    if (tree.chainId(s) != tree.chainId(t) && tree.contains(s)
+        && (s.isOutput || !tree.hasSignal(s) || !tree.hasSignal(t)))
+        return DropAction::Move;
+    return DropAction::None;
+}
+
 Cable connect(Patch& patch, Location loc, Endpoint from, Endpoint to)
 {
-    Area& area = areaFor(patch, loc);
-    if (to.isOutput)
-        throw std::invalid_argument("a cable must end at an input");
-    const Module& src = moduleAt(patch, loc, from.module);
-    const Module& dst = moduleAt(patch, loc, to.module);
-    connector(src, from);
-    connector(dst, to);
-    if (from.module == to.module && from.conn == to.conn && !from.isOutput)
-        throw std::invalid_argument("cannot link an input to itself");
+    checkJack(patch, loc, from);
+    checkJack(patch, loc, to);
+    cables::Tree tree(patch.area(loc));
+    const Connector a = connectorOf(from), b = connectorOf(to);
+    if (tree.chainId(a) == tree.chainId(b))
+        throw std::invalid_argument(a == b ? "cannot connect a connector to itself"
+                                           : "these connectors are already connected (one cable chain)");
+    if (tree.hasSignal(a) && tree.hasSignal(b))
+        throw std::invalid_argument("both connectors are already fed by an output");
     if (!patchload::canAddCable(patch))
         throw std::invalid_argument("the patch is too big: the synth has no room for another cable");
-    Cable c{cableColor(patch, loc, from), from.module, from.conn, from.isOutput, to.module, to.conn, std::nullopt};
-    for (const auto& existing : area.cables)
-        if (existing.fromModule == c.fromModule && existing.fromConn == c.fromConn
-            && existing.fromIsOutput == c.fromIsOutput && existing.toModule == c.toModule
-            && existing.toConn == c.toConn)
-            throw std::invalid_argument("these connectors are already connected");
-    area.cables.push_back(c);
-    // Rates (and so cable colours) follow the new connection, as in the original.
-    uprate::update(patch, loc);
-    for (const auto& cable : area.cables)
-        if (cable.fromModule == c.fromModule && cable.fromConn == c.fromConn && cable.fromIsOutput == c.fromIsOutput
-            && cable.toModule == c.toModule && cable.toConn == c.toConn)
-            return cable;
-    return c;
+
+    // CPatchData::GetConnectRecolorMolecules @000e4c32: the colour of the fed
+    // side (an output's own colour, or an input's cable colour), which the
+    // other side's whole tree takes too.
+    Molecules molecules;
+    auto fedColour = [&](Connector fed, Connector other) {
+        const CableColor color = fed.isOutput ? cableColor(patch, loc, endpointOf(fed)) : *tree.colorOf(fed);
+        recolorAll(molecules, tree.completeTree(other), color);
+        return color;
+    };
+    CableColor color = CableColor::White;
+    if (tree.hasSignal(a))
+        color = fedColour(a, b);
+    else if (tree.hasSignal(b))
+        color = fedColour(b, a);
+    molecules.push_back({Molecule::Connect, a, b, color});
+    applyMolecules(tree, molecules);
+    store(patch, loc, tree);
+    for (const auto& c : patch.area(loc).cables)
+        if (sameEnds(c, a, b))
+            return c;
+    throw std::logic_error("the new cable is missing");
+}
+
+bool disconnectJack(Patch& patch, Location loc, Endpoint jack)
+{
+    cables::Tree tree(areaFor(patch, loc));
+    const Connector x = connectorOf(jack);
+    if (!tree.contains(x))
+        return false;
+    Molecules molecules;
+    // An output's chain stays connected without it: white.
+    if (x.isOutput)
+        recolorAll(molecules, tree.completeBranch(x), CableColor::White);
+    // The connector its neighbours move to: its parent, or for a root its
+    // first child (or the child holding the net's output, in a tree not
+    // rooted at its output).
+    const auto parent = tree.parentOf(x);
+    const auto children = tree.childrenOf(x);
+    Connector hub = parent ? *parent : children.front();
+    if (const Connector chain = tree.chainId(x); chain.isOutput)
+        for (const Connector c : children)
+            if (tree.inSubtree(c, chain)) {
+                hub = c;
+                break;
+            }
+    const CableColor own = *tree.colorOf(x);
+    if (parent) {
+        molecules.push_back({Molecule::Delete, x, *parent});
+        if (hub != *parent)
+            molecules.push_back({Molecule::Connect, hub, *parent, x.isOutput ? CableColor::White : own});
+    }
+    for (const Connector c : children) {
+        molecules.push_back({Molecule::Delete, x, c});
+        if (hub != c)
+            molecules.push_back({Molecule::Connect, hub, c, x.isOutput ? CableColor::White : *tree.colorOf(c)});
+    }
+    applyMolecules(tree, molecules);
+    store(patch, loc, tree);
+    return true;
+}
+
+bool breakJack(Patch& patch, Location loc, Endpoint jack)
+{
+    cables::Tree tree(areaFor(patch, loc));
+    const Connector x = connectorOf(jack);
+    if (!tree.contains(x))
+        return false;
+    const Connector output = tree.chainId(x);
+    if (!output.isOutput)
+        return false; // nothing to break from
+    tree.makeBase(output);
+    Molecules molecules;
+    if (x != output) {
+        // What hangs below x stays linked, white; x loses its way to the output.
+        recolorAll(molecules, tree.partialTree(x), CableColor::White);
+        molecules.push_back({Molecule::Delete, x, *tree.parentOf(x)});
+    } else {
+        recolorAll(molecules, tree.completeBranch(x), CableColor::White);
+        for (const Connector c : tree.childrenOf(x))
+            molecules.push_back({Molecule::Delete, c, x});
+    }
+    applyMolecules(tree, molecules);
+    store(patch, loc, tree);
+    return true;
+}
+
+bool deleteChain(Patch& patch, Location loc, Endpoint jack)
+{
+    cables::Tree tree(areaFor(patch, loc));
+    const auto branch = tree.completeBranch(connectorOf(jack));
+    if (branch.empty())
+        return false;
+    Molecules molecules;
+    for (const auto& s : branch)
+        molecules.push_back({Molecule::Delete, s.node, s.parent});
+    applyMolecules(tree, molecules);
+    store(patch, loc, tree);
+    return true;
+}
+
+void recolorChain(Patch& patch, Location loc, Endpoint jack, CableColor color)
+{
+    cables::Tree tree(areaFor(patch, loc));
+    const Connector x = connectorOf(jack);
+    if (color == CableColor::White)
+        throw std::invalid_argument("white is the colour of cables without an output");
+    if (!tree.contains(x) || !tree.hasSignal(x))
+        throw std::invalid_argument("only a chain fed by an output can change colour");
+    Molecules molecules;
+    recolorAll(molecules, tree.completeBranch(x), color);
+    applyMolecules(tree, molecules);
+    store(patch, loc, tree);
+}
+
+bool deleteUnusedCables(Patch& patch)
+{
+    bool deleted = false;
+    for (const Location loc : {Location::Fx, Location::Va}) {
+        cables::Tree tree(patch.area(loc));
+        Molecules molecules;
+        std::vector<Connector> done;
+        // Every net without an output, found from its inputs, module by module.
+        for (const auto& m : patch.area(loc).modules) {
+            const auto* def = m.def();
+            for (std::size_t i = 0; def && i < def->inputs.size(); ++i) {
+                const Connector in{m.index, static_cast<u8>(i), false};
+                if (!tree.contains(in) || tree.hasSignal(in))
+                    continue;
+                const Connector chain = tree.chainId(in);
+                if (std::find(done.begin(), done.end(), chain) != done.end())
+                    continue;
+                done.push_back(chain);
+                for (const auto& s : tree.completeBranch(chain))
+                    molecules.push_back({Molecule::Delete, s.node, s.parent});
+            }
+        }
+        if (molecules.empty())
+            continue;
+        applyMolecules(tree, molecules);
+        store(patch, loc, tree);
+        deleted = true;
+    }
+    return deleted;
+}
+
+void moveCables(Patch& patch, Location loc, Endpoint from, Endpoint to)
+{
+    checkJack(patch, loc, from);
+    checkJack(patch, loc, to);
+    if (dropAction(patch, loc, from, to, true) != DropAction::Move)
+        throw std::invalid_argument("these cables cannot move there");
+    cables::Tree tree(patch.area(loc));
+    const Connector x = connectorOf(from), y = connectorOf(to);
+    const Connector chainX = tree.chainId(x), chainY = tree.chainId(y);
+    Molecules molecules;
+    // The moved cables' colour: like a new connection, from the side that
+    // has an output; with none, each cable keeps its own.
+    CableColor color = *tree.colorOf(x);
+    bool uniform = true;
+    if (y.isOutput) {
+        color = cableColor(patch, loc, to);
+        recolorAll(molecules, tree.completeBranch(chainX), color);
+    } else if (chainY.isOutput) {
+        color = *tree.colorOf(y);
+        recolorAll(molecules, tree.completeBranch(chainX), color);
+    } else if (x.isOutput) {
+        color = CableColor::White;
+        recolorAll(molecules, tree.completeBranch(chainX), color);
+    } else if (chainX.isOutput && tree.contains(y)) {
+        recolorAll(molecules, tree.completeBranch(chainY), color);
+    } else {
+        uniform = false;
+    }
+    if (const auto parent = tree.parentOf(x)) {
+        molecules.push_back({Molecule::Delete, x, *parent});
+        molecules.push_back({Molecule::Connect, y, *parent, uniform ? color : *tree.colorOf(x)});
+    }
+    for (const Connector c : tree.childrenOf(x)) {
+        molecules.push_back({Molecule::Delete, x, c});
+        molecules.push_back({Molecule::Connect, y, c, uniform ? color : *tree.colorOf(c)});
+    }
+    applyMolecules(tree, molecules);
+    store(patch, loc, tree);
+}
+
+bool isCabled(const Patch& patch, Location loc, Endpoint jack)
+{
+    return loc != Location::Settings && cables::Tree(patch.area(loc)).contains(connectorOf(jack));
+}
+
+bool hasOutput(const Patch& patch, Location loc, Endpoint jack)
+{
+    if (loc == Location::Settings)
+        return false;
+    const cables::Tree tree(patch.area(loc));
+    return tree.contains(connectorOf(jack)) && tree.hasSignal(connectorOf(jack));
+}
+
+bool canBreak(const Patch& patch, Location loc, Endpoint jack)
+{
+    if (loc == Location::Settings)
+        return false;
+    const cables::Tree tree(patch.area(loc));
+    return tree.contains(connectorOf(jack)) && !tree.isLeaf(connectorOf(jack));
+}
+
+std::vector<Cable> chainCables(const Patch& patch, Location loc, Endpoint jack)
+{
+    std::vector<Cable> out;
+    if (loc == Location::Settings)
+        return out;
+    const Area& area = patch.area(loc);
+    for (const auto& s : cables::Tree(area).completeBranch(connectorOf(jack)))
+        for (const auto& c : area.cables)
+            if (sameEnds(c, s.node, s.parent)) {
+                out.push_back(c);
+                break;
+            }
+    return out;
+}
+
+Endpoint lowerEnd(const Patch& patch, Location loc, const Cable& cable)
+{
+    const Connector from{cable.fromModule, cable.fromConn, cable.fromIsOutput}, to{cable.toModule, cable.toConn, false};
+    if (loc != Location::Settings && cables::Tree(patch.area(loc)).parentOf(from) == to)
+        return endpointOf(from);
+    return endpointOf(to);
 }
 
 void disconnect(Patch& patch, Location loc, const Cable& cable)
@@ -915,15 +1271,6 @@ bool hasCableBends(const Patch& patch)
     return false;
 }
 
-void setCableColor(Patch& patch, Location loc, const Cable& cable, CableColor color)
-{
-    Area& area = areaFor(patch, loc);
-    const auto it = std::find(area.cables.begin(), area.cables.end(), cable);
-    if (it == area.cables.end())
-        throw std::invalid_argument("no such cable");
-    it->color = color;
-}
-
 void setCablesVisible(Patch& patch, CableColor color, bool visible)
 {
     patch.header.cablesVisible[static_cast<std::size_t>(color)] = visible;
@@ -1089,6 +1436,8 @@ std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, 
 
 void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices)
 {
+    // The selection's cables first, as one (CPatch::InternalDeleteSelection).
+    spliceOut(patch, loc, indices);
     for (u8 index : indices)
         if (patch.area(loc).find(index))
             removeModule(patch, loc, index);

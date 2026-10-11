@@ -50,6 +50,10 @@ struct Endpoint {
 // a default name ("OscB1", "OscB2", ...). Returns the new module's index
 // (references into the module list are invalidated by later additions).
 u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row);
+// Deletes a module (Edit > Clear, Delete). Its cables go and the chains
+// through it are spliced back together (Out->A->X->B minus X: Out->A->B);
+// a chain whose output goes keeps its cables, white
+// (CPatchData::GenerateDeleteSelectionMolecules @000e7fe4; manual p69, p81).
 void removeModule(Patch& patch, Location loc, u8 index);
 // Moves a module, then pushes any module it now overlaps down its column (as
 // the original editor does).
@@ -62,12 +66,77 @@ u8 freeRow(const Patch& patch, Location loc, u8 col);
 // CModule::SetName does).
 void renameModule(Patch& patch, Location loc, u8 index, const std::string& name);
 
-// The colour the editor gives a cable leaving `from`: the connector's colour,
-// with blue/red and yellow/orange connectors following the module's uprate.
+// ---- Cables -------------------------------------------------------------------
+//
+// The cables of a net form a tree rooted at its output (g2/cables.hpp). The
+// operations below are the original editor's (CPatchData::Get*Molecules):
+// each one is a single edit (one undo step), keeps every net to at most one
+// output and no loop, and leaves the cable list as the original would save
+// it. A serial chain (the branch of a net's root holding a connector) has one
+// colour; a chain without an output is white.
+
+// The colour of an output's cables (CPatchData::MapConnectorColorToCableColor):
+// the connector's colour, blue/red and yellow/orange following the module's uprate.
 CableColor cableColor(const Patch& patch, Location loc, Endpoint from);
 
-// Connects an output (or, for a link, an input) to an input. Returns the new cable.
+// What dropping a cable dragged from `source` does
+// (CCableDragDropManager::GetCurrentDropAction @0001939c). A plain drag
+// connects when the two connectors are in different nets and at most one of
+// them has an output. A move (Option at the drop, or a drag started with a
+// double click) moves every cable of `source` onto `target` when they are in
+// different nets, `source` has cables, and `source` is an output or at most
+// one net has an output; dropped on nothing, it disconnects `source`.
+enum class DropAction { None, Connect, Move, Disconnect };
+DropAction dropAction(const Patch& patch, Location loc, Endpoint source, std::optional<Endpoint> target, bool move);
+
+// Connects two connectors, either of which may be an output (`from` is where
+// the drag started; CPatchData::GetNewCableMolecules @000eb87c). Throws when
+// dropAction refuses it. The cable takes the colour of the side with an
+// output (the output's colour, or the input's cable colour) and the other
+// net takes it too; between two nets without an output it is white. Returns
+// the new cable as stored.
 Cable connect(Patch& patch, Location loc, Endpoint from, Endpoint to);
+// Jack popup "Disconnect" (GetDisconnectCableNodeMolecules @000ea48a):
+// removes the connector's cables and splices its neighbours together (the
+// parent takes its children; a root's first child takes the others). The
+// rest of an output's chain stays connected, white. False if it has no cable.
+bool disconnectJack(Patch& patch, Location loc, Endpoint jack);
+// Jack popup "Break" (GetBreakCableNodeMolecules @000eb27a): on an input,
+// removes the cable towards the output and turns what hangs below it white;
+// on an output, removes its cables and turns the rest white. Only in a net
+// with an output; false when nothing changes.
+bool breakJack(Patch& patch, Location loc, Endpoint jack);
+// Jack popup "Delete" (GetDeleteCableChainMolecules @000e41d6): deletes the
+// connector's serial chain, or every cable of the net from its output.
+bool deleteChain(Patch& patch, Location loc, Endpoint jack);
+// Jack popup "Color" (GetRecolorCableMolecules @000e43f8): recolours the
+// connector's serial chain (the whole net from its output). Only in a net
+// with an output and not white (the popup's six colours): throws otherwise.
+void recolorChain(Patch& patch, Location loc, Endpoint jack, CableColor color);
+// Jack popup "Delete Unused Cables" (CPatch::InternalDeleteUnusedCables
+// @000d7168): deletes every net without an output, in both areas. False if
+// there was none.
+bool deleteUnusedCables(Patch& patch);
+// Moves every cable of `from` onto `to` (GetMoveCableNodeMolecules
+// @000eab6c), recolouring as a connection would. Throws when dropAction
+// refuses the move.
+void moveCables(Patch& patch, Location loc, Endpoint from, Endpoint to);
+
+// For the jack popup and highlighting.
+bool isCabled(const Patch& patch, Location loc, Endpoint jack);  // in a net
+bool hasOutput(const Patch& patch, Location loc, Endpoint jack); // its net has an output
+// "Break" is offered on a cabled connector that has cables below it
+// (CPanel::HoleDoContextMenu @000c006e: not on a leaf).
+bool canBreak(const Patch& patch, Location loc, Endpoint jack);
+// The cables of a connector's serial chain (what Color and Delete act on,
+// and what holding a jack highlights: CPatchBackground::CableHighLight @000def5e).
+std::vector<Cable> chainCables(const Patch& patch, Location loc, Endpoint jack);
+// The end of a cable farther from the net's root: the connector whose chain
+// holds the cable (cord actions go through it).
+Endpoint lowerEnd(const Patch& patch, Location loc, const Cable& cable);
+
+// Removes one cable, splicing nothing and recolouring nothing. Not an action
+// of the original editor (which only has the ones above); for tools and tests.
 void disconnect(Patch& patch, Location loc, const Cable& cable);
 
 // Sets a parameter in one variation, clamped to the parameter's range.
@@ -167,7 +236,6 @@ void setParamLabel(Patch& patch, Location loc, u8 module, u8 param, const std::s
 std::optional<std::vector<u8>> defaultLabelData(u8 moduleType);
 
 void setModuleColor(Patch& patch, Location loc, u8 module, u8 color);
-void setCableColor(Patch& patch, Location loc, const Cable& cable, CableColor color);
 void setCablesVisible(Patch& patch, CableColor color, bool visible);
 // The editor-only shape of a cable (the cable with the same two ends);
 // nullopt returns it to the automatic curve.
@@ -211,6 +279,7 @@ struct Clipboard {
 Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& indices);
 // Pastes at (col, row), giving the modules new indices; returns them.
 std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 row);
+// Deletes several modules as one selection (delete, cut), splicing as removeModule.
 void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices);
 void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow);
 

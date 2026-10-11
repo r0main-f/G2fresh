@@ -120,7 +120,7 @@ TEST_CASE("replace: OscA -> OscB in a corpus patch")
     // Cables.
     CHECK(hasCable(va, n, 0, true, 4, 1));       // Out -> Mix4-1B1 In1
     CHECK(hasCable(va, 8, 0, true, n, 1));       // Keyboard -> PitchVar
-    CHECK(hasCable(va, n, 1, false, 2, 1));      // the link follows
+    CHECK(hasCable(va, 2, 1, false, n, 1));      // the link follows (stored child -> parent)
     CHECK(cableTo(va, 4, 1)->color == CableColor::Red);
     for (const auto& c : va.cables)
         CHECK((c.fromModule != 1 && c.toModule != 1));

@@ -11,6 +11,7 @@ add_executable(g2tests
   test_bitstream.cpp
   test_hostclock.cpp
   test_edit.cpp
+  test_cables.cpp
   test_file.cpp
   test_patch.cpp
   test_replace.cpp

@@ -1,5 +1,6 @@
 #include "g2/replace.hpp"
 
+#include "g2/cables.hpp"
 #include "g2/edit.hpp"
 #include "g2/uprate.hpp"
 
@@ -285,6 +286,12 @@ u8 replaceModule(Patch& patch, Location loc, u8 index, u8 newType)
     }
 
     // ---- Cables ----
+    // Worked on as parent -> child links of the cable trees (a file stores an
+    // input-to-input link the other way round, child -> parent).
+    std::vector<Cable> before;
+    for (const auto& s : cables::Tree(area).segments())
+        before.push_back(makeCable(s.color, {s.parent.module, s.parent.conn, s.parent.isOutput},
+                                   {s.node.module, s.node.conn, s.node.isOutput}));
     auto mapEnd = [&](End e) -> std::optional<End> {
         if (e.module != index)
             return e;
@@ -295,13 +302,13 @@ u8 replaceModule(Patch& patch, Location loc, u8 index, u8 newType)
     };
     // Parent of each input in the cable trees, to find a tree's source.
     auto parentOf = [&](End e) -> std::optional<End> {
-        for (const auto& k : area.cables)
+        for (const auto& k : before)
             if (toOf(k) == e)
                 return fromOf(k);
         return std::nullopt;
     };
     auto rootOf = [&](End e) {
-        for (std::size_t guard = 0; guard <= area.cables.size(); ++guard) {
+        for (std::size_t guard = 0; guard <= before.size(); ++guard) {
             const auto p = parentOf(e);
             if (!p)
                 break;
@@ -310,7 +317,6 @@ u8 replaceModule(Patch& patch, Location loc, u8 index, u8 newType)
         return e;
     };
 
-    const std::vector<Cable> before = area.cables;
     std::vector<Cable> cables;
     auto emit = [&](const Cable& c) {
         if (c.fromModule == c.toModule && c.fromConn == c.toConn && !c.fromIsOutput)
@@ -369,6 +375,19 @@ u8 replaceModule(Patch& patch, Location loc, u8 index, u8 newType)
             continue;
         const auto mapped = mapEnd(root);
         c.color = mapped ? newOutputColor(mapped->conn) : CableColor::White;
+    }
+    // Back to the file's order of ends; untouched cables keep their bends.
+    for (auto& c : cables) {
+        const Cable stored = cables::cableOf({{c.toModule, c.toConn, false},
+                                              {c.fromModule, c.fromConn, c.fromIsOutput}, c.color});
+        for (const auto& old : area.cables)
+            if (old.fromModule == stored.fromModule && old.fromConn == stored.fromConn
+                && old.fromIsOutput == stored.fromIsOutput && old.toModule == stored.toModule
+                && old.toConn == stored.toConn) {
+                c.bend = old.bend;
+                break;
+            }
+        c = Cable{stored.color, stored.fromModule, stored.fromConn, stored.fromIsOutput, stored.toModule, stored.toConn, c.bend};
     }
     area.cables = std::move(cables);
 

@@ -185,7 +185,7 @@ TEST_CASE("modules without a fed dynamic input are reset; user colours survive u
     f.connect(a, 0, b, 0);
     CHECK_FALSE(f.up(lfo));
 
-    edit::setCableColor(f.p, VA, f.cableInto(b, 0), CableColor::Green);
+    edit::recolorChain(f.p, VA, {b, 0, false}, CableColor::Green);
     f.connect(lfo, 0, a, 1); // a stays at control rate: colour kept
     CHECK(f.colorInto(b, 0) == CableColor::Green);
     f.connect(osc, 0, a, 0); // a flips to audio rate: net recoloured
