@@ -87,6 +87,17 @@ extraction tool `tools/firmware/g2os.py` and this note. No Clavia bytes are comm
   experimental: a JIT crash seen before a timing change, cause not found). Since the second pass (§3.9.7): three
   threads by default, light patches 2.7-2.8 ×, heavy ones 1.8-2.4 ×, no underruns beside three busy processes.
 
+**Update (§3.11, 2026-10-11): the audio inputs.**
+* A6's ADC receiver takes four words per frame: In 1, In 3, In 2, In 4 (as the DACs' frames). An In module passes
+  the ADC's word on as it is, so the ADCs' full scale is a signal of 4.0 (an oscillator: 1.0); through an In and
+  an Out module the DACs' word is minus half the ADCs'.
+* The plugin has input buses In 1/2 and In 3/4 (the stand-alone app: the audio device's inputs 1-4), resampled to
+  96 kHz and handed to the ADCs on the output's timeline, a fixed time after the DACs send the frames read with
+  them. An input of 1.0 is a signal of 1.0, as at the outputs.
+* The lines between the DSPs now have a fixed delay. They were queues that grew by every frame a sender missed
+  while the OS reprogrammed it: the way from the ADCs to the DACs (and of every sound to the DACs) went from 50
+  to 150 frames over four patch uploads. It is 19 to 21 frames now, always.
+
 ## 1. Hardware (Part A)
 
 ### 1.1 Summary table
@@ -964,7 +975,7 @@ What dominates:
   its reader) takes roughly 8–16 frames (inferred); the reported 24 samples may be this plus the converters.
 * The clock counts instructions, not cycles: a patch the OS packs close to a DSP's limit may fit where the chip
   would overrun, or the other way round.
-* The ADCs feed silence; there is no test signal input yet.
+* The ADCs feed silence; there is no test signal input yet. (The C++ emulator has them since: §3.11.)
 * The expansion board's four DSPs (A7–A10) are stubs; with them the chain would run A6, A10…A7, A5, A4, A3.
 * Speed: about 0.15–0.6 × real time here. Next: run the four DSPs' links without per-frame thread hand-offs (larger
   batches, or all four on one thread with the JIT), port the host to C++ (§3.6.7), fix the JIT.
@@ -1284,6 +1295,10 @@ there, but it is the same code.
   plus 2 per hop, on top of the frames the DSPs hold themselves (the board's own figure is not known; the community
   measured 24 samples for an inter-slot connection, §1.1). Underruns happen only while the OS reprograms the DSPs
   (boot, uploads).
+  **Since 2026-10-11 the prefill is the line's delay** (§3.11.4): each frame carries its sender's frame number, and
+  the receiver takes the one sent `prefill` frames before its own frame starts, by the two DSPs' clocks. A frame
+  that is not there in time is lost, as on a wire. Before, the receiver took the frames in their order of arrival,
+  and every frame a sender missed made its line one frame longer for good.
 * **USB:** the host side of §3.6.6 in C++ (SETUPs 5 ms after the bus reset, the client 15 ms later, bulk-IN polled
   only while an announcement waits). The cable goes in once the OS has run 2 s (`Options::usbAfter`): a host that
   connects while the OS boots loses its first request (the OS initialises the ISP1181 again at the end of its boot)
@@ -1350,7 +1365,7 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
   beyond background throughput.
 * The DSP clock still counts instructions, not cycles (§3.7.7).
 * Stubs: the I2C ADC (the boot's calibration takes about 1 s against a constant 0x80), the analogue inputs
-  (silence), the expansion board's DSPs. The panel is modelled since (§3.10).
+  (silence), the expansion board's DSPs. The panel is modelled since (§3.10), the analogue inputs too (§3.11).
 * The flash is erased at power-on unless the caller loads an image (`Machine::loadMemory`, `g2emurun --flash`: the
   flash, then the EEPROM, §3.10.5); with one, the OS does not format it again; the boot still takes about 1.6 s (the
   calibration).
@@ -1655,7 +1670,7 @@ the LEDs are on or off, and blink by toggling (one blink group, every 3072 ticks
 | 116, 80, 247, 48 | the four split point LEDs above the keyboard, in the order Shift+KB Split steps through them; left to right is [inferred] from the split notes rising with each step (table at `0x300ECEA1`) | [emulated] |
 | 240 | Sub Func. (Shift+Display Mode) | [emulated] |
 | 16 | MIDI (incoming MIDI) | [emulated: a note on MIDI IN] |
-| 244, 212, 180 | Mic/In 1 level −20, −12, 0 dB (0 dB held for 128 calls) | [C 0x3006bd98: thresholds 0.1, 0.25, 0.89 of full scale on DSP data] |
+| 244, 212, 180 | Mic/In 1 level −20, −12, 0 dB (0 dB held for 128 calls) | [C 0x3006bd98: thresholds 0.1, 0.25, 0.89 of full scale on DSP data; emulated since the ADCs have a source: §3.11.3] |
 
 All 64 positions of rows 0-7 have a function; the G2X's wheel LEDs are not in the matrix (probably lit by the power
 supply, not the OS) [inferred].
@@ -1757,6 +1772,135 @@ verified on the OS's sound.
   LEDs; the direction of the pitch stick and wheels; whether an unplugged control pedal reads 0; the velocity
   table's per-key offsets (`0x302437EE`); MIDI OUT (nothing sent, so the panel's MIDI echo could not be used to
   check the controls).
+
+## 3.11 The audio inputs (2026-10-11)
+
+**Result.** The emulated G2 has its four audio inputs. `Machine::setAdcSource` gives A6's ADC receiver a frame of
+four words per sample; `Runner::write` takes a sound engine's input on the reader's timeline; the plugin has input
+buses whose audio reaches the In modules of the patch. A patch 2-In → 2-Out plays its input back at the level it
+went in. Tests: `InputQueue: ...` (no firmware) and the `[firmware]` cases "the audio inputs through the In
+modules, and the In 1 level LEDs", "a Vocoder driven by an audio input" and "audio inputs on the reader's timeline
+(Runner::write)" in `tests/test_g2emu.cpp`; `tests/test_audio_io.cpp` (buses and levels); `g2plugintest <plugin>
+--inputs <patch>` (the built VST3 or Audio Unit in a host).
+
+### 3.11.1 What a G2 has [M]
+
+* **IN 1-4:** unbalanced line inputs, −10 dBV nominal, on all three models [M p.53] (the Engine lacks only the
+  pedal inputs and the XLR). Signals have to come at line level: "the internal amplification is digital" [M p.139].
+* **XLR microphone input** (G2, G2X): for dynamic microphones, no phantom power, with a preamp whose gain is the
+  MIC LEVEL knob. A plug in IN 1 "will automatically override and disable the MIC INPUT" [M p.53]; the knob "only
+  affects the XLR INPUT - not the IN 1 input" [M p.26]. So the microphone is IN 1's signal while the IN 1 jack is
+  empty (a switching jack: inferred).
+* **The three LEDs under MIC LEVEL** show the microphone's level, or IN 1's when there is no microphone [M p.26].
+* **Modules** [M p.138-140]: 2-In (Source: In 1/2, In 3/4, Bus 1/2, Bus 3/4) and 4-In (In 1-4 or Bus 1-4), each
+  with Pad (+6, 0, −6, −12 dB; 0 dB in a new module), On/Off and level meters (green up to 0 dB, yellow up to
+  +11 dB, red above). The inputs reach the In modules of all four slots.
+* **No setting for them in the System menu** [M p.29-31] (the only gain there is Ctrl Ped Gain).
+* **MIC LEVEL is not read by the OS** [C, inferred]: the panel ADC scans seven inputs and all seven are other
+  controls (§3.10.4). The knob is in the analogue preamp.
+* Not in the manual: the preamp's gain range, the inputs' impedance, the converters' full-scale voltages.
+
+### 3.11.2 The ADCs' words [C, emulated]
+
+* A6's ESAI receiver is the master of a frame of 2 slots of 32 bits carrying 24-bit words, on two data lines
+  (§3.7.1): four words per frame. DMA channel 2 writes them to words `$4–$7` of the frame buffer, which then goes
+  down the chain (§3.7.2); the In modules read them there, wherever the OS compiled the patch.
+* **Order** [emulated: a tone of its own on each word, 4-In → 4-Out]:
+
+  | Word of the frame | Buffer word | Input |
+  |---|---|---|
+  | slot 0, RX0 (SDI0) | `$4` | In 1 |
+  | slot 0, RX1 (SDI1) | `$5` | In 3 |
+  | slot 1, RX0 | `$6` | In 2 |
+  | slot 1, RX1 | `$7` | In 4 |
+
+  As the DACs (§3.9.8: Out 1, 3, 2, 4): one stereo converter per data line, In 1/2 on the first, the left channel
+  in slot 0.
+* **Format:** 24-bit two's complement, full scale ±2²³.
+* **Level** [emulated]: an ADC word w through a 2-In (Pad 0 dB) and a 2-Out, the Master Level knob all the way up,
+  leaves the DACs as −0.4987 w (0.997 is the end of the OS's level table, §3.9.8). In signal units (an oscillator:
+  1.0, a DSP word of 0.25):
+  * the In module passes the ADC's word on as it is: **the ADCs' full scale is a signal of 4.0**, +12 dB, which is
+    where the In modules' meters turn red [M];
+  * the Out module gives a DAC word of −1/8 of the signal (§3.9.8): the DACs' full scale is a signal of 8.0,
+    +18 dB. "Output modules have an extra 6 dB headroom per bus" [M p.120].
+  * Pad: × 2, 1, 0.5 and 0.25 for +6, 0, −6 and −12 dB.
+* **Polarity:** the DACs' words are inverted against the signal (§3.9.8), the ADCs' are not. Whether the analogue
+  stages invert is not known for either.
+* **The way from the ADCs to the DACs** [emulated]: 20.4 frames with the DSPs on the caller's thread, 18.7 to 20.4
+  with DSP threads (set by the phases of the DSPs' serial clocks, fixed when they start): 2 frames in each of the
+  four DSPs and 3 lines of 2 frames, handed over whole (§3.11.4). On the board the lines take no frame, so about
+  8 frames plus the converters' filters (inferred; not measured).
+
+### 3.11.3 The In 1 level LEDs [C 0x3006bd98, emulated]
+
+The OS sends host command `$4F` to OS DSP 0 (A6: the first entry of its host port table at `0x30116970`) and reads
+one 24-bit word back: one sample of In 1 (A6's frame program keeps the first ADC word in X:`$44`, §3.7.2). It takes
+the magnitude (a word with bit 23 set becomes 2²⁴ − word), compares it with three thresholds (table at
+`0x300ECE92`: `0x0CCCCD`, `0x200000`, `0x721482` = 0.1, 0.25 and 0.891 of full scale: −20, −12 and −1 dB) and shows
+the highest one reached. The LEDs fall back one at a time, every 16 calls; the 0 dB LED stays lit for 128 calls.
+[emulated] steady levels of 0.05, 0.15, 0.4 and 0.95 of the ADC's full scale light none, −20, −20 and −12, and all
+three; −0.15 lights −20; In 2-4 at 0.95 light none.
+
+### 3.11.4 In the emulator
+
+* **`AdcSource`** (machine.hpp): asked on the thread that runs A6 for every frame of its ADC receiver, with the
+  frame's time on the machine's clock (the ESAI clock's own slot time, exact multiples of a frame). `Machine::
+  dacClock()` gives the same for the DAC frames `run()` hands out. Without a source the ADCs read silence, as before.
+  `g2emurun --in N:HZ[:LEVEL]` puts a sine on input N (e.g. `--patch in.pch2 --in 1:1000`, with a patch from
+  `g2mkpatch in.pch2 in=2-In out=2-Out 'in.0>out.0' 'in.1>out.1' gain=127`: out 1 is 1000 Hz at 0.1247).
+* **`Runner::write(in, frames)`**, from the audio thread before its `read()`: frames of four floats in the ADCs'
+  order, 1.0 = full scale, clipped there (the converters'), for the stretch of time the next `read()` returns. They
+  go into a ring at the reader's place (`InputQueue`, one writer, one taker, no locks). The ADCs take the frame
+  written with ring frame p exactly `inputLatencyFrames()` after the DACs send ring frame p: the runner publishes
+  when the DACs send ring frame 0, and A6 looks its input up by its frame's time. So an input frame's sound leaves
+  `read()` `inputLatencyFrames()` plus the G2's own way (§3.11.2) after it went in, the same for every frame.
+  `inputLatencyFrames()` is `latencyFrames()` (the buffer, the read size, a chunk) plus 16 frames: A6 may run 8
+  frames (`dspLead`) ahead of the frames the machine was asked for, and its input must have been written by then.
+  `Stats::inputMissing` counts ADC frames whose input was not there (none in any test).
+* **The lines between the DSPs have a fixed delay.** `Link`'s queue gave the receiver the frames in their order of
+  arrival, after `prefill` empty ones. Whenever a sender missed frames (the OS reprograms the DSPs at every upload)
+  the receiver read silence and found the late frames afterwards: each one made the line a frame longer for good.
+  Measured from the ADCs to the DACs: 50 frames after the first upload, 69 to 149 after four; every sound's way to
+  the DACs grew with it, up to the queues' 255 frames per line. Now a frame carries its sender's frame number and
+  the receiver takes the one sent `prefill` frames before its own frame starts; a late frame is lost, as on a wire.
+  The way is 19 to 21 frames whatever was uploaded (with 0, 1 and 2 DSP threads), and no frame is lost while a
+  patch plays (0 to 3 DSP threads, frame programs of 150 to 990 instructions). `Stats::linkUnderruns` now counts
+  the frames a DSP did not send in time, a few hundred per upload; it counted fewer before because older frames
+  stood in for them.
+* **The plugin** (`plugin/Source/AudioIo.h`, `EmulatedSoundEngine`, `PluginProcessor`):
+  * Buses: "In 1/2" and "In 3/4" (off by default) next to "Out 1/2" and "Out 3/4". In the VST3 they are side-chain
+    (aux) buses: the plugin has no main input and stays an instrument. In the Audio Unit they are the music
+    device's two input buses (`auval` passes; an Audio Unit has no bus that is off, so all four pairs are there
+    and a host leaves unconnected what it does not use). The stand-alone app has one input bus, the audio device's
+    inputs 1-4.
+  * Level: an input of 1.0 is an ADC word of 0.25, a signal of 1.0: the inverse of the outputs' convention, where
+    a signal of 1.0 is 1.0 (§3.9.8). 2-In → 2-Out gives 0.9974 of the input [emulated, g2plugintest]. The inputs
+    clip at 4.0 (+12 dBFS). Like the outputs' level, this is not compared with a G2's jacks: which voltage the
+    ADCs' full scale is, is not known. (With equal full-scale voltages at the ADCs and the DACs, a G2 would play
+    2-In → 2-Out 6 dB lower than it got it; that is a property of the analogue stages we cannot see.)
+  * Resampling to 96 kHz: JUCE's Lagrange interpolator, as the outputs. Going up, it leaves images of the input
+    between the host's Nyquist frequency and 48 kHz (the mirror of the outputs' aliasing, `fidelity-audit.md`
+    gap 3); a better resampler should replace both.
+  * The microphone: In 1 is the IN 1 jack unless the user makes it the microphone input (Live view: right-click
+    the Mic Level knob); then the knob's gain applies before the ADC, 0 to +40 dB. **The range is an assumption**
+    (what brings a dynamic microphone to line level): the manual gives none.
+  * Latency reported to the host: from an input sample to its sound at the output, e.g. 1297 samples (27.0 ms) at
+    48 kHz with 256-sample blocks: the input's start-up silence and interpolator (10 samples), 2552 frames to the
+    ADCs (the runner's 20 ms, the block, a chunk and the 16 frames), 20 for the G2's own way, 2 for the output
+    interpolator. Measured in the VST3 and the Audio Unit:
+    1296-1297 samples; at 44.1 kHz/512: 1469-1470 against 1469 reported; at 96 kHz/64: 2142 against 2142.
+    A MIDI note sounds 27 samples sooner than that, plus the OS's reaction (§3.9.4).
+
+### 3.11.5 Not done, not known
+
+* Not checked in a DAW: Live 11 with the VST3 and the Audio Unit (does it still load the Audio Unit as an
+  instrument now that it has input buses, and where does it show them).
+* The converters' full-scale voltages, the analogue stages' polarity, the preamp's gain range, the board's own
+  delay from the inputs to the outputs: all need a G2.
+* The G2X's goose-neck microphone and the Engine's missing XLR are not told apart: the option is there on every
+  model.
+* `emu/dspbridge` and the Python tools keep silent ADCs.
 
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source

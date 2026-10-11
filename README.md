@@ -40,8 +40,14 @@ A new emulated G2 starts as a G2 leaves the factory, without its sounds. Its sys
 
 - It needs a fast computer: one emulated G2 uses about 1.3 (light patches) to 1.6 (heavy ones) CPU cores of an Apple M1, and runs at 2-2.8 times real time there. Only the first G2fresh instance in a project starts one by itself; others start from the Synth menu or the Live view (each runs its own emulated G2).
 - In a DAW, the emulated G2's master clock (arpeggiator, clocked LFOs and delays) follows the host's tempo and transport, as MIDI clock into its MIDI IN (Synth > Emulated G2 Follows the Host's Tempo, off by default: the G2 then keeps its own tempo, as a G2 without MIDI clock does; when on, it also switches the G2's "MIDI Clk Recv" on). Its Out 3/4 come out on a second stereo output, "Out 3/4": route it to a track of its own to hear them. Otherwise only Out 1/2 are heard, as on a G2 whose headphones carry Out 1/2 only; Synth > Mix Out 3/4 into Out 1/2 mixes them in instead (a patch that sends the same signal to both pairs then plays it twice as loud).
-- The latency from a MIDI note to its sound is about 32 ms at 48 kHz with 512-sample blocks (26 ms with 256); G2fresh reports it to the host, which compensates it on playback.
-- The audio inputs and the expansion ports are not emulated; the pedals are not connected (the control pedal reads 0, the sustain pedal is up). Checked in the emulator (as the G2 OS reads them): the lowest key plays C1, the pitch stick bends up to the right, the mod wheel's vibrato grows upwards. Not verified: the global wheels' direction and the key velocity curve (approximated).
+- **Audio inputs.** The G2's four inputs IN 1-4 reach the In modules (2-In, 4-In) of every slot, for vocoders and effects on outside audio.
+  - In a DAW the plugin has two stereo inputs next to its outputs: "In 1/2" and "In 3/4" (off until routed). They are side-chain inputs of the instrument: route audio to them as your host does for a side-chain (a chooser on the plugin, or the plugin's name as a destination in another track's output chooser). Checked in a test host with the VST3 and the Audio Unit, not yet in a DAW.
+  - In the stand-alone app the audio device's inputs 1-4 are IN 1-4: choose the device and its channels in Options > Audio Settings (macOS asks once for the microphone). "Mute audio input" there silences them.
+  - An input at 0 dBFS is a signal of 1.0 in the patch, the level of an oscillator, as at the outputs: a patch that only passes a 2-In to a 2-Out plays what it gets, at the level it got it. The inputs clip at +12 dBFS, where the G2's converters do.
+  - The three In 1 Level LEDs of the Live view show IN 1's level, as on a G2 (-12 dB at 0 dBFS).
+  - On a G2 the microphone input (XLR) feeds IN 1 while nothing is plugged into the IN 1 jack, through a preamp whose gain is the Mic Level knob. Here In 1 is the jack, and the knob does nothing, as on a G2 with a plug in IN 1. Right-click the Mic Level knob in the Live view to make In 1 the microphone input: the knob then adds 0 to +40 dB.
+- The latency from a MIDI note or an input to the output is about 32 ms at 48 kHz with 512-sample blocks (27 ms with 256); G2fresh reports it to the host, which compensates it on playback. What the G2 makes of an input comes out exactly that much later.
+- The expansion ports are not emulated; the pedals are not connected (the control pedal reads 0, the sustain pedal is up). Checked in the emulator (as the G2 OS reads them): the lowest key plays C1, the pitch stick bends up to the right, the mod wheel's vibrato grows upwards. Not verified: the global wheels' direction and the key velocity curve (approximated).
 - In a DAW on macOS, the emulator generates code at run time; a host that forbids it cannot run it (not seen so far).
 - G2fresh is not affiliated with Clavia. The G2 OS is Clavia DMI AB's copyright: download it yourself from Nord's website and do not share the file; G2fresh never includes or distributes it.
 
@@ -83,7 +89,10 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 **Emulated G2 and plugin**
 - A new emulated G2 has no sounds in its memory: Clavia's factory banks are not included.
 - Output level: a full-scale signal inside the G2 (1.0) reaches the host at 0 dBFS. Not yet compared with a real G2's line outputs.
-- Latency: 26-32 ms from MIDI to sound, reported to the host, where a G2 takes about 2 ms.
+- Input level: 0 dBFS at an input is a signal of 1.0 inside the G2, a quarter of its converters' full scale. Not yet compared with a real G2's line inputs.
+- The microphone: one host input, In 1, is the G2's IN 1 jack or, if you choose so, its microphone input (a G2 has a connector for each, and the jack wins). The preamp's range of 0 to +40 dB is an assumption: the manual gives none.
+- Stand-alone app: the audio inputs are live from the start. (JUCE mutes a plugin's inputs by default against feedback; a G2 plays its inputs only where a patch has an In module.)
+- Latency: 27-32 ms from MIDI or an input to the output, reported to the host, where a G2 takes about 2 ms.
 - The Master Level knob is stored in the project, as the hardware knob stays where it was left.
 - The Live view keeps the G2X's layout but not its look. A mouse can hold only one button, so Option-click latches a button, a click on Shift holds it until the next button, and Shift on the computer keyboard holds Shift during a click.
 

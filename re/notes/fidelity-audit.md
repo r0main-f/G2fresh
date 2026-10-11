@@ -38,10 +38,16 @@ still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2
 **Sound and timing in the plugin (A)**
 12. Resampling from 96 kHz without an anti-alias filter (aliasing, inferred from the algorithm).
 13. No audio inputs (In modules silent; no mic, no In 1 Level).
+    **Closed 2026-10-11:** the plugin has In 1/2 and In 3/4 (the stand-alone app: the device's inputs 1-4), they
+    reach the In modules at a fixed latency, the In 1 level LEDs follow, and In 1 can be the microphone input with
+    the Mic Level knob's gain (g2-hardware-and-emulation.md §3.11). Open: the level against a real G2's jacks, the
+    preamp's gain range (assumed), Live 11 not tried; the resampler is the outputs' (gap 12).
 14. Tempo sync on by default, and Local / clock receive forced on: changes what the user hears, should be opt-in.
 15. Master Level knob not saved, and the on-screen knob can disagree with the machine.
 16. The G2's MIDI OUT is dropped (notes, CC, sysex dumps) and its queue grows without bound; incoming sysex skipped.
 17. Output level convention (x8) unverified against hardware; latency 26-32 ms against about 2 ms on a G2.
+    (Until 2026-10-11 the emulated lines between the DSPs added to it with every patch upload, up to 8 ms over a
+    session: fixed, g2-hardware-and-emulation.md §3.11.4.)
 
 **Interaction (A, B)**
 18. The Live panel holds one button at a time: no Shift functions, no hold-and-turn gestures.
@@ -88,7 +94,7 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 | 1 | **Polyphony is a G2's, not a G2X's.** We present a G2X, but the expansion board's 4 DSPs are stubs, so the OS uses 4 DSPs. A heavy patch gets 3 voices where a G2X gives 7. | **High** | [Measured] `voices.cpp`: `bigsynth.pch2` requesting 32 voices gets "03 (32)" on both the G2X and G2 models; [M p.121]: "minimum polyphony is three voices plus effects or seven voices plus effects in an expanded or G2X model" |
 | 2 | **An erased flash gives non-factory system settings.** MIDI Ctrl is Off, so CC7, CC11 and every assigned CC from the DAW are ignored. Slot channels are 1/1/1/1 and the Global channel is 1, so multitimbral use is impossible. Program Change is Off. There are **no factory patches**. | **High** | [Measured] `sysmenu.sh`, `probe`: CC7=0 has no effect with the OS default, and drops the level with Ctrl on. Factory values: [M p.126] Global channel Off, [M p.39/49] Memory Protect On, [M p.21] factory sounds |
 | 3 | **Downsampling 96 kHz to the host rate uses Lagrange interpolation with no anti-alias filter.** Content above the host's Nyquist folds into the audible band; a real G2 recorded at 48 kHz does not alias that way. | **High** for bright, FM or distorted patches | [Code] `EmulatedSoundEngine.h:86`, `.cpp:137-138`. [Inferred] from the algorithm: at 96→48 kHz a 4-point Lagrange returns every second input sample, i.e. plain decimation. Not measured |
-| 4 | **Audio inputs are absent.** There is no input bus, the ADCs read silence, and the Mic Level knob is decorative. Patches using 2-In/4-In (effects, vocoders) are silent. | **High** for those patches | [Code] `PluginProcessor.cpp:38-40` (outputs only), [Notes §3.9.6], `LiveView.cpp:311`; [M p.26, p.53] |
+| 4 | **Audio inputs are absent.** There is no input bus, the ADCs read silence, and the Mic Level knob is decorative. Patches using 2-In/4-In (effects, vocoders) are silent. **Closed 2026-10-11** ([Notes §3.11]; section 2 below) | **High** for those patches | [Code] `PluginProcessor.cpp:38-40` (outputs only), [Notes §3.9.6], `LiveView.cpp:311`; [M p.26, p.53] |
 | 5 | **Live panel: only one button can be held at a time.** Shift functions (Store As, Dump One, Panic, Split Point, Global octave, Shift+Slot, Vari.Init, Clear) and hold-and-turn gestures (hold Slot + dial, hold Morph + knobs, hold Down + dial for naming) cannot be done with the mouse. | **Medium-high** (functional) | [Code] `LiveView.cpp:333-378`: a single `pressed_`, released on mouse-up; [M p.27-31, p.47, p.44] |
 | 6 | **The Master Level knob is neither saved nor kept in sync.** It is full at every start. The UI resets to full whenever the editor reopens, while the machine keeps the old value. | **Medium-high** (loudness jumps: knob at 0.5 = −15.7 dB) | [Code] `LiveView.cpp:257` and `MainView.h:134` (LiveView belongs to the editor); [Measured] master 1 / 0.5 = 0 / −15.7 dB |
 | 7 | **MIDI OUT is dropped.** The OS transmits notes from the Live keyboard, CCs from the wheels and knobs, clock, Dump One sysex and the MIDI modules' output; the plugin outputs nothing. Incoming sysex is also dropped. The OS's MIDI OUT queue is never drained, so it grows without bound. | **Medium** | [Measured] Live key → `90 45 66 80 45 72`; mod wheel → `b0 01 7f`; G.Wheel 1 → `b0 60 7f`; Dump One → 1099 bytes of sysex. [Code] `PluginProcessor.h:38` `producesMidi() false`; `EmulatedSoundEngine.cpp:110-111` skips sysex; `machine.cpp:807-808, 1091-1097` |
@@ -117,6 +123,16 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 | IN 1-4 | Line inputs at −10 dBV, into the Input modules of all four slots [M p.53, p.~139 (line 5669)] | No input bus; the ADCs give silence ([Notes §3.9.6]; `PluginProcessor.cpp:38-40`) | Missing | High (effect and vocoder patches) | See the planned features below |
 | Mic (XLR) | A preamp for dynamic microphones; the IN 1 jack overrides it [M p.53]. On the G2X the XLR is on the top panel [Photo g2x-left]. The Mic Level knob affects the XLR only [M p.26] | The knob is drawn at a fixed 20°, not interactive (`LiveView.cpp:311`) | Missing; the knob is decorative | Medium | Tooltip "not emulated" now; later, a gain stage on In 1 when "mic" is the source |
 | In 1 Level LEDs (−20, −12, 0 dB) | Show the mic, or IN 1 when nothing is in the mic [M p.26]. Driven by the OS from DSP data (thresholds 0.1/0.25/0.89) [Notes §3.10.3] | Mapped (`PluginProcessor.cpp:319-321`); always off (no input) | Follows once inputs exist | – | – |
+
+**Since 2026-10-11** ([Notes §3.11]; the rows above are the audit's):
+
+| Item | G2fresh now | Gap left | Severity |
+|---|---|---|---|
+| IN 1-4 | Buses "In 1/2" (on) and "In 3/4" (off by default) next to the outputs; VST3: side-chain buses of an instrument; Audio Unit: a music device's two input buses; stand-alone: the audio device's inputs 1-4. Resampled to 96 kHz and taken by A6's ADC receiver a fixed time after the DACs send the frames read with them [Measured: every frame's input in time; 2-In → 2-Out and 4-In → 4-Out pass tones at 0.9974 of their level, each input to its own output; Pad and Source work; a Vocoder follows In 1] | Live 11 not tried (does it load the Audio Unit as an instrument with its input buses; where it shows the side-chain). The resampler is the outputs' Lagrange: images of the input above the host's Nyquist frequency [Inferred] | Medium until tried in Live |
+| Input level | An input of 1.0 is a signal of 1.0 (the level of an oscillator), a quarter of the ADCs' full scale: the inputs clip at +12 dBFS, the outputs at +18 dBFS (the In and Out modules' own scales [Measured]). Through In → Out the host gets back what it sent | A convention, unverified against a G2's jacks (the converters' full-scale voltages are unknown, as for the outputs). With equal full-scale voltages a G2 would play In → Out 6 dB lower | Medium (convention) |
+| Mic (XLR) | In 1 is the IN 1 jack by default: Mic Level then does nothing, as on a G2 with a plug in IN 1. Opt-in (Live view: right-click Mic Level): In 1 is the microphone input, through a preamp of 0 to +40 dB set by the knob, kept with the project | The gain range is assumed (not in the manual). One host input serves as either: a G2 has two connectors | Low-medium |
+| In 1 Level LEDs | Follow In 1 as the OS drives them [Measured: 0.1 / 0.25 / 0.89 of the ADC's full scale, either sign, 0 dB held] | With the level convention above they show −12 dB at 0 dBFS | – |
+| Latency | 27 ms at 48 kHz with 256-sample blocks (32 ms with 512), reported to the host: an input sample's sound comes out that much later [Measured in the VST3 and the Audio Unit: within one sample] | A G2 passes its inputs to its outputs in well under a millisecond [Inferred]. As the outputs' latency (gap 10) | Medium for live use |
 
 ### 3. Pedals and controllers
 
@@ -189,7 +205,9 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 
 ### Planned features: original behaviour to follow
 
-**Audio inputs.**
+**Audio inputs.** (Built 2026-10-11 as below, [Notes §3.11]. Differences from this plan: the level is the In
+module's own scale, a quarter of the ADCs' full scale, so that In → Out returns the level; the In 1 switch is on
+the Mic Level knob's pop-up menu; the resampler is still the outputs'.)
 - **What the original has:** IN 1-4, line level at −10 dBV [M p.53]; an XLR mic with a preamp on G2/G2X (on the G2X's top panel [Photo]); the IN 1 jack disables the mic [M p.53]; Mic Level affects the XLR only [M p.26]; the In 1 Level LEDs are OS-driven.
 - **Following it:**
   - Add an input bus "In 1/2" and an optional "In 3/4", which DAWs can route as a sidechain.
