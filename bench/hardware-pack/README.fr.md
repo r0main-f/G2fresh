@@ -47,8 +47,8 @@ Pour chaque ligne du tableau : charge le patch, attends deux secondes, enregistr
 
 1. Charge **B10 Audio In**. Il envoie l'entrée IN 1 du G2 directement vers OUT 1.
 2. Branche la sortie 1 de ta carte son sur l'entrée **IN 1** du G2. Laisse OUT 1 du G2 sur l'entrée 1 de la carte son.
-3. Si tu peux, branche aussi la sortie 2 de ta carte son directement sur son entrée 2 (débranche OUT 2 du G2 pour ça). Ce câble nous dit combien de temps met ta carte son elle-même.
-4. Place `B10 Stimulus.wav` sur une piste qui sort sur les sorties 1 et 2, fader à 0 dB. Coupe le monitoring d'entrée, sinon ça va hurler.
+3. Si tu peux, branche aussi la sortie 2 de ta carte son directement sur son entrée 2 (débranche OUT 2 du G2 pour ça). Ce câble est notre référence : il nous dit à quel niveau ta carte son joue le fichier et combien de temps elle met.
+4. Place `B10 Stimulus.wav` sur une piste qui sort sur les sorties 1 et 2, fader à 0 dB. Si la carte son a un bouton de volume pour ces sorties, monte-le à fond (casque retiré) : les sons les plus forts doivent atteindre la limite de l'entrée du G2. Coupe le monitoring d'entrée, sinon ça va hurler.
 5. Enregistre les entrées 1 et 2 pendant la lecture du fichier (14 secondes). Sauvegarde sous `B10 Audio In.wav`.
 
 ## 4. Quelques points à observer

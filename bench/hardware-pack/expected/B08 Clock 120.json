@@ -21,23 +21,23 @@
   "outputs": {
    "1": {
     "clicks": 120,
-    "period_s": 0.4999999,
-    "bpm": 120.0,
-    "jitter_ms": 0.0611,
-    "first_s": 0.00087,
+    "period_s": 0.4999998,
+    "bpm": 120.0001,
+    "jitter_ms": 0.0609,
+    "first_s": 0.4974,
     "polarity": 1,
     "peak_dbfs": -18.08
    },
    "2": {
-    "clicks": 120,
+    "clicks": 119,
     "period_s": 0.5007526,
     "bpm": 119.8196,
     "jitter_ms": 0.0117,
-    "first_s": 0.00164,
+    "first_s": 0.49941,
     "polarity": 1,
     "peak_dbfs": -18.08
    }
   }
  },
- "summary": {"master_clock_bpm": 120.0, "own_clock_bpm": 119.8196, "click_polarity": 1}
+ "summary": {"master_clock_bpm": 120.0001, "own_clock_bpm": 119.8196, "click_polarity": 1}
 }

@@ -87,8 +87,9 @@ endif()
 
 # The hardware bench pack (bench/hardware-pack, tools/benchpack): the committed patches are what the generator
 # writes, the printable pages are what the instructions give, and the analysis finds the faults of synthetic
-# recordings. With the emulator built and G2_FIRMWARE set (Clavia's OS update .dmg), three of its patches are also
-# played on the emulated G2 and compared with the committed predictions; skipped otherwise.
+# recordings. With the emulator built and G2_FIRMWARE set (Clavia's OS update .dmg), four of its patches are also
+# played on the emulated G2 and compared with the committed predictions (B10: with its stimulus on In 1); skipped
+# otherwise.
 add_test(NAME benchpack_patches_are_current
   COMMAND g2benchpack --check ${PROJECT_SOURCE_DIR}/bench/hardware-pack)
 if(Python3_FOUND)
@@ -100,7 +101,7 @@ if(Python3_FOUND)
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/benchpack/selftest.py)
   if(TARGET g2benchrender)
     add_test(NAME benchpack_expected_matches_emulator
-      COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/benchpack/expected.py --check --only B01,B07,B13
+      COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/benchpack/expected.py --check --only B01,B07,B10,B13
         --build ${CMAKE_BINARY_DIR})
     set_tests_properties(benchpack_expected_matches_emulator PROPERTIES SKIP_RETURN_CODE 77)
   endif()

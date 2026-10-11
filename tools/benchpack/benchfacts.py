@@ -301,9 +301,16 @@ def measure(entry, rate, channels, clock=1.0, reference=None):
     return facts
 
 
+INPUT_PATH = "In 1, 2-In (Pad 0 dB), 2-Out (Pad 0 dB), Out 1, Master Level full"
+
+
 def input_facts(rate, channels):
     """B10: channel 1 is the stimulus through the G2 (In 1 to Out 1), channel 2 the same stimulus looped back from
-    the interface's second output to its second input. The loopback gives the time and level reference."""
+    the interface's second output to its second input. The loopback gives the time and level reference.
+
+    delay_ms is the phase delay of the steady 1 kHz tone, which a clipping input does not move. The bursts say which
+    cycle of the tone it is, and the polarity; burst_delay_ms, where the bursts rise through half their height, comes
+    out about 30 microseconds short when the G2's input clips them by 4 dB."""
     s = STIMULUS
     facts = {"channels": len(channels)}
     if not channels:
@@ -332,26 +339,45 @@ def input_facts(rate, channels):
         facts["error"] = "the three bursts at the start were not found on channel 1"
         return facts
     t_ref, sign_ref = burst_times(loop) if loop is not None else ([], [])
+    if not t_ref:  # channel 2 holds something else (the G2's Out 2 left plugged in): not a loopback
+        loop, facts["loopback"] = None, False
     base = (t_ref[0] if t_ref else t_through[0]) - s["bursts"]["times"][0]  # where the stimulus starts in the file
+    delay = 0.0
     if t_ref:
         delays = [a - b for a, b in zip(t_through, t_ref)]
-        facts["delay_ms"] = r(1000.0 * math.fsum(delays) / len(delays), 4)
+        delay = math.fsum(delays) / len(delays)
+        facts["burst_delay_ms"] = r(1000.0 * delay, 4)
         facts["delay_spread_ms"] = r(1000.0 * (max(delays) - min(delays)), 4)
         facts["polarity"] = 1 if sum(a * b for a, b in zip(sign_through, sign_ref)) >= 0 else -1
-    delay = facts.get("delay_ms", 0.0) / 1000.0
+
+    def segment(x, start, seconds, shift):
+        """(index of its first sample, the samples) of a stretch of the stimulus, 0.1 s in from both ends"""
+        a = max(0, int(round((base + shift + start + 0.1) * rate)))
+        return a, x[a:max(a, min(len(x), int(round((base + shift + start + seconds - 0.1) * rate))))]
 
     def level(x, start, seconds, shift):
-        seg = ba.part(x, rate, base + shift + start + 0.1, base + shift + start + seconds - 0.1)
+        _, seg = segment(x, start, seconds, shift)
         hz = ba.tone_frequency(seg, rate, s["tone_hz"])
         return ba.db(ba.tone(seg, rate, hz)[0]), tone_facts(seg, rate, hz)["thd_db"]
 
     st = s["steady"]
+    if t_ref:
+        # the same tone on both channels: on channel 1 its phase lags by 2 pi hz delay, plus pi if it is inverted
+        a_loop, seg_loop = segment(loop, st["start"], st["seconds"], 0.0)
+        a_thru, seg_thru = segment(through, st["start"], st["seconds"], delay)
+        hz = ba.tone_frequency(seg_loop, rate, s["tone_hz"])
+        if hz > 0 and len(seg_thru) > 8:
+            w = 2.0 * math.pi * hz
+            lag = (ba.tone(seg_loop, rate, hz)[1] - w * a_loop / rate) - (ba.tone(seg_thru, rate, hz)[1] - w * a_thru / rate)
+            cycles = (lag + (math.pi if facts["polarity"] < 0 else 0.0)) / (2.0 * math.pi) - delay * hz
+            delay += (cycles - round(cycles)) / hz  # the cycle the bursts point at
+        facts["delay_ms"] = r(1000.0 * delay, 4)
     lt, _ = level(through, st["start"], st["seconds"], delay)
     facts["steady_through_dbfs"] = r(lt, 2)
     if loop is not None:
         ll, _ = level(loop, st["start"], st["seconds"], 0.0)
         facts["steady_loopback_dbfs"] = r(ll, 2)
-        facts["gain_db"] = r(lt - ll, 2)
+        facts["gain_db"], facts["gain"] = r(lt - ll, 2), r(10.0 ** ((lt - ll) / 20.0), 4)
     rows = []
     for i, nominal in enumerate(s["steps"]["dbfs"]):
         start = s["steps"]["start"] + i * (s["steps"]["seconds"] + s["steps"]["gap"])
@@ -363,3 +389,49 @@ def input_facts(rate, channels):
         rows.append(row)
     facts["steps"] = rows
     return facts
+
+
+def input_compression(steps):
+    """Where B10's level steps stop being linear: (the gain of the quiet steps, the first step whose gain is 0.5 dB
+    under it or whose distortion is above -40 dB, or None). The gain is against the loopback or, without one, against
+    the level the stimulus was written at: then it only compares the steps with each other."""
+    if not steps:
+        return None, None
+    gains = [s["gain_db"] if s.get("gain_db") is not None else s["through_dbfs"] - s["stimulus_dbfs"] for s in steps]
+    base = sorted(gains[:3])[1] if len(gains) >= 3 else gains[0]
+    for s, g in zip(steps, gains):
+        if g - base < -0.5 or (s.get("thd_db") is not None and s["thd_db"] > -40.0):
+            return base, s
+    return base, None
+
+
+def input_prediction(rate, level_db, through, came_in, hot_level_db=None, hot_through=None, hot_came_in=None):
+    """B10's expected facts and their summary, from the patch played with the stimulus on In 1.
+
+    through: Out 1 (1.0 = the DAC's full scale); came_in: the stimulus as it came to the ADC, on the same time base
+    (1.0 = the ADC's full scale), the file's full scale being level_db relative to the ADC's. So the loopback level
+    of a step is its level at the ADC, and a gain is the DAC's level in its full scale over the ADC's in its own.
+    The "hot" render is the same with the stimulus hot_level_db up: its last steps are over the ADC's full scale."""
+    facts = input_facts(rate, [through, came_in])
+    facts["stimulus_full_scale_re_adc_db"] = level_db
+    if "error" in facts or "delay_ms" not in facts:
+        raise ValueError("B10: %s" % facts.get("error", "the stimulus was not found at the ADC"))
+    facts["delay_frames"] = r(facts["delay_ms"] * rate / 1000.0, 2)
+    gain, clip = input_compression(facts["steps"])
+    facts["small_signal_gain_db"] = r(gain, 2)
+    facts["first_compressed_step"] = clip
+    clean = [row["loopback_dbfs"] for row in facts["steps"] if clip is None or row["stimulus_dbfs"] < clip["stimulus_dbfs"]]
+    summary = {"path": INPUT_PATH, "gain_db": r(gain, 2), "gain": facts["gain"],
+               "delay_frames": facts["delay_frames"], "delay_ms": facts["delay_ms"], "polarity": facts["polarity"],
+               "clean_up_to_adc_dbfs": max(clean) if clean else None,
+               "first_compressed_adc_dbfs": clip["loopback_dbfs"] if clip else None}
+    if hot_through is not None:
+        hot = input_facts(rate, [hot_through, hot_came_in])
+        steps = hot.get("steps") or []
+        _, hot_clip = input_compression(steps)
+        facts["hot"] = {"stimulus_full_scale_re_adc_db": hot_level_db, "steps": steps, "first_compressed_step": hot_clip}
+        if clip is None and hot_clip is not None:
+            clean += [row["loopback_dbfs"] for row in steps if row["stimulus_dbfs"] < hot_clip["stimulus_dbfs"]]
+            summary["clean_up_to_adc_dbfs"] = max(clean)
+            summary["first_compressed_adc_dbfs"] = hot_clip["loopback_dbfs"]
+    return facts, summary

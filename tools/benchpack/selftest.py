@@ -9,7 +9,8 @@ runs analyse.py on them and checks that the report finds the faults.
 
 The fake G2 and interface: each output at its own gain, a clock 37 ppm fast, 48 kHz 24-bit files, Out 1 and 2 swapped
 at the interface, inverted polarity, a little noise and hum, a gentle treble loss, an analogue stage that clips below
-the DAC's full scale, a master clock 0.6 % fast, and for B10 an input path with its own gain, delay and polarity.
+the DAC's full scale, a master clock 0.6 % fast, and for B10 an input whose ADC takes the interface's output 3 dB
+above its full scale, clips there and is 1.23 ms from the DAC, the loopback's cable on the other channel.
 """
 import argparse
 import json
@@ -43,8 +44,12 @@ FAULTS = {
     "clip": 0.60,                    # the analogue stage clips at this DAC level (0 dBFS = 1.0)
     "master_clock_ppm": 6000.0,      # B08's master clock against the sample clock
     "lead_in_s": 0.37,
-    "input": {"gain_db": -3.2, "delay_ms": 1.23, "polarity": -1.0, "clip": 0.42, "loopback_db": -0.5},
+    # B10: the interface's 0 dBFS reaches the ADC `adc_db` above its full scale, where it clips; the ADC's word is at
+    # the DAC `delay_ms` later; the input stage does not invert; the loopback cable loses `loopback_db`
+    "input": {"adc_db": 3.0, "delay_ms": 1.23, "polarity": 1.0, "loopback_db": -0.5},
 }
+INPUT_GAIN = 0.4987    # a G2's DAC word over its ADC word through B10, in the sign the renders have (expected/B10)
+INPUT_FRAMES = 20      # and its way from the ADC to the DAC in the stand-in render, in frames of 96 kHz
 FORM = """Q01. Name
 Answer: Selftest
 Q02. Model
@@ -209,21 +214,36 @@ def fake_recording(entry, rate, outs, faults, rng):
     return chans
 
 
+def stimulus_96k():
+    return resample(np.array(make_stimulus.stimulus(), dtype=float), bf.STIMULUS["rate"], 96000)
+
+
+def toy_input_prediction():
+    """B10's stand-in expected values: a G2 whose ADC clips at its full scale and whose DAC gives INPUT_GAIN of it
+    INPUT_FRAMES later, played as expected.py plays the emulated one (the stimulus's full scale at the ADC's, then
+    10 dB above)."""
+    runs = []
+    for level_db in (0.0, 10.0):
+        came_in = stimulus_96k() * 10 ** (level_db / 20.0)
+        through = INPUT_GAIN * np.clip(np.concatenate([np.zeros(INPUT_FRAMES), came_in])[:len(came_in)], -1.0, 1.0)
+        runs += [level_db, through, came_in]
+    return bf.input_prediction(96000, *runs)
+
+
 def fake_input_recording(faults, rng):
-    """B10: the stimulus through a fake G2 input-to-output path (channel 1) and looped back (channel 2)."""
-    rate = bf.STIMULUS["rate"]
-    stim = np.array(make_stimulus.stimulus(), dtype=float)
+    """B10: the stimulus through the fake G2 (IN 1 to OUT 1) and looped back. OUT 1 is on the interface input it is
+    on for every other patch: with Out 1 and 2 crossed that is the file's second channel, the loopback its first."""
     f = faults["input"]
-    up = resample(stim, rate, 96000)
+    up = stimulus_96k()
     shift = int(round(f["delay_ms"] * 96.0))
-    through = np.concatenate([np.zeros(shift), up])[:len(up)]
-    through = np.clip(through * 10 ** (f["gain_db"] / 20.0), -f["clip"], f["clip"]) * f["polarity"]
-    through = resample(through, 96000, faults["rate"])
+    adc = np.clip(np.concatenate([np.zeros(shift), up])[:len(up)] * f["polarity"] * 10 ** (f["adc_db"] / 20.0), -1.0, 1.0)
+    through = resample(adc * INPUT_GAIN * faults["polarity"] * 10 ** (faults["gain_db"][1] / 20.0), 96000, faults["rate"])
     loop = resample(up, 96000, faults["rate"]) * 10 ** (f["loopback_db"] / 20.0)
     n = min(len(through), len(loop))
     lead = np.zeros(int(0.8 * faults["rate"]))
     noise = lambda: rng.normal(0.0, 10 ** (faults["noise_dbfs"] / 20.0), n + len(lead))  # noqa: E731
-    return [np.concatenate([lead, through[:n]]) + noise(), np.concatenate([lead, loop[:n]]) + noise()]
+    chans = [np.concatenate([lead, through[:n]]) + noise(), np.concatenate([lead, loop[:n]]) + noise()]
+    return chans[::-1] if faults["swap"][0] == 1 else chans
 
 
 # ---- checks ----------------------------------------------------------------------------------------------------
@@ -247,7 +267,8 @@ class Checks:
         self.failed += not ok
 
 
-def check_results(c, res, faults):
+def check_results(c, res, faults, b10_expected, b10_rate, b10_through):
+    """b10_expected: B10's expected JSON; b10_through: the channel of its recording that holds the G2's Out 1."""
     g = faults["gain_db"]
     p = res["patches"]
     c.near("B01 chain gain, Out 1", res["gain_db"].get("1"), g[1], 0.05)
@@ -290,11 +311,26 @@ def check_results(c, res, faults):
             c.near("%s Out %s level deviation (dB)" % (pid, o), v["level_deviation_db"], 0.0, 0.6)
     b10 = p["B10"]
     f = faults["input"]
-    c.near("B10 delay (ms)", b10.get("delay_ms"), f["delay_ms"], 0.03)
-    c.near("B10 gain (dB)", b10.get("small_signal_gain_db"), f["gain_db"] - f["loopback_db"], 0.1)
-    c.same("B10 polarity", b10.get("polarity"), -1)
-    clip = b10.get("first_compressed_step") or {}
-    c.same("B10 first compressed step (dBFS sent)", clip.get("stimulus_dbfs"), -1.0)  # 0.89 x 0.69 = 0.62, over the fake input's 0.42
+    ours = ba.db(INPUT_GAIN)
+    c.true("B10 the loopback found on channel 1", any("taken as the G2's output" in n for n in res["notes"]) == (faults["swap"][0] == 1))
+    c.near("B10 delay (ms)", b10.get("delay_ms"), round(f["delay_ms"] * 96.0) / 96.0, 0.005)
+    c.near("B10 delay from the bursts (ms)", b10.get("burst_delay_ms"), f["delay_ms"], 0.03)
+    c.near("B10 gain in volts (dB)", b10.get("small_signal_gain_db"), f["adc_db"] + ours + g[1] - f["loopback_db"], 0.1)
+    c.same("B10 polarity", b10.get("polarity"), int(f["polarity"] * faults["polarity"]))
+    c.same("B10 polarity of the input itself", b10.get("input_polarity"), int(f["polarity"]))
+    c.near("B10 the DAC's full scale over the ADC's (dB)", b10.get("dac_over_adc_full_scale_db"), f["adc_db"] + g[1] - f["loopback_db"], 0.1)
+    c.near("B10 the stimulus's full scale at the ADC (dB)", b10.get("stimulus_full_scale_re_adc_db"), f["adc_db"], 0.1)
+    c.near("B10 the ADC's full scale (dBu, Q08 = 18)", b10.get("adc_full_scale_dbu"), 18.0 - f["adc_db"] + f["loopback_db"], 0.1)
+    clip, last = b10.get("first_compressed_step") or {}, b10.get("last_clean_step") or {}
+    c.same("B10 first compressed step (dBFS sent)", clip.get("stimulus_dbfs"), -1.0)  # 2 dB over the fake ADC's full scale
+    c.near("B10 that step at the ADC (dB re full scale)", clip.get("adc_dbfs"), -1.0 + f["adc_db"], 0.1)
+    c.near("B10 the last clean step at the ADC (dB re full scale)", last.get("adc_dbfs"), -6.0 + f["adc_db"], 0.1)
+    c.near("B10 our gain (dB)", (b10.get("expected") or {}).get("gain_db"), ours, 0.02)
+    # the same recording without the loopback cable: no gain and no delay, but still where the input gives up
+    alone = analyse.compare_input({"gain": res["gain_db"]}, b10_expected, bf.input_facts(b10_rate, [b10_through]))
+    c.same("B10 alone: no loopback, no gain", (alone.get("loopback"), alone.get("small_signal_gain_db"), alone.get("delay_ms")), (False, None, None))
+    c.same("B10 alone: first compressed step (dBFS sent)", (alone.get("first_compressed_step") or {}).get("stimulus_dbfs"), -1.0)
+    c.near("B10 alone: the stimulus's full scale at the ADC (dB)", alone.get("stimulus_full_scale_re_adc_db"), f["adc_db"], 0.1)
     c.same("form: model", res["form"].get("model"), "G2X")
     c.same("form: an answer in French", res["form"].get("voices_b11"), "32 (32)")
     c.same("form: an answer on two lines", res["form"].get("store_protected"), "Memory is protected!")
@@ -379,8 +415,9 @@ def main():
         if e["measure"] == "input":
             chans = fake_input_recording(FAULTS, rng)
             if not args.emulator:
+                facts, summary = toy_input_prediction()
                 with open(os.path.join(expected_dir, e["name"] + ".json"), "w") as f:
-                    json.dump({"id": e["id"], "name": e["name"], "measure": "input", "status": "pending"}, f)
+                    f.write(bf.dumps({"id": e["id"], "name": e["name"], "measure": "input", "status": "ok", "facts": facts, "summary": summary}) + "\n")
         else:
             if args.emulator:
                 rate, outs = ba.read_wav(os.path.join(renders, e["name"] + ".wav"))
@@ -406,7 +443,11 @@ def main():
     for note in res["notes"]:
         print("note: " + note)
     c.true("no patch failed to analyse", not any("could not be analysed" in n for n in res["notes"]))
-    check_results(c, res, FAULTS)
+    b10 = next(e["name"] for e in entries if e["measure"] == "input")
+    with open(os.path.join(expected_dir, b10 + ".json")) as f:
+        b10_expected = json.load(f)
+    b10_rate, b10_channels = ba.read_wav(os.path.join(rec_dir, b10 + ".wav"))
+    check_results(c, res, FAULTS, b10_expected, b10_rate, b10_channels[1 if FAULTS["swap"][0] == 1 else 0])
     if not args.work and not c.failed:
         shutil.rmtree(work, ignore_errors=True)
     else:

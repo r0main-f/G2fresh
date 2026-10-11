@@ -31,11 +31,27 @@ DAC_TO_G2FRESH_DB = 20.0 * __import__("math").log10(8.0)  # G2fresh plays the DA
 LEVELS = ("Levels are in dBFS of the G2's DAC words (1.0 = DAC full scale), Master Level full. G2fresh plays the words "
           "8 times louder (+18.06 dB), so that a full-level signal inside the G2 (64 units) is 0 dBFS in the host.")
 
+# B10: where the stimulus file's full scale is put, in dB relative to the ADCs' full scale. On a G2 that is the
+# interface's output level against the G2's input sensitivity, which nobody knows beforehand (NOTES.md): at 0 the
+# loudest step (-1 dBFS) is just under the ADC's full scale, at +10 the last two steps are over it.
+INPUT_DB = 0.0
+INPUT_HOT_DB = 10.0
+INPUT_LEVELS = ("A level at the ADC (loopback_dbfs) is in dB relative to the ADC's full scale, a word of +-2^23: a signal of 4.0 inside "
+                "the G2, 12 dB above an oscillator's. A level at Out 1 (through_dbfs) is in dBFS of the DAC's words, Master Level "
+                "full. A gain is the second minus the first. The stimulus file's full scale is at the ADC's full scale in "
+                "'facts' and %g dB above it in 'facts.hot'." % INPUT_HOT_DB)
+INPUT_NOTE = ("The delay is the emulated G2's own way from an ADC word to the DAC word it becomes; converters' filters are not in "
+              "it. Polarity 1: Out 1 follows In 1 in the sign G2fresh plays the DAC's words with (the DAC's word itself is "
+              "-0.4987 times the ADC's). Nothing between the ADC and the DAC clips before the ADC's full scale; the clip above "
+              "it in 'facts.hot' is the render tool's stand-in for the converter (it stops at its largest word), not the OS's.")
+
 
 def render_seconds(entry):
     kind = entry["measure"]
     if kind in ("level_steps", "pad_steps", "saw_steps", "phrase"):
         return 3.4 * entry["loop_seconds"] * 1.002 + 1.5
+    if kind == "input":
+        return bf.STIMULUS["total"] + 0.5
     return {"tone": 10.0, "tone_map": 6.0, "noise": 20.0, "silence": 2.0, "clicks": 60.0, "voices": 0.2, "controls": 0.5}.get(kind, 1.0)
 
 
@@ -115,12 +131,21 @@ def one_patch(tool, fw, entry, renders):
     kind = entry["measure"]
     result = {"id": entry["id"], "name": entry["name"], "file": entry["file"], "measure": kind}
     if kind == "input":
-        # g2emu has no audio inputs yet: when Machine takes them, render with the stimulus on In 1 and measure with
-        # benchfacts.input_facts (channel 1: the render's Out 1, channel 2: the stimulus itself as the loopback)
-        result.update(status="pending", reason="the emulated G2 has no audio inputs yet",
-                      to_measure=["gain from In 1 to Out 1 at 1 kHz (2-In Pad 0 dB, 2-Out Pad 0 dB)", "delay from In 1 to Out 1",
-                                  "polarity", "the input level where the gain starts to drop"],
-                      stimulus=bf.STIMULUS)
+        # B10: the stimulus into In 1, twice (the file's full scale at the ADC's, and INPUT_HOT_DB above it), measured
+        # as a recording is: channel 1 the render's Out 1, channel 2 ("the loopback") what came to the ADC
+        stimulus = os.path.join(PACK, entry["stimulus"])
+
+        def run(tag, level_db):
+            came_in = os.path.join(renders, entry["name"] + tag + ".input.wav")
+            wav, info = render(tool, fw, entry, renders, ["--in1", stimulus, "--in-level", "%g" % level_db, "--in-ref", came_in], tag)
+            rate, out = ba.read_wav(wav)
+            return info, rate, level_db, out[0], ba.read_wav(came_in)[1][0]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            (info, rate, *plain), (_, _, *hot) = pool.map(lambda a: run(*a), (("", INPUT_DB), (".hot", INPUT_HOT_DB)))
+        facts, summary = bf.input_prediction(rate, *plain, *hot)
+        result.update(emulator=emulator_facts(info), status="ok", levels=INPUT_LEVELS, sample_rate=rate, stimulus=bf.STIMULUS,
+                      facts=facts, summary=summary, note=INPUT_NOTE)
         return result
     if kind == "controls":
         # B14 on the emulated G2X: the tone with each control at rest and at the top of its ADC range

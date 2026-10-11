@@ -3,9 +3,20 @@
  "name": "B10 Audio In",
  "file": "B10 Audio In.pch2",
  "measure": "input",
- "status": "pending",
- "reason": "the emulated G2 has no audio inputs yet",
- "to_measure": ["gain from In 1 to Out 1 at 1 kHz (2-In Pad 0 dB, 2-Out Pad 0 dB)", "delay from In 1 to Out 1", "polarity", "the input level where the gain starts to drop"],
+ "emulator": {
+  "model": "g2",
+  "os_version": 162,
+  "voices": [1, 0, 0, 0],
+  "requested_voices": 1,
+  "master_clock": {"bpm": 120, "flag": 1},
+  "display": ["-:-       No Cat", "B10 Audio In    "],
+  "display_knobs_1_2": "120 BPM         ",
+  "load_va": {"cycles_a": 42, "cycles_b": 0, "cycles_percent": 3.06},
+  "load_fx": {"cycles_a": 0, "cycles_b": 0, "cycles_percent": 0.0}
+ },
+ "status": "ok",
+ "levels": "A level at the ADC (loopback_dbfs) is in dB relative to the ADC's full scale, a word of +-2^23: a signal of 4.0 inside the G2, 12 dB above an oscillator's. A level at Out 1 (through_dbfs) is in dBFS of the DAC's words, Master Level full. A gain is the second minus the first. The stimulus file's full scale is at the ADC's full scale in 'facts' and 10 dB above it in 'facts.hot'.",
+ "sample_rate": 96000,
  "stimulus": {
   "rate": 48000,
   "tone_hz": 1000.0,
@@ -22,5 +33,52 @@
    "dbfs": [-40.0, -30.0, -20.0, -12.0, -6.0, -1.0]
   },
   "total": 14.0
- }
+ },
+ "facts": {
+  "channels": 2,
+  "loopback": true,
+  "burst_delay_ms": 0.2159,
+  "delay_spread_ms": 0.0,
+  "polarity": 1,
+  "delay_ms": 0.2121,
+  "steady_through_dbfs": -26.04,
+  "steady_loopback_dbfs": -20.0,
+  "gain_db": -6.04,
+  "gain": 0.4987,
+  "steps": [
+   {"stimulus_dbfs": -40.0, "through_dbfs": -46.04, "thd_db": -66.8, "loopback_dbfs": -40.0, "gain_db": -6.04},
+   {"stimulus_dbfs": -30.0, "through_dbfs": -36.04, "thd_db": -76.4, "loopback_dbfs": -30.0, "gain_db": -6.04},
+   {"stimulus_dbfs": -20.0, "through_dbfs": -26.04, "thd_db": -97.3, "loopback_dbfs": -20.0, "gain_db": -6.04},
+   {"stimulus_dbfs": -12.0, "through_dbfs": -18.04, "thd_db": -99.8, "loopback_dbfs": -12.0, "gain_db": -6.04},
+   {"stimulus_dbfs": -6.0, "through_dbfs": -12.04, "thd_db": -99.0, "loopback_dbfs": -6.0, "gain_db": -6.04},
+   {"stimulus_dbfs": -1.0, "through_dbfs": -7.04, "thd_db": -106.2, "loopback_dbfs": -1.0, "gain_db": -6.04}
+  ],
+  "stimulus_full_scale_re_adc_db": 0.0,
+  "delay_frames": 20.36,
+  "small_signal_gain_db": -6.04,
+  "first_compressed_step": null,
+  "hot": {
+   "stimulus_full_scale_re_adc_db": 10.0,
+   "steps": [
+    {"stimulus_dbfs": -40.0, "through_dbfs": -36.04, "thd_db": -66.5, "loopback_dbfs": -30.0, "gain_db": -6.04},
+    {"stimulus_dbfs": -30.0, "through_dbfs": -26.04, "thd_db": -76.7, "loopback_dbfs": -20.0, "gain_db": -6.04},
+    {"stimulus_dbfs": -20.0, "through_dbfs": -16.04, "thd_db": -97.6, "loopback_dbfs": -10.0, "gain_db": -6.04},
+    {"stimulus_dbfs": -12.0, "through_dbfs": -8.04, "thd_db": -99.8, "loopback_dbfs": -2.0, "gain_db": -6.04},
+    {"stimulus_dbfs": -6.0, "through_dbfs": -4.58, "thd_db": -15.5, "loopback_dbfs": 4.0, "gain_db": -8.58},
+    {"stimulus_dbfs": -1.0, "through_dbfs": -4.13, "thd_db": -10.5, "loopback_dbfs": 9.0, "gain_db": -13.13}
+   ],
+   "first_compressed_step": {"stimulus_dbfs": -6.0, "through_dbfs": -4.58, "thd_db": -15.5, "loopback_dbfs": 4.0, "gain_db": -8.58}
+  }
+ },
+ "summary": {
+  "path": "In 1, 2-In (Pad 0 dB), 2-Out (Pad 0 dB), Out 1, Master Level full",
+  "gain_db": -6.04,
+  "gain": 0.4987,
+  "delay_frames": 20.36,
+  "delay_ms": 0.2121,
+  "polarity": 1,
+  "clean_up_to_adc_dbfs": -1.0,
+  "first_compressed_adc_dbfs": 4.0
+ },
+ "note": "The delay is the emulated G2's own way from an ADC word to the DAC word it becomes; converters' filters are not in it. Polarity 1: Out 1 follows In 1 in the sign G2fresh plays the DAC's words with (the DAC's word itself is -0.4987 times the ADC's). Nothing between the ADC and the DAC clips before the ADC's full scale; the clip above it in 'facts.hot' is the render tool's stand-in for the converter (it stops at its largest word), not the OS's."
 }

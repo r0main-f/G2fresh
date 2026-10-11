@@ -47,8 +47,8 @@ For each line of the table: load the patch, wait two seconds, record for the tim
 
 1. Load **B10 Audio In**. It sends the G2's IN 1 straight to OUT 1.
 2. Connect output 1 of your interface to the G2's **IN 1**. Leave the G2's OUT 1 on input 1 of the interface.
-3. If you can, also connect output 2 of your interface directly to its input 2 (unplug the G2's OUT 2 for this). That cable tells us how long your interface itself takes.
-4. Put `B10 Stimulus.wav` on a track that plays on outputs 1 and 2, fader at 0 dB. Switch input monitoring off, or it will howl.
+3. If you can, also connect output 2 of your interface directly to its input 2 (unplug the G2's OUT 2 for this). That cable is our reference: it tells us how loud your interface plays the file and how long it takes.
+4. Put `B10 Stimulus.wav` on a track that plays on outputs 1 and 2, fader at 0 dB. If the interface has a volume knob for these outputs, turn it all the way up (headphones off): the loudest tones are meant to reach the limit of the G2's input. Switch input monitoring off, or it will howl.
 5. Record inputs 1 and 2 while the file plays (14 seconds). Save as `B10 Audio In.wav`.
 
 ## 4. A few things to look at

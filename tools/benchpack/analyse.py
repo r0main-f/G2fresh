@@ -296,16 +296,58 @@ def compare_phrase(ctx, exp, rec):
     return {"outputs": out, "alignment": rec.get("alignment"), "loops": rec.get("loops"), "loop_s": rec.get("loop_s")}
 
 
-def compare_input(exp, rec):
+def compare_input(ctx, exp, rec, form=None, clicks=None):
+    """B10 against ours.
+
+    The recording gives the gain from the G2's IN 1 to its OUT 1 in volts: channel 1 over the loopback, the
+    interface's two outputs and its two inputs taken as alike. Ours is the DAC's level in its own full scale over the
+    ADC's in its own, so the difference is how far the DAC's full-scale voltage is above the ADC's.
+
+    Nobody knows beforehand how loud the stimulus reaches the ADC (the interface's output level against the G2's input
+    sensitivity). The recording tells: what Out 1 shows, less the chain gain of Out 1 (B01) and the G2's gain from the
+    ADC to the DAC (ours: it is digital), is the level at the ADC in its own full scale. That places the loopback's
+    scale and the stimulus's against the ADC's full scale, and with the form's Q08 gives that full scale in dBu.
+    Without a loopback the steps are compared with the levels the stimulus was written at: no gain and no delay, but
+    still where the input stops being linear."""
     res = dict(rec)
-    steps = rec.get("steps") or []
-    if steps and "gain_db" in steps[0]:
-        base = sorted(s["gain_db"] for s in steps[:3])[1] if len(steps) >= 3 else steps[0]["gain_db"]
-        clip = next((s for s in steps if s["gain_db"] - base < -0.5 or (s["thd_db"] is not None and s["thd_db"] > -40.0)), None)
+    steps = [dict(s) for s in rec.get("steps") or []]
+    if not steps:
+        return res
+    res["steps"] = steps
+    base, clip = bf.input_compression(steps)
+    looped = bool(rec.get("loopback")) and steps[0].get("gain_db") is not None
+    if looped:
         res["small_signal_gain_db"] = bf.r(base, 2)
-        res["first_compressed_step"] = clip
-    if exp.get("status") != "ok":
-        res["expected"] = "pending: the emulated G2 has no audio inputs yet"
+    e = exp.get("facts") if exp.get("status") == "ok" else None
+    if e:
+        ours = e["small_signal_gain_db"]
+        res["expected"] = dict(exp.get("summary") or {})
+        if looped:
+            res["dac_over_adc_full_scale_db"] = bf.r(base - ours, 2)
+            res["delay_beyond_ours_ms"] = bf.r(diff(rec.get("delay_ms"), e.get("delay_ms")), 4)
+        out1 = ctx["gain"].get("1")
+        if out1 is not None:
+            offset = base - out1 - ours  # from the scale the steps' gain is against, to the ADC's
+            for s in steps:
+                s["adc_dbfs"] = bf.r((s["loopback_dbfs"] if looped else s["stimulus_dbfs"]) + offset, 2)
+            res["stimulus_full_scale_re_adc_db"] = bf.r(offset, 2)
+            if looped:
+                sent = sorted(s["loopback_dbfs"] - s["stimulus_dbfs"] for s in steps[:3])[min(1, len(steps) - 1)]  # the interface, out to in
+                res["loopback_full_scale_re_adc_db"] = bf.r(offset, 2)
+                res["stimulus_full_scale_re_adc_db"] = bf.r(offset + sent, 2)
+                fs = number_in((form or {}).get("full_scale_dbu"))
+                if fs is not None:  # a sine at 0 dBFS on the loopback channel is `fs` dBu
+                    res["adc_full_scale_dbu"] = bf.r(fs - offset, 2)
+                    res["stimulus_full_scale_dbu"] = bf.r(fs + sent, 2)
+        o1 = ((clicks or {}).get("outputs") or {}).get("1") or {}
+        if rec.get("polarity") and o1.get("polarity") and o1.get("expected_polarity"):
+            # B08: the output against ours. What is left of B10's polarity is the input's
+            res["output_polarity"] = o1["polarity"] * o1["expected_polarity"]
+            res["input_polarity"] = rec["polarity"] * e["polarity"] * res["output_polarity"]
+    at = clip["stimulus_dbfs"] if clip else None
+    res["first_compressed_step"] = next((s for s in steps if s["stimulus_dbfs"] == at), None)
+    clean = [s for s in steps if at is None or s["stimulus_dbfs"] < at]
+    res["last_clean_step"] = clean[-1] if clean else None
     return res
 
 
@@ -395,7 +437,11 @@ def analyse(folder, form_path=None, expected_dir=None):
         try:
             if kind == "input":
                 rate, channels = audio[pid]
-                results["patches"][pid] = compare_input(exp, bf.input_facts(rate, channels))
+                rec = bf.input_facts(rate, channels)
+                if len(channels) > 1 and (rec.get("delay_ms") or 0.0) < 0:  # the G2 cannot be ahead of the cable
+                    rec = bf.input_facts(rate, [channels[1], channels[0]])
+                    results["notes"].append("%s: channel 1 is ahead of channel 2, so channel 2 is taken as the G2's output and channel 1 as the loopback" % entry["name"])
+                results["patches"][pid] = compare_input(ctx, exp, rec, form, results["patches"].get("B08"))
                 continue
             if exp.get("status") != "ok":
                 continue
@@ -508,16 +554,50 @@ def report(results):
                                                     for o, v in sorted(b07.items())) + ".")
     b10 = p.get("B10")
     if b10 and "error" not in b10:
+        ours = b10.get("expected") or {}
+        phase = lambda v: "in phase" if v > 0 else "inverted"  # noqa: E731
         s = "**Audio input (B10).** In 1 to Out 1: "
         if b10.get("loopback"):
-            s += "gain **%s**, delay **%s ms** (spread %s ms), %s." % (fmt(b10.get("small_signal_gain_db", b10.get("gain_db")), 2, " dB"), fmt(b10.get("delay_ms"), 3),
-                                                                   fmt(b10.get("delay_spread_ms"), 3), "in phase" if b10.get("polarity", 1) > 0 else "**inverted**")
-            clip = b10.get("first_compressed_step")
-            s += (" The gain drops from the step sent at %s dBFS (%s dBFS on the loopback)." % (fmt(clip["stimulus_dbfs"], 0), fmt(clip.get("loopback_dbfs"), 1))
-                  if clip else " No step is compressed.")
+            s += "gain **%s** in volts (against the loopback), delay **%s ms**, **%s**." % (
+                fmt(b10.get("small_signal_gain_db", b10.get("gain_db")), 2, " dB"), fmt(b10.get("delay_ms"), 3), phase(b10.get("polarity", 1)))
+            if ours:
+                s += (" Ours: %s from the ADC's full scale to the DAC's, %s ms (%s frames of 96 kHz, the digital way alone), %s."
+                      % (fmt(ours.get("gain_db"), 2, " dB"), fmt(ours.get("delay_ms"), 3), fmt(ours.get("delay_frames"), 1), phase(ours.get("polarity", 1))))
+                s += " So the DAC's full scale is **%s** relative to the ADC's in volts" % fmt(b10.get("dac_over_adc_full_scale_db"), 2, " dB")
+                if b10.get("delay_beyond_ours_ms") is not None:
+                    s += ", and the delay is %+.3f ms from ours (the converters' filters, and the board's own way between its DSPs)" % b10["delay_beyond_ours_ms"]
+                s += "."
+            if b10.get("input_polarity"):
+                s += " The output being %s relative to ours (B08), the input itself is %s." % (phase(b10["output_polarity"]), phase(b10["input_polarity"]))
         else:
-            s += "no loopback on channel 2: level through the G2 %s dBFS for the steady tone; no gain or delay." % fmt(b10.get("steady_through_dbfs"))
-        head.append(s + " Our prediction is pending (the emulated G2 has no inputs yet).")
+            s += "no loopback on channel 2, so no gain and no delay. The steady tone reads %s dBFS through the G2." % fmt(b10.get("steady_through_dbfs"))
+        head.append(s)
+        if b10.get("stimulus_full_scale_re_adc_db") is not None:
+            s = ("**Input level (B10).** By Out 1's chain gain (B01) and our gain from the ADC to the DAC, the stimulus's 0 dBFS came to the "
+                 "ADC at **%s** relative to its full scale" % fmt(b10["stimulus_full_scale_re_adc_db"], 2, " dB"))
+            if b10.get("adc_full_scale_dbu") is not None:
+                dbu = b10["adc_full_scale_dbu"]
+                s += (". With the interface's level from the form (Q08), it played that at %.2f dBu: a sine at the ADC's full scale is **%.2f dBu** "
+                      "(%.2f dBV, %.3f V rms)" % (b10["stimulus_full_scale_dbu"], dbu, dbu - 2.218, 0.7746 * 10 ** (dbu / 20.0)))
+            head.append(s + ".")
+        if b10.get("steps"):
+            clip, last = b10.get("first_compressed_step"), b10.get("last_clean_step")
+            where = lambda st: "the step sent at %s dBFS%s" % (  # noqa: E731
+                fmt(st["stimulus_dbfs"], 0), " (%s at the ADC)" % fmt(st["adc_dbfs"], 1, " dB") if st.get("adc_dbfs") is not None else "")
+            if clip:
+                s = "**Input clip point (B10).** The gain drops from %s; %s." % (where(clip), "the last clean one is " + where(last) if last else "no step is clean")
+            else:
+                s = "**Input clip point (B10).** No step is compressed: the loudest, %s, is clean." % where(last)
+            if ours:
+                s += " Ours is clean up to the ADC's full scale (a step at %s is clean, one at %s is not)." % (
+                    fmt(ours.get("clean_up_to_adc_dbfs"), 0, " dB"), fmt(ours.get("first_compressed_adc_dbfs"), 0, " dB"))
+                if clip and clip.get("adc_dbfs") is not None and clip["adc_dbfs"] < -0.5:
+                    s += " Here the input gives up below the ADC's full scale: an analogue stage clips first, or the G2's gain from the ADC to the DAC is not ours."
+                elif last and last.get("adc_dbfs") is not None and last["adc_dbfs"] > 0.5:
+                    s += " A clean step above the ADC's full scale cannot be: the G2's gain from the ADC to the DAC is not ours, or Out 1's chain gain is not B01's any more."
+                elif (clip or last).get("adc_dbfs") is not None:
+                    s += " This recording agrees."
+            head.append(s)
     elif b10:
         head.append("**Audio input (B10).** " + b10["error"] + ".")
     L += ["- " + h for h in head] or ["Nothing to report: no recording was found."]
@@ -598,8 +678,9 @@ def report(results):
     if b10 and b10.get("steps"):
         L.append("B10 input steps (1 kHz):")
         L.append("")
-        L += table(["Sent dBFS", "Loopback dBFS", "Through the G2 dBFS", "Gain dB", "THD dB"],
-                   [[fmt(s["stimulus_dbfs"], 0), fmt(s.get("loopback_dbfs")), fmt(s["through_dbfs"]), fmt(s.get("gain_db")), fmt(s["thd_db"], 1)] for s in b10["steps"]])
+        L += table(["Sent dBFS", "Loopback dBFS", "Through the G2 dBFS", "Gain dB", "THD dB", "At the ADC, dB re its full scale"],
+                   [[fmt(s["stimulus_dbfs"], 0), fmt(s.get("loopback_dbfs")), fmt(s["through_dbfs"]), fmt(s.get("gain_db")), fmt(s["thd_db"], 1),
+                     fmt(s.get("adc_dbfs"))] for s in b10["steps"]])
         L.append("")
     if results["notes"]:
         L.append("## Notes")

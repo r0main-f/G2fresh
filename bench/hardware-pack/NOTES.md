@@ -8,8 +8,9 @@ Everything here is G2fresh's own. The patches are written module by module by `t
 
 - **Inside the G2** a full-level signal is ±64 units, which we write 1.0: an oscillator's sine, a Constant at 64, a logic high. A signal clips at ±4.0 (256 units, +12 dB) [emulated, B02].
 - **At the DAC**, with Master Level full and an output module at Pad 0 dB, 1.0 becomes a word of 0.1247 (inverted): a full-level sine peaks at **-18.08 dBFS** of the DAC's full scale. The internal clip is therefore -6.04 dBFS at the DAC. Pad +6 dB doubles the word: the internal clip then sits at -0.02 dBFS [emulated, B02, B04].
-- **G2fresh** plays the DAC words times -8: a full-level signal is 0 dBFS in the host. So `G2fresh level = DAC level + 18.06 dB`. Every level in `expected/` is a DAC level.
-- What a full-level sine is in volts at OUT 1 is what B01 asks a real G2, together with the form's Q08 (the interface's dBu at 0 dBFS).
+- **At the ADC** an In module at Pad 0 dB passes the converter's word on as it is: the ADC's full scale is a signal of 4.0, which is the internal clip. Through a 2-In and a 2-Out, both at Pad 0 dB, the DAC's word is 0.4987 of the ADC's (inverted): **-6.04 dB** from the ADC's full scale to the DAC's [emulated, B10].
+- **G2fresh** plays the DAC words times -8: a full-level signal is 0 dBFS in the host. So `G2fresh level = DAC level + 18.06 dB`. Every output level in `expected/` is a DAC level. Its inputs take a host level of 1.0 as a quarter of the ADC's full scale (a signal of 1.0); the pack does not use that convention: B10's input levels are relative to the ADC's full scale.
+- What a full-level sine is in volts at OUT 1 is what B01 asks a real G2, together with the form's Q08 (the interface's dBu at 0 dBFS). What the ADC's full scale is in volts is what B10 asks.
 
 ## The patches
 
@@ -29,7 +30,7 @@ All play as soon as they are loaded, with one voice, keyboard tracking off every
 | B09b FM Phrase | FM | SeqNote, two Operators (x2 into x1), triggered, Sync on | 4.006 s loop | 14 % |
 | B09c Drum | DrumSynth | SeqEvent, DrumSynth with its noise off | 4.006 s loop, peak -9.8 dBFS | 12 % |
 | B09d Rev Delay | Reverb and delay | a 1 ms pulse into Reverb (Hall, 1.5 s, mix 50), four seconds later another into DlyStereo (252 / 378 ms, feedback 50) | 8.012 s loop | 48 % |
-| B10 Audio In | input gain, delay, clip point | 2-In (Pad 0 dB) to 2-Out (Pad 0 dB) | pending: the emulated G2 has no inputs yet | 3 % |
+| B10 Audio In | input gain, delay, polarity, clip point | 2-In (Pad 0 dB) to 2-Out (Pad 0 dB), `B10 Stimulus.wav` played into IN 1 | DAC word = 0.4987 x ADC word: -6.04 dB from full scale to full scale; 20.4 frames (0.212 ms); in phase; clean up to the ADC's full scale | 3 % |
 | B11 Voices Light | voice count | 2 x (OscB, FltNord, EnvADSR) per voice, 32 voices asked | 16 voices: "16 (32)" | 21 % per voice |
 | B12 Voices Mid | voice count | 3 of those chains | 12 voices | 31 % per voice |
 | B13 Voices Heavy | voice count with effects | 8 chains, then a Hall reverb in the FX area | 3 voices | 79 % per voice, FX 31 % |
@@ -45,6 +46,30 @@ Changes to the list we were given, and why:
 - **B09d takes half a DSP**: the Reverb and the stereo delay are heavy modules. It still fits any G2.
 - **B14 is extra**: a friend cannot tell which way a wheel "counts" without something to hear.
 
+## B10: how loud the stimulus is at the ADC
+
+`B10 Stimulus.wav` is all 1 kHz: three 20 ms bursts at -6 dBFS, three seconds at -20 dBFS, then one-second steps at -40, -30, -20, -12, -6 and -1 dBFS. How loud that reaches the G2's ADC cannot be known beforehand:
+
+```
+level at the ADC (dB re its full scale) = level in the file (dBFS) + K
+K = the interface's output level at 0 dBFS (dBu) - the sine level that is the ADC's full scale (dBu)
+```
+
+The first term depends on the interface and its volume knob, the second is not in Clavia's manual (IN 1-4 are line inputs, -10 dBV nominal). So the prediction is made at a K we choose, and the analysis finds the recording's K.
+
+- **The prediction** (`expected.py`, with `g2benchrender --in1 FILE --in-level K --in-ref REF`) plays the file into In 1 twice: at K = 0 (the file's full scale is the ADC's: the loudest step is 1 dB under it) and at K = +10 dB (the steps at -6 and -1 dBFS are 4 and 9 dB over it). The file is resampled to the G2's 96 kHz with a windowed sinc and read at each ADC frame's own time, its first sample when the DAC sends the first recorded frame. What is over the ADC's full scale is clipped there by the tool, as a converter stops at its largest word: that clip is ours, not the OS's.
+- **What the emulated G2 says:**
+  - gain: the DAC's word is 0.4987 of the ADC's, -6.04 dB from full scale to full scale, at every level up to the ADC's full scale;
+  - delay: 20.36 frames, 0.212 ms, from an ADC word to the DAC word it becomes (the G2's own way, nothing of the plugin's buffers);
+  - polarity: Out 1 follows In 1 in the sign the renders have and G2fresh plays; the DAC's word itself is the negative;
+  - clip: nothing between the converters clips first. The 2-In passes the word on and the internal clip (4.0) is the ADC's full scale; a sine just at it leaves the DAC at -6.04 dBFS, B02's last clean level on Out 1. At K = +10 dB the steps 4 and 9 dB over read 2.5 and 7.1 dB low, with -15.5 and -10.5 dB of distortion.
+- **A recording** carries the same stimulus on its second channel, through a cable from the interface's output 2 to its input 2 (the loopback). `analyse.py` works from that channel:
+  - gain from IN 1 to OUT 1 in volts: channel 1 over the loopback, taking the interface's two outputs as equally loud and its two inputs as equally sensitive. Less our -6.04 dB, that is the DAC's full-scale voltage over the ADC's;
+  - delay: the phase of the three-second tone against the loopback's, the bursts saying which cycle of it (a clipped burst rises early; the tone's phase does not move). Polarity: from the bursts; times B08's, the input's own;
+  - K: the level at Out 1, less Out 1's chain gain (B01) and our -6.04 dB, is the level at the ADC. The report gives every step's level at the ADC, K, and with the form's Q08 the ADC's full scale in dBu;
+  - the clip point: the first step whose gain is 0.5 dB under the quiet steps' or whose distortion is over -40 dB. We expect it to be the first step over the ADC's full scale; if a step under it is compressed, an analogue stage gives up before the converter;
+  - without the loopback: no gain and no delay, but K and the clip point still, against the levels the file was written at.
+
 ## What the emulator already says (to confirm on a G2)
 
 - A ClkGen on "Intern" at 120 BPM runs at 119.82 BPM (a beat is 48072.2 samples): every sequenced loop is 0.15 % longer than nominal. The master clock at 120 BPM is exact in the emulator (48000.0 samples a beat), where its clock is tied to the sample clock. On a G2 the two may come from different crystals: B08's two outputs give their ratio.
@@ -57,12 +82,12 @@ Changes to the list we were given, and why:
 ```sh
 cmake --build build --target g2benchpack g2benchrender
 build/tools/benchpack/g2benchpack bench/hardware-pack            # patches/ and manifest.json
-G2_FIRMWARE="/path/to/Nord Modular G2 OS v1.62 Update.dmg" python3 tools/benchpack/expected.py   # expected/*.json, about 5 minutes
 python3 tools/benchpack/make_stimulus.py                         # B10 Stimulus.wav
+G2_FIRMWARE="/path/to/Nord Modular G2 OS v1.62 Update.dmg" python3 tools/benchpack/expected.py   # expected/*.json, about 5 minutes (B10: the stimulus into In 1)
 python3 tools/benchpack/make_html.py                             # README.html, README.fr.html
 ```
 
-`ctest` checks that the committed patches, pages and stimulus are current (`benchpack_*`), that the analysis finds the faults of synthetic recordings (`benchpack_analysis_selftest`) and, with `G2_FIRMWARE` set and the emulator built, that three patches still give the committed numbers on the emulated G2.
+`ctest` checks that the committed patches, pages and stimulus are current (`benchpack_*`), that the analysis finds the faults of synthetic recordings (`benchpack_analysis_selftest`) and, with `G2_FIRMWARE` set and the emulator built, that four patches (B10 with its stimulus among them) still give the committed numbers on the emulated G2.
 
 ## Reading what comes back
 
@@ -79,10 +104,10 @@ The folder holds the WAV files and the filled form. The report gives, against `e
 - B06: every partial of every note against ours (harmonics: the response up to the recording's bandwidth; non-harmonic partials: aliasing);
 - B08: the master clock's tempo, its ratio to the patch's own clock, and the pulses' polarity;
 - B09: after aligning on the loop, the envelope's correlation with ours, the level differences over 50 ms stretches and the third-octave spectrum;
-- B10: gain, delay and polarity from In 1 to Out 1 against the loopback channel, and the level where the input compresses;
+- B10: gain, delay and polarity from In 1 to Out 1 against the loopback channel and against ours, how loud the stimulus was at the ADC, the ADC's full scale (in dBu with Q08) and the step where the input compresses (see "B10" above);
 - the form's answers next to what the emulated G2 shows.
 
-`python3 tools/benchpack/selftest.py --emulator --work DIR` makes such a folder from our own renders with known faults (gain, 37 ppm, 48 kHz, crossed outputs, inverted polarity, noise, hum, treble loss, an analogue clip, a fast master clock) and checks the report: read `DIR/report.md` to see what a report looks like.
+`python3 tools/benchpack/selftest.py --emulator --work DIR` makes such a folder from our own renders with known faults (gain, 37 ppm, 48 kHz, crossed outputs, inverted polarity, noise, hum, treble loss, an analogue clip, a fast master clock, an input driven 3 dB over its ADC's full scale with the loopback on the other channel) and checks the report: read `DIR/report.md` to see what a report looks like.
 
 ## Not certain
 
@@ -91,3 +116,7 @@ The folder holds the WAV files and the filled form. The report gives, against `e
 - **G2 Engine**: the instructions say Clavia's editor shows the voice count in its toolbar and the OS version when it connects. That is from memory of the editor, not checked.
 - **Leaving Store**: "press Patch twice" is what the emulated panel does; untested on hardware.
 - **G.Wheel directions and the unexpanded-versus-G2X voice counts** are exactly what we do not know: the emulator's answers above are not predictions for a G2X.
+- **B10's delay is not a prediction for a G2**: 20.4 frames is the emulator's digital way, with no converter in it. A G2's converters add their filters' delay, and its board may take fewer frames between the DSPs than the emulator's lines do (`re/notes/g2-hardware-and-emulation.md` §3.11.2). The gain, the polarity of the words and the absence of a clip under the ADC's full scale are digital facts of the OS and should hold.
+- **B10's clip above the ADC's full scale** is the render tool's hard stop, not a model of a converter: a real ADC, or the analogue stage before it, may bend sooner or softer. The top steps are 5 to 8 dB apart, so a recording brackets the clip point; it does not measure it.
+- **B10's levels at the ADC** (K, the ADC's full scale in dBu) rest on three things a recording cannot show: the G2's gain from the ADC to the DAC being ours, Out 1 still being on the interface input it was on for B01 at the same gain, and the interface's two outputs (and its two inputs) being alike. If the interface's output level is too low for the loudest step to reach the ADC's full scale, there is no clip point, only "above this".
+- **Which way the analogue stages turn the signal** is unknown for the inputs and the outputs alike: B08 gives the outputs', B10 the product of both.
