@@ -828,17 +828,17 @@ void Client::sendPatch(int slot, const Patch& patch, const std::string& name)
     });
 }
 
-void Client::sendPerformance(const Performance& perf, const std::string& name, bool performanceMode)
+void Client::sendPerformance(const Performance& perf, const std::string& name, std::optional<bool> performanceMode)
 {
     // CSynth::CleanDirtyData @0011f394: when the synth's performance mode is
     // not the one the upload wants (off for a patch sent alone, the original's
     // "void" performance), a 03 with only that changed goes first.
     enqueueUser([this, performanceMode]() -> std::optional<Bubble> {
-        if (state_.settings.perfMode == performanceMode)
+        if (!performanceMode || state_.settings.perfMode == *performanceMode)
             return std::nullopt;
         auto settings = state_.settings;
-        settings.perfMode = performanceMode;
-        state_.settings.perfMode = performanceMode;
+        settings.perfMode = *performanceMode;
+        state_.settings.perfMode = *performanceMode;
         applied(kSlotSynth, SynthData{settings});
         return Bubble::synth({SynthData{settings}});
     });
@@ -999,9 +999,19 @@ void Client::playNote(u8 note, bool on)
 
 void Client::setSynthSettings(const SynthSettings& settings)
 {
+    // The performance mode stays what it is when the bubble goes out (an
+    // upload queued before may have switched it), unless this call changes it.
+    const bool setsMode = settings.perfMode != state_.settings.perfMode;
+    const bool mode = state_.settings.perfMode;
     state_.settings = settings;
-    applied(kSlotSynth, SynthData{settings});
-    enqueueUser([settings] { return Bubble::synth({SynthData{settings}}); });
+    state_.settings.perfMode = setsMode ? settings.perfMode : mode;
+    applied(kSlotSynth, SynthData{state_.settings});
+    enqueueUser([this, settings, setsMode] {
+        auto s = settings;
+        if (!setsMode)
+            s.perfMode = state_.settings.perfMode;
+        return Bubble::synth({SynthData{s}});
+    });
 }
 
 } // namespace g2::proto

@@ -241,7 +241,7 @@ void BridgeLink::sendPatch(int slot, const Patch& patch, const std::string& name
     op(std::move(opWriter(Op::SendPatch).u8(slotByte(slot)).bytes(bytes).string(name)));
 }
 
-void BridgeLink::sendPerformance(const Performance& perf, const std::string& name, bool performanceMode)
+void BridgeLink::sendPerformance(const Performance& perf, const std::string& name, std::optional<bool> performanceMode)
 {
     std::vector<std::uint8_t> bytes;
     try {
@@ -249,7 +249,7 @@ void BridgeLink::sendPerformance(const Performance& perf, const std::string& nam
     } catch (const std::exception&) {
         return;
     }
-    op(std::move(opWriter(Op::SendPerformance).bytes(bytes).string(name).u8(performanceMode ? 1 : 0)));
+    op(std::move(opWriter(Op::SendPerformance).bytes(bytes).string(name).u8(performanceMode ? (*performanceMode ? 1 : 0) : 2)));
 }
 
 void BridgeLink::setParam(int slot, Location loc, u8 module, u8 param, u8 value, u8 variation)

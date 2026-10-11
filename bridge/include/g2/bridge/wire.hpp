@@ -58,7 +58,7 @@ enum class Op : u8 {
     Resync = 2,
     ResyncSlot = 3,        // slot
     SendPatch = 4,         // slot, bytes .pch2, string name
-    SendPerformance = 5,   // bytes .prf2, string name, performance mode
+    SendPerformance = 5,   // bytes .prf2, string name, performance mode (0 off, 1 on, 2 as it is)
     SetParam = 6,          // slot, location, module, param, value, variation
     SelectParam = 7,       // slot, location, module, param
     SetMorph = 8,          // slot, location, module, param, group, i16 range, variation, dragging

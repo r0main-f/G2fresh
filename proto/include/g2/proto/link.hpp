@@ -42,7 +42,8 @@ public:
 
     // The same calls as Client (see client.hpp).
     virtual void sendPatch(int slot, const Patch& patch, const std::string& name) = 0;
-    virtual void sendPerformance(const Performance& perf, const std::string& name, bool performanceMode = true) = 0;
+    virtual void sendPerformance(const Performance& perf, const std::string& name,
+                                 std::optional<bool> performanceMode = std::nullopt) = 0;
     virtual void setParam(int slot, Location loc, u8 module, u8 param, u8 value, u8 variation) = 0;
     virtual void selectParam(int slot, Location loc, u8 module, u8 param) = 0;
     virtual void setMorph(int slot, Location loc, u8 module, u8 param, u8 group, int range, u8 variation,
@@ -88,7 +89,8 @@ public:
     void resyncSlot(int slot) override { client_.resyncSlot(slot); }
 
     void sendPatch(int slot, const Patch& patch, const std::string& name) override { client_.sendPatch(slot, patch, name); }
-    void sendPerformance(const Performance& perf, const std::string& name, bool performanceMode = true) override
+    void sendPerformance(const Performance& perf, const std::string& name,
+                         std::optional<bool> performanceMode = std::nullopt) override
     {
         client_.sendPerformance(perf, name, performanceMode);
     }

@@ -150,9 +150,10 @@ public:
 
     // ---- Uploads ----
     void sendPatch(int slot, const Patch& patch, const std::string& name); // §8.1, then the synth releases the slot
-    // performanceMode: the synth's mode for it (off for a patch sent alone in
-    // a performance of its own, the original's "void" performance).
-    void sendPerformance(const Performance& perf, const std::string& name, bool performanceMode = true);
+    // performanceMode: the synth's mode for it, switched first if it differs
+    // (on for a performance, off for a patch sent alone in a performance of
+    // its own, the original's "void" performance); nullopt leaves the mode.
+    void sendPerformance(const Performance& perf, const std::string& name, std::optional<bool> performanceMode = std::nullopt);
 
     // ---- Live edits (§9). Each applies to the mirror at once. ----
     // Realtime messages go out at once, like Clavia's, unless edits are still

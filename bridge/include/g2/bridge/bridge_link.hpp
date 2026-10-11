@@ -53,7 +53,8 @@ public:
     void resync() override;
     void resyncSlot(int slot) override;
     void sendPatch(int slot, const Patch& patch, const std::string& name) override;
-    void sendPerformance(const Performance& perf, const std::string& name, bool performanceMode = true) override;
+    void sendPerformance(const Performance& perf, const std::string& name,
+                         std::optional<bool> performanceMode = std::nullopt) override;
     void setParam(int slot, Location loc, u8 module, u8 param, u8 value, u8 variation) override;
     void selectParam(int slot, Location loc, u8 module, u8 param) override;
     void setMorph(int slot, Location loc, u8 module, u8 param, u8 group, int range, u8 variation, bool dragging) override;

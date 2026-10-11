@@ -238,7 +238,7 @@ void SynthSync::sendPerformance()
     if (!ready() || !doc_.isPerformance())
         return;
     unbind();
-    link_->sendPerformance(*doc_.performance(), doc_.performanceName().toStdString());
+    link_->sendPerformance(*doc_.performance(), doc_.performanceName().toStdString(), true);
     bindPerformance();
     sendChangeMessage();
 }
