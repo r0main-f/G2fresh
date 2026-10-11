@@ -50,6 +50,9 @@ struct Endpoint {
 // a default name ("OscB1", "OscB2", ...). Returns the new module's index
 // (references into the module list are invalidated by later additions).
 u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row);
+// addModule, then resolveOverlaps: a module dropped at (col, row). (The
+// original makes room before it creates the module.)
+u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row);
 // Deletes a module (Edit > Clear, Delete). Its cables go and the chains
 // through it are spliced back together (Out->A->X->B minus X: Out->A->B);
 // a chain whose output goes keeps its cables, white
@@ -285,6 +288,8 @@ void setParamLabel(Patch& patch, Location loc, u8 module, u8 param, const std::s
 std::optional<std::vector<u8>> defaultLabelData(u8 moduleType);
 
 void setModuleColor(Patch& patch, Location loc, u8 module, u8 color);
+// The Patch Mutator's lock (excluded from randomizing).
+void setLocked(Patch& patch, Location loc, u8 module, bool locked);
 void setCablesVisible(Patch& patch, CableColor color, bool visible);
 // The editor-only shape of a cable (the cable with the same two ends);
 // nullopt returns it to the automatic curve.

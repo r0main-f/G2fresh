@@ -1,5 +1,8 @@
 #include "g2/uprate.hpp"
 
+#include "g2/cables.hpp"
+#include "g2/live.hpp"
+
 #include <cstddef>
 #include <map>
 #include <numeric>
@@ -124,6 +127,10 @@ void update(Patch& patch, Location loc)
             }
             if (rate == m.uprate)
                 continue;
+            // As the original sends it (GenerateBandwidthChangeMolecules): the
+            // module's 2A, then a 54 for every cable of each recoloured net,
+            // depth-first from its output (child -> parent).
+            live::record(live::Uprate{loc, m.index, rate}, live::Uprate{loc, m.index, m.uprate});
             m.uprate = rate;
             changed = true;
             // Recolour the whole net of every connected dynamic output.
@@ -134,6 +141,10 @@ void update(Patch& patch, Location loc)
                 if (!net)
                     continue;
                 const CableColor color = rateColor(def->outputs[o], rate);
+                if (live::recording())
+                    for (const auto& seg : cables::Tree(area).completeTree({m.index, static_cast<u8>(o), true}))
+                        live::record(live::CableRecolor{loc, seg.node, seg.parent, color},
+                                     live::CableRecolor{loc, seg.node, seg.parent, seg.color});
                 for (auto& c : area.cables)
                     if (nets.rootOf(Node{c.toModule, c.toConn, false}) == net)
                         c.color = color;

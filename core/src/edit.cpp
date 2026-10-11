@@ -1,6 +1,7 @@
 #include "g2/edit.hpp"
 
 #include "g2/cables.hpp"
+#include "g2/live.hpp"
 #include "g2/patch_load.hpp"
 #include "g2/special.hpp"
 #include "g2/uprate.hpp"
@@ -78,22 +79,48 @@ void recolorAll(Molecules& out, const std::vector<Segment>& segments, CableColor
         out.push_back({Molecule::Recolor, s.node, s.parent, color});
 }
 
-void applyMolecules(cables::Tree& tree, const Molecules& molecules)
+// Applies the molecules in order and records each with its inverse (a
+// deleted cable comes back with its colour). `dump`: they belong to a module
+// deletion or replacement (the original's EPartOfDump).
+void applyMolecules(cables::Tree& tree, const Molecules& molecules, Location loc, bool dump = false)
 {
+    // The inverses come from the trees as they were when the molecules were
+    // computed, as the original builds both lists before applying either.
+    const cables::Tree was = tree;
+    auto colourOf = [&](Connector a, Connector b) {
+        const auto parent = was.parentOf(a);
+        return parent == b ? was.colorOf(a) : was.colorOf(b);
+    };
     for (const auto& m : molecules)
         switch (m.kind) {
-        case Molecule::Connect: tree.connect(m.a, m.b, m.color); break;
-        case Molecule::Delete: tree.erase(m.a, m.b); break;
-        case Molecule::Recolor: tree.recolor(m.a, m.b, m.color); break;
+        case Molecule::Connect:
+            live::record(live::CableConnect{loc, m.a, m.b, m.color, dump}, live::CableDelete{loc, m.a, m.b, dump});
+            tree.connect(m.a, m.b, m.color);
+            break;
+        case Molecule::Delete: {
+            const auto color = colourOf(m.a, m.b);
+            live::record(live::CableDelete{loc, m.a, m.b, dump},
+                         live::CableConnect{loc, m.a, m.b, color.value_or(CableColor::White), dump});
+            tree.erase(m.a, m.b);
+            break;
+        }
+        case Molecule::Recolor: {
+            const auto color = colourOf(m.a, m.b);
+            live::record(live::CableRecolor{loc, m.a, m.b, m.color},
+                         live::CableRecolor{loc, m.a, m.b, color.value_or(m.color)});
+            tree.recolor(m.a, m.b, m.color);
+            break;
+        }
         }
 }
 
 // Writes the trees back as the cable list (bends kept) and updates the rates.
-void store(Patch& patch, Location loc, const cables::Tree& tree)
+void store(Patch& patch, Location loc, const cables::Tree& tree, bool updateRates = true)
 {
     Area& area = patch.area(loc);
     area.cables = tree.toCables(area.cables);
-    uprate::update(patch, loc);
+    if (updateRates)
+        uprate::update(patch, loc);
 }
 
 // CPatchData::GenerateDeleteSelectionMolecules @000e7fe4 (with splicing):
@@ -102,7 +129,7 @@ void store(Patch& patch, Location loc, const cables::Tree& tree)
 // them are deleted, and every connector whose parent changed in the copy is
 // connected to its new parent; a root left over (its own root gone) is
 // connected to the next one. A tree whose output goes turns white.
-void spliceOut(Patch& patch, Location loc, const std::vector<u8>& indices)
+void spliceOut(Patch& patch, Location loc, const std::vector<u8>& indices, bool updateRates = true)
 {
     auto selected = [&](u8 module) { return std::find(indices.begin(), indices.end(), module) != indices.end(); };
     if (loc == Location::Settings)
@@ -142,9 +169,49 @@ void spliceOut(Patch& patch, Location loc, const std::vector<u8>& indices)
     }
     if (molecules.empty())
         return;
-    applyMolecules(tree, molecules);
-    store(patch, loc, tree);
+    applyMolecules(tree, molecules, loc, true);
+    store(patch, loc, tree, updateRates);
 }
+
+// The modules' places, to record the moves an edit makes.
+std::vector<std::tuple<u8, u8, u8>> placesOf(const Area& area)
+{
+    std::vector<std::tuple<u8, u8, u8>> out;
+    for (const auto& m : area.modules)
+        out.emplace_back(m.index, m.col, m.row);
+    return out;
+}
+
+// Records the 34s of the modules an edit moved, in the area's module order:
+// first the others (the original's make-room moves, CPatchData::InsertSpace
+// @000e54c2), then `moved` (GetMoveModulesMolecules @000e5398).
+void recordMoves(const Area& area, Location loc, const std::vector<std::tuple<u8, u8, u8>>& before,
+                 const std::vector<u8>& moved = {})
+{
+    if (!live::recording())
+        return;
+    for (const bool ofMoved : {false, true})
+        for (const auto& m : area.modules) {
+            if ((std::find(moved.begin(), moved.end(), m.index) != moved.end()) != ofMoved)
+                continue;
+            for (const auto& [index, col, row] : before)
+                if (index == m.index && (col != m.col || row != m.row))
+                    live::record(live::ModuleMove{loc, m.index, m.col, m.row}, live::ModuleMove{loc, m.index, col, row});
+        }
+}
+
+// What re-creates a deleted module (the undo of CPatchSelection::
+// GetDeleteModuleMolecule): 30, 33, 42, 4D.
+std::vector<live::Op> recreate(const Patch& patch, Location loc, const Module& m)
+{
+    std::vector<live::Op> ops{live::ModuleNew{loc, m}, live::ModuleName{loc, m.index, m.name},
+                              live::CustomData{loc, m.index, m.customData.value_or(std::vector<u8>{})}};
+    if (!m.params.empty())
+        ops.push_back(live::Section{live::paramSection(patch, loc, {m.index})});
+    return ops;
+}
+
+void placeBelow(Patch& patch, Location loc, u8 keep);
 
 } // namespace
 
@@ -263,37 +330,47 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
     if (auto labels = defaultLabelData(type))
         m.customData = std::move(labels);
     area.modules.push_back(std::move(m));
+    // CPatchData::GetNewModulesMolecules @000eba8e: 30, then the new data's
+    // 52 (empty), 4D (the defaults in every variation), 5B (default custom
+    // data), 5A; the undo deletes it.
+    if (live::recording()) {
+        live::record(live::ModuleNew{loc, area.modules.back()}, live::ModuleDelete{loc, index});
+        for (auto& section : live::moduleSections(patch, loc, {index}))
+            live::record(live::Section{std::move(section)}, std::vector<live::Op>{});
+    }
     uprate::update(patch, loc);
+    return index;
+}
+
+u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
+{
+    // A module dragged in (CClipboard::Drop @0014d882): the original makes
+    // room before it creates the module, so its 34s come first.
+    auto* recorded = live::recording();
+    const std::size_t start = recorded ? recorded->size() : 0;
+    const u8 index = addModule(patch, loc, type, col, row);
+    const std::size_t moves = recorded ? recorded->size() : 0;
+    resolveOverlaps(patch, loc, index);
+    if (recorded)
+        recorded->moveTail(moves, start);
     return index;
 }
 
 void removeModule(Patch& patch, Location loc, u8 index)
 {
-    Area& area = areaFor(patch, loc);
-    const auto it = std::find_if(area.modules.begin(), area.modules.end(),
-                                 [&](const Module& m) { return m.index == index; });
-    if (it == area.modules.end())
-        throw std::invalid_argument("no module with this index");
-    spliceOut(patch, loc, {index});
-    area.modules.erase(it);
-    std::erase_if(area.cables, [&](const Cable& c) { return c.fromModule == index || c.toModule == index; });
-    for (auto& v : patch.morphs)
-        std::erase_if(v.assigns, [&](const MorphAssign& a) { return refersTo(a.location, a.module, loc, index); });
-    for (auto& k : patch.knobs)
-        if (k && refersTo(k->location, k->module, loc, index))
-            k.reset();
-    std::erase_if(patch.controllers, [&](const CtrlAssign& c) { return refersTo(c.location, c.module, loc, index); });
-    uprate::update(patch, loc);
+    removeModules(patch, loc, {index});
 }
 
 void moveModule(Patch& patch, Location loc, u8 index, u8 col, u8 row)
 {
     if (col > 127 || row > 127)
         throw std::invalid_argument("position out of range");
+    const auto before = placesOf(areaFor(patch, loc));
     Module& m = moduleAt(patch, loc, index);
     m.col = col;
     m.row = row;
-    resolveOverlaps(patch, loc, index);
+    placeBelow(patch, loc, index);
+    recordMoves(patch.area(loc), loc, before, {index});
 }
 
 namespace {
@@ -305,6 +382,14 @@ int heightOf(const Module& m)
 } // namespace
 
 void resolveOverlaps(Patch& patch, Location loc, u8 keep)
+{
+    const auto before = placesOf(areaFor(patch, loc));
+    placeBelow(patch, loc, keep);
+    recordMoves(patch.area(loc), loc, before);
+}
+
+namespace {
+void placeBelow(Patch& patch, Location loc, u8 keep)
 {
     Area& area = areaFor(patch, loc);
     // Per column: the kept module first, then the others top to bottom; each
@@ -338,6 +423,7 @@ void resolveOverlaps(Patch& patch, Location loc, u8 keep)
         placed.push_back(m);
     }
 }
+} // namespace
 
 u8 freeRow(const Patch& patch, Location loc, u8 col)
 {
@@ -353,7 +439,11 @@ void renameModule(Patch& patch, Location loc, u8 index, const std::string& name)
     const std::string filtered = modularName(name, kNameLength + 1);
     if (filtered.size() > kNameLength)
         throw std::invalid_argument("module names have at most 16 characters");
-    moduleAt(patch, loc, index).name = filtered;
+    Module& m = moduleAt(patch, loc, index);
+    // CPanel::ChangePanelNameDialog @000bf08a: 33, only for a new name.
+    if (m.name != filtered)
+        live::record(live::ModuleName{loc, index, filtered}, live::ModuleName{loc, index, m.name});
+    m.name = filtered;
 }
 
 CableColor cableColor(const Patch& patch, Location loc, Endpoint from)
@@ -438,7 +528,7 @@ Cable connect(Patch& patch, Location loc, Endpoint from, Endpoint to)
     else if (tree.hasSignal(b))
         color = fedColour(b, a);
     molecules.push_back({Molecule::Connect, a, b, color});
-    applyMolecules(tree, molecules);
+    applyMolecules(tree, molecules, loc);
     store(patch, loc, tree);
     for (const auto& c : patch.area(loc).cables)
         if (sameEnds(c, a, b))
@@ -479,7 +569,7 @@ bool disconnectJack(Patch& patch, Location loc, Endpoint jack)
         if (hub != c)
             molecules.push_back({Molecule::Connect, hub, c, x.isOutput ? CableColor::White : *tree.colorOf(c)});
     }
-    applyMolecules(tree, molecules);
+    applyMolecules(tree, molecules, loc);
     store(patch, loc, tree);
     return true;
 }
@@ -504,7 +594,7 @@ bool breakJack(Patch& patch, Location loc, Endpoint jack)
         for (const Connector c : tree.childrenOf(x))
             molecules.push_back({Molecule::Delete, c, x});
     }
-    applyMolecules(tree, molecules);
+    applyMolecules(tree, molecules, loc);
     store(patch, loc, tree);
     return true;
 }
@@ -518,7 +608,7 @@ bool deleteChain(Patch& patch, Location loc, Endpoint jack)
     Molecules molecules;
     for (const auto& s : branch)
         molecules.push_back({Molecule::Delete, s.node, s.parent});
-    applyMolecules(tree, molecules);
+    applyMolecules(tree, molecules, loc);
     store(patch, loc, tree);
     return true;
 }
@@ -533,7 +623,7 @@ void recolorChain(Patch& patch, Location loc, Endpoint jack, CableColor color)
         throw std::invalid_argument("only a chain fed by an output can change colour");
     Molecules molecules;
     recolorAll(molecules, tree.completeBranch(x), color);
-    applyMolecules(tree, molecules);
+    applyMolecules(tree, molecules, loc);
     store(patch, loc, tree);
 }
 
@@ -561,7 +651,7 @@ bool deleteUnusedCables(Patch& patch)
         }
         if (molecules.empty())
             continue;
-        applyMolecules(tree, molecules);
+        applyMolecules(tree, molecules, loc);
         store(patch, loc, tree);
         deleted = true;
     }
@@ -604,7 +694,7 @@ void moveCables(Patch& patch, Location loc, Endpoint from, Endpoint to)
         molecules.push_back({Molecule::Delete, x, c});
         molecules.push_back({Molecule::Connect, y, c, uniform ? color : *tree.colorOf(c)});
     }
-    applyMolecules(tree, molecules);
+    applyMolecules(tree, molecules, loc);
     store(patch, loc, tree);
 }
 
@@ -689,7 +779,11 @@ void setMode(Patch& patch, Location loc, u8 module, u8 mode, u8 value)
     if (!def || mode >= def->modes.size() || mode >= m.modes.size())
         throw std::invalid_argument("no such mode");
     const auto& md = def->modes[mode];
-    m.modes[mode] = std::clamp(value, md.min, md.max);
+    const u8 v = std::clamp(value, md.min, md.max);
+    // CPanel::SelectorRequestChange @000c060a: 2B, undone by the old value.
+    if (m.modes[mode] != v)
+        live::record(live::Mode{loc, module, mode, v}, live::Mode{loc, module, mode, m.modes[mode]});
+    m.modes[mode] = v;
 }
 
 std::string paramText(const Patch& patch, Location loc, u8 module, u8 param, u8 variation)
@@ -1078,7 +1172,14 @@ void clearMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u
 
 bool toggleMorphAssign(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group)
 {
-    if (morphRange(patch, variation, loc, module, param, group)) {
+    // CControlMenu::HandleMenuSelection @0008f5c6, a realtime pair: leaving
+    // the group is a 43 with range 0 (CMorphMap::GetDeassignMorphMolecules
+    // @000f1d58); joining it, a 40 to value 0 (if it was not) then a 43 with
+    // the full range (GetAssignMorphToParamMolecules @000f1e62).
+    live::markRealtime();
+    if (const auto range = morphRange(patch, variation, loc, module, param, group)) {
+        live::record(live::Morph{loc, module, param, group, 0, variation},
+                     live::Morph{loc, module, param, group, *range, variation});
         clearMorph(patch, variation, loc, module, param, group);
         return false;
     }
@@ -1087,11 +1188,15 @@ bool toggleMorphAssign(Patch& patch, u8 variation, Location loc, u8 module, u8 p
                                                                           : "this parameter cannot be morphed");
     // The value goes to 0 and the range to the full +max (the control's
     // maximum, CPnlControl+0x45).
+    if (const u8 old = valueOf(patch, loc, module, param, variation); old != 0)
+        live::record(live::Param{loc, module, param, 0, variation}, live::Param{loc, module, param, old, variation});
     if (loc == Location::Settings)
         setSetting(patch, static_cast<Setting>(module), param, variation, 0);
     else
         setParam(patch, loc, module, param, variation, 0);
     setMorph(patch, variation, loc, module, param, group, paramDefOf(patch, loc, module, param)->max);
+    live::record(live::Morph{loc, module, param, group, *morphRange(patch, variation, loc, module, param, group), variation},
+                 live::Morph{loc, module, param, group, 0, variation});
     return true;
 }
 
@@ -1167,16 +1272,32 @@ void assignKnob(Patch& patch, int knob, Location loc, u8 module, u8 param)
     checkParam(patch, loc, module, param);
     if (knob < 0 || static_cast<std::size_t>(knob) >= patch.knobs.size())
         throw std::invalid_argument("no such knob");
+    // CKnobMap::GetAssignKnobToTargetMolecules @000f1580: 26 for the knob the
+    // parameter was on, 26 for the parameter the knob held, 25, then 2D (the
+    // knob's page); each undone by its inverse.
+    const KnobAssign target{static_cast<u8>(loc), module, 0, param, 0};
     // A parameter sits on one knob only.
-    if (const auto old = knobOf(patch, loc, module, param))
+    if (const auto old = knobOf(patch, loc, module, param)) {
+        const auto& was = *patch.knobs[static_cast<std::size_t>(*old)];
+        live::record(live::KnobDeassign{*old}, live::KnobAssign{*old, loc, module, param, was.assignType});
         patch.knobs[static_cast<std::size_t>(*old)].reset();
-    patch.knobs[static_cast<std::size_t>(knob)] = KnobAssign{static_cast<u8>(loc), module, 0, param, 0};
+    }
+    if (const auto& held = patch.knobs[static_cast<std::size_t>(knob)])
+        live::record(live::KnobDeassign{knob}, live::KnobAssign{knob, static_cast<Location>(held->location), held->module,
+                                                                held->param, held->assignType});
+    live::record(live::KnobAssign{knob, loc, module, param, 0}, live::KnobDeassign{knob});
+    live::record(live::PageFocus{static_cast<u8>(knob >> 3)}, live::PageFocus{static_cast<u8>(knob >> 3)});
+    patch.knobs[static_cast<std::size_t>(knob)] = target;
 }
 
 void clearKnob(Patch& patch, int knob)
 {
-    if (knob >= 0 && static_cast<std::size_t>(knob) < patch.knobs.size())
+    if (knob >= 0 && static_cast<std::size_t>(knob) < patch.knobs.size()) {
+        if (const auto& held = patch.knobs[static_cast<std::size_t>(knob)])
+            live::record(live::KnobDeassign{knob}, live::KnobAssign{knob, static_cast<Location>(held->location),
+                                                                    held->module, held->param, held->assignType});
         patch.knobs[static_cast<std::size_t>(knob)].reset();
+    }
 }
 
 std::string knobName(int knob)
@@ -1253,6 +1374,17 @@ void assignMidiCc(Patch& patch, u8 cc, Location loc, u8 module, u8 param)
         throw std::invalid_argument("CC 7 and CC 17 are reserved for the patch volume and octave shift");
     if (!canAssignMidiCc(patch, loc, module, param))
         throw std::invalid_argument("this parameter cannot take a MIDI controller");
+    // CCtrlMap::GetAssignCtrlToParamMolecules @000f10ae: 23 for the CC the
+    // parameter had, 23 for the parameter the CC had, then 22.
+    if (live::recording()) {
+        for (const auto& c : patch.controllers)
+            if (sameTarget(c.location, c.module, c.param, loc, module, param))
+                live::record(live::CtrlDeassign{c.cc}, live::CtrlAssign{c.cc, loc, module, param});
+        for (const auto& c : patch.controllers)
+            if (c.cc == cc && !sameTarget(c.location, c.module, c.param, loc, module, param))
+                live::record(live::CtrlDeassign{cc}, live::CtrlAssign{cc, static_cast<Location>(c.location), c.module, c.param});
+        live::record(live::CtrlAssign{cc, loc, module, param}, live::CtrlDeassign{cc});
+    }
     storeMidiCc(patch, cc, loc, module, param);
 }
 
@@ -1260,6 +1392,9 @@ void clearMidiCc(Patch& patch, u8 cc)
 {
     if (isPreAssignedMidiCc(cc))
         throw std::invalid_argument("CC 7 and CC 17 are reserved for the patch volume and octave shift");
+    for (const auto& c : patch.controllers)
+        if (c.cc == cc)
+            live::record(live::CtrlDeassign{cc}, live::CtrlAssign{cc, static_cast<Location>(c.location), c.module, c.param});
     eraseMidiCc(patch, cc);
 }
 
@@ -1423,7 +1558,20 @@ std::optional<std::vector<u8>> defaultLabelData(u8 moduleType)
 
 void setModuleColor(Patch& patch, Location loc, u8 module, u8 color)
 {
-    moduleAt(patch, loc, module).color = color;
+    Module& m = moduleAt(patch, loc, module);
+    // CPatch::InternalRecolorSelection @000d7880: a 31 for every module of
+    // the selection, its colour changed or not.
+    live::record(live::ModuleColor{loc, module, color}, live::ModuleColor{loc, module, m.color});
+    m.color = color;
+}
+
+void setLocked(Patch& patch, Location loc, u8 module, bool locked)
+{
+    Module& m = moduleAt(patch, loc, module);
+    // CPatch::InternalLockSelection @000d7fca: a 90 for a module whose lock changes.
+    if (m.locked != locked)
+        live::record(live::MutaLock{loc, module, locked}, live::MutaLock{loc, module, m.locked});
+    m.locked = locked;
 }
 
 void setCableBend(Patch& patch, Location loc, const Cable& cable, std::optional<CableBend> bend)
@@ -1465,6 +1613,9 @@ void copyVariation(Patch& patch, u8 from, u8 to)
         throw std::invalid_argument("no such variation");
     if (from == to)
         return;
+    // One 44 (CPatchToolbar: Copy To, and Init with from = 8); the original
+    // makes no undo of it.
+    live::record(live::VariationCopy{from, to}, std::vector<live::Op>{});
     for (auto* area : {&patch.va, &patch.fx})
         for (auto& m : area->modules)
             if (from < m.params.size() && to < m.params.size())
@@ -1562,6 +1713,7 @@ std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, 
     if (!patchload::canPaste(patch, patchload::dynamicSize(clip.modules, clip.cables.size()))
         || area.modules.size() + clip.modules.size() > 127)
         throw std::invalid_argument("the patch is too big: the synth has no room for these modules");
+    const auto before = placesOf(area);
     std::vector<std::pair<u8, u8>> remap; // old index -> new index
     std::vector<u8> added;
     for (const auto& src : clip.modules) {
@@ -1597,13 +1749,16 @@ std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, 
                 return n;
         return u8{0};
     };
+    Area pasted; // the new modules' cables, for the undo's 51s
     for (Cable c : clip.cables) {
         c.fromModule = mapped(c.fromModule);
         c.toModule = mapped(c.toModule);
         if (loc != clip.from)
             c.color = cableColor(patch, loc, {c.fromModule, c.fromConn, c.fromIsOutput});
         area.cables.push_back(c);
+        pasted.cables.push_back(c);
     }
+    std::vector<std::pair<std::size_t, MorphAssign>> morphs; // as added
     // Morphs, per variation, module by module, parameter by parameter, group
     // by group; each counts one, and none is added past 25
     // (CPatchData::GetNewModulesMolecules @000eba8e).
@@ -1622,35 +1777,100 @@ std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, 
                 a.location = static_cast<u8>(loc);
                 a.module = mapped(a.module);
                 putMorph(patch.morphs[v].assigns, a);
+                morphs.emplace_back(v, a);
             }
         }
     }
     for (u8 index : added)
-        resolveOverlaps(patch, loc, index);
+        placeBelow(patch, loc, index);
+    // What the original sends (CClipboard::Drop @0014d882): the make-room
+    // 34s, then GetNewModulesMolecules @000eba8e: a 30 per module, the new
+    // data's 52, 4D, the morphs (43), 5B, 5A; then the rates. The undo takes
+    // the morphs back (43 range 0), deletes the cables (51, as parts of a
+    // dump) and the modules (32), and moves the others back.
+    recordMoves(area, loc, before);
+    if (live::recording()) {
+        for (const auto& m : area.modules)
+            if (std::find(added.begin(), added.end(), m.index) != added.end())
+                live::record(live::ModuleNew{loc, m}, live::ModuleDelete{loc, m.index});
+        std::vector<live::Op> unlink;
+        for (const auto& seg : cables::Tree(pasted).segments())
+            unlink.insert(unlink.begin(), live::CableDelete{loc, seg.node, seg.parent, true});
+        auto sections = live::moduleSections(patch, loc, added);
+        for (auto& section : sections) {
+            const u8 id = section.id;
+            live::record(live::Section{std::move(section)}, id == file::kCableList ? unlink : std::vector<live::Op>{});
+            if (id == file::kParamList)
+                for (const auto& [v, a] : morphs)
+                    live::record(live::Morph{loc, a.module, a.param, a.morph, a.range, static_cast<u8>(v)},
+                                 live::Morph{loc, a.module, a.param, a.morph, 0, static_cast<u8>(v)});
+        }
+    }
     uprate::update(patch, loc);
     return added;
 }
 
 void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices)
 {
-    // The selection's cables first, as one (CPatch::InternalDeleteSelection).
-    spliceOut(patch, loc, indices);
+    // CPatch::InternalDeleteSelection @000d7e16, in the original's order:
+    // per module (selection order) its knobs (26), controllers (23) and morphs
+    // (43 range 0, every variation; CKnobMap / CCtrlMap / CMorphMap::
+    // GetDeleteModuleMolecules); then the selection's cables as one
+    // (GenerateDeleteSelectionMolecules: 54 white, 51, 50 relinks); then the
+    // modules (32, CPatchSelection::GetDeleteModuleMolecule); then the rates.
+    Area& area = areaFor(patch, loc);
     for (u8 index : indices)
-        if (patch.area(loc).find(index))
-            removeModule(patch, loc, index);
+        if (!area.find(index))
+            throw std::invalid_argument("no module with this index");
+    for (u8 index : indices) {
+        for (std::size_t k = 0; k < patch.knobs.size(); ++k)
+            if (auto& a = patch.knobs[k]; a && refersTo(a->location, a->module, loc, index)) {
+                live::record(live::KnobDeassign{static_cast<int>(k)},
+                             live::KnobAssign{static_cast<int>(k), loc, a->module, a->param, a->assignType});
+                a.reset();
+            }
+        std::erase_if(patch.controllers, [&](const CtrlAssign& c) {
+            if (!refersTo(c.location, c.module, loc, index))
+                return false;
+            live::record(live::CtrlDeassign{c.cc}, live::CtrlAssign{c.cc, loc, c.module, c.param});
+            return true;
+        });
+        for (std::size_t v = 0; v < patch.morphs.size(); ++v)
+            std::erase_if(patch.morphs[v].assigns, [&](const MorphAssign& a) {
+                if (!refersTo(a.location, a.module, loc, index))
+                    return false;
+                live::record(live::Morph{loc, a.module, a.param, a.morph, 0, static_cast<u8>(v)},
+                             live::Morph{loc, a.module, a.param, a.morph, a.range, static_cast<u8>(v)});
+                return true;
+            });
+    }
+    spliceOut(patch, loc, indices, false);
+    for (u8 index : indices) {
+        const auto it = std::find_if(area.modules.begin(), area.modules.end(), [&](const Module& m) { return m.index == index; });
+        if (it == area.modules.end())
+            continue;
+        if (live::recording())
+            live::record(live::ModuleDelete{loc, index}, recreate(patch, loc, *it));
+        area.modules.erase(it);
+        std::erase_if(area.cables, [&](const Cable& c) { return c.fromModule == index || c.toModule == index; });
+    }
+    uprate::update(patch, loc);
 }
 
 void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow)
 {
     Area& area = areaFor(patch, loc);
+    const auto before = placesOf(area);
     for (auto& m : area.modules)
         if (std::find(indices.begin(), indices.end(), m.index) != indices.end()) {
             m.col = static_cast<u8>(std::clamp(m.col + dCol, 0, 127));
             m.row = static_cast<u8>(std::clamp(m.row + dRow, 0, 127));
         }
-    // The moved group keeps its place; others make room below.
+    // The moved group keeps its place; others make room below: the
+    // original sends those 34s first, then the moved modules'.
     for (u8 index : indices)
-        resolveOverlaps(patch, loc, index);
+        placeBelow(patch, loc, index);
+    recordMoves(area, loc, before, indices);
 }
 
 } // namespace g2::edit

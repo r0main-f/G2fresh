@@ -1,5 +1,7 @@
 #include "g2/replace.hpp"
 
+#include "g2/live.hpp"
+
 #include "g2/cables.hpp"
 #include "g2/edit.hpp"
 #include "g2/uprate.hpp"
@@ -214,10 +216,123 @@ int freeNameIndex(const Area& area, const std::string& prefix)
 
 } // namespace
 
+namespace {
+
+bool sameLink(const cables::Tree::Segment& a, const cables::Tree::Segment& b)
+{
+    return (a.node == b.node && a.parent == b.parent) || (a.node == b.parent && a.parent == b.node);
+}
+
+// What the original sends for a replacement (CPatch::InternalReplaceModule
+// @000d7a14), from the patch before and after: the old module's knobs (26),
+// controllers (23) and morphs (43 range 0); its cables
+// (GenerateDeleteSelectionMolecules without relinks: 54 white for a net its
+// output fed, 51 for each cable touching it); 32; the make-room 34s; the new
+// module (30, 33, 42, 4D); the new links (54 recolours, then 50) and the
+// rates (GetReplaceModuleMolecules @000ebf7e); then the new module's knobs
+// (25), controllers (22) and morphs (43).
+void recordReplace(live::Edit& out, const Patch& before, const Patch& after, Location loc, u8 index, u8 newIndex,
+                   const live::Edit& moves, const live::Edit& rates)
+{
+    const u8 l = static_cast<u8>(loc);
+    for (std::size_t k = 0; k < before.knobs.size(); ++k)
+        if (const auto& a = before.knobs[k]; a && a->location == l && a->module == index)
+            out.add(live::KnobDeassign{static_cast<int>(k)}, {live::KnobAssign{static_cast<int>(k), loc, a->module, a->param, a->assignType}});
+    for (const auto& c : before.controllers)
+        if (c.location == l && c.module == index)
+            out.add(live::CtrlDeassign{c.cc}, {live::CtrlAssign{c.cc, loc, c.module, c.param}});
+    for (std::size_t v = 0; v < before.morphs.size(); ++v)
+        for (const auto& a : before.morphs[v].assigns)
+            if (a.location == l && a.module == index)
+                out.add(live::Morph{loc, a.module, a.param, a.morph, 0, static_cast<u8>(v)},
+                        {live::Morph{loc, a.module, a.param, a.morph, a.range, static_cast<u8>(v)}});
+    // The old module's cables, net by net; a net its output fed turns white.
+    const cables::Tree was(before.area(loc));
+    std::vector<cables::Tree::Segment> kept; // the cables left, with their colour then
+    for (const auto root : was.roots()) {
+        const auto chain = was.chainId(root);
+        const bool white = chain.isOutput && chain.module == index;
+        for (const auto& seg : was.completeTree(root))
+            if (white)
+                out.add(live::CableRecolor{loc, seg.node, seg.parent, CableColor::White},
+                        {live::CableRecolor{loc, seg.node, seg.parent, seg.color}});
+        for (const auto& seg : was.completeTree(root)) {
+            if (seg.node.module == index || seg.parent.module == index)
+                out.add(live::CableDelete{loc, seg.node, seg.parent, true},
+                        {live::CableConnect{loc, seg.node, seg.parent, white ? CableColor::White : seg.color, true}});
+            else
+                kept.push_back({seg.node, seg.parent, white ? CableColor::White : seg.color});
+        }
+    }
+    const Module& old = *before.area(loc).find(index);
+    std::vector<live::Op> recreate{live::ModuleNew{loc, old}, live::ModuleName{loc, index, old.name},
+                                   live::CustomData{loc, index, old.customData.value_or(std::vector<u8>{})}};
+    if (!old.params.empty())
+        recreate.push_back(live::Section{live::paramSection(before, loc, {index})});
+    out.add(live::ModuleDelete{loc, index}, std::move(recreate));
+    out.append(moves);
+    // The new module.
+    const Module& m = *after.area(loc).find(newIndex);
+    out.add(live::ModuleNew{loc, m}, {live::ModuleDelete{loc, newIndex}});
+    out.add(live::ModuleName{loc, newIndex, m.name}, std::vector<live::Op>{});
+    out.add(live::CustomData{loc, newIndex, m.customData.value_or(std::vector<u8>{})}, std::vector<live::Op>{});
+    if (!m.params.empty())
+        out.add(live::Section{live::paramSection(after, loc, {newIndex})}, std::vector<live::Op>{});
+    // The links: recolours of the cables kept, then the new cables (as parts
+    // of a dump), depth-first as the trees now are. (The rates' recolours
+    // come after.)
+    cables::Tree now(after.area(loc));
+    std::vector<cables::Tree::Segment> added;
+    for (const auto& seg : now.segments()) {
+        bool found = false;
+        for (const auto& k : kept)
+            if (sameLink(k, seg)) {
+                found = true;
+                break;
+            }
+        if (!found)
+            added.push_back(seg);
+    }
+    // Colours before the rate changes: undo those first.
+    live::Edit undoRates = rates;
+    std::vector<live::Op> prior = undoRates.undo();
+    auto colourBeforeRates = [&](const cables::Tree::Segment& seg) {
+        CableColor c = seg.color;
+        for (const auto& op : prior)
+            if (const auto* r = std::get_if<live::CableRecolor>(&op);
+                r && ((r->from == seg.node && r->to == seg.parent) || (r->from == seg.parent && r->to == seg.node)))
+                c = r->color;
+        return c;
+    };
+    for (const auto& seg : now.segments())
+        for (const auto& k : kept)
+            if (sameLink(k, seg) && colourBeforeRates(seg) != k.color)
+                out.add(live::CableRecolor{loc, seg.node, seg.parent, colourBeforeRates(seg)},
+                        {live::CableRecolor{loc, seg.node, seg.parent, k.color}});
+    for (const auto& seg : added)
+        out.add(live::CableConnect{loc, seg.node, seg.parent, colourBeforeRates(seg), true},
+                {live::CableDelete{loc, seg.node, seg.parent, true}});
+    out.append(rates);
+    for (std::size_t k = 0; k < after.knobs.size(); ++k)
+        if (const auto& a = after.knobs[k]; a && a->location == l && a->module == newIndex)
+            out.add(live::KnobAssign{static_cast<int>(k), loc, a->module, a->param, a->assignType}, {live::KnobDeassign{static_cast<int>(k)}});
+    for (const auto& c : after.controllers)
+        if (c.location == l && c.module == newIndex)
+            out.add(live::CtrlAssign{c.cc, loc, c.module, c.param}, {live::CtrlDeassign{c.cc}});
+    for (std::size_t v = 0; v < after.morphs.size(); ++v)
+        for (const auto& a : after.morphs[v].assigns)
+            if (a.location == l && a.module == newIndex)
+                out.add(live::Morph{loc, a.module, a.param, a.morph, a.range, static_cast<u8>(v)},
+                        {live::Morph{loc, a.module, a.param, a.morph, 0, static_cast<u8>(v)}});
+}
+
+} // namespace
+
 u8 replaceModule(Patch& patch, Location loc, u8 index, u8 newType)
 {
     if (loc == Location::Settings)
         throw std::invalid_argument("modules live in the VA or FX area");
+    const Patch original = live::recording() ? patch : Patch{};
     Area& area = patch.area(loc);
     const Module* oldPtr = area.find(index);
     if (!oldPtr)
@@ -434,8 +549,19 @@ u8 replaceModule(Patch& patch, Location loc, u8 index, u8 newType)
     patch.controllers = std::move(ctrls);
 
     // CPatchData::GetMakeRoomForMolecules, then GenerateBandwidthChangeMolecules.
-    edit::resolveOverlaps(patch, loc, newIndex);
-    uprate::update(patch, loc);
+    live::Edit moves, rates;
+    {
+        live::Recorder r;
+        edit::resolveOverlaps(patch, loc, newIndex);
+        moves = r.edit();
+    }
+    {
+        live::Recorder r;
+        uprate::update(patch, loc);
+        rates = r.edit();
+    }
+    if (auto* recorded = live::recording())
+        recordReplace(*recorded, original, patch, loc, index, newIndex, moves, rates);
     return newIndex;
 }
 
