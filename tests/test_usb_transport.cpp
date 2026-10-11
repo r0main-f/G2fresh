@@ -125,7 +125,8 @@ TEST_CASE("usb: a bulk-IN read that times out or fails is read again until the d
     const auto m = message(20);
     fakeusb::interrupt(announce(20));
     fakeusb::bulkInFails(fakeusb::Fail::Error);
-    pollFor(c.transport, 3 * kFast.readMs); // reads time out meanwhile
+    // a failed read and at least one more after it, however slow the machine
+    REQUIRE(until(c.transport, [&] { return fakeusb::stats().bulkReads >= 2; }));
     fakeusb::bulkIn(m);
     REQUIRE(until(c.transport, [&] { return c.sink.bulks.size() == 1; }));
     CHECK(c.sink.bulks[0] == m);
@@ -247,7 +248,7 @@ TEST_CASE("usb: the corpus's patches upload in one frame below the cap (M4)", "[
         const auto bubble = g2::proto::patchUpload(0, g2::loadPatch(bytes, {true}), "0123456789abcdef");
         const auto frames = g2::proto::framesFor(bubble);
         REQUIRE(frames.size() == 1);
-        largest = std::max(largest, frames[0].size());
+        largest = (std::max)(largest, frames[0].size());
         ++files;
     }
     REQUIRE(files > 0);

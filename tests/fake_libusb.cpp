@@ -233,7 +233,7 @@ int LIBUSB_CALL libusb_handle_events_timeout_completed(libusb_context* ctx, stru
             auto wake = until;
             for (const auto& p : pending)
                 if (p.t->timeout)
-                    wake = std::min(wake, p.submitted + std::chrono::milliseconds(p.t->timeout));
+                    wake = (std::min)(wake, p.submitted + std::chrono::milliseconds(p.t->timeout)); // windows.h has a min macro
             cv.wait_until(lock, wake);
         }
         interrupted = false;
