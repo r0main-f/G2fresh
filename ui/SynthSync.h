@@ -90,6 +90,8 @@ public:
     void loadFromBank(int slot, std::uint8_t bank, std::uint8_t prog, bool open);
     // Stores a slot's patch (slot 4: the performance) on the synth.
     void storeToBank(int slot, std::uint8_t bank, std::uint8_t prog);
+    // A store the synth refused, with the original's message ("Memory protect on", "Flash memory full").
+    std::function<void(const juce::String&)> onFlashProblem;
 
     // LiveLeds: the LEDs and meters of the slot shown, while bound.
     std::optional<int> ledValue(g2::Location location, std::uint8_t module, int group) const override;
@@ -125,6 +127,7 @@ private:
     void patchEdited(int slot, const g2::proto::Molecule&) override;
     void ledsChanged(int slot) override;
     void flashNamesChanged(g2::u8 type) override;
+    void flashResult(const g2::proto::FlashResult&) override;
     void performanceChanged() override;
     // The virtual G2 makes its LEDs and meters move, so they can be seen.
     void animateVirtualLeds();

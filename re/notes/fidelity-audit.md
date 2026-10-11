@@ -46,7 +46,7 @@ carry Out 1/2 only).
 19. Performance workflow: New To / Open To / Save From, the performance name, slot rules, Perf mode; new performances
     get MIDI channels 0-3 instead of 0.
 20. Missing original editor features: per-slot undo (100 levels), Paste Params, Delete Unused Modules, Init 1&2, Var
-    Init recall, Parameter Pages / Overview, MIDI Learn and the controller dialog, Synth Settings, bank delete and
+    Init recall, Parameter Pages / Overview, MIDI Learn and the controller dialog, bank delete and
     upload/download, Patch Adjuster, keyboard focus, Options dialog, F5-F8 hints, module help, virtual keyboard over
     USB, controller snapshot / Dump One, Patch Browser disk tab, Window menu, About.
 
@@ -301,7 +301,7 @@ Repo state: `main` @ 775fc55. Read-only audit; no repository file was changed.
 | 10 | **Parameter rename is offered on every parameter.** Radio-button label records are written malformed, and custom labels from loaded patches are never drawn. | H/M | 1 d |
 | 11 | **Performance workflow is missing.** No New To / Open To / Save From (building a performance from files, extracting a patch), no performance name, no slot rules (at least one slot, keyboard on an enabled slot, lower ≤ upper), no perf-mode toggle, and new-performance defaults differ (MIDI channels 0,1,2,3 instead of 0,0,0,0). | H/M | 1-2 d |
 | 12 | **Deviations that are on by default and not flagged.** Modern look; cable animation; mouse wheel edits values; double-click resets (originally: morph); a single click in the browser inserts a module into VA; paste lands immediately and renames modules; shortcuts reassigned (Cmd-D, Cmd-L, Cmd-1..8); an offline load estimate shown as a figure (original: "--"); the unsaved-changes prompt (v1.62 never asks); restoring the stand-alone session with edits shown as saved. README has no "Deliberate deviations" section. | M | 1-2 d to make opt-in and document |
-| 13 | **Missing original features.** Per-slot undo; Paste Params (Cmd-E); Delete Unused Modules; Init 1&2 / Save InitPatch; Var Init recall; Parameter Pages (Ctrl-F) and Overview (Ctrl-L); module Assign/Global Assign; MIDI Learn (L), CC dialog (M), Assign/Deassign MIDI to selection; Synth Settings (Ctrl-G); bank delete and Bank Upload/Download; Patch Adjuster (Ctrl-3); keyboard parameter focus and arrows; Options (cable style, knob mode, morph by double-click); F5-F8 hint overlays; module help; Virtual Keyboard over USB; Controller Snapshot; Dump One; Patch Browser Disk tab; multiple windows / Window menu; About. | M (each) | weeks in total |
+| 13 | **Missing original features.** Per-slot undo; Paste Params (Cmd-E); Delete Unused Modules; Init 1&2 / Save InitPatch; Var Init recall; Parameter Pages (Ctrl-F) and Overview (Ctrl-L); module Assign/Global Assign; MIDI Learn (L), CC dialog (M), Assign/Deassign MIDI to selection; bank delete and Bank Upload/Download; Patch Adjuster (Ctrl-3); keyboard parameter focus and arrows; Options (cable style, knob mode, morph by double-click); F5-F8 hint overlays; module help; Virtual Keyboard over USB; Controller Snapshot; Dump One; Patch Browser Disk tab; multiple windows / Window menu; About. | M (each) | weeks in total |
 
 ---
 
@@ -568,12 +568,12 @@ The core (`core/src/mutate.cpp`) is an exact port, golden-tested in emulation: B
 |---|---|---|---|---|---|---|
 | B1 | Load from memory | `0A` into the focused slot. | Same message; slot chosen in a combo. | **Matches.** | – | V |
 | B2 | Store / Save In Synth | `0B`, no overwrite confirmation (manual p85; `CDialogSaveInSynth::Idle @0x3dc80`). | `0B` with a confirmation (`BankBrowser.cpp:218-226`). | Safer deviation; flag it. | L | V |
-| B3 | Store result | `0D` codes 1/3/4 → alerts "Can't load from flash / Flash memory full / Memory protect on" (`HandleFlashCommandResult @0x11b062`). | Ignored (`client.cpp:754-758`). | The user believes it was stored. | M-H | V |
+| B3 | Store result | `0D` codes 1/3/4 → alerts "Can't load from flash / Flash memory full / Memory protect on" (`HandleFlashCommandResult @0x11b062`). | **Done.** `Client::Listener::flashResult` → the same alert, "Flash Problem" with the original's text (`MainView::showFlashProblem`); through g2bridge it goes to the editor that stored. | – | – | V |
 | B4 | List refresh | The synth pushes `16`/`15`/`12`. | Re-reads the whole `14` list after a store. | Traffic the original never sends. | L-M | V |
 | B5 | Delete entry/bank | `0C`; delete bank asks "Are you sure…" then `0E`. | Missing. | – | M | V |
 | B6 | Bank Upload/Download to disk (`.pchList`) | `CFlashDumper @0x1190de…`; manual p106-107. | Missing (codec has `17/18/19`). | – | M | V |
 | B7 | Browser: sort by program/name/category; Disk tab | `CFlashListView`; manual p111-113. | Patches/Performances only, no sort, no Disk tab. | Partial. | L-M | V |
-| B8 | Synth Settings ⌘G | Name, per-slot MIDI channel and active, global channel, SysEx ID, clock send/ignore, controllers and program-change send/receive, tune, global octave shift, pedal gain, memory protect, pedal polarity, Local On (`CDialogSynthSettings::GetValues @0x40be8`; manual p103-105). | **Missing.** `BridgeLink::setSynthSettings` is a no-op (`link.hpp:61-62`). The plugin writes `03` (Local On, Ignore External Clock off) to the *emulated* G2 only. | – | M | V |
+| B8 | Synth Settings ⌘G | Name, per-slot MIDI channel and active, global channel, SysEx ID, clock send/ignore, controllers and program-change send/receive, tune, global octave shift, pedal gain, memory protect, pedal polarity, Local On (`CDialogSynthSettings::GetValues @0x40be8`; manual p103-105). | **Done** (`ui/SynthSettingsWindow.cpp`, `SynthSettingsForm.h`): the same fields, ranges, texts and send-on-change, OK / Cancel, reload on a change made on the synth; over USB through g2bridge (`Op::SetSynthSettings`). G2fresh's look; the octave shift buttons are labelled. | – | – | V |
 | B9 | Send Controller Snapshot ⌘M (`55`); Dump One ⌘1 (`3D`) | `CPatch::SendControllerSnapCommandBubble @0xd8352` | Missing. | – | L | V |
 | B10 | Virtual Keyboard ⌘K | Monophonic `56`, Drone and Repeat (`CKeyboardFloater @0x12ebc2`). | `Client::playNote` has no caller; the Live keyboard drives the emulator only. | Missing for a real G2. | L-M | V |
 | B11 | MIDI as a transport | `CSynthPortMIDI` is unreachable. | USB only. | **Matches.** | – | V |
@@ -696,7 +696,6 @@ To be made opt-in, or listed in a new README "Deliberate deviations" section. RE
    - keyboard parameter focus and 1-8;
    - MIDI Learn / dialog / auto-assign;
    - Parameter Pages and Overview;
-   - Synth Settings;
    - bank delete and Upload/Download;
    - Init 1&2;
    - Patch Adjuster;

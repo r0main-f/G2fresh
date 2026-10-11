@@ -6,6 +6,7 @@
 #include "CableLayout.h"
 
 #include "Dialogs.h"
+#include "SynthSettingsWindow.h"
 
 #include "g2/patch_load.hpp"
 
@@ -26,6 +27,7 @@ enum MenuId {
     kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
     kMidiChannelBase = 600,   // + channel (0: as played)
     kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog,
+    kSynthSettings,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
     kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34,
@@ -215,17 +217,25 @@ MainView::~MainView()
 #endif
     setLookAndFeel(nullptr);
     doc_.removeChangeListener(this);
-    if (synth_ != nullptr)
+    synthSettings_.reset();
+    if (synth_ != nullptr) {
         synth_->removeChangeListener(this);
+        synth_->onFlashProblem = nullptr;
+    }
 }
 
 void MainView::setSynth(SynthSync* synth)
 {
-    if (synth_ != nullptr)
+    synthSettings_.reset();
+    if (synth_ != nullptr) {
         synth_->removeChangeListener(this);
+        synth_->onFlashProblem = nullptr;
+    }
     synth_ = synth;
-    if (synth_ != nullptr)
+    if (synth_ != nullptr) {
         synth_->addChangeListener(this);
+        synth_->onFlashProblem = [this](const juce::String& text) { showFlashProblem(text); };
+    }
     synthStatus_.setVisible(synth_ != nullptr);
     va_.setLiveLeds(synth_);
     fx_.setLiveLeds(synth_);
@@ -356,6 +366,8 @@ juce::PopupMenu MainView::synthMenu()
     m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
     m.addSeparator();
     const bool ready = synth_->ready();
+    m.addItem(item(kSynthSettings, "Synth Settings...", kCmd + "G", ready));
+    m.addSeparator();
     auto slotLabel = [this](int s) {
         const auto name = synth_->slotName(s);
         return "Slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + s))
@@ -571,6 +583,8 @@ void MainView::menuItemSelected(int id, int)
                           ? juce::String("The USB log will include patch contents (from the next connection to a G2)")
                           : juce::String("The USB log will leave patch contents out (from the next connection to a G2)"));
         }
+        else if (id == kSynthSettings)
+            showSynthSettings();
         else if (id == kSynthMemory) {
             if (!bankBrowser_)
                 bankBrowser_ = std::make_unique<BankBrowser>(*synth_, [this](std::function<void()> then) {
@@ -990,6 +1004,10 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     if (key == juce::KeyPress('=', cmd, 0) || key == juce::KeyPress('+', cmd, 0)
         || key == juce::KeyPress('=', cmd | juce::ModifierKeys::shiftModifier, 0))
         return setZoom(zoom_ * 1.25f), true;
+    if (key == juce::KeyPress('g', cmd, 0)) {
+        showSynthSettings();
+        return true;
+    }
     if (key == juce::KeyPress('l', cmd, 0)) {
         setLiveMode(!liveMode_);
         return true;
@@ -1002,6 +1020,28 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         if (key == juce::KeyPress('1' + i, cmd, 0))
             return doc_.setVariation(i), true;
     return false;
+}
+
+// ---- Synth ----------------------------------------------------------------------
+
+void MainView::showSynthSettings()
+{
+    if (synth_ == nullptr || synthSettings_ != nullptr)
+        return;
+    synthSettings_ = openSynthSettings(*synth_, this, [safe = juce::Component::SafePointer<MainView>(this)] {
+        if (safe)
+            safe->synthSettings_.reset();
+    });
+}
+
+void MainView::showFlashProblem(const juce::String& text)
+{
+    // CFlashListView::Idle 0x6e44, CDialogSaveInSynth::Idle 0x3dc80: "[WARN][Flash Problem]%s[OK]", over the window
+    // the store came from.
+    juce::Component* over = this;
+    if (bankBrowser_ != nullptr && bankBrowser_->isVisible())
+        over = bankBrowser_.get();
+    juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Flash Problem", text, "OK", over);
 }
 
 // ---- Files ----------------------------------------------------------------------

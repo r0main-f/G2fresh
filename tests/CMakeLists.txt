@@ -32,9 +32,11 @@ add_executable(g2tests
   test_bridge.cpp
   test_engine.cpp
   test_clavia.cpp
+  test_synth_settings.cpp
 )
 target_link_libraries(g2tests PRIVATE g2bridgelib g2engine g2clavia Catch2::Catch2WithMain) # g2proto and g2core come with it
 target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/plugin/Source) # HostClock.h (plain C++)
+target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/ui) # SynthSettingsForm.h (plain C++)
 target_compile_definitions(g2tests PRIVATE G2_BRIDGE_EXECUTABLE="$<TARGET_FILE:g2bridge>")
 add_dependencies(g2tests g2bridge)
 if(TARGET g2usb)
@@ -86,6 +88,7 @@ if(TARGET g2emu)
   add_executable(g2emutests test_g2emu.cpp)
   target_link_libraries(g2emutests PRIVATE g2emu g2coldfire dsp56kEmu Catch2::Catch2WithMain)
   target_include_directories(g2emutests PRIVATE ${PROJECT_SOURCE_DIR}/emu/g2emu/src)
+  target_include_directories(g2emutests PRIVATE ${PROJECT_SOURCE_DIR}/ui) # SynthSettingsForm.h (plain C++)
   target_include_directories(g2emutests SYSTEM PRIVATE ${G2_DSP56300_SOURCE_DIR}/source)
   target_compile_definitions(g2emutests PRIVATE G2_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
   catch_discover_tests(g2emutests)

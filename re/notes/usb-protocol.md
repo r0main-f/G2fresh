@@ -428,7 +428,7 @@ Addresses are `WriteStream`/`ReadStream` of the `CM*` class.
 | id | Clavia molecule | Verhue constant | Dir | T | Hdr | Dest | Payload after id | Reply / notes |
 |---|---|---|---|---|---|---|---|---|
 | 02 | CMSynthDataRequest 0x186aa | Q_SYNTH_SETTINGS | E→S | 2 | S | – | – | `03` |
-| 03 | CMSynthDataDump 0x1872a/0x18702 (`CSynthMap` 0x120410/0x12012e) | S_SYNTH_SETTINGS | both | 0 | S | 1 | §7.1 | E→S only to toggle perfMode |
+| 03 | CMSynthDataDump 0x1872a/0x18702 (`CSynthMap` 0x120410/0x12012e) | S_SYNTH_SETTINGS | both | 0 | S | 1 | §7.1 | E→S from the Synth Settings dialog and to toggle perfMode; the OS answers `7F` only |
 | 04 | CMNumberOfVoicesRequest 0x17d9a | Q_ASSIGNED_VOICES | E→S | 2 | S | – | – | `05` |
 | 05 | CMNumberOfVoicesDump 0x1836c | R_ASSIGNED_VOICES | S→E | – | – | 1 | `u8 voices[4]` (A..D) | |
 | 06 | CMSlotSelectionRequest 0x17bb6 | – | E→S | 2 | P | – | – | no caller |
@@ -438,7 +438,7 @@ Addresses are `WriteStream`/`ReadStream` of the `CM*` class.
 | 0A | CMFlashLoadCommand 0x1142a | S_RETREIVE | E→S | 0 | S | – | `u8 slot (0..3, 4 = perf), u8 bank, u8 prog` | load from flash; a `38`/`1F` release follows [V] |
 | 0B | CMFlashStoreCommand 0x112b8 | S_STORE | E→S | 0 | S | – | `u8 slot, u8 bank, u8 prog` | `0D` |
 | 0C | CMFlashDeleteCommand 0x1131e | S_CLEAR | E→S | 0 | S | – | `u8 type (0 patch/1 perf [I]), u8 bank, u8 prog, u8 origin` | `15` |
-| 0D | CMFlashCommandResult 0x116c4 | R_STORE | S→E | – | – | 1 | `u8 type, u8 bank, u8 prog, u8 origin, u8 result` (0 ok, 1, 2, 4, 5; other → 3) | |
+| 0D | CMFlashCommandResult 0x116c4 | R_STORE | S→E | – | – | 1 | `u8 type, u8 bank, u8 prog, u8 origin, u8 result` (0 ok, 1, 2, 4, 5; other → 3); §8.3.1 | |
 | 0E | CMFlashDeleteRangeCommand 0x11394 | S_CLEAR_BANK | E→S | 0 | S | – | `u8 type, u8 bank1, u8 prog1, u8 bank2, u8 prog2, u8 origin` | `12` |
 | 0F | CMKeyboardFocusDump 0x18260/0x182f2 | – | both | 0 | P | 3 | `pad4, 4×b1` keyboard enabled A..D | |
 | 10 | CMPerformanceHeaderRequest 0x16a14 | Q_PERF_SETTINGS | E→S | 2 | P | – | – | `29 name` + `11` (sect) |
@@ -561,7 +561,43 @@ b1 sustainPolarity, b1 1, pad6                               (Verhue: PedalPolar
 u8 controlPedalGain
 16 × u8 0
 ```
-The molecule writes its own id 0x03 and has **no length field**. The editor sends it only to change perfMode (§6.3).
+The molecule writes its own id 0x03 and has **no length field**. The editor sends it to change perfMode (§6.3) and
+from its Synth Settings dialog (§7.1.1). The OS answers `7F` and sends no `03` back; it sends one by itself (hdr
+`0x04`) when a setting changes in its System menu (tested on OS 1.62 in the emulator).
+
+#### 7.1.1 The Synth Settings dialog (`CDialogSynthSettings`, DLOG/DITL 132, Synth > Synth Settings... ⌘G = 400) [C]
+* Opened by `CEditorApp::HandleMenuSelection` 0x14b838 for the focused port, modal; the menu item is enabled when a
+  synth has the focus and is not locked (`CPortManager::IsSynthSettingsEditable` 0x102d5e). Title "Synth Settings -
+  Port N" (SSTR 70).
+* Fields (constructor 0x42d42; `SetValues` 0x42b84 from the map, `GetValues` 0x40be8 into it):
+
+  | Group | Field | Control | Range / text | `03` field |
+  |---|---|---|---|---|
+  | – | Name | text, 16 chars of `` !"#$%&'()*+,-./0-9:;<=>?@A-Z[]^_`a-z{|}`` | taken on Enter / focus lost | synthName |
+  | MIDI channel | Slot A..D | number + arrows, "active" check box | 1..16, clipped; inactive → 16 on the wire | midiChannel[4] |
+  | MIDI Settings | Global Channel | number + arrows | 1..16, 17 "Off"; wraps | globalChannel + 1 |
+  | | SysEx ID | number + arrows | 1..16, 17 "All"; wraps | sysExId + 1 |
+  | | Send Clock, Ignore External Clock | check boxes | | sendClock, ignoreExtClock |
+  | | Controllers: Receive, Send | check boxes | mode = receive << 1 \| send | controllerMode |
+  | | Program Change: Receive, Send | check boxes | same | programChangeMode |
+  | Tune | Master Tune | text "440.00Hz" = 440 · 2^(semi/12 + cent/1200) | (`SetMasterTune` 0x429c4) | – |
+  | | Semi | number + arrows | -6..6, clipped | transpose |
+  | | Cent | number + arrows | -100..100, clipped | masterTune |
+  | | Global Octave Shift | check box + 5 radio buttons (no text; enabled with the box) | -2..+2 | octShiftEnable, octShift |
+  | – | Control Pedal Gain | text + arrows | 0..32, "x1.00".."x1.50" (`ParamText::ControlPedalGain`) | controlPedalGain |
+  | – | Local on | check box | | localOn |
+  | Pedal polarity | Open, Closed | radio buttons | | sustainPolarity (Closed = 1) |
+  | File | Free Mem: | text, (1000 - flash usage) / 10 with one decimal and "%" [I: the character] | (`SetupState` 0x45a8e) | – (`13`) |
+  | | Memory Protect | check box | | memoryProtect |
+  | – | OK (default), Cancel | buttons | | |
+
+  No Sort By (the manual's v1.2 text has one), no send-arp, no vibrato rate: what the dialog does not show goes back
+  as the synth sent it (the dialog writes its fields over a copy of the last map).
+* Behaviour (`HandleChangeRequests` 0x45dc0, `Idle` 0x45cd0, `TrySendData` 0x45be2): every change sets a flag; the
+  next idle builds the map and, if it differs from the last one sent, sends one `03` (`CSynth::
+  TrySendingSynthDataSystemInfo` 0x11e06c). OK sends what is pending and closes. Cancel puts back the values the
+  dialog opened with, sends them, and closes. A `03` from the synth newer than the dialog's last send (the synth's
+  System menu) reloads the fields. The dialog closes by itself when the port is no longer active.
 
 ---------------------------------------------------------------------------------------------------
 
@@ -608,6 +644,18 @@ The molecule writes its own id 0x03 and has **no length field**. The editor send
 files (Gen2 Mess:2595-2670; Verhue size = data + 1, marked "?") [V].
 Verhue writes `type` = 0 even for performances; Clavia writes the real file type [C].
 Origin: 0 = bank-list window (`CFlashData`), 1 = file transfer (`CFlashDumper`).
+
+#### 8.3.1 The result `0D` and the editor's messages [C], tested on OS 1.62 in the emulator
+* The OS answers a store with `13` (usage), `16` (the new name) and `0D … 02`. With **Memory Protect on** it answers
+  `0D type bank prog origin 04` alone, in the reply to the `0B` (and to a `0C` delete), and stores nothing.
+* Origin 0, `CFlashData::HandleFlashCommandResult` 0x11b062: results 0, 2 and 5 are done; 1 "Can't load from
+  flash", 3 "Flash memory full", 4 "Memory protect on"; any other says nothing. The bank list (`CFlashListView::
+  Idle` 0x6e44, after a store or a delete from its pop-up menu) and Save In Synth (`CDialogSaveInSynth::Idle`
+  0x3dc80) then show the alert `[WARN][Flash Problem]<text>[OK]`: a warning titled "Flash Problem" with one OK
+  button. A load's result is not shown (the list does not wait for it).
+* Origin 1, `CFlashDumper::HandleFlashCommandResult` 0x118dc6: result 4 (and a `18` marker with code 2,
+  `CMFlashDumpMarker::UseOnSynth` 0x11c96) → `HandleMemoryProtected` 0x118b0c: "Memory protect on!" is added to the
+  bank transfer's log and the transfer is aborted.
 
 ---------------------------------------------------------------------------------------------------
 

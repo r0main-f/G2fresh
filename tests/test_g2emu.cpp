@@ -14,6 +14,7 @@
 #include "g2/module_db.hpp"
 #include "g2/patch.hpp"
 #include "g2/proto/client.hpp"
+#include "SynthSettingsForm.h"
 #include "g2/uprate.hpp"
 #include "g2emu/firmware.hpp"
 #include "g2emu/machine.hpp"
@@ -1733,4 +1734,216 @@ TEST_CASE("The user's G2 OS: a new emulated G2 gets a factory G2's system settin
     CHECK(old.client.state().settings.name == "ModularG2");
     CHECK(old.client.state().settings.globalChannel == 15);
     CHECK(old.stored(0, 0));
+}
+
+TEST_CASE("The user's G2 OS: the Synth Settings window's fields reach the OS and come back, from its System menu too; "
+          "a store under Memory Protect is refused with the original's message",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    using g2ui::SettingsEcho;
+    using g2ui::SynthSettingsForm;
+    struct Heard : g2::proto::Client::Listener {
+        std::vector<g2::proto::FlashResult> flashResults;
+        int synthChanges = 0;
+        void flashResult(const g2::proto::FlashResult& r) override { flashResults.push_back(r); }
+        void synthChanged() override { ++synthChanges; }
+    } heard;
+    Machine m(fw);
+    m.run(Machine::FrameRate * 2);
+    MachineTransport transport(m);
+    g2::proto::ManualClock clock;
+    g2::proto::Client client(transport, clock);
+    client.setListener(&heard);
+    m.plugUsb();
+    auto step = [&] {
+        m.run(Machine::FrameRate / 1000);
+        clock.set(std::uint64_t(m.seconds() * 1000));
+        client.tick();
+    };
+    auto run = [&](double s) {
+        const double end = m.seconds() + s;
+        while(m.seconds() < end) step();
+    };
+    auto settle = [&] {
+        const double end = m.seconds() + 4;
+        while(!client.idle() && m.seconds() < end) step();
+        run(0.3);
+        return client.idle();
+    };
+    auto press = [&](PanelButton b) {
+        m.panelButton(b, true);
+        run(0.03);
+        m.panelButton(b, false);
+        run(0.05);
+    };
+    auto trim = [](std::string s) {
+        s.erase(0, s.find_first_not_of(' '));
+        s.erase(s.find_last_not_of(' ') + 1);
+        return s;
+    };
+    auto title = [&] {
+        const auto line = m.panel().displays[0].text(0);
+        return trim(line.substr(0, line.find('|')));
+    };
+    auto value = [&] { return trim(m.panel().displays[0].text(1)); };
+    // The OS's System menu, title -> value, down to Synth Name (its last page)
+    auto systemMenu = [&] {
+        std::map<std::string, std::string> pages;
+        press(PanelButton::System);
+        for(int i = 0; i < 20; ++i)
+        {
+            pages[title()] = value();
+            if(title() == "Synth Name") break;
+            press(PanelButton::NavDown);
+        }
+        press(PanelButton::System);
+        return pages;
+    };
+    auto stored = [&](std::uint8_t bank, std::uint8_t prog) {
+        for(const auto& n : client.state().flash[0])
+            if(n.bank == bank && n.prog == prog) return true;
+        return false;
+    };
+    while(!client.synced() && m.seconds() < 4) step();
+    REQUIRE(client.synced());
+
+    // The window opens with the synth's settings (a new G2: the OS's own) ...
+    auto sent = client.state().settings;
+    SettingsEcho echo;
+    echo.start(sent);
+    SynthSettingsForm form;
+    form.take(sent);
+    CHECK(form.name == "ModularG2");
+    CHECK(form.channel == std::array<int, 4>{1, 2, 3, 4});
+    CHECK(form.active == std::array<bool, 4>{true, true, true, true});
+    CHECK(form.globalChannel == 16);
+    CHECK_FALSE(form.memoryProtect);
+    CHECK(SynthSettingsForm::freeMemoryText(client.state().flashUsage) == "100.0%");
+    // ... and sends each change as the original's dialog does: the settings last sent with the fields, in one 03
+    auto change = [&] {
+        sent = form.applyTo(sent);
+        echo.sent(sent);
+        client.setSynthSettings(sent);
+        REQUIRE(settle());
+        CHECK_FALSE(echo.changedElsewhere(client.state().settings));  // its own change, not the synth's
+    };
+    form.name = "Fresh G2";
+    form.channel = {5, 6, 7, 8};
+    form.active = {true, true, false, true};
+    form.globalChannel = SynthSettingsForm::wrap(form.globalChannel + 1);  // Off
+    form.sysExId = 3;
+    form.sendClock = true;
+    form.ignoreExternalClock = true;
+    form.controllersReceive = true;
+    form.controllersSend = false;
+    form.programChangeReceive = false;
+    form.programChangeSend = true;
+    form.semi = -3;
+    form.cent = 12;
+    form.octaveShift = true;
+    form.octave = 1;
+    form.pedalGain = 16;
+    form.pedalClosed = true;
+    form.memoryProtect = true;
+    change();
+
+    // The OS took them: read again from the synth, they are the window's fields ...
+    client.resync();
+    REQUIRE(settle());
+    SynthSettingsForm back;
+    back.channel = form.channel;  // an inactive slot's number is the window's own
+    back.take(client.state().settings);
+    CHECK(back == form);
+    CHECK(client.state().settings.name == "Fresh G2");
+    CHECK(client.state().settings.midiChannels == std::array<std::uint8_t, 4>{4, 5, 16, 7});
+    CHECK(client.state().settings.globalChannel == 16);
+    CHECK(client.state().settings.transpose == -3);
+    CHECK(client.state().settings.masterTune == 12);
+    // ... and its own System menu shows them
+    {
+        const auto menu = systemMenu();
+        std::string pages;
+        for(const auto& [t, v] : menu) pages += t + ": '" + v + "'; ";
+        INFO(pages);
+        CHECK(menu.at("Synth Name") == "Fresh G2");
+        CHECK(menu.at("MIDI Glob Ch") == "Off");
+        CHECK(menu.at("MIDI SysEx Id") == "3");
+        CHECK(menu.at("MIDI Clk Send") == "On");
+        CHECK(menu.at("MIDI Clk Recv") == "Off");
+        CHECK(menu.at("MIDI Ctrl") == "Receive");
+        CHECK(menu.at("MIDI Prg Chng") == "Send");
+        CHECK(menu.at("MIDI Local") == "On");
+        CHECK(menu.at("Master Tune") == "-3 semi  12 cent");
+        CHECK(menu.at("Ctrl Ped Gain") == "x1.25");
+        CHECK(menu.at("Sust Ped Pol") == "Closed");
+        CHECK(menu.at("Memory Prot") == "On");
+    }
+
+    // Memory Protect on: the OS answers a store with result 4, the original's "Memory protect on", and stores nothing
+    client.storeToFlash(0, 0, 0);
+    REQUIRE(settle());
+    REQUIRE(heard.flashResults.size() == 1);
+    CHECK(heard.flashResults[0].result == 4);
+    CHECK(std::string(g2::proto::flashResultText(heard.flashResults[0].result)) == "Memory protect on");
+    CHECK_FALSE(stored(0, 0));
+
+    // Switched off on the G2 itself (System, down to Memory Prot, the dial): the OS tells the editor, and the window
+    // takes it as the synth's change
+    const int before = heard.synthChanges;
+    press(PanelButton::System);
+    // (the menu opens on the page it was left on, Synth Name, its last)
+    for(int i = 0; i < 20 && title() != "Memory Prot"; ++i) press(PanelButton::NavUp);
+    REQUIRE(title() == "Memory Prot");
+    m.panelEncoder(PanelEncoder::Dial, -1);
+    run(0.3);
+    if(value() != "Off")
+    {
+        m.panelEncoder(PanelEncoder::Dial, 2);
+        run(0.3);
+    }
+    CHECK(value() == "Off");
+    press(PanelButton::System);
+    run(0.3);
+    CHECK(heard.synthChanges > before);
+    CHECK_FALSE(client.state().settings.memoryProtect);
+    REQUIRE(echo.changedElsewhere(client.state().settings));
+    sent = client.state().settings;
+    form.take(sent);
+    CHECK_FALSE(form.memoryProtect);
+    CHECK(form.name == "Fresh G2");  // the rest as it was
+    CHECK(form.semi == -3);
+
+    // and the store goes through: result 2 (with the memory's usage and the new name), no message
+    client.storeToFlash(0, 0, 0);
+    REQUIRE(settle());
+    REQUIRE(heard.flashResults.size() == 2);
+    CHECK(heard.flashResults[1].result == 2);
+    CHECK(std::string(g2::proto::flashResultText(heard.flashResults[1].result)).empty());
+    CHECK(stored(0, 0));
+    CHECK(client.state().flashUsage.has_value());
+
+    // Cancel: the settings the window opened with go back
+    const auto opened = sent;
+    form.localOn = false;
+    form.cent = -40;
+    change();
+    form.take(opened);
+    change();
+    client.resync();
+    REQUIRE(settle());
+    back.channel = form.channel;
+    back.take(client.state().settings);
+    CHECK(back == form);
+    CHECK(back.localOn);
+    CHECK(back.cent == 12);
+    CHECK(m.stats().exceptions == 0);
 }

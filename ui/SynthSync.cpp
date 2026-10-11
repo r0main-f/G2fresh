@@ -576,6 +576,13 @@ void SynthSync::flashNamesChanged(g2::u8)
     sendChangeMessage();
 }
 
+void SynthSync::flashResult(const g2::proto::FlashResult& r)
+{
+    const juce::String text = g2::proto::flashResultText(r.result);
+    if (text.isNotEmpty() && onFlashProblem)
+        onFlashProblem(text);
+}
+
 void SynthSync::performanceChanged()
 {
     sendChangeMessage();

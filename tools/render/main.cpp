@@ -4,6 +4,7 @@
 //   g2render modules <out.png> [typeId...]   (all selectable modules if none given)
 //   g2render patch <file.pch2> <out.png>
 //   g2render ui <file.pch2> <out.png>        (the whole editor window)
+//   g2render synthsettings <out.png>         (the Synth Settings window, over the virtual G2)
 //
 // Set G2_LOOK=classic to draw with the original bitmaps instead of the modern look
 // (they come from Clavia's download: G2_CLAVIA_DMG=<the .dmg>, or the one chosen in
@@ -12,6 +13,7 @@
 #include "LiveView.h"
 #include "MainView.h"
 #include "MutatorWindow.h"
+#include "SynthSettingsWindow.h"
 #include "ModulePainter.h"
 
 #include "g2/edit.hpp"
@@ -189,6 +191,27 @@ int renderLive(const juce::File& out, bool live)
     return 0;
 }
 
+// The Synth Settings window's content, over the virtual G2.
+int renderSynthSettings(const juce::File& out)
+{
+    PatchDocument doc;
+    SynthSync synth(doc);
+    synth.connectVirtual();
+    // no message loop here: the link's timer is run by hand until the virtual G2 is read
+    for (int i = 0; i < 500 && !synth.ready(); ++i) {
+        juce::Thread::sleep(10);
+        juce::Timer::callPendingTimersSynchronously();
+    }
+    const auto panel = makeSynthSettingsPanel(synth);
+    if (panel == nullptr) {
+        std::cerr << "the virtual G2 did not come up\n";
+        return 1;
+    }
+    writePng(panel->createComponentSnapshot(panel->getLocalBounds(), true, 2.0f), out);
+    std::cout << "rendered the Synth Settings window\n";
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -203,6 +226,8 @@ int main(int argc, char* argv[])
         }
         if (args.size() == 2 && args[0] == "mutator")
             return renderMutator(juce::File::getCurrentWorkingDirectory().getChildFile(args[1]));
+        if (args.size() == 2 && args[0] == "synthsettings")
+            return renderSynthSettings(juce::File::getCurrentWorkingDirectory().getChildFile(args[1]));
         if (args.size() == 3 && args[0] == "tooltip")
             return renderTooltip(args[1].getIntValue(), juce::File::getCurrentWorkingDirectory().getChildFile(args[2]));
         if (args.size() == 3 && args[0] == "ui")

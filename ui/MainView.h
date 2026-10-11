@@ -132,6 +132,10 @@ private:
     SynthSync* synth_ = nullptr;
     EmulatorHost* emulator_ = nullptr;
     std::unique_ptr<class BankBrowser> bankBrowser_;
+    std::unique_ptr<juce::Component> synthSettings_;
+    void showSynthSettings();
+    // A store the synth refused: the original's alert ("Flash Problem").
+    void showFlashProblem(const juce::String& text);
     juce::Label synthStatus_;
     void updateSynthStatus();
     // Connects to the emulated G2, from the G2 OS chosen before (or asks where it is).
