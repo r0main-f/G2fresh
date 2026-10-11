@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Generates core/src/module_db_data.cpp from data/modules.json and
-data/param_text.json, so the editor carries its module database compiled in.
+"""Generates core/src/module_db_data.cpp from data/modules.json,
+data/param_text.json and the panel layouts (assets/clavia/panels.json, for
+the label controls), so the editor carries its module database compiled in.
 
     gen_cpp.py [--check]
 
@@ -58,6 +59,40 @@ def dep_code(dep):
     raise ValueError("unknown dependency " + dep)
 
 
+def label_controls(mdb):
+    """Per module type, the panel's label controls in panel order: the PANL
+    `TextEdit` (CPnlLabelButton) and `ButtonRadioEdit` (CPnlLabelRadioButton)
+    elements, whose captions the user can rename (CanChangeName) and which
+    write one custom-data record each (CPanel::GetCustomData)."""
+    with open(os.path.join(ROOT, "assets", "clavia", "panels.json"), encoding="utf-8") as f:
+        panels = json.load(f)
+    type_of = {m.get("panelResId"): m["typeId"] for m in mdb["modules"] if m.get("panelResId")}
+    out = {}
+
+    def walk(node, found):
+        if node.get("type") in ("TextEdit", "ButtonRadioEdit"):
+            found.append(node)
+        for child in node.get("children", []):
+            walk(child, found)
+
+    for panel in panels:
+        found = []
+        walk(panel, found)
+        t = type_of.get(panel.get("resId"))
+        if t is None or not found:
+            continue
+        labels = []
+        for e in found:
+            texts = [x for x in (e.get("Text") or "").split(",") if x != ""]
+            if e["type"] == "TextEdit":
+                buttons = 1
+            else:
+                buttons = int(e.get("ButtonColumns", 1)) * int(e.get("ButtonRows", 1))
+            labels.append((int(e["CodeRef"]), buttons, ",".join(texts)))
+        out[t] = labels
+    return out
+
+
 def generate():
     with open(os.path.join(ROOT, "data", "modules.json"), encoding="utf-8") as f:
         mdb = json.load(f)
@@ -82,8 +117,14 @@ def generate():
         "",
     ]
     modules = sorted(mdb["modules"], key=lambda m: m["typeId"])
+    labels = label_controls(mdb)
     for m in modules:
         t = m["typeId"]
+        if t in labels:
+            lines.append(f"const LabelDef kLabels{t}[] = {{")
+            for param, buttons, texts in labels[t]:
+                lines.append(f"    {{{param}, {buttons}, {cstr(texts)}}},")
+            lines.append("};")
         for kind in ("inputs", "outputs"):
             conns = m.get(kind) or []
             if not conns:
@@ -107,7 +148,9 @@ def generate():
                 deps += [0xFF] * (2 - len(deps))
                 lines.append(f"    {{{cstr(p['name'])}, {p['min']}, {p['max']}, {p['default']}, "
                              f"{'true' if p.get('morphable') else 'false'}, {func}, "
-                             f"{{{deps[0]}, {deps[1]}}}, {cstr(p.get('rangeType'))}}},")
+                             f"{{{deps[0]}, {deps[1]}}}, {cstr(p.get('rangeType'))}, "
+                             f"{'true' if p.get('momentary') else 'false'}, "
+                             f"{'false' if p.get('midiAssignable') is False else 'true'}}},")
             lines.append("};")
         modes = m.get("modes") or []
         if modes:
@@ -136,7 +179,8 @@ def generate():
             f"{m.get('panelResId') or 0}, {m.get('faceResId') or 0}, "
             f"{span('Inputs', 'inputs')}, {span('Outputs', 'outputs')}, "
             f"{span('Params', 'params')}, {span('Modes', 'modes')}, {cstr(descriptions.get(m['shortName']))}, "
-            f"{m['toolbarSlot'] if m.get('toolbarSlot') is not None else 255}}},")
+            f"{m['toolbarSlot'] if m.get('toolbarSlot') is not None else 255}, "
+            f"{('kLabels' + str(t)) if t in labels else '{}'}}},")
     lines += ["};", "", "const CategoryDef kCategories[] = {"]
     for c in mdb["categories"]:
         r, g, b = c["color"]

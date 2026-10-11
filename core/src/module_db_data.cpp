@@ -22,18 +22,18 @@ const ConnectorDef kInputs3[] = {
     {"In4", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams3[] = {
-    {"Dest", 0, 2, 0, true, 183, {255, 255}, "Dst_2"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Pad", 0, 1, 0, true, 180, {255, 255}, "Pad_1"},
+    {"Dest", 0, 2, 0, true, 183, {255, 255}, "Dst_2", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Pad", 0, 1, 0, true, 180, {255, 255}, "Pad_1", false, true},
 };
 const ConnectorDef kInputs4[] = {
     {"InL", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
     {"InR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams4[] = {
-    {"Dest", 0, 5, 0, true, 182, {255, 255}, "Dst_1"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Pad", 0, 1, 0, true, 180, {255, 255}, "Pad_1"},
+    {"Dest", 0, 5, 0, true, 182, {255, 255}, "Dst_1", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Pad", 0, 1, 0, true, 180, {255, 255}, "Pad_1", false, true},
 };
 const ConnectorDef kInputs5[] = {
     {"In1", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -44,22 +44,22 @@ const ConnectorDef kOutputs5[] = {
     {"Out2", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams6[] = {
-    {"Wheel", 0, 127, 0, false, 0, {255, 255}, nullptr},
-    {"Vel", 0, 127, 0, false, 0, {255, 255}, nullptr},
-    {"Keyb", 0, 127, 0, false, 0, {255, 255}, nullptr},
-    {"Aft.Tch", 0, 127, 0, false, 0, {255, 255}, nullptr},
-    {"Sust.Pd", 0, 127, 0, false, 0, {255, 255}, nullptr},
-    {"Ctrl.Pd", 0, 127, 0, false, 0, {255, 255}, nullptr},
-    {"P.Stick", 0, 127, 0, false, 0, {255, 255}, nullptr},
-    {"G.Wh 2", 0, 127, 0, false, 0, {255, 255}, nullptr},
-    {"Src Gr1", 0, 1, 1, false, 221, {255, 255}, nullptr},
-    {"Src Gr2", 0, 1, 1, false, 222, {255, 255}, nullptr},
-    {"Src Gr3", 0, 1, 1, false, 223, {255, 255}, nullptr},
-    {"Src Gr4", 0, 1, 1, false, 224, {255, 255}, nullptr},
-    {"Src Gr5", 0, 2, 1, false, 225, {255, 255}, nullptr},
-    {"Src Gr6", 0, 1, 1, false, 226, {255, 255}, nullptr},
-    {"Src Gr7", 0, 1, 1, false, 227, {255, 255}, nullptr},
-    {"Src Gr8", 0, 1, 1, false, 228, {255, 255}, nullptr},
+    {"Wheel", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
+    {"Vel", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
+    {"Keyb", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
+    {"Aft.Tch", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
+    {"Sust.Pd", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
+    {"Ctrl.Pd", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
+    {"P.Stick", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
+    {"G.Wh 2", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
+    {"Src Gr1", 0, 1, 1, false, 221, {255, 255}, nullptr, false, true},
+    {"Src Gr2", 0, 1, 1, false, 222, {255, 255}, nullptr, false, true},
+    {"Src Gr3", 0, 1, 1, false, 223, {255, 255}, nullptr, false, true},
+    {"Src Gr4", 0, 1, 1, false, 224, {255, 255}, nullptr, false, true},
+    {"Src Gr5", 0, 2, 1, false, 225, {255, 255}, nullptr, false, true},
+    {"Src Gr6", 0, 1, 1, false, 226, {255, 255}, nullptr, false, true},
+    {"Src Gr7", 0, 1, 1, false, 227, {255, 255}, nullptr, false, true},
+    {"Src Gr8", 0, 1, 1, false, 228, {255, 255}, nullptr, false, true},
 };
 const ConnectorDef kInputs7[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -72,17 +72,17 @@ const ConnectorDef kOutputs7[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams7[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
-    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW"},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Wave", 0, 4, 2, true, 156, {255, 255}, "OscBWaveForm"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW", false, true},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Wave", 0, 4, 2, true, 156, {255, 255}, "OscBWaveForm", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true},
 };
 const ConnectorDef kInputs8[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -95,16 +95,16 @@ const ConnectorDef kOutputs8[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams8[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
-    {"FM Amt", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW"},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"FM Amt", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW", false, true},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true},
 };
 const ModeDef kModes8[] = {
     {"Wave", 0, 7, 0, 0, "OscWaveForm_3"},
@@ -119,14 +119,14 @@ const ConnectorDef kOutputs9[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams9[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
-    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ModeDef kModes9[] = {
     {"Wave", 0, 5, 0, 0, "OscWaveForm_2"},
@@ -140,10 +140,10 @@ const ConnectorDef kOutputs12[] = {
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams12[] = {
-    {"Time", 0, 127, 64, true, 107, {128, 255}, "ReverbTime"},
-    {"Bright", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Mix", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Time", 0, 127, 64, true, 107, {128, 255}, "ReverbTime", false, true},
+    {"Bright", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Mix", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ModeDef kModes12[] = {
     {"RoomType", 0, 3, 0, 90, "RoomType"},
@@ -157,14 +157,17 @@ const ConnectorDef kOutputs13[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams13[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
-    {"Decay", 0, 127, 80, true, 0, {255, 255}, "Level_100"},
-    {"Damp", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"Decay", 0, 127, 80, true, 0, {255, 255}, "Level_100", false, true},
+    {"Damp", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+};
+const LabelDef kLabels15[] = {
+    {0, 8, "In 1,In 2,In 3,In 4,In 5,In 6,In 7,In 8"},
 };
 const ConnectorDef kInputs15[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -181,7 +184,7 @@ const ConnectorDef kOutputs15[] = {
     {"Control", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams15[] = {
-    {"Source", 0, 7, 0, true, 64, {255, 255}, "sw_3_in"},
+    {"Source", 0, 7, 0, true, 64, {255, 255}, "sw_3_in", false, true},
 };
 const ConnectorDef kInputs17[] = {
     {"Input", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -192,7 +195,7 @@ const ConnectorDef kOutputs17[] = {
     {"OutOff", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams17[] = {
-    {"Value", 0, 63, 0, true, 114, {255, 255}, "ValSwVal"},
+    {"Value", 0, 63, 0, true, 114, {255, 255}, "ValSwVal", false, true},
 };
 const ConnectorDef kInputs18[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -203,9 +206,9 @@ const ConnectorDef kOutputs18[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams18[] = {
-    {"XFadeM", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"XFade", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127"},
-    {"Log/Lin", 0, 1, 0, true, 157, {255, 255}, "LogLin"},
+    {"XFadeM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"XFade", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
+    {"Log/Lin", 0, 1, 0, true, 157, {255, 255}, "LogLin", false, true},
 };
 const ConnectorDef kInputs19[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -218,11 +221,11 @@ const ConnectorDef kOutputs19[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams19[] = {
-    {"Level 1", 0, 127, 100, true, 102, {4, 255}, "MixLevel"},
-    {"Level 2", 0, 127, 100, true, 102, {4, 255}, "MixLevel"},
-    {"Level 3", 0, 127, 100, true, 102, {4, 255}, "MixLevel"},
-    {"Level 4", 0, 127, 100, true, 102, {4, 255}, "MixLevel"},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2"},
+    {"Level 1", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
+    {"Level 2", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
+    {"Level 3", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
+    {"Level 4", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
 };
 const ConnectorDef kInputs20[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -234,14 +237,14 @@ const ConnectorDef kOutputs20[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams20[] = {
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3"},
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime"},
-    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime"},
-    {"Sustain", 0, 127, 100, true, 16, {255, 255}, "EnvLevel"},
-    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime"},
-    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv"},
-    {"KBG", 0, 1, 1, true, 47, {255, 255}, "OffOn"},
-    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR"},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Sustain", 0, 127, 100, true, 16, {255, 255}, "EnvLevel", false, true},
+    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
+    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv", false, true},
+    {"KBG", 0, 1, 1, true, 47, {255, 255}, "OffOn", false, true},
+    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
 };
 const ConnectorDef kInputs21[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -264,7 +267,7 @@ const ConnectorDef kOutputs22[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams22[] = {
-    {"Range", 0, 127, 127, true, 68, {255, 255}, "PartialRange"},
+    {"Range", 0, 127, 127, true, 68, {255, 255}, "PartialRange", false, true},
 };
 const ConnectorDef kInputs23[] = {
     {"Gate", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -280,16 +283,16 @@ const ConnectorDef kOutputs23[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams23[] = {
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime"},
-    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime"},
-    {"Sustain", 0, 127, 100, true, 16, {255, 255}, "EnvLevel"},
-    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime"},
-    {"Atk M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Dcy M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Sust M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Rel M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv"},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Sustain", 0, 127, 100, true, 16, {255, 255}, "EnvLevel", false, true},
+    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Atk M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Dcy M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Sust M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Rel M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv", false, true},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs24[] = {
     {"Rate", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -298,11 +301,11 @@ const ConnectorDef kOutputs24[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams24[] = {
-    {"Rate", 0, 127, 64, true, 103, {3, 255}, "LfoRate_3"},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono"},
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo"},
-    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
+    {"Rate", 0, 127, 64, true, 103, {3, 255}, "LfoRate_3", false, true},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true},
+    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
 };
 const ModeDef kModes24[] = {
     {"Wave", 0, 7, 0, 0, "LfoWaveForm_1"},
@@ -320,18 +323,18 @@ const ConnectorDef kOutputs25[] = {
     {"Snc", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams25[] = {
-    {"Rate", 0, 127, 64, true, 103, {1, 255}, "LfoRate_4"},
-    {"Range", 0, 4, 1, true, 104, {255, 255}, "LfoRange_4"},
-    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4"},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Shape", 0, 127, 64, true, 128, {255, 255}, "LfoShpAPW"},
-    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Phase", 0, 127, 0, true, 163, {255, 255}, "Phase"},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono"},
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo"},
-    {"Wave", 0, 5, 0, true, 165, {255, 255}, "LfoShpA__WaveForm"},
+    {"Rate", 0, 127, 64, true, 103, {1, 255}, "LfoRate_4", false, true},
+    {"Range", 0, 4, 1, true, 104, {255, 255}, "LfoRange_4", false, true},
+    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Shape", 0, 127, 64, true, 128, {255, 255}, "LfoShpAPW", false, true},
+    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Phase", 0, 127, 0, true, 163, {255, 255}, "Phase", false, true},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true},
+    {"Wave", 0, 5, 0, true, 165, {255, 255}, "LfoShpA__WaveForm", false, true},
 };
 const ConnectorDef kInputs26[] = {
     {"Rate", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -341,14 +344,14 @@ const ConnectorDef kOutputs26[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams26[] = {
-    {"Rate", 0, 127, 64, true, 103, {7, 255}, "LfoRate_3"},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono"},
-    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4"},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Wave", 0, 5, 0, true, 106, {255, 255}, "LfoA_WaveForm"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo"},
-    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3"},
+    {"Rate", 0, 127, 64, true, 103, {7, 255}, "LfoRate_3", false, true},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
+    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Wave", 0, 5, 0, true, 106, {255, 255}, "LfoA_WaveForm", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true},
+    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true},
 };
 const ConnectorDef kInputs27[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -358,11 +361,11 @@ const ConnectorDef kOutputs27[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams27[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Tune Md", 0, 2, 0, true, 63, {255, 255}, "FreqMode_2"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Tune Md", 0, 2, 0, true, 63, {255, 255}, "FreqMode_2", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ConnectorDef kInputs28[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -372,10 +375,10 @@ const ConnectorDef kOutputs28[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams28[] = {
-    {"Sat", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Sat M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"Curve", 0, 3, 0, true, 2, {255, 255}, "SaturateCurve"},
+    {"Sat", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Sat M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Curve", 0, 3, 0, true, 2, {255, 255}, "SaturateCurve", false, true},
 };
 const ConnectorDef kInputs29[] = {
     {"FreqMod", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -385,11 +388,11 @@ const ConnectorDef kOutputs29[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams29[] = {
-    {"Color", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Freq", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"ColorM", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Color", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Freq", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"ColorM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ConnectorDef kOutputs30[] = {
     {"Wheel", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -404,8 +407,8 @@ const ConnectorDef kOutputs31[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams31[] = {
-    {"Color", 0, 127, 0, true, 0, {255, 255}, "NoiseColor"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
+    {"Color", 0, 127, 0, true, 0, {255, 255}, "NoiseColor", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs32[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -414,12 +417,12 @@ const ConnectorDef kOutputs32[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams32[] = {
-    {"Lo Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB"},
-    {"Hi Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB"},
-    {"Level", 0, 127, 127, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"Lo Freq", 0, 2, 0, true, 213, {255, 255}, "EqLoFreq"},
-    {"Hi Freq", 0, 2, 2, true, 214, {255, 255}, "EqHiFreq"},
+    {"Lo Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
+    {"Hi Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
+    {"Level", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Lo Freq", 0, 2, 0, true, 213, {255, 255}, "EqLoFreq", false, true},
+    {"Hi Freq", 0, 2, 2, true, 214, {255, 255}, "EqHiFreq", false, true},
 };
 const ConnectorDef kInputs33[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -428,14 +431,14 @@ const ConnectorDef kOutputs33[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams33[] = {
-    {"Lo", 0, 127, 64, true, 36, {255, 255}, "EqdB"},
-    {"Mid", 0, 127, 64, true, 36, {255, 255}, "EqdB"},
-    {"Mid Frq", 0, 127, 93, true, 184, {255, 255}, "EqMidFreq"},
-    {"Hi", 0, 127, 64, true, 36, {255, 255}, "EqdB"},
-    {"Level", 0, 127, 127, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"Lo Freq", 0, 2, 0, true, 213, {255, 255}, "EqLoFreq"},
-    {"Hi Freq", 0, 2, 2, true, 214, {255, 255}, "EqHiFreq"},
+    {"Lo", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
+    {"Mid", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
+    {"Mid Frq", 0, 127, 93, true, 184, {255, 255}, "EqMidFreq", false, true},
+    {"Hi", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
+    {"Level", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Lo Freq", 0, 2, 0, true, 213, {255, 255}, "EqLoFreq", false, true},
+    {"Hi Freq", 0, 2, 2, true, 214, {255, 255}, "EqHiFreq", false, true},
 };
 const ConnectorDef kInputs34[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -445,10 +448,10 @@ const ConnectorDef kOutputs34[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams34[] = {
-    {"Shape", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"Curve", 0, 3, 0, true, 192, {255, 255}, "ShpExpCurve"},
+    {"Shape", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Curve", 0, 3, 0, true, 192, {255, 255}, "ShpExpCurve", false, true},
 };
 const ConnectorDef kInputs35[] = {
     {"In1", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -458,11 +461,14 @@ const ConnectorDef kOutputs35[] = {
     {"Out1", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams35[] = {
-    {"Embouch", 0, 127, 0, false, 0, {255, 255}, "EnvLevel"},
-    {"Stiffn", 0, 127, 0, false, 0, {255, 255}, "EnvLevel"},
+    {"Embouch", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
+    {"Stiffn", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
 };
 const ModeDef kModes35[] = {
     {"Driver T", 0, 3, 0, 0, "Driver_range"},
+};
+const LabelDef kLabels36[] = {
+    {0, 1, "On"},
 };
 const ConnectorDef kInputs36[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -472,7 +478,7 @@ const ConnectorDef kOutputs36[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams36[] = {
-    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
+    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
 };
 const ConnectorDef kInputs38[] = {
     {"In", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -482,9 +488,9 @@ const ConnectorDef kOutputs38[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams38[] = {
-    {"Time", 0, 127, 1, true, 122, {2, 255}, "LogicTime"},
-    {"Time M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Range", 0, 2, 0, true, 30, {255, 255}, "LogicRange"},
+    {"Time", 0, 127, 1, true, 122, {2, 255}, "LogicTime", false, true},
+    {"Time M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Range", 0, 2, 0, true, 30, {255, 255}, "LogicRange", false, true},
 };
 const ModeDef kModes38[] = {
     {"PulseMode", 0, 1, 0, 0, "PulseMode"},
@@ -504,16 +510,16 @@ const ConnectorDef kOutputs40[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams40[] = {
-    {"Level 1", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 2", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 3", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 4", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 5", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 6", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 7", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 8", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2"},
-    {"Pad", 0, 2, 0, true, 188, {255, 255}, "Pad_3"},
+    {"Level 1", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 2", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 3", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 4", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 5", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 6", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 7", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 8", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+    {"Pad", 0, 2, 0, true, 188, {255, 255}, "Pad_3", false, true},
 };
 const ConnectorDef kInputs41[] = {
     {"Trig", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -525,8 +531,8 @@ const ConnectorDef kOutputs41[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams41[] = {
-    {"HldTime", 0, 127, 32, true, 28, {255, 255}, "EnvTime"},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv"},
+    {"HldTime", 0, 127, 32, true, 28, {255, 255}, "EnvTime", false, true},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
 };
 const ConnectorDef kInputs42[] = {
     {"In", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -536,9 +542,9 @@ const ConnectorDef kOutputs42[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams42[] = {
-    {"Time", 0, 127, 64, true, 122, {2, 255}, "LogicTime"},
-    {"Time M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Range", 0, 2, 1, true, 30, {255, 255}, "LogicRange"},
+    {"Time", 0, 127, 64, true, 122, {2, 255}, "LogicTime", false, true},
+    {"Time M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Range", 0, 2, 1, true, 30, {255, 255}, "LogicRange", false, true},
 };
 const ModeDef kModes42[] = {
     {"DelayMode", 0, 2, 0, 0, "LogicDelayMode"},
@@ -547,8 +553,8 @@ const ConnectorDef kOutputs43[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams43[] = {
-    {"Level", 0, 127, 64, true, 96, {1, 255}, "LevBipUni"},
-    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni"},
+    {"Level", 0, 127, 64, true, 96, {1, 255}, "LevBipUni", false, true},
+    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni", false, true},
 };
 const ConnectorDef kInputs44[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -566,16 +572,16 @@ const ConnectorDef kOutputs45[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams45[] = {
-    {"Vowel 1", 0, 8, 0, true, 78, {255, 255}, "Vowel"},
-    {"Vowel 2", 0, 8, 1, true, 78, {255, 255}, "Vowel"},
-    {"Vowel 3", 0, 8, 2, true, 78, {255, 255}, "Vowel"},
-    {"Level", 0, 127, 100, true, 0, {255, 255}, "Level_100"},
-    {"Nav", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Nav M", 0, 127, 0, true, 0, {255, 255}, "Bipolar_127"},
-    {"Freq", 0, 127, 64, true, 17, {255, 255}, "Level_100"},
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Bipolar_127"},
-    {"Res", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Vowel 1", 0, 8, 0, true, 78, {255, 255}, "Vowel", false, true},
+    {"Vowel 2", 0, 8, 1, true, 78, {255, 255}, "Vowel", false, true},
+    {"Vowel 3", 0, 8, 2, true, 78, {255, 255}, "Vowel", false, true},
+    {"Level", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
+    {"Nav", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Nav M", 0, 127, 0, true, 0, {255, 255}, "Bipolar_127", false, true},
+    {"Freq", 0, 127, 64, true, 17, {255, 255}, "Level_100", false, true},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Bipolar_127", false, true},
+    {"Res", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs46[] = {
     {"Trig", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -587,13 +593,13 @@ const ConnectorDef kOutputs46[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams46[] = {
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3"},
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime"},
-    {"Hold", 0, 127, 32, true, 28, {255, 255}, "EnvTime"},
-    {"Trigged", 0, 1, 0, true, 138, {255, 255}, "EnvNR"},
-    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime"},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv"},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Hold", 0, 127, 32, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Trigged", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
+    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs47[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -604,9 +610,9 @@ const ConnectorDef kOutputs47[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams47[] = {
-    {"Pan M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Pan", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127"},
-    {"Log/Lin", 0, 1, 0, true, 157, {255, 255}, "LogLin"},
+    {"Pan M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Pan", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
+    {"Log/Lin", 0, 1, 0, true, 157, {255, 255}, "LogLin", false, true},
 };
 const ConnectorDef kInputs48[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -621,19 +627,19 @@ const ConnectorDef kOutputs48[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams48[] = {
-    {"Lvl 1", 0, 127, 100, true, 0, {255, 255}, "Level_100"},
-    {"Lvl 2", 0, 127, 100, true, 0, {255, 255}, "Level_100"},
-    {"Lvl 3", 0, 127, 100, true, 0, {255, 255}, "Level_100"},
-    {"Lvl 4", 0, 127, 100, true, 0, {255, 255}, "Level_100"},
-    {"Lvl 5", 0, 127, 100, true, 0, {255, 255}, "Level_100"},
-    {"Lvl 6", 0, 127, 100, true, 0, {255, 255}, "Level_100"},
-    {"Pan 1", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127"},
-    {"Pan 2", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127"},
-    {"Pan 3", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127"},
-    {"Pan 4", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127"},
-    {"Pan 5", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127"},
-    {"Pan 6", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127"},
-    {"Master", 0, 127, 100, true, 0, {255, 255}, "Level_100"},
+    {"Lvl 1", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
+    {"Lvl 2", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
+    {"Lvl 3", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
+    {"Lvl 4", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
+    {"Lvl 5", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
+    {"Lvl 6", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
+    {"Pan 1", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
+    {"Pan 2", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
+    {"Pan 3", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
+    {"Pan 4", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
+    {"Pan 5", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
+    {"Pan 6", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
+    {"Master", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ConnectorDef kInputs49[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -646,21 +652,24 @@ const ConnectorDef kOutputs49[] = {
     {"HP", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams49[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq"},
-    {"Freq M", 0, 127, 0, true, 191, {255, 255}, "Level_200"},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4"},
-    {"GComp", 0, 1, 1, true, 72, {255, 255}, "GcOffOn"},
-    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1"},
-    {"dB/Oct", 0, 1, 1, true, 73, {255, 255}, "FltSlope_1"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
+    {"Freq M", 0, 127, 0, true, 191, {255, 255}, "Level_200", false, true},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
+    {"GComp", 0, 1, 1, true, 72, {255, 255}, "GcOffOn", false, true},
+    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1", false, true},
+    {"dB/Oct", 0, 1, 1, true, 73, {255, 255}, "FltSlope_1", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+};
+const LabelDef kLabels50[] = {
+    {1, 1, "Switch"},
 };
 const ConnectorDef kOutputs50[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams50[] = {
-    {"Value", 0, 127, 64, true, 96, {2, 255}, "LevBipUni"},
-    {"State", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
-    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni"},
+    {"Value", 0, 127, 64, true, 96, {2, 255}, "LevBipUni", false, true},
+    {"State", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
+    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni", false, true},
 };
 const ConnectorDef kInputs51[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -673,16 +682,16 @@ const ConnectorDef kOutputs51[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams51[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq"},
-    {"Pitch M", 0, 127, 0, true, 191, {255, 255}, "Level_200"},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4"},
-    {"GComp", 0, 1, 1, true, 72, {255, 255}, "GcOffOn"},
-    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1"},
-    {"dB/Oct", 0, 1, 1, true, 74, {255, 255}, "FltSlope_2"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"FrqLinM", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Type", 0, 3, 0, true, 75, {255, 255}, "LpBpHpBr"},
-    {"Res M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
+    {"Pitch M", 0, 127, 0, true, 191, {255, 255}, "Level_200", false, true},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
+    {"GComp", 0, 1, 1, true, 72, {255, 255}, "GcOffOn", false, true},
+    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1", false, true},
+    {"dB/Oct", 0, 1, 1, true, 74, {255, 255}, "FltSlope_2", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"FrqLinM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Type", 0, 3, 0, true, 75, {255, 255}, "LpBpHpBr", false, true},
+    {"Res M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ConnectorDef kInputs52[] = {
     {"Gate", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -694,19 +703,19 @@ const ConnectorDef kOutputs52[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams52[] = {
-    {"Level 1", 0, 127, 127, true, 137, {10, 255}, "EnvLevel"},
-    {"Level 2", 0, 127, 45, true, 137, {10, 255}, "EnvLevel"},
-    {"Level 3", 0, 127, 64, true, 137, {10, 255}, "EnvLevel"},
-    {"Level 4", 0, 127, 0, true, 137, {10, 255}, "EnvLevel"},
-    {"Time 1", 0, 127, 0, true, 28, {255, 255}, "EnvTime"},
-    {"Time 2", 0, 127, 30, true, 28, {255, 255}, "EnvTime"},
-    {"Time 3", 0, 127, 30, true, 28, {255, 255}, "EnvTime"},
-    {"Time 4", 0, 127, 14, true, 28, {255, 255}, "EnvTime"},
-    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR"},
-    {"SusPlac", 0, 3, 2, true, 50, {255, 255}, "SustainMode_2"},
-    {"OutType", 0, 4, 0, true, 46, {255, 255}, "PosNegInvBip"},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3"},
+    {"Level 1", 0, 127, 127, true, 137, {10, 255}, "EnvLevel", false, true},
+    {"Level 2", 0, 127, 45, true, 137, {10, 255}, "EnvLevel", false, true},
+    {"Level 3", 0, 127, 64, true, 137, {10, 255}, "EnvLevel", false, true},
+    {"Level 4", 0, 127, 0, true, 137, {10, 255}, "EnvLevel", false, true},
+    {"Time 1", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Time 2", 0, 127, 30, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Time 3", 0, 127, 30, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Time 4", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
+    {"SusPlac", 0, 3, 2, true, 50, {255, 255}, "SustainMode_2", false, true},
+    {"OutType", 0, 4, 0, true, 46, {255, 255}, "PosNegInvBip", false, true},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
 };
 const ConnectorDef kInputs53[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -722,11 +731,11 @@ const ConnectorDef kOutputs54[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams54[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq"},
-    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1"},
-    {"Type", 0, 2, 0, true, 75, {255, 255}, "LpBpHp"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"GComp", 0, 1, 0, true, 72, {255, 255}, "GcOffOn"},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
+    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1", false, true},
+    {"Type", 0, 2, 0, true, 75, {255, 255}, "LpBpHp", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"GComp", 0, 1, 0, true, 72, {255, 255}, "GcOffOn", false, true},
 };
 const ConnectorDef kInputs55[] = {
     {"Trig", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -738,8 +747,8 @@ const ConnectorDef kOutputs55[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams55[] = {
-    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime"},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv"},
+    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
 };
 const ConnectorDef kInputs56[] = {
     {"In1", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -751,16 +760,16 @@ const ConnectorDef kOutputs56[] = {
     {"Out2", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams56[] = {
-    {"Course", 0, 127, 64, false, 61, {255, 255}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, false, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, false, 26, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, false, 0, {255, 255}, "Level_100"},
-    {"Tune Md", 0, 3, 0, false, 63, {255, 255}, "FreqMode_3"},
-    {"Decay", 0, 127, 0, false, 0, {255, 255}, "EnvLevel"},
-    {"Damp", 0, 127, 0, false, 0, {255, 255}, "EnvLevel"},
-    {"On/Off", 0, 1, 1, false, 7, {255, 255}, "OffOn"},
-    {"Pos", 0, 127, 0, false, 0, {255, 255}, "EnvLevel"},
-    {"Algorithm", 0, 4, 0, false, 0, {255, 255}, "reson_alg"},
+    {"Course", 0, 127, 64, false, 61, {255, 255}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, false, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, false, 26, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, false, 0, {255, 255}, "Level_100", false, true},
+    {"Tune Md", 0, 3, 0, false, 63, {255, 255}, "FreqMode_3", false, true},
+    {"Decay", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
+    {"Damp", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
+    {"On/Off", 0, 1, 1, false, 7, {255, 255}, "OffOn", false, true},
+    {"Pos", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
+    {"Algorithm", 0, 4, 0, false, 0, {255, 255}, "reson_alg", false, true},
 };
 const ConnectorDef kInputs57[] = {
     {"In", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -769,10 +778,10 @@ const ConnectorDef kOutputs57[] = {
     {"Out", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams57[] = {
-    {"Control", 0, 127, 7, false, 179, {255, 255}, "MidiData"},
-    {"Value", 0, 127, 64, true, 179, {255, 255}, "MidiData"},
-    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20"},
-    {"Echo", 0, 1, 0, false, 211, {255, 255}, "OffOn"},
+    {"Control", 0, 127, 7, false, 179, {255, 255}, "MidiData", false, false},
+    {"Value", 0, 127, 64, true, 179, {255, 255}, "MidiData", false, false},
+    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true},
+    {"Echo", 0, 1, 0, false, 211, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs58[] = {
     {"Trig", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -783,22 +792,22 @@ const ConnectorDef kOutputs58[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams58[] = {
-    {"MstTune", 0, 127, 42, true, 22, {255, 255}, "DrumSynthFreq"},
-    {"SlvTune", 0, 127, 15, true, 23, {255, 255}, "DrumSynthRatio"},
-    {"MstDcy", 0, 127, 46, true, 28, {255, 255}, "EnvTime"},
-    {"SlvDcy", 0, 127, 50, true, 28, {255, 255}, "EnvTime"},
-    {"MstLvl", 0, 127, 120, true, 0, {255, 255}, "Level_100"},
-    {"SlvLvl", 0, 127, 102, true, 0, {255, 255}, "Level_100"},
-    {"FltFreq", 0, 127, 57, true, 21, {255, 255}, "DrumSynthNoiseFlt"},
-    {"FltRes", 0, 127, 32, true, 0, {255, 255}, "Level_100"},
-    {"FltSwp", 0, 127, 39, true, 0, {255, 255}, "Level_100"},
-    {"FltDcy", 0, 127, 49, true, 28, {255, 255}, "EnvTime"},
-    {"FltType", 0, 2, 1, true, 218, {255, 255}, "LpBpHp"},
-    {"BendAmt", 0, 127, 68, true, 0, {255, 255}, "Level_100"},
-    {"BendDcy", 0, 127, 61, true, 28, {255, 255}, "EnvTime"},
-    {"Click", 0, 127, 79, true, 0, {255, 255}, "Level_100"},
-    {"Noise", 0, 127, 115, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
+    {"MstTune", 0, 127, 42, true, 22, {255, 255}, "DrumSynthFreq", false, true},
+    {"SlvTune", 0, 127, 15, true, 23, {255, 255}, "DrumSynthRatio", false, true},
+    {"MstDcy", 0, 127, 46, true, 28, {255, 255}, "EnvTime", false, true},
+    {"SlvDcy", 0, 127, 50, true, 28, {255, 255}, "EnvTime", false, true},
+    {"MstLvl", 0, 127, 120, true, 0, {255, 255}, "Level_100", false, true},
+    {"SlvLvl", 0, 127, 102, true, 0, {255, 255}, "Level_100", false, true},
+    {"FltFreq", 0, 127, 57, true, 21, {255, 255}, "DrumSynthNoiseFlt", false, true},
+    {"FltRes", 0, 127, 32, true, 0, {255, 255}, "Level_100", false, true},
+    {"FltSwp", 0, 127, 39, true, 0, {255, 255}, "Level_100", false, true},
+    {"FltDcy", 0, 127, 49, true, 28, {255, 255}, "EnvTime", false, true},
+    {"FltType", 0, 2, 1, true, 218, {255, 255}, "LpBpHp", false, true},
+    {"BendAmt", 0, 127, 68, true, 0, {255, 255}, "Level_100", false, true},
+    {"BendDcy", 0, 127, 61, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Click", 0, 127, 79, true, 0, {255, 255}, "Level_100", false, true},
+    {"Noise", 0, 127, 115, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs59[] = {
     {"In", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -807,7 +816,7 @@ const ConnectorDef kOutputs59[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams59[] = {
-    {"Level", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127"},
+    {"Level", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
 };
 const ConnectorDef kInputs60[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -824,7 +833,7 @@ const ConnectorDef kOutputs60[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams60[] = {
-    {"X-Fade", 0, 127, 0, true, 56, {255, 255}, "Level_100"},
+    {"X-Fade", 0, 127, 0, true, 56, {255, 255}, "Level_100", false, true},
 };
 const ConnectorDef kInputs61[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -834,10 +843,10 @@ const ConnectorDef kOutputs61[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams61[] = {
-    {"Clip M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Clip", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Shape", 0, 1, 0, true, 82, {255, 255}, "ClipShape"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Clip M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Clip", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Shape", 0, 1, 0, true, 82, {255, 255}, "ClipShape", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs62[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -847,11 +856,11 @@ const ConnectorDef kOutputs62[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams62[] = {
-    {"Drive M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Drive", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"Type", 0, 3, 0, false, 167, {255, 255}, "OverdriveType"},
-    {"Shape", 0, 1, 1, true, 168, {255, 255}, "ClipShape"},
+    {"Drive M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Drive", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Type", 0, 3, 0, false, 167, {255, 255}, "OverdriveType", false, true},
+    {"Shape", 0, 1, 1, true, 168, {255, 255}, "ClipShape", false, true},
 };
 const ConnectorDef kInputs63[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -861,10 +870,10 @@ const ConnectorDef kOutputs63[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams63[] = {
-    {"P Ratio", 0, 127, 80, true, 209, {255, 255}, "ScratchRatio"},
-    {"Ratio M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Delay", 0, 3, 2, true, 202, {255, 255}, "ScratchDelay"},
-    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"P Ratio", 0, 127, 80, true, 209, {255, 255}, "ScratchRatio", false, true},
+    {"Ratio M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Delay", 0, 3, 2, true, 202, {255, 255}, "ScratchDelay", false, true},
+    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs64[] = {
     {"In1_1", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -889,11 +898,11 @@ const ConnectorDef kOutputs66[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams66[] = {
-    {"Inv 1", 0, 1, 0, true, 5, {255, 255}, "MixInvert"},
-    {"Gain 1", 0, 127, 100, true, 102, {4, 255}, "MixLevel"},
-    {"Inv 2", 0, 1, 0, true, 5, {255, 255}, "MixInvert"},
-    {"Gain 2", 0, 127, 100, true, 102, {4, 255}, "MixLevel"},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2"},
+    {"Inv 1", 0, 1, 0, true, 5, {255, 255}, "MixInvert", false, true},
+    {"Gain 1", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
+    {"Inv 2", 0, 1, 0, true, 5, {255, 255}, "MixInvert", false, true},
+    {"Gain 2", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
 };
 const ConnectorDef kInputs68[] = {
     {"Reset", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -905,11 +914,11 @@ const ConnectorDef kOutputs68[] = {
     {"Sync", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams68[] = {
-    {"Tempo", 0, 127, 64, true, 110, {1, 2}, "RateBpm"},
-    {"On/Off", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Source", 0, 1, 0, true, 187, {255, 255}, "InternalMaster"},
-    {"Sync", 0, 5, 2, true, 166, {255, 255}, "ClkGenBeatSync"},
-    {"Swing", 0, 127, 0, true, 190, {255, 255}, "ClkGenSwing"},
+    {"Tempo", 0, 127, 64, true, 110, {1, 2}, "RateBpm", false, true},
+    {"On/Off", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Source", 0, 1, 0, true, 187, {255, 255}, "InternalMaster", false, true},
+    {"Sync", 0, 5, 2, true, 166, {255, 255}, "ClkGenBeatSync", false, true},
+    {"Swing", 0, 127, 0, true, 190, {255, 255}, "ClkGenSwing", false, true},
 };
 const ConnectorDef kInputs69[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -919,7 +928,7 @@ const ConnectorDef kOutputs69[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams69[] = {
-    {"Divider", 0, 127, 0, true, 2, {255, 255}, "Range_128"},
+    {"Divider", 0, 127, 0, true, 2, {255, 255}, "Range_128", false, true},
 };
 const ModeDef kModes69[] = {
     {"DivMode", 0, 1, 0, 0, "ClkDivMode"},
@@ -931,8 +940,8 @@ const ConnectorDef kOutputs71[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams71[] = {
-    {"Attack", 0, 127, 0, true, 129, {255, 255}, "EnvFollowAttack"},
-    {"Release", 0, 127, 20, true, 130, {255, 255}, "EnvFollowRelease"},
+    {"Attack", 0, 127, 0, true, 129, {255, 255}, "EnvFollowAttack", false, true},
+    {"Release", 0, 127, 20, true, 130, {255, 255}, "EnvFollowRelease", false, true},
 };
 const ConnectorDef kInputs72[] = {
     {"In", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -941,7 +950,7 @@ const ConnectorDef kOutputs72[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams72[] = {
-    {"Range", 0, 127, 0, true, 69, {255, 255}, "NoteRange"},
+    {"Range", 0, 127, 0, true, 69, {255, 255}, "NoteRange", false, true},
 };
 const ConnectorDef kInputs74[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -951,9 +960,9 @@ const ConnectorDef kOutputs74[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams74[] = {
-    {"Wrap M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"WrpGain", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Wrap M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"WrpGain", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs75[] = {
     {"In", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -962,8 +971,11 @@ const ConnectorDef kOutputs75[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams75[] = {
-    {"Range", 0, 127, 127, true, 35, {255, 255}, "NoteRange"},
-    {"Notes", 0, 127, 0, true, 11, {255, 255}, "NoteQuantNotes"},
+    {"Range", 0, 127, 127, true, 35, {255, 255}, "NoteRange", false, true},
+    {"Notes", 0, 127, 0, true, 11, {255, 255}, "NoteQuantNotes", false, true},
+};
+const LabelDef kLabels76[] = {
+    {0, 1, "On"},
 };
 const ConnectorDef kInputs76[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -973,7 +985,10 @@ const ConnectorDef kOutputs76[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams76[] = {
-    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
+    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
+};
+const LabelDef kLabels78[] = {
+    {0, 8, "Out 1,Out 2,Out 3,Out 4,Out 5,Out 6,Out 7,Out 8"},
 };
 const ConnectorDef kInputs78[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -990,7 +1005,10 @@ const ConnectorDef kOutputs78[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams78[] = {
-    {"Dest", 0, 7, 0, true, 64, {255, 255}, "sw_3_in"},
+    {"Dest", 0, 7, 0, true, 64, {255, 255}, "sw_3_in", false, true},
+};
+const LabelDef kLabels79[] = {
+    {0, 4, "In 1,In 2,In 3,In 4"},
 };
 const ConnectorDef kInputs79[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1003,7 +1021,7 @@ const ConnectorDef kOutputs79[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams79[] = {
-    {"Source", 0, 3, 0, true, 64, {255, 255}, "sw_2_in"},
+    {"Source", 0, 3, 0, true, 64, {255, 255}, "sw_2_in", false, true},
 };
 const ConnectorDef kInputs81[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1012,8 +1030,8 @@ const ConnectorDef kOutputs81[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams81[] = {
-    {"Gain", 0, 127, 64, true, 147, {1, 255}, "LevAmpGain"},
-    {"Type", 0, 1, 0, true, 148, {255, 255}, "LinDB"},
+    {"Gain", 0, 127, 64, true, 147, {1, 255}, "LevAmpGain", false, true},
+    {"Type", 0, 1, 0, true, 148, {255, 255}, "LinDB", false, true},
 };
 const ConnectorDef kInputs82[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1022,8 +1040,8 @@ const ConnectorDef kOutputs82[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams82[] = {
-    {"Type", 0, 3, 0, true, 83, {255, 255}, "RectMode"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Type", 0, 3, 0, true, 83, {255, 255}, "RectMode", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs83[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1032,8 +1050,8 @@ const ConnectorDef kOutputs83[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams83[] = {
-    {"Curve", 0, 3, 1, true, 84, {255, 255}, "ShpStaticMode"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Curve", 0, 3, 1, true, 84, {255, 255}, "ShpStaticMode", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs84[] = {
     {"Gate", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -1046,14 +1064,14 @@ const ConnectorDef kOutputs84[] = {
     {"End", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams84[] = {
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3"},
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime"},
-    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR"},
-    {"Dcy/Rel", 0, 127, 54, true, 28, {255, 255}, "EnvTime"},
-    {"Trigged", 0, 1, 1, false, 43, {255, 255}, "TrigGate"},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv"},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Type", 0, 1, 0, true, 139, {255, 255}, "AdAr"},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
+    {"Dcy/Rel", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Trigged", 0, 1, 1, false, 43, {255, 255}, "TrigGate", false, true},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Type", 0, 1, 0, true, 139, {255, 255}, "AdAr", false, true},
 };
 const ConnectorDef kInputs85[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1064,8 +1082,8 @@ const ConnectorDef kOutputs85[] = {
     {"Gate", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams85[] = {
-    {"From", 0, 127, 40, true, 16, {255, 255}, "Range_64"},
-    {"To", 0, 127, 80, true, 16, {255, 255}, "Range_64"},
+    {"From", 0, 127, 40, true, 16, {255, 255}, "Range_64", false, true},
+    {"To", 0, 127, 80, true, 16, {255, 255}, "Range_64", false, true},
 };
 const ConnectorDef kInputs86[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -1089,13 +1107,16 @@ const ConnectorDef kOutputs87[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams87[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq"},
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ModeDef kModes87[] = {
     {"SlopeMode", 0, 5, 0, 0, "HpLpSlopeMode"},
+};
+const LabelDef kLabels88[] = {
+    {0, 4, "Out 1,Out 2,Out 3,Out 4"},
 };
 const ConnectorDef kInputs88[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1108,7 +1129,7 @@ const ConnectorDef kOutputs88[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams88[] = {
-    {"Dest", 0, 3, 0, true, 64, {255, 255}, "sw_2_in"},
+    {"Dest", 0, 3, 0, true, 64, {255, 255}, "sw_2_in", false, true},
 };
 const ConnectorDef kInputs89[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -1117,10 +1138,13 @@ const ConnectorDef kOutputs89[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams89[] = {
-    {"Rate", 0, 127, 64, true, 215, {255, 255}, "FlangerRate"},
-    {"Range", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Rate", 0, 127, 64, true, 215, {255, 255}, "FlangerRate", false, true},
+    {"Range", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+};
+const LabelDef kLabels90[] = {
+    {0, 2, "Out 1,Out 2"},
 };
 const ConnectorDef kInputs90[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1131,7 +1155,7 @@ const ConnectorDef kOutputs90[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams90[] = {
-    {"Dest", 0, 1, 0, true, 64, {255, 255}, "Sw_1_in"},
+    {"Dest", 0, 1, 0, true, 64, {255, 255}, "Sw_1_in", false, true},
 };
 const ConnectorDef kInputs91[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -1154,12 +1178,12 @@ const ConnectorDef kOutputs92[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams92[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq"},
-    {"Freq M", 0, 127, 0, true, 191, {255, 255}, "Level_200"},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4"},
-    {"Res", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"dB/Oct", 0, 2, 2, true, 93, {255, 255}, "ClassicSlope"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
+    {"Freq M", 0, 127, 0, true, 191, {255, 255}, "Level_200", false, true},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
+    {"Res", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"dB/Oct", 0, 2, 2, true, 93, {255, 255}, "ClassicSlope", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs94[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -1169,13 +1193,13 @@ const ConnectorDef kOutputs94[] = {
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams94[] = {
-    {"Detune", 0, 127, 20, true, 0, {255, 255}, "Level_100"},
-    {"Amount", 0, 127, 127, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Detune", 0, 127, 20, true, 0, {255, 255}, "Level_100", false, true},
+    {"Amount", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ParamDef kParams95[] = {
-    {"Level", 0, 127, 100, true, 118, {255, 255}, nullptr},
-    {"On/Off", 0, 1, 1, false, 7, {255, 255}, nullptr},
+    {"Level", 0, 127, 100, true, 118, {255, 255}, nullptr, false, true},
+    {"On/Off", 0, 1, 1, false, 7, {255, 255}, nullptr, false, true},
 };
 const ConnectorDef kInputs96[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1184,11 +1208,11 @@ const ConnectorDef kOutputs96[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams96[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
 };
 const ModeDef kModes96[] = {
     {"Wave", 0, 5, 0, 0, "OscWaveForm_2"},
@@ -1201,13 +1225,13 @@ const ConnectorDef kOutputs97[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams97[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 6}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Wave", 0, 5, 2, true, 58, {255, 255}, "OscA_WaveForm"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 6}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Wave", 0, 5, 2, true, 58, {255, 255}, "OscA_WaveForm", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
 };
 const ConnectorDef kInputs98[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -1218,10 +1242,13 @@ const ConnectorDef kOutputs98[] = {
     {"Up", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams98[] = {
-    {"Shift", 0, 127, 0, true, 142, {2, 255}, "FreqShiftFreq"},
-    {"Shift M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Range", 0, 2, 2, true, 30, {255, 255}, "FreqShiftRange"},
-    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Shift", 0, 127, 0, true, 142, {2, 255}, "FreqShiftFreq", false, true},
+    {"Shift M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Range", 0, 2, 2, true, 30, {255, 255}, "FreqShiftRange", false, true},
+    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+};
+const LabelDef kLabels100[] = {
+    {0, 2, "In 1,In 2"},
 };
 const ConnectorDef kInputs100[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1232,7 +1259,7 @@ const ConnectorDef kOutputs100[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams100[] = {
-    {"Source", 0, 1, 0, true, 64, {255, 255}, "Sw_1_in"},
+    {"Source", 0, 1, 0, true, 64, {255, 255}, "Sw_1_in", false, true},
 };
 const ConnectorDef kInputs102[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -1245,17 +1272,17 @@ const ConnectorDef kOutputs102[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams102[] = {
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Freq", 0, 127, 64, true, 39, {255, 255}, "Freq_2"},
-    {"SpreadM", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"FB", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127"},
-    {"Notch", 0, 5, 2, true, 2, {255, 255}, "FltPhaseNotchCount"},
-    {"Spread", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"In Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100"},
-    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Type", 0, 2, 0, true, 172, {255, 255}, "FltPhaseType"},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4"},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Freq", 0, 127, 64, true, 39, {255, 255}, "Freq_2", false, true},
+    {"SpreadM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"FB", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
+    {"Notch", 0, 5, 2, true, 2, {255, 255}, "FltPhaseNotchCount", false, true},
+    {"Spread", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"In Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
+    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Type", 0, 2, 0, true, 172, {255, 255}, "FltPhaseType", false, true},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
 };
 const ConnectorDef kInputs103[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -1264,11 +1291,11 @@ const ConnectorDef kOutputs103[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams103[] = {
-    {"Freq", 0, 127, 60, true, 38, {255, 255}, "Freq_3"},
-    {"Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB"},
-    {"BWidth", 0, 127, 64, true, 76, {255, 255}, "EqPeakBandwidth"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"In Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100"},
+    {"Freq", 0, 127, 60, true, 38, {255, 255}, "Freq_3", false, true},
+    {"Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
+    {"BWidth", 0, 127, 64, true, 76, {255, 255}, "EqPeakBandwidth", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"In Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ConnectorDef kInputs105[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1279,7 +1306,7 @@ const ConnectorDef kOutputs105[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams105[] = {
-    {"Value", 0, 63, 0, true, 114, {255, 255}, "ValSwVal"},
+    {"Value", 0, 63, 0, true, 114, {255, 255}, "ValSwVal", false, true},
 };
 const ConnectorDef kInputs106[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1290,14 +1317,14 @@ const ConnectorDef kOutputs106[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams106[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
-    {"Width M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Width", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"Width M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Width", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs108[] = {
     {"Ctrl", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -1307,24 +1334,24 @@ const ConnectorDef kOutputs108[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams108[] = {
-    {"Band 1", 0, 16, 1, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 2", 0, 16, 2, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 3", 0, 16, 3, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 4", 0, 16, 4, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 5", 0, 16, 5, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 6", 0, 16, 6, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 7", 0, 16, 7, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 8", 0, 16, 8, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 9", 0, 16, 9, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 10", 0, 16, 10, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 11", 0, 16, 11, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 12", 0, 16, 12, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 13", 0, 16, 13, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 14", 0, 16, 14, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 15", 0, 16, 15, false, 79, {255, 255}, "VocoderBand"},
-    {"Band 16", 0, 16, 16, false, 79, {255, 255}, "VocoderBand"},
-    {"Emphas", 0, 1, 0, false, 80, {255, 255}, "OffOn"},
-    {"Monitor", 0, 1, 0, false, 81, {255, 255}, "ActiveMonitor"},
+    {"Band 1", 0, 16, 1, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 2", 0, 16, 2, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 3", 0, 16, 3, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 4", 0, 16, 4, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 5", 0, 16, 5, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 6", 0, 16, 6, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 7", 0, 16, 7, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 8", 0, 16, 8, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 9", 0, 16, 9, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 10", 0, 16, 10, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 11", 0, 16, 11, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 12", 0, 16, 12, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 13", 0, 16, 13, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 14", 0, 16, 14, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 15", 0, 16, 15, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Band 16", 0, 16, 16, false, 79, {255, 255}, "VocoderBand", false, true},
+    {"Emphas", 0, 1, 0, false, 80, {255, 255}, "OffOn", false, true},
+    {"Monitor", 0, 1, 0, false, 81, {255, 255}, "ActiveMonitor", false, true},
 };
 const ConnectorDef kInputs112[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1333,8 +1360,8 @@ const ConnectorDef kOutputs112[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams112[] = {
-    {"Offset", 0, 127, 64, true, 96, {1, 255}, "LevBipUni"},
-    {"Pol", 0, 1, 1, true, 18, {255, 255}, "BipUni"},
+    {"Offset", 0, 127, 64, true, 96, {1, 255}, "LevBipUni", false, true},
+    {"Pol", 0, 1, 1, true, 18, {255, 255}, "BipUni", false, true},
 };
 const ConnectorDef kInputs113[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1345,8 +1372,8 @@ const ConnectorDef kOutputs113[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams113[] = {
-    {"Out Lvl", 0, 127, 64, true, 53, {255, 255}, "Fade12Mix"},
-    {"Fade M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Out Lvl", 0, 127, 64, true, 53, {255, 255}, "Fade12Mix", false, true},
+    {"Fade M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ConnectorDef kInputs114[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1357,8 +1384,8 @@ const ConnectorDef kOutputs114[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams114[] = {
-    {"In Lvl", 0, 127, 64, true, 52, {255, 255}, "Fade21Mix"},
-    {"Fade M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"In Lvl", 0, 127, 64, true, 52, {255, 255}, "Fade21Mix", false, true},
+    {"Fade M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ConnectorDef kInputs115[] = {
     {"Note", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -1369,10 +1396,10 @@ const ConnectorDef kOutputs115[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams115[] = {
-    {"L.Gain", 0, 127, 64, true, 70, {255, 255}, "LevScaledB"},
-    {"BrkPnt", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"R.Gain", 0, 127, 64, true, 70, {255, 255}, "LevScaledB"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
+    {"L.Gain", 0, 127, 64, true, 70, {255, 255}, "LevScaledB", false, true},
+    {"BrkPnt", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"R.Gain", 0, 127, 64, true, 70, {255, 255}, "LevScaledB", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs116[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1388,7 +1415,7 @@ const ConnectorDef kOutputs116[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams116[] = {
-    {"Pad", 0, 2, 0, true, 57, {255, 255}, "Pad_3"},
+    {"Pad", 0, 2, 0, true, 57, {255, 255}, "Pad_3", false, true},
 };
 const ConnectorDef kInputs117[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1399,8 +1426,8 @@ const ConnectorDef kOutputs117[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams117[] = {
-    {"Depth M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Depth", 0, 127, 64, true, 55, {255, 255}, "LevModAmRm"},
+    {"Depth M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Depth", 0, 127, 64, true, 55, {255, 255}, "LevModAmRm", false, true},
 };
 const ConnectorDef kInputs118[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1410,10 +1437,10 @@ const ConnectorDef kOutputs118[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams118[] = {
-    {"Bits", 0, 12, 11, true, 195, {255, 255}, "DigitizerBits"},
-    {"Rate", 0, 127, 64, true, 88, {255, 255}, "DigitizerRate"},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Bits", 0, 12, 11, true, 195, {255, 255}, "DigitizerBits", false, true},
+    {"Rate", 0, 127, 64, true, 88, {255, 255}, "DigitizerRate", false, true},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs119[] = {
     {"Gate", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -1425,17 +1452,17 @@ const ConnectorDef kOutputs119[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams119[] = {
-    {"KBG", 0, 1, 1, true, 47, {255, 255}, "OffOn"},
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3"},
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime"},
-    {"Decay 1", 0, 127, 54, true, 28, {255, 255}, "EnvTime"},
-    {"Break 1", 0, 127, 100, true, 16, {255, 255}, "EnvLevel"},
-    {"Decay 2", 0, 127, 54, true, 28, {255, 255}, "EnvTime"},
-    {"Break 2", 0, 127, 70, true, 16, {255, 255}, "EnvLevel"},
-    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime"},
-    {"SusPlac", 0, 1, 1, true, 49, {255, 255}, "SustainMode_1"},
-    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv"},
-    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR"},
+    {"KBG", 0, 1, 1, true, 47, {255, 255}, "OffOn", false, true},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Decay 1", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Break 1", 0, 127, 100, true, 16, {255, 255}, "EnvLevel", false, true},
+    {"Decay 2", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Break 2", 0, 127, 70, true, 16, {255, 255}, "EnvLevel", false, true},
+    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
+    {"SusPlac", 0, 1, 1, true, 49, {255, 255}, "SustainMode_1", false, true},
+    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv", false, true},
+    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
 };
 const ConnectorDef kInputs121[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -1453,43 +1480,49 @@ const ConnectorDef kOutputs121[] = {
     {"Trig", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams121[] = {
-    {"Step 1", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 2", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 3", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 4", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 5", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 6", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 7", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 8", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 9", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 10", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 11", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 12", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 13", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 14", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 15", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Step 16", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse"},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce"},
-    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen"},
-    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate"},
-    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn"},
-    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn"},
+    {"Step 1", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 2", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 3", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 4", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 5", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 6", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 7", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 8", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 9", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 10", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 11", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 12", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 13", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 14", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 15", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Step 16", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true},
+    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true},
+    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
+    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
+    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
+};
+const LabelDef kLabels123[] = {
+    {4, 1, "Ch 1"},
+    {5, 1, "Ch 2"},
+    {6, 1, "Ch 3"},
+    {7, 1, "Ch 4"},
 };
 const ConnectorDef kInputs123[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1502,16 +1535,16 @@ const ConnectorDef kOutputs123[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams123[] = {
-    {"Level 1", 0, 127, 100, true, 102, {9, 255}, "MixLevel"},
-    {"Level 2", 0, 127, 100, true, 102, {9, 255}, "MixLevel"},
-    {"Level 3", 0, 127, 100, true, 102, {9, 255}, "MixLevel"},
-    {"Level 4", 0, 127, 100, true, 102, {9, 255}, "MixLevel"},
-    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Pad", 0, 1, 0, true, 188, {255, 255}, "Pad_2"},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2"},
+    {"Level 1", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true},
+    {"Level 2", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true},
+    {"Level 3", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true},
+    {"Level 4", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true},
+    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Pad", 0, 1, 0, true, 188, {255, 255}, "Pad_2", false, true},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
 };
 const ConnectorDef kInputs124[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1535,18 +1568,18 @@ const ConnectorDef kOutputs125[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams125[] = {
-    {"Sweep M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Sweep", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Sweep M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Sweep", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kOutputs127[] = {
     {"OutL", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams127[] = {
-    {"Bus", 0, 1, 0, true, 152, {255, 255}, "Source_1"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4"},
+    {"Bus", 0, 1, 0, true, 152, {255, 255}, "Source_1", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4", false, true},
 };
 const ConnectorDef kInputs128[] = {
     {"A", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1604,32 +1637,32 @@ const ConnectorDef kOutputs134[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams134[] = {
-    {"Freq", 0, 127, 60, true, 123, {255, 255}, "FltFreq"},
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Freq", 0, 127, 60, true, 123, {255, 255}, "FltFreq", false, true},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ModeDef kModes134[] = {
     {"SlopeMode", 0, 5, 0, 0, "HpLpSlopeMode"},
 };
 const ParamDef kParams135[] = {
-    {"Enable", 0, 2, 0, false, 116, {255, 255}, nullptr},
-    {"Rate", 0, 127, 28, false, 115, {255, 255}, nullptr},
+    {"Enable", 0, 2, 0, false, 116, {255, 255}, nullptr, false, true},
+    {"Rate", 0, 127, 28, false, 115, {255, 255}, nullptr, false, true},
 };
 const ParamDef kParams136[] = {
-    {"Run", 0, 1, 0, false, 3, {255, 255}, nullptr},
-    {"Rate", 0, 3, 3, false, 112, {255, 255}, nullptr},
-    {"Mode", 0, 3, 0, false, 113, {255, 255}, nullptr},
-    {"Range", 0, 3, 0, false, 111, {255, 255}, nullptr},
+    {"Run", 0, 1, 0, false, 3, {255, 255}, nullptr, false, true},
+    {"Rate", 0, 3, 3, false, 112, {255, 255}, nullptr, false, true},
+    {"Mode", 0, 3, 0, false, 113, {255, 255}, nullptr, false, true},
+    {"Range", 0, 3, 0, false, 111, {255, 255}, nullptr, false, true},
 };
 const ParamDef kParams137[] = {
-    {"Enable", 0, 1, 1, false, 117, {255, 255}, nullptr},
-    {"Range", 0, 23, 1, false, 162, {255, 255}, nullptr},
+    {"Enable", 0, 1, 1, false, 117, {255, 255}, nullptr, false, true},
+    {"Range", 0, 23, 1, false, 162, {255, 255}, nullptr, false, true},
 };
 const ParamDef kParams138[] = {
-    {"Enable", 0, 2, 0, false, 120, {255, 255}, nullptr},
-    {"Range", 0, 100, 50, false, 119, {255, 255}, nullptr},
-    {"Rate", 0, 127, 64, false, 171, {255, 255}, nullptr},
+    {"Enable", 0, 2, 0, false, 120, {255, 255}, nullptr, false, true},
+    {"Range", 0, 100, 50, false, 119, {255, 255}, nullptr, false, true},
+    {"Rate", 0, 127, 64, false, 171, {255, 255}, nullptr, false, true},
 };
 const ConnectorDef kInputs139[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1637,6 +1670,12 @@ const ConnectorDef kInputs139[] = {
 };
 const ConnectorDef kOutputs139[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
+};
+const LabelDef kLabels140[] = {
+    {4, 1, "Ch 1"},
+    {5, 1, "Ch 2"},
+    {6, 1, "Ch 3"},
+    {7, 1, "Ch 4"},
 };
 const ConnectorDef kInputs140[] = {
     {"In1L", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1655,15 +1694,15 @@ const ConnectorDef kOutputs140[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams140[] = {
-    {"Level 1", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 2", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 3", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"Level 4", 0, 127, 100, true, 102, {8, 255}, "MixLevel"},
-    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2"},
+    {"Level 1", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 2", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 3", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"Level 4", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
+    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
 };
 const ConnectorDef kInputs141[] = {
     {"Send", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -1673,9 +1712,9 @@ const ConnectorDef kOutputs141[] = {
     {"Send", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams141[] = {
-    {"Control", 0, 127, 1, false, 179, {255, 255}, "MidiData"},
-    {"Value", 0, 127, 0, true, 179, {255, 255}, "MidiData"},
-    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20"},
+    {"Control", 0, 127, 1, false, 179, {255, 255}, "MidiData", false, false},
+    {"Value", 0, 127, 0, true, 179, {255, 255}, "MidiData", false, false},
+    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true},
 };
 const ConnectorDef kInputs142[] = {
     {"Send", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -1685,8 +1724,8 @@ const ConnectorDef kOutputs142[] = {
     {"Send", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams142[] = {
-    {"Program", 0, 127, 0, true, 179, {255, 255}, "MidiData"},
-    {"Channel", 0, 16, 0, false, 108, {255, 255}, "MidiCh_16"},
+    {"Program", 0, 127, 0, true, 179, {255, 255}, "MidiData", false, true},
+    {"Channel", 0, 16, 0, false, 108, {255, 255}, "MidiCh_16", false, true},
 };
 const ConnectorDef kInputs143[] = {
     {"Gate", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -1694,9 +1733,9 @@ const ConnectorDef kInputs143[] = {
     {"Note", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams143[] = {
-    {"Vel", 0, 127, 100, true, 179, {255, 255}, "MidiData"},
-    {"Note", 0, 127, 64, true, 13, {255, 255}, "MidiData"},
-    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20"},
+    {"Vel", 0, 127, 100, true, 179, {255, 255}, "MidiData", false, true},
+    {"Note", 0, 127, 64, true, 13, {255, 255}, "MidiData", false, true},
+    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true},
 };
 const ConnectorDef kInputs144[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -1712,42 +1751,42 @@ const ConnectorDef kOutputs144[] = {
     {"Trig2", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams144[] = {
-    {"Step 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Step 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce"},
-    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen"},
-    {"PulseUp", 0, 1, 0, true, 43, {255, 255}, "TrigGate"},
-    {"PulseLo", 0, 1, 0, true, 43, {255, 255}, "TrigGate"},
+    {"Step 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Step 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true},
+    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true},
+    {"PulseUp", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
+    {"PulseLo", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
 };
 const ConnectorDef kInputs145[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -1763,44 +1802,44 @@ const ConnectorDef kOutputs145[] = {
     {"Trig", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams145[] = {
-    {"Step 1", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 2", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 3", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 4", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 5", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 6", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 7", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 8", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 9", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 10", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 11", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 12", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 13", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 14", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 15", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 16", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce"},
-    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen"},
-    {"Pol", 0, 1, 0, true, 18, {255, 255}, "BipUni"},
-    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate"},
-    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn"},
-    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn"},
+    {"Step 1", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 2", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 3", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 4", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 5", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 6", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 7", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 8", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 9", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 10", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 11", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 12", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 13", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 14", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 15", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 16", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true},
+    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true},
+    {"Pol", 0, 1, 0, true, 18, {255, 255}, "BipUni", false, true},
+    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
+    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
+    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
 };
 const ConnectorDef kInputs146[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -1816,52 +1855,52 @@ const ConnectorDef kOutputs146[] = {
     {"Trig", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams146[] = {
-    {"Step 1", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 2", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 3", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 4", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 5", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 6", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 7", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 8", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 9", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 10", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 11", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 12", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 13", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 14", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 15", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Step 16", 0, 127, 0, true, 96, {34, 255}, "LevBipUni"},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce"},
-    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen"},
-    {"Pol", 0, 1, 1, false, 18, {255, 255}, "BipUni"},
-    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate"},
-    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn"},
-    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn"},
+    {"Step 1", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 2", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 3", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 4", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 5", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 6", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 7", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 8", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 9", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 10", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 11", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 12", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 13", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 14", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 15", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Step 16", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true},
+    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true},
+    {"Pol", 0, 1, 1, false, 18, {255, 255}, "BipUni", false, true},
+    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
+    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
+    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
 };
 const ConnectorDef kOutputs147[] = {
     {"Rcv", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
     {"Val", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams147[] = {
-    {"Control", 0, 127, 7, false, 179, {255, 255}, "MidiData"},
-    {"Channel", 0, 16, 0, false, 109, {255, 255}, "MidiCh_16"},
+    {"Control", 0, 127, 7, false, 179, {255, 255}, "MidiData", false, false},
+    {"Channel", 0, 16, 0, false, 109, {255, 255}, "MidiCh_16", false, true},
 };
 const ConnectorDef kOutputs148[] = {
     {"Gate", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -1869,16 +1908,16 @@ const ConnectorDef kOutputs148[] = {
     {"RelVel", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams148[] = {
-    {"Note", 0, 127, 64, false, 13, {255, 255}, "MidiData"},
-    {"Channel", 0, 17, 0, false, 109, {255, 255}, "MidiCh_17"},
+    {"Note", 0, 127, 64, false, 13, {255, 255}, "MidiData", false, true},
+    {"Channel", 0, 17, 0, false, 109, {255, 255}, "MidiCh_17", false, true},
 };
 const ParamDef kParams149[] = {
-    {"RcvChan", 0, 17, 0, false, 109, {255, 255}, "MidiCh_17"},
-    {"NoteMin", 0, 127, 0, false, 13, {255, 255}, "MidiData"},
-    {"NoteMax", 0, 127, 127, false, 13, {255, 255}, "MidiData"},
-    {"Transp", 0, 127, 64, false, 17, {255, 255}, "Bipolar_127"},
-    {"SndChan", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20"},
-    {"Filter", 0, 1, 0, false, 210, {255, 255}, "NoteZoneThru"},
+    {"RcvChan", 0, 17, 0, false, 109, {255, 255}, "MidiCh_17", false, true},
+    {"NoteMin", 0, 127, 0, false, 13, {255, 255}, "MidiData", false, true},
+    {"NoteMax", 0, 127, 127, false, 13, {255, 255}, "MidiData", false, true},
+    {"Transp", 0, 127, 64, false, 17, {255, 255}, "Bipolar_127", false, true},
+    {"SndChan", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true},
+    {"Filter", 0, 1, 0, false, 210, {255, 255}, "NoteZoneThru", false, true},
 };
 const ConnectorDef kInputs150[] = {
     {"InL", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -1890,13 +1929,13 @@ const ConnectorDef kOutputs150[] = {
     {"OutL", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams150[] = {
-    {"Thres", 0, 42, 18, false, 176, {255, 255}, "Treshold_42"},
-    {"Ratio", 0, 66, 20, false, 177, {255, 255}, "CompressorRatio"},
-    {"Attack", 0, 127, 1, true, 174, {255, 255}, "CompressorAttack"},
-    {"Release", 0, 127, 20, true, 175, {255, 255}, "CompressorRelease"},
-    {"Output", 0, 42, 30, false, 178, {255, 255}, "CompressorRefLevel"},
-    {"SideChn", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Thres", 0, 42, 18, false, 176, {255, 255}, "Treshold_42", false, true},
+    {"Ratio", 0, 66, 20, false, 177, {255, 255}, "CompressorRatio", false, true},
+    {"Attack", 0, 127, 1, true, 174, {255, 255}, "CompressorAttack", false, true},
+    {"Release", 0, 127, 20, true, 175, {255, 255}, "CompressorRelease", false, true},
+    {"Output", 0, 42, 30, false, 178, {255, 255}, "CompressorRefLevel", false, true},
+    {"SideChn", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs152[] = {
     {"In", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -1905,24 +1944,24 @@ const ConnectorDef kOutputs152[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams152[] = {
-    {"Range", 0, 127, 127, true, 132, {255, 255}, "NoteRange"},
-    {"Capture", 0, 1, 0, false, 194, {255, 255}, "KeyQuantCapture"},
-    {"Note E", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note F", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note F#", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note G", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note G#", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note A", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note Bb", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note B", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note C", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note C#", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note D", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
-    {"Note D#", 0, 1, 0, false, 3, {255, 255}, "OffOn"},
+    {"Range", 0, 127, 127, true, 132, {255, 255}, "NoteRange", false, true},
+    {"Capture", 0, 1, 0, false, 194, {255, 255}, "KeyQuantCapture", false, true},
+    {"Note E", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note F", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note F#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note G", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note G#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note A", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note Bb", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note B", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note C", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note C#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note D", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Note D#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
 };
 const ParamDef kParams153[] = {
-    {"OctShft", 0, 4, 2, false, 121, {255, 255}, nullptr},
-    {"Sustain", 0, 1, 1, false, 3, {255, 255}, nullptr},
+    {"OctShft", 0, 4, 2, false, 121, {255, 255}, nullptr, false, true},
+    {"Sustain", 0, 1, 1, false, 3, {255, 255}, nullptr, false, true},
 };
 const ConnectorDef kInputs154[] = {
     {"Ctrl", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1934,43 +1973,43 @@ const ConnectorDef kOutputs154[] = {
     {"Trig", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams154[] = {
-    {"Step 1", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 2", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 3", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 4", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 5", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 6", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 7", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 8", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 9", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 10", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 11", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 12", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 13", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 14", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 15", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Step 16", 0, 127, 0, true, 96, {33, 255}, "LevBipUni"},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn"},
-    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate"},
-    {"Pol", 0, 1, 0, true, 18, {255, 255}, "BipUni"},
-    {"XFade", 0, 3, 0, true, 134, {255, 255}, "SeqCtrlXFade"},
-    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn"},
-    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn"},
+    {"Step 1", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 2", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 3", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 4", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 5", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 6", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 7", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 8", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 9", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 10", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 11", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 12", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 13", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 14", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 15", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Step 16", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
+    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
+    {"Pol", 0, 1, 0, true, 18, {255, 255}, "BipUni", false, true},
+    {"XFade", 0, 3, 0, true, 134, {255, 255}, "SeqCtrlXFade", false, true},
+    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
+    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
 };
 const ConnectorDef kOutputs156[] = {
     {"Gate", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -1978,7 +2017,7 @@ const ConnectorDef kOutputs156[] = {
     {"RelVel", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams156[] = {
-    {"Note", 0, 127, 64, false, 13, {255, 255}, "FreqCoarse"},
+    {"Note", 0, 127, 64, false, 13, {255, 255}, "FreqCoarse", false, true},
 };
 const ConnectorDef kInputs157[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1987,8 +2026,8 @@ const ConnectorDef kOutputs157[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams157[] = {
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "PosNegInvBipInv"},
-    {"InType", 0, 2, 0, false, 127, {255, 255}, "BipPosNeg"},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "PosNegInvBipInv", false, true},
+    {"InType", 0, 2, 0, false, 127, {255, 255}, "BipPosNeg", false, true},
 };
 const ConnectorDef kInputs158[] = {
     {"In", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -1998,9 +2037,9 @@ const ConnectorDef kOutputs158[] = {
     {"Out", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams158[] = {
-    {"Time", 0, 127, 64, true, 217, {2, 255}, "GlideTime"},
-    {"Active", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Shape", 0, 1, 0, true, 157, {255, 255}, "LogLin"},
+    {"Time", 0, 127, 64, true, 217, {2, 255}, "GlideTime", false, true},
+    {"Active", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Shape", 0, 1, 0, true, 157, {255, 255}, "LogLin", false, true},
 };
 const ConnectorDef kInputs159[] = {
     {"A", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2014,6 +2053,16 @@ const ConnectorDef kInputs160[] = {
 };
 const ConnectorDef kOutputs160[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
+};
+const LabelDef kLabels161[] = {
+    {8, 1, "Ch1"},
+    {9, 1, "Ch2"},
+    {10, 1, "Ch3"},
+    {11, 1, "Ch4"},
+    {12, 1, "Ch5"},
+    {13, 1, "Ch6"},
+    {14, 1, "Ch7"},
+    {15, 1, "Ch8"},
 };
 const ConnectorDef kInputs161[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2030,24 +2079,24 @@ const ConnectorDef kOutputs161[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams161[] = {
-    {"Level 1", 0, 127, 100, true, 102, {16, 255}, "MixLevel"},
-    {"Level 2", 0, 127, 100, true, 102, {16, 255}, "MixLevel"},
-    {"Level 3", 0, 127, 100, true, 102, {16, 255}, "MixLevel"},
-    {"Level 4", 0, 127, 100, true, 102, {16, 255}, "MixLevel"},
-    {"Level 5", 0, 127, 100, true, 102, {16, 255}, "MixLevel"},
-    {"Level 6", 0, 127, 100, true, 102, {16, 255}, "MixLevel"},
-    {"Level 7", 0, 127, 100, true, 102, {16, 255}, "MixLevel"},
-    {"Level 8", 0, 127, 100, true, 102, {16, 255}, "MixLevel"},
-    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 5", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 6", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 7", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"On 8", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2"},
-    {"Pad", 0, 2, 0, true, 188, {255, 255}, "Pad_3"},
+    {"Level 1", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
+    {"Level 2", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
+    {"Level 3", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
+    {"Level 4", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
+    {"Level 5", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
+    {"Level 6", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
+    {"Level 7", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
+    {"Level 8", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
+    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 5", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 6", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 7", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"On 8", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+    {"Pad", 0, 2, 0, true, 188, {255, 255}, "Pad_3", false, true},
 };
 const ConnectorDef kInputs162[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -2059,14 +2108,14 @@ const ConnectorDef kOutputs162[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams162[] = {
-    {"Freq", 0, 127, 64, true, 173, {255, 255}, "Freq_1"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4"},
-    {"FB", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127"},
-    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Type", 0, 2, 0, true, 172, {255, 255}, "CombType"},
-    {"Inp lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Freq", 0, 127, 64, true, 173, {255, 255}, "Freq_1", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
+    {"FB", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
+    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Type", 0, 2, 0, true, 172, {255, 255}, "CombType", false, true},
+    {"Inp lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs163[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2079,17 +2128,17 @@ const ConnectorDef kOutputs163[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams163[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
-    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk"},
-    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW"},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Wave", 0, 5, 0, true, 155, {255, 255}, "OscShpA_WaveForm"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true},
+    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW", false, true},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Wave", 0, 5, 0, true, 155, {255, 255}, "OscShpA_WaveForm", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs164[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2102,20 +2151,20 @@ const ConnectorDef kOutputs164[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams164[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
-    {"Sqr Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100"},
-    {"PW M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Saw Lvl", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Saw Ph", 0, 127, 0, true, 185, {255, 255}, "Phase"},
-    {"Sub Lvl", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Sqr PW", 0, 127, 0, true, 126, {255, 255}, "PW"},
-    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"SoftSqr", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"Sqr Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
+    {"PW M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Saw Lvl", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Saw Ph", 0, 127, 0, true, 185, {255, 255}, "Phase", false, true},
+    {"Sub Lvl", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Sqr PW", 0, 127, 0, true, 126, {255, 255}, "PW", false, true},
+    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"SoftSqr", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs165[] = {
     {"In1", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -2135,8 +2184,8 @@ const ConnectorDef kOutputs165[] = {
     {"Main", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams165[] = {
-    {"Algortm", 0, 31, 0, false, 2, {255, 255}, "DxAlgorithm"},
-    {"FeedBk", 0, 7, 0, false, 179, {255, 255}, "DxFeedback"},
+    {"Algortm", 0, 31, 0, false, 2, {255, 255}, "DxAlgorithm", false, true},
+    {"FeedBk", 0, 7, 0, false, 179, {255, 255}, "DxFeedback", false, true},
 };
 const ConnectorDef kInputs167[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -2146,11 +2195,11 @@ const ConnectorDef kOutputs167[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams167[] = {
-    {"Coarse", 0, 127, 64, true, 61, {255, 255}, "PShiftCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "PShiftFine"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Delay", 0, 3, 2, true, 202, {255, 255}, "ScratchDelay"},
-    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Coarse", 0, 127, 64, true, 61, {255, 255}, "PShiftCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "PShiftFine", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Delay", 0, 3, 2, true, 202, {255, 255}, "ScratchDelay", false, true},
+    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs169[] = {
     {"Trig", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -2165,23 +2214,23 @@ const ConnectorDef kOutputs169[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams169[] = {
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime"},
-    {"Hold", 0, 127, 32, true, 28, {255, 255}, "EnvTime"},
-    {"Decay", 0, 127, 14, true, 28, {255, 255}, "EnvTime"},
-    {"Atk M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Hold M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Dcy M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv"},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Hold", 0, 127, 32, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Decay", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
+    {"Atk M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Hold M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Dcy M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kOutputs170[] = {
     {"OutL", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams170[] = {
-    {"Source", 0, 3, 0, true, 150, {255, 255}, "Source_2"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4"},
+    {"Source", 0, 3, 0, true, 150, {255, 255}, "Source_2", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4", false, true},
 };
 const ConnectorDef kOutputs171[] = {
     {"Out1", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -2190,9 +2239,9 @@ const ConnectorDef kOutputs171[] = {
     {"Out4", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams171[] = {
-    {"Source", 0, 1, 0, true, 151, {255, 255}, "Source_3"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4"},
+    {"Source", 0, 1, 0, true, 151, {255, 255}, "Source_3", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4", false, true},
 };
 const ConnectorDef kInputs172[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -2201,7 +2250,7 @@ const ConnectorDef kOutputs172[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams172[] = {
-    {"Time", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3"},
+    {"Time", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true},
 };
 const ModeDef kModes172[] = {
     {"DelayRange", 0, 6, 0, 0, "DelayRange_3"},
@@ -2214,8 +2263,8 @@ const ConnectorDef kOutputs173[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams173[] = {
-    {"Time", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3"},
-    {"Time M", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
+    {"Time", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true},
+    {"Time M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ModeDef kModes173[] = {
     {"DelayRange", 0, 6, 0, 0, "DelayRange_3"},
@@ -2230,10 +2279,10 @@ const ConnectorDef kOutputs174[] = {
     {"Out2", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams174[] = {
-    {"Time1", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3"},
-    {"Time1 M", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Time2", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3"},
-    {"Time2 M", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
+    {"Time1", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true},
+    {"Time1 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time2", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true},
+    {"Time2 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ModeDef kModes174[] = {
     {"DelayRange", 0, 6, 0, 0, "DelayRange_3"},
@@ -2253,15 +2302,15 @@ const ConnectorDef kOutputs175[] = {
     {"Out4", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams175[] = {
-    {"Time1", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3"},
-    {"Time1 M", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Time2", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3"},
-    {"Time2 M", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Time3", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3"},
-    {"Time3 M", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Time4", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3"},
-    {"Time4 M", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk"},
+    {"Time1", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true},
+    {"Time1 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time2", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true},
+    {"Time2 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time3", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true},
+    {"Time3 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time4", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true},
+    {"Time4 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true},
 };
 const ModeDef kModes175[] = {
     {"DelayRange", 0, 6, 0, 0, "DelayRange_3"},
@@ -2273,12 +2322,12 @@ const ConnectorDef kOutputs176[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams176[] = {
-    {"Time", 0, 127, 64, true, 143, {5, 128}, "DelayTime_2"},
-    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Flt LP", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk"},
+    {"Time", 0, 127, 64, true, 143, {5, 128}, "DelayTime_2", false, true},
+    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Flt LP", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true},
 };
 const ModeDef kModes176[] = {
     {"DelayRange", 0, 3, 0, 0, "DelayRange_2"},
@@ -2292,15 +2341,15 @@ const ConnectorDef kOutputs177[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams177[] = {
-    {"Time", 0, 127, 64, true, 143, {4, 128}, "DelayTime_2"},
-    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Flt LP", 0, 127, 127, true, 0, {255, 255}, "Level_100"},
-    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk"},
-    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"DryWetM", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"Flt HP", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Time", 0, 127, 64, true, 143, {4, 128}, "DelayTime_2", false, true},
+    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Flt LP", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
+    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true},
+    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"DryWetM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Flt HP", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ModeDef kModes177[] = {
     {"DelayRange", 0, 3, 0, 0, "DelayRange_2"},
@@ -2313,7 +2362,7 @@ const ConnectorDef kOutputs178[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams178[] = {
-    {"Delay", 0, 127, 0, true, 2, {255, 255}, "Range_128"},
+    {"Delay", 0, 127, 0, true, 2, {255, 255}, "Range_128", false, true},
 };
 const ConnectorDef kInputs179[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2342,31 +2391,31 @@ const ConnectorDef kOutputs180[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams180[] = {
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Sync", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
-    {"Tune Md", 0, 1, 0, true, 200, {255, 255}, "RatioFixed"},
-    {"Coarse", 0, 31, 1, false, 198, {4, 2}, "OpFreqCoarse"},
-    {"Fine", 0, 99, 0, false, 179, {255, 255}, "OpFreqFine"},
-    {"Detune", 0, 14, 7, true, 196, {255, 255}, "OpFreqDetune"},
-    {"KeyVel", 0, 7, 0, true, 179, {255, 255}, "OpVel"},
-    {"RScale", 0, 7, 0, true, 179, {255, 255}, "OpRateScale"},
-    {"R1", 0, 99, 90, false, 179, {255, 255}, "OpTime"},
-    {"L1", 0, 99, 99, false, 179, {255, 255}, "OpLevel"},
-    {"R2", 0, 99, 80, false, 179, {255, 255}, "OpTime"},
-    {"L2", 0, 99, 99, false, 179, {255, 255}, "OpLevel"},
-    {"R3", 0, 99, 70, false, 179, {255, 255}, "OpTime"},
-    {"L3", 0, 99, 99, false, 179, {255, 255}, "OpLevel"},
-    {"R4", 0, 99, 70, false, 179, {255, 255}, "OpTime"},
-    {"L4", 0, 99, 0, false, 179, {255, 255}, "OpLevel"},
-    {"A-Mod", 0, 7, 0, true, 179, {255, 255}, "OpAmod"},
-    {"BreakP", 0, 99, 50, false, 197, {255, 255}, "OpBrPpoint"},
-    {"L-Curve", 0, 3, 0, true, 199, {255, 255}, "OpDepthMode"},
-    {"L-Depth", 0, 99, 0, true, 179, {255, 255}, "OpDepth"},
-    {"R-Curve", 0, 3, 0, true, 199, {255, 255}, "OpDepthMode"},
-    {"R-Depth", 0, 99, 0, true, 179, {255, 255}, "OpDepth"},
-    {"Level", 0, 99, 99, false, 179, {255, 255}, "OpLevel"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Sync", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
+    {"Tune Md", 0, 1, 0, true, 200, {255, 255}, "RatioFixed", false, true},
+    {"Coarse", 0, 31, 1, false, 198, {4, 2}, "OpFreqCoarse", false, true},
+    {"Fine", 0, 99, 0, false, 179, {255, 255}, "OpFreqFine", false, true},
+    {"Detune", 0, 14, 7, true, 196, {255, 255}, "OpFreqDetune", false, true},
+    {"KeyVel", 0, 7, 0, true, 179, {255, 255}, "OpVel", false, true},
+    {"RScale", 0, 7, 0, true, 179, {255, 255}, "OpRateScale", false, true},
+    {"R1", 0, 99, 90, false, 179, {255, 255}, "OpTime", false, true},
+    {"L1", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true},
+    {"R2", 0, 99, 80, false, 179, {255, 255}, "OpTime", false, true},
+    {"L2", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true},
+    {"R3", 0, 99, 70, false, 179, {255, 255}, "OpTime", false, true},
+    {"L3", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true},
+    {"R4", 0, 99, 70, false, 179, {255, 255}, "OpTime", false, true},
+    {"L4", 0, 99, 0, false, 179, {255, 255}, "OpLevel", false, true},
+    {"A-Mod", 0, 7, 0, true, 179, {255, 255}, "OpAmod", false, true},
+    {"BreakP", 0, 99, 50, false, 197, {255, 255}, "OpBrPpoint", false, true},
+    {"L-Curve", 0, 3, 0, true, 199, {255, 255}, "OpDepthMode", false, true},
+    {"L-Depth", 0, 99, 0, true, 179, {255, 255}, "OpDepth", false, true},
+    {"R-Curve", 0, 3, 0, true, 199, {255, 255}, "OpDepthMode", false, true},
+    {"R-Depth", 0, 99, 0, true, 179, {255, 255}, "OpDepth", false, true},
+    {"Level", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs181[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -2382,7 +2431,7 @@ const ConnectorDef kOutputs181[] = {
     {"Out8", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams181[] = {
-    {"Time", 0, 127, 0, true, 145, {128, 255}, "DelayTime_3"},
+    {"Time", 0, 127, 0, true, 145, {128, 255}, "DelayTime_3", false, true},
 };
 const ModeDef kModes181[] = {
     {"DelayRange", 0, 6, 0, 0, "DelayRange_3"},
@@ -2395,17 +2444,17 @@ const ConnectorDef kOutputs182[] = {
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams182[] = {
-    {"Time L", 0, 127, 64, true, 146, {6, 128}, "DelayTime_1"},
-    {"Time R", 0, 127, 64, true, 146, {6, 128}, "DelayTime_1"},
-    {"FB L", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"FB R", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"X-FB L", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"X-FB R", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk"},
-    {"Flt LP", 0, 127, 127, true, 0, {255, 255}, "Level_100"},
-    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
-    {"Flt HP", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Time L", 0, 127, 64, true, 146, {6, 128}, "DelayTime_1", false, true},
+    {"Time R", 0, 127, 64, true, 146, {6, 128}, "DelayTime_1", false, true},
+    {"FB L", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"FB R", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"X-FB L", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"X-FB R", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true},
+    {"Flt LP", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
+    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Flt HP", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ModeDef kModes182[] = {
     {"DelayRange", 0, 2, 0, 0, "DelayRange_1"},
@@ -2420,16 +2469,19 @@ const ConnectorDef kOutputs183[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams183[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn"},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3"},
-    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ModeDef kModes183[] = {
     {"Wave", 0, 1, 0, 0, "OscWaveForm_1"},
+};
+const LabelDef kLabels184[] = {
+    {1, 1, "Ch 1"},
 };
 const ConnectorDef kInputs184[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2439,9 +2491,12 @@ const ConnectorDef kOutputs184[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams184[] = {
-    {"Level", 0, 127, 100, true, 102, {2, 255}, "MixLevel"},
-    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2"},
+    {"Level", 0, 127, 100, true, 102, {2, 255}, "MixLevel", false, true},
+    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+};
+const LabelDef kLabels185[] = {
+    {1, 1, "Ch 1"},
 };
 const ConnectorDef kInputs185[] = {
     {"InL", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2454,9 +2509,12 @@ const ConnectorDef kOutputs185[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams185[] = {
-    {"Level", 0, 127, 100, true, 102, {2, 255}, "MixLevel"},
-    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2"},
+    {"Level", 0, 127, 100, true, 102, {2, 255}, "MixLevel", false, true},
+    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+};
+const LabelDef kLabels186[] = {
+    {0, 1, "Switch"},
 };
 const ConnectorDef kInputs186[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2467,7 +2525,10 @@ const ConnectorDef kOutputs186[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams186[] = {
-    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
+    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
+};
+const LabelDef kLabels187[] = {
+    {0, 1, "Switch"},
 };
 const ConnectorDef kInputs187[] = {
     {"InOff", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2478,15 +2539,18 @@ const ConnectorDef kOutputs187[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams187[] = {
-    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
+    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
+};
+const LabelDef kLabels188[] = {
+    {1, 1, "Switch"},
 };
 const ConnectorDef kOutputs188[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams188[] = {
-    {"Value", 0, 127, 64, true, 96, {2, 255}, "LevBipUni"},
-    {"State", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
-    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni"},
+    {"Value", 0, 127, 64, true, 96, {2, 255}, "LevBipUni", false, true},
+    {"State", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
+    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni", false, true},
 };
 const ConnectorDef kInputs189[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2496,10 +2560,10 @@ const ConnectorDef kOutputs189[] = {
     {"Env", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams189[] = {
-    {"Thresh", 0, 127, 20, true, 220, {255, 255}, "Treshold_127"},
-    {"Attack", 0, 127, 0, true, 159, {255, 255}, "NoiseGateAttack"},
-    {"Release", 0, 127, 64, true, 160, {255, 255}, "NoiseGateRelease"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Thresh", 0, 127, 20, true, 220, {255, 255}, "Treshold_127", false, true},
+    {"Attack", 0, 127, 0, true, 159, {255, 255}, "NoiseGateAttack", false, true},
+    {"Release", 0, 127, 64, true, 160, {255, 255}, "NoiseGateRelease", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs190[] = {
     {"Rate", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -2512,16 +2576,16 @@ const ConnectorDef kOutputs190[] = {
     {"Sync", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams190[] = {
-    {"Rate", 0, 127, 64, true, 103, {2, 255}, "LfoRate_4"},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Range", 0, 4, 1, true, 104, {255, 255}, "LfoRange_4"},
-    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4"},
-    {"Wave", 0, 3, 0, true, 164, {255, 255}, "LfoB_WaveForm"},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono"},
-    {"Phase", 0, 127, 0, true, 163, {255, 255}, "Phase"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo"},
-    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Rate", 0, 127, 64, true, 103, {2, 255}, "LfoRate_4", false, true},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Range", 0, 4, 1, true, 104, {255, 255}, "LfoRange_4", false, true},
+    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true},
+    {"Wave", 0, 3, 0, true, 164, {255, 255}, "LfoB_WaveForm", false, true},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
+    {"Phase", 0, 127, 0, true, 163, {255, 255}, "Phase", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true},
+    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ConnectorDef kInputs192[] = {
     {"In", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -2530,10 +2594,10 @@ const ConnectorDef kOutputs192[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams192[] = {
-    {"Type", 0, 1, 0, true, 170, {255, 255}, "PhaserType"},
-    {"Rate", 0, 127, 64, true, 216, {255, 255}, "PhaserFreq"},
-    {"FB", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn"},
+    {"Type", 0, 1, 0, true, 170, {255, 255}, "PhaserType", false, true},
+    {"Rate", 0, 127, 64, true, 216, {255, 255}, "PhaserFreq", false, true},
+    {"FB", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs193[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2544,6 +2608,10 @@ const ConnectorDef kInputs193[] = {
 const ConnectorDef kOutputs193[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
+const LabelDef kLabels194[] = {
+    {1, 1, "Ch 1"},
+    {3, 1, "Ch 2"},
+};
 const ConnectorDef kInputs194[] = {
     {"In1", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
     {"In2", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2553,11 +2621,14 @@ const ConnectorDef kOutputs194[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams194[] = {
-    {"Level1", 0, 127, 100, true, 102, {4, 255}, "MixLevel"},
-    {"On1", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Level2", 0, 127, 100, true, 102, {4, 255}, "MixLevel"},
-    {"On2", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2"},
+    {"Level1", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
+    {"On1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Level2", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
+    {"On2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+};
+const LabelDef kLabels195[] = {
+    {1, 1, "On"},
 };
 const ConnectorDef kInputs195[] = {
     {"In", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2567,10 +2638,10 @@ const ConnectorDef kOutputs195[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams195[] = {
-    {"Amount", 0, 127, 100, true, 102, {2, 255}, "Level_100"},
-    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn"},
-    {"Lin/Exp", 0, 1, 0, true, 169, {255, 255}, "ExpLin_1"},
-    {"Mode", 0, 1, 0, true, 189, {255, 255}, "ModAmtInvert"},
+    {"Amount", 0, 127, 100, true, 102, {2, 255}, "Level_100", false, true},
+    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Lin/Exp", 0, 1, 0, true, 169, {255, 255}, "ExpLin_1", false, true},
+    {"Mode", 0, 1, 0, true, 189, {255, 255}, "ModAmtInvert", false, true},
 };
 const ConnectorDef kInputs196[] = {
     {"Pitch", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
@@ -2581,15 +2652,15 @@ const ConnectorDef kOutputs196[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams196[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 2}, "FreqCoarse"},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine"},
-    {"Tune Md", 0, 3, 0, true, 0, {255, 255}, "FreqMode_3"},
-    {"KBT", 0, 1, 0, true, 26, {255, 255}, "OffOn"},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Decay", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Click", 0, 127, 64, true, 0, {255, 255}, "Level_100"},
-    {"Punch", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
+    {"Coarse", 0, 127, 64, true, 60, {1, 2}, "FreqCoarse", false, true},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
+    {"Tune Md", 0, 3, 0, true, 0, {255, 255}, "FreqMode_3", false, true},
+    {"KBT", 0, 1, 0, true, 26, {255, 255}, "OffOn", false, true},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Decay", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Click", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Punch", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kOutputs197[] = {
     {"PatchActive", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -2605,7 +2676,7 @@ const ConnectorDef kOutputs198[] = {
     {"Gate", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams198[] = {
-    {"Thresh", 0, 127, 20, true, 220, {255, 255}, "Treshold_127"},
+    {"Thresh", 0, 127, 20, true, 220, {255, 255}, "Treshold_127", false, true},
 };
 const ConnectorDef kOutputs199[] = {
     {"Pitch", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -2613,7 +2684,7 @@ const ConnectorDef kOutputs199[] = {
     {"Vel", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams199[] = {
-    {"Priorty", 0, 2, 0, false, 181, {255, 255}, "MonoKeyMode"},
+    {"Priorty", 0, 2, 0, false, 181, {255, 255}, "MonoKeyMode", false, true},
 };
 const ConnectorDef kInputs200[] = {
     {"Rate", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
@@ -2622,13 +2693,13 @@ const ConnectorDef kOutputs200[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams200[] = {
-    {"Rate", 0, 127, 64, true, 103, {3, 255}, "LfoRate_3"},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono"},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg"},
-    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"Edge", 0, 4, 4, true, 203, {255, 255}, "RndEdge"},
-    {"Step", 0, 3, 3, true, 207, {255, 255}, "RandomAStepProb"},
+    {"Rate", 0, 127, 64, true, 103, {3, 255}, "LfoRate_3", false, true},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
+    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Edge", 0, 4, 4, true, 203, {255, 255}, "RndEdge", false, true},
+    {"Step", 0, 3, 3, true, 207, {255, 255}, "RandomAStepProb", false, true},
 };
 const ConnectorDef kInputs201[] = {
     {"In1", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
@@ -2644,21 +2715,24 @@ const ConnectorDef kOutputs202[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams202[] = {
-    {"Rate", 0, 127, 64, true, 103, {7, 255}, "LfoRate_3"},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono"},
-    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4"},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg"},
-    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3"},
-    {"Edge", 0, 4, 4, true, 203, {255, 255}, "RndEdge"},
+    {"Rate", 0, 127, 64, true, 103, {7, 255}, "LfoRate_3", false, true},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
+    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
+    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true},
+    {"Edge", 0, 4, 4, true, 203, {255, 255}, "RndEdge", false, true},
 };
 const ConnectorDef kInputs203[] = {
     {"In1", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ConnectorDef kOutputs203[] = {
     {"Out1", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
+};
+const LabelDef kLabels204[] = {
+    {2, 1, "Dice"},
 };
 const ConnectorDef kInputs204[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -2669,11 +2743,11 @@ const ConnectorDef kOutputs204[] = {
     {"Out", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams204[] = {
-    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100"},
-    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono"},
-    {"Dice", 0, 1, 0, true, 3, {255, 255}, "OffOn"},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg"},
-    {"Active", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
+    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100", false, true},
+    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono", false, true},
+    {"Dice", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
+    {"Active", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
 };
 const ConnectorDef kInputs205[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -2685,10 +2759,10 @@ const ConnectorDef kOutputs205[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams205[] = {
-    {"Prob", 0, 127, 64, true, 212, {255, 255}, "Level_100"},
-    {"Prob M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"On/Off", 0, 1, 1, true, 0, {255, 255}, "OffOn"},
-    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono"},
+    {"Prob", 0, 127, 64, true, 212, {255, 255}, "Level_100", false, true},
+    {"Prob M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"On/Off", 0, 1, 1, true, 0, {255, 255}, "OffOn", false, true},
+    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono", false, true},
 };
 const ConnectorDef kInputs206[] = {
     {"Clk", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
@@ -2700,11 +2774,11 @@ const ConnectorDef kOutputs206[] = {
     {"Out", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams206[] = {
-    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100"},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg"},
-    {"On/Off", 0, 1, 1, true, 0, {255, 255}, "OffOn"},
-    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono"},
-    {"Step M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
+    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100", false, true},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
+    {"On/Off", 0, 1, 1, true, 0, {255, 255}, "OffOn", false, true},
+    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono", false, true},
+    {"Step M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
 };
 const ModeDef kModes206[] = {
     {"Character", 0, 1, 0, 0, "Rnd_1"},
@@ -2720,13 +2794,13 @@ const ConnectorDef kOutputs208[] = {
     {"Out", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams208[] = {
-    {"Pattern", 0, 127, 64, true, 17, {255, 255}, "RangeBip_128"},
-    {"Bank", 0, 127, 64, true, 17, {255, 255}, "Level_100"},
-    {"Step", 0, 127, 127, true, 205, {255, 255}, "RangeBip_128"},
-    {"Loop", 0, 127, 15, true, 2, {255, 255}, "Range_128"},
-    {"Step M", 0, 127, 0, true, 0, {255, 255}, "Level_100"},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg"},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn"},
+    {"Pattern", 0, 127, 64, true, 17, {255, 255}, "RangeBip_128", false, true},
+    {"Bank", 0, 127, 64, true, 17, {255, 255}, "Level_100", false, true},
+    {"Step", 0, 127, 127, true, 205, {255, 255}, "RangeBip_128", false, true},
+    {"Loop", 0, 127, 15, true, 2, {255, 255}, "Range_128", false, true},
+    {"Step M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
 };
 const ModeDef kModes208[] = {
     {"Wave", 0, 1, 0, 0, "RndStepPulse"},
@@ -2740,183 +2814,183 @@ extern const std::size_t kModuleCount;
 extern const std::size_t kCategoryCount;
 
 const ModuleDef kModules[] = {
-    {1, ModuleKind::Module, "Keyboard", "Keyboard", 2, 0, true, false, 985, 986, {}, kOutputs1, {}, {}, "The Keyboard voice module gives you access to a few basic and important signals associated with the keyboard on Nord Modular G2, or a keyboard connected to the synth via MIDI In. The signals are generated from each key played and affect one voice at a time.", 8},
-    {3, ModuleKind::Module, "4-Out", "4 Outputs", 2, 0, true, true, 891, 886, kInputs3, {}, kParams3, {}, "This module is used to patch individual signals to different destinations: the Audio Out, the FX Area or the Global Buses.", 1},
-    {4, ModuleKind::Module, "2-Out", "2 Outputs", 2, 0, true, true, 890, 885, kInputs4, {}, kParams4, {}, "This module is used to patch stereo signals to the Audio Outs, the FX Area or the audio Buses.", 0},
-    {5, ModuleKind::Module, "Invert", "Logic Inverter", 2, 13, true, false, 821, 820, kInputs5, kOutputs5, {}, {}, "The Invert module holds two independent logic inverters. When an incoming signal is at a logic low state the output will transmit a logic high . When an incoming signal is at a logic high state the output will transmit a logic low .", 1},
-    {6, ModuleKind::PatchSettings, "Morph", "Morph", 0, -1, false, false, 0, 0, {}, {}, kParams6, {}, nullptr, 255},
-    {7, ModuleKind::Module, "OscB", "Osc B", 5, 2, true, false, 721, 715, kInputs7, kOutputs7, kParams7, {}, "OscillatorB can produce one of five waveforms: Sine, Triangle, Sawtooth, Pulse with selectable asymmetric pulse width, Pulse with selectable symmetric pulse width and DualSaw.", 1},
-    {8, ModuleKind::Module, "OscShpB", "Osc Shape B", 4, 2, true, false, 722, 716, kInputs8, kOutputs8, kParams8, kModes8, "This Shape oscillator is able to generate a vast variety of waveform shapes.", 8},
-    {9, ModuleKind::Module, "OscC", "Osc C", 3, 2, true, false, 723, 717, kInputs9, kOutputs9, kParams9, kModes9, "This oscillator produces one of six available waveforms. It also has two pitch modulation input.", 2},
-    {12, ModuleKind::Module, "Reverb", "Reverb", 3, 7, true, false, 829, 830, kInputs12, kOutputs12, kParams12, kModes12, "The Reverb module is a stereo reverb with selectable reverb type, time and brightness. The module also features a Dry/Reverb mix control.", 10},
-    {13, ModuleKind::Module, "OscString", "Osc String", 3, 2, true, false, 837, 838, kInputs13, kOutputs13, kParams13, {}, "The String Oscillator is a little different from the other oscillators. One significant difference is that it requires a short burst of audio on the red input to be able to produce sound.", 19},
-    {15, ModuleKind::Module, "Sw8-1", "Switch 8-1", 4, 12, true, false, 795, 794, kInputs15, kOutputs15, kParams15, {}, "The 8-1Switch has eight inputs with an attenuator each, one output and eight Channel Select radio buttons which can also be labelled.", 6},
-    {17, ModuleKind::Module, "ValSw1-2", "Value Switch 1-2", 2, 12, true, true, 765, 764, kInputs17, kOutputs17, kParams17, {}, "The 1-2 Value Switch directs an incoming control/audio signal between two outputs at a definable Control signal input value.", 14},
-    {18, ModuleKind::Module, "X-Fade", "Cross Fader", 2, 11, true, false, 734, 749, kInputs18, kOutputs18, kParams18, {}, "This mixer can be modulated by a control signal to produce a crossfade between two incoming signals.", 17},
-    {19, ModuleKind::Module, "Mix4-1B", "Mixer 4-1 B", 2, 11, true, false, 741, 756, kInputs19, kOutputs19, kParams19, {}, "This mixer has four Dynamic Control/Audio signal inputs, one Chain input and one output. Each input is equipped with a separate attenuation control.", 6},
-    {20, ModuleKind::Module, "EnvADSR", "Envelope ADSR", 4, 5, true, false, 705, 704, kInputs20, kOutputs20, kParams20, {}, "This is a regular four-stage ADSR (Attack, Decay, Sustain and Release) envelope. The ADSR Envelope is well suited for controlling audio signal amplitude, pitch and filter cut-off frequency, for example.", 0},
-    {21, ModuleKind::Module, "Mux1-8", "Multiplexer 1-8", 2, 12, true, false, 771, 770, kInputs21, kOutputs21, {}, {}, "The 1-8Multiplexer has one input and eight outputs. The channels are enabled by sending a control signal on the Ctrl input.", 18},
-    {22, ModuleKind::Module, "PartQuant", "Partial Quantizer", 2, 1, true, false, 410, 397, kInputs22, kOutputs22, kParams22, {}, "The Partial Quantizer module is used to transpose an Oscillator to one of its harmonic partials. It works similar to the NoteQuant module, but instead of quantizing to seminote values this module quantizes to \302\221overtone\302\222 values.", 2},
-    {23, ModuleKind::Module, "ModADSR", "Envelope Modulation ADSR", 5, 5, true, false, 711, 445, kInputs23, kOutputs23, kParams23, {}, "The Mod Envelope is an ADSR envelope with control signal inputs for modulating Attack, Decay, Sustain and Release from external sources. The Shape characteristics of this envelope is fixed to Linear Attack & Exponential Decay/Release.", 11},
-    {24, ModuleKind::Module, "LfoC", "LFO C", 2, 3, true, false, 839, 840, kInputs24, kOutputs24, kParams24, kModes24, "This LFO produces one of six selectable waveforms. The rate of the LFO can be modulated. LfoE has the same wave shapes as LfoA but uses less Patch Load because of the drop-down waveform selector.", 2},
-    {25, ModuleKind::Module, "LfoShpA", "LFO Shape A", 5, 3, true, false, 841, 842, kInputs25, kOutputs25, kParams25, {}, "LfoShpA generates one of six different shapable control signals. The shape and phase of the signal can be controlled and modulated. The rate of the LFO can be modulated by a modulation source and the keyboard.", 4},
-    {26, ModuleKind::Module, "LfoA", "LFO A", 3, 3, true, false, 843, 844, kInputs26, kOutputs26, kParams26, {}, "LFO A produces one of six different control signals. The rate of the LFO can be modulated from external sources.", 0},
-    {27, ModuleKind::Module, "OscMaster", "Osc Master", 3, 2, true, false, 990, 989, kInputs27, kOutputs27, kParams27, {}, "The Master Oscillator doesn\302\222t generate any audio signal. Instead, it generates a Pitch control signal which can be used to control other Oscillator modules on their Pitch inputs.", 24},
-    {28, ModuleKind::Module, "Saturate", "Saturate", 2, 9, true, false, 991, 992, kInputs28, kOutputs28, kParams28, {}, "This module shapes an input signal in a logarithmic fashion. There is a choice of four different distortion curve characteristics, each with modulatable distortion depth control.", 2},
-    {29, ModuleKind::Module, "MetNoise", "Metallic noise oscillator", 2, 2, true, false, 666, 667, kInputs29, kOutputs29, kParams29, {}, "The metallic noise generator produces a noisy signal with a bright metallic timbre. The timbre is created by a dense cloud of short pulses with carefully detuned frequency relations, creating clusters of high pitched partials in its audio spectrum.", 14},
-    {30, ModuleKind::Module, "Device", "Device", 3, 0, true, false, 392, 393, {}, kOutputs30, {}, {}, "The Device module represents a number of physical controls on the synth and routes their respective control signals for use in the Patch.", 10},
-    {31, ModuleKind::Module, "Noise", "Noise", 2, 2, true, false, 372, 373, {}, kOutputs31, kParams31, {}, "This module produces a noise signal, the noise timbre is selectable from white (very bright) to colored (low rumble).", 13},
-    {32, ModuleKind::Module, "Eq2Band", "Eq 2 Band", 3, 6, true, false, 981, 983, kInputs32, kOutputs32, kParams32, {}, "The 2 band EQ is a treble and bass equalizer with gain controls for 80Hz and 12kHz plus a master level control.", 16},
-    {33, ModuleKind::Module, "Eq3band", "Eq 3 Band", 4, 6, true, false, 982, 984, kInputs33, kOutputs33, kParams33, {}, "The 3 band EQ is a treble and bass equalizer with sweepable Mid frequency plus gain controls for the Mid band and for the fixed 80Hz and 12kHz frequency bands. It has also a master level control.", 17},
-    {34, ModuleKind::Module, "ShpExp", "Shape Exp", 2, 9, true, false, 987, 988, kInputs34, kOutputs34, kParams34, {}, "This module shapes an input signal in an exponential fashion. You can choose between four different transformation curve characteristics.", 3},
-    {35, ModuleKind::Module, "Driver", "Driver", 3, -1, false, false, 997, 0, kInputs35, kOutputs35, kParams35, kModes35, nullptr, 255},
-    {36, ModuleKind::Module, "SwOnOffM", "Switch On/Off Momentary", 2, 12, true, false, 376, 377, kInputs36, kOutputs36, kParams36, {}, "The Momentary OnOff Switch is perfect for manual triggering of different things in the Patch - especially when you assign the On button to an Assignable Button on the synth panel.", 0},
-    {38, ModuleKind::Module, "Pulse", "Pulse", 2, 13, true, true, 825, 833, kInputs38, kOutputs38, kParams38, kModes38, "This module will generate a logic high pulse of a set duration on the moment it receives a logic signal on its input.", 7},
-    {40, ModuleKind::Module, "Mix8-1B", "Mixer 8-1 B", 4, 11, true, false, 728, 729, kInputs40, kOutputs40, kParams40, {}, "This mixer has eight Dynamic Control/Audio signal inputs, one Chain input and one output. Each input is equipped with a separate attenuation control. The mixer also has a -6 dB button for attenuating all inputs by another -6 dB.", 11},
-    {41, ModuleKind::Module, "EnvH", "Envelope Hold", 2, 5, true, false, 686, 687, kInputs41, kOutputs41, kParams41, {}, "This is a Hold Envelope that can be used to gate an audio signal for a specified duration. It has a Hold time control and an AM input.", 2},
-    {42, ModuleKind::Module, "Delay", "Logic Delay", 2, 13, true, true, 824, 822, kInputs42, kOutputs42, kParams42, kModes42, "This module can delay the edges of a logic high clock pulse. Depending on the setting of the Delay Type drop-down selector the module will delay the positive edge , the negative edge or both the positive and negative edge by the time set with the Time knob.", 8},
-    {43, ModuleKind::Module, "Constant", "Constant Value", 2, 10, true, false, 419, 406, {}, kOutputs43, kParams43, {}, "The Constant Value module produces a constant control signal that can be instantly set by the knob. Basically this module is a general purpose knob module producing a control value that can be routed to any modulation input of another module.", 0},
-    {44, ModuleKind::Module, "LevMult", "Level Multiplier", 2, 10, true, false, 737, 752, kInputs44, kOutputs44, {}, {}, "The Level Multiplier module performs the same functions as a traditional VCA, a voltage controlled amplifier, in a analog system would do. It multiplies two incoming signals (input 1 times input 2 = output).", 8},
-    {45, ModuleKind::Module, "FltVoice", "Filter Voice", 4, 6, true, false, 417, 404, kInputs45, kOutputs45, kParams45, {}, "The Voice Filter module is designed to simulate the part of the vocal tract that produces the vowels. You can select between a number of preset vowels and change and modulate them to generate really amazing effects.", 12},
-    {46, ModuleKind::Module, "EnvAHD", "Envelope AHD", 4, 5, true, false, 707, 440, kInputs46, kOutputs46, kParams46, {}, "The Attack-Hold-Decay envelope is an envelope with three stages: Attack, Hold and Release. The AHD Envelope is well suited for audio gating applications, for example.", 5},
-    {47, ModuleKind::Module, "Pan", "Pan", 2, 11, true, false, 746, 424, kInputs47, kOutputs47, kParams47, {}, "This module takes an input signal and outputs it in a stereo panorama.", 16},
-    {48, ModuleKind::Module, "MixStereo", "Mixer Stereo", 5, 11, true, true, 669, 668, kInputs48, kOutputs48, kParams48, {}, "This mixer has six Dynamic Control/Audio signal inputs and a stereo output. Each input is equipped with a separate attenuation control of [Attenuator Type II] and a Pan knob. The Pan knobs attenuate the middle of the stereo panorama by -3dB.", 14},
-    {49, ModuleKind::Module, "FltMulti", "Filter Multi-mode", 4, 6, true, false, 369, 368, kInputs49, kOutputs49, kParams49, {}, "This is a multimode filter with a selectable slope of 6 or 12 dB/octave and resonance control. It is a multi-mode filter with three outputs: one highpass (HP), one lowpass (LP) and one bandpass (BP). All three outputs can be used simultaneously.", 5},
-    {50, ModuleKind::Module, "ConstSwT", "Constant Switch Toggling", 2, 10, true, true, 365, 364, {}, kOutputs50, kParams50, {}, "The Toggling Constant Switch module produces a constant control signal that can be instantly set by the knob after you have turned on the Switch button.", 2},
-    {51, ModuleKind::Module, "FltNord", "Filter Nord", 5, 6, true, false, 367, 366, kInputs51, kOutputs51, kParams51, {}, "This is a dynamic synthesizer filter with a slope of either 12 or 24 dB/octave. It is a multi-mode filter, providing a highpass, a lowpass, a bandpass or a bandreject filter. The cut-off frequency and the resonance can be modulated from external sources.", 3},
-    {52, ModuleKind::Module, "EnvMulti", "Envelope Multi", 6, 5, true, false, 702, 712, kInputs52, kOutputs52, kParams52, {}, "The Multi stage envelope is a 5-segment time and level envelope with selectable sustain segment.", 8},
-    {53, ModuleKind::Module, "S&H", "Sample & Hold", 2, 12, true, false, 357, 356, kInputs53, kOutputs53, {}, {}, "This module takes samples of the values of an incoming signal and holds them at the output. The sampling of the input signal occurs every time the signal on the Clk input changes from a logic low to a logic high signal (the positive edge).", 21},
-    {54, ModuleKind::Module, "FltStatic", "Filter Static", 3, 6, true, false, 994, 993, kInputs54, kOutputs54, kParams54, {}, "This is a static filter with selectable modes (LP/BP/HP), frequency and resonance controls. The slope is fixed at 12 dB/octave.", 6},
-    {55, ModuleKind::Module, "EnvD", "Envelope Decay", 2, 5, true, false, 688, 690, kInputs55, kOutputs55, kParams55, {}, "This is a Decay Envelope. It has a Decay time control and an AM modulation input.", 3},
-    {56, ModuleKind::Module, "Resonator", "Resonator", 5, -1, false, false, 995, 0, kInputs56, kOutputs56, kParams56, {}, nullptr, 255},
-    {57, ModuleKind::Module, "Automate", "MIDI Control Automate", 2, 15, true, true, 989, 990, kInputs57, kOutputs57, kParams57, {}, "The midi automation module can be used to send out midi Controller values on a specific midi cc # on a selected midi channel. The module appears very similar to the CtrlSend module.", 8},
-    {58, ModuleKind::Module, "DrumSynth", "Drum Synthesizer", 8, 2, true, false, 1025, 1026, kInputs58, kOutputs58, kParams58, {}, "The Drum synth module is designed to generate classic analog drumcomputer or rhythmbox sounds. It consists of a master and a slave oscillator in combination with a noise source and a multimode noise filter.", 17},
-    {59, ModuleKind::Module, "CompLev", "Compare to Level", 2, 10, true, true, 422, 409, kInputs59, kOutputs59, kParams59, {}, "This module produces a logic signal on its yellow output by comparing a Dynamic Control/Audio signal level to the value set by the knob.", 13},
-    {60, ModuleKind::Module, "Mux8-1X", "Multiplexer 8-1 with variable X-Fade", 3, 12, true, true, 791, 801, kInputs60, kOutputs60, kParams60, {}, "The 8-1 X-Fade Multiplexer has eight inputs and one output. The channels are enabled by sending a control signal on the Ctrl input. You can also define the amount of crossfade between adjacent channels with the X-Fade knob.", 19},
-    {61, ModuleKind::Module, "Clip", "Clip", 2, 9, true, false, 388, 390, kInputs61, kOutputs61, kParams61, {}, "This module can produce digital distortion by decreasing the clip level limit(s) below the normal headroom.", 0},
-    {62, ModuleKind::Module, "Overdrive", "Overdrive", 2, 9, true, false, 389, 391, kInputs62, kOutputs62, kParams62, {}, "This module distorts an audio signal by amplifying the input signal and force it to \302\221hit the headroom\302\222. The special amplification characteristics makes this module produce a warm, tube like distortion.", 1},
-    {63, ModuleKind::Module, "Scratch", "Scratch", 3, 7, true, false, 1000, 999, kInputs63, kOutputs63, kParams63, {}, "The scratch module is a special pitch shifter that creates the effect of shuttling an audiotape backwards and forwards or scratching a vinyl record.", 8},
-    {64, ModuleKind::Module, "Gate", "Gate", 2, 13, true, false, 819, 818, kInputs64, kOutputs64, {}, kModes64, "This module features two independent logic gates. A gate is a device that combines two logic levels, in a way that is a bit similar to how a mixer mixes two audio signals.", 0},
-    {66, ModuleKind::Module, "Mix2-1B", "Mixer 2-1 B", 2, 11, true, false, 740, 755, kInputs66, kOutputs66, kParams66, {}, "This mixer has two Dynamic Control/Audio signal inputs and one output. Each input is equipped with a separate attenuation control. Each channel also has a separate control for inverting the input signal.", 4},
-    {68, ModuleKind::Module, "ClkGen", "Clock Generator", 4, 3, true, true, 684, 429, kInputs68, kOutputs68, kParams68, {}, "The Clock Generator module generates a stream of logic signals. The Clock Generator can either act on its own or use the Master Clock signal.", 6},
-    {69, ModuleKind::Module, "ClkDiv", "Clock Divider", 2, 13, true, true, 420, 407, kInputs69, kOutputs69, kParams69, kModes69, "The Clock Divider module can be used for dividing incoming clock pulses by a factor \302\221n\302\222, which can be set with the Divider control. This module has two possible modes that can be set by the dropdown control.", 5},
-    {71, ModuleKind::Module, "EnvFollow", "Envelope Follower", 2, 10, true, true, 709, 708, kInputs71, kOutputs71, kParams71, {}, "This module will extract an envelope from a signal, producing a smoothed control signal on its blue output that follows the amplitude envelope of an incoming audio signal.", 11},
-    {72, ModuleKind::Module, "NoteScaler", "Note Scaler", 2, 1, true, false, 411, 398, kInputs72, kOutputs72, kParams72, {}, "This module works like a control signal attenuator, with a scale display that makes it easy to process keyboard note values. You set the output peak-to-peak limits in semitones. This could be useful if you want to \"tune\" the output from a controller.", 4},
-    {74, ModuleKind::Module, "WaveWrap", "Wave Wrapper", 2, 9, true, false, 382, 383, kInputs74, kOutputs74, kParams74, {}, "This module amplifies a signal until it hits the headroom. Instead of clipping the signal, it folds down, \"wraps around\".", 5},
-    {75, ModuleKind::Module, "NoteQuant", "Note Quantizer", 2, 1, true, true, 412, 399, kInputs75, kOutputs75, kParams75, {}, "This module will first scale down the input signal acoording to the Range setting. Then it will quantize the scaled input signal to the closest exact semitone which fits in the semitone scale set by the Notes control.", 0},
-    {76, ModuleKind::Module, "SwOnOffT", "Switch On/Off Toggling", 2, 12, true, true, 799, 423, kInputs76, kOutputs76, kParams76, {}, "The Toggling OnOff Switch is perfect for manual activating different things in the Patch - especially when you assign the On button to an Assignable Button on the synth panel.", 1},
-    {78, ModuleKind::Module, "Sw1-8", "Switch 1-8", 4, 12, true, false, 773, 772, kInputs78, kOutputs78, kParams78, {}, "The 1-8Switch has one input, eight outputs and eight Channel Select radio buttons which can also be labelled.", 11},
-    {79, ModuleKind::Module, "Sw4-1", "Switch 4-1", 3, 12, true, false, 779, 778, kInputs79, kOutputs79, kParams79, {}, "The 4-1Switch has four inputs with an attenuator each, one output and four Channel Select radio buttons which can also be labelled.", 5},
-    {81, ModuleKind::Module, "LevAmp", "Level Amplifier", 2, 10, true, true, 748, 763, kInputs81, kOutputs81, kParams81, {}, "This module can amplify or attenuate a signal.", 7},
-    {82, ModuleKind::Module, "Rect", "Rectifier", 2, 9, true, true, 384, 385, kInputs82, kOutputs82, kParams82, {}, "The Rectifier (diode processing) module can be set to discard of any positive or negative input levels (half wave rectification), or to convert the input signal to only positive or only negative levels (full wave rectification).", 8},
-    {83, ModuleKind::Module, "ShpStatic", "Shape Static", 2, 9, true, true, 386, 387, kInputs83, kOutputs83, kParams83, {}, "This module distorts a signal using one of four different amplification/attenuation characteristics. The curves on the buttons describes the transformation functions, i.e the amplification/attenuation curve of each value of the input signal.", 7},
-    {84, ModuleKind::Module, "EnvADR", "Envelope AD/R", 3, 5, true, false, 703, 713, kInputs84, kOutputs84, kParams84, {}, "This is an envelope with two or three stages, Attack and Decay or Attack, Sustain and Release.", 4},
-    {85, ModuleKind::Module, "WindSw", "Window Switch", 2, 12, true, true, 790, 800, kInputs85, kOutputs85, kParams85, {}, "The Window Switch \"closes\" when an incoming Control signal value is within the range set with the From and To parameters. When the switch closes, a high logic gate signal is also output from the yellow logic output.", 15},
-    {86, ModuleKind::Module, "8Counter", "8 Counter", 2, 13, true, false, 807, 806, kInputs86, kOutputs86, {}, {}, "The 8-Counter steps a logic high signal sequentially over eight outputs. Note that only one of the outputs can be high at a time. On every new incoming clock pulse the module advances one step. Note that the Rst input is of the enable/disable type.", 10},
-    {87, ModuleKind::Module, "FltLP", "Filter Lowpass", 2, 6, true, false, 360, 361, kInputs87, kOutputs87, kParams87, kModes87, "This is a non-resonant lowpass filter with selectable slope (6/12/18/24/30/36 dB/Oct.) and a modulation input for cut-off frequency modulation. The passband is flat with a gain of exactly 1 (unity gain).", 0},
-    {88, ModuleKind::Module, "Sw1-4", "Switch 1-4", 3, 12, true, false, 769, 768, kInputs88, kOutputs88, kParams88, {}, "The 1-4Switch has one input with an attenuator, four outputs and four Channel Select radio buttons which can also be labelled.", 10},
-    {89, ModuleKind::Module, "Flanger", "Flanger", 3, 7, true, false, 665, 664, kInputs89, kOutputs89, kParams89, {}, "The Flanger is based on the Nord Electro flanger effect and simulates a vintage type of flanger. The flanger effect is a very characteristic type of \"sweep\" effect. It\302\222s quite similar to the phaser effect but has a little different characteristics.", 2},
-    {90, ModuleKind::Module, "Sw1-2", "Switch 1-2", 2, 12, true, false, 767, 766, kInputs90, kOutputs90, kParams90, {}, "The 1-2Switch has one input, two outputs and two Channel Select radio buttons which can also be labelled.", 9},
-    {91, ModuleKind::Module, "FlipFlop", "Flip Flop", 2, 13, true, false, 817, 816, kInputs91, kOutputs91, {}, kModes91, "The FlipFlop module holds two different functions named a D-type flipflop and a Set-Reset flipflop.", 3},
-    {92, ModuleKind::Module, "FltClassic", "Filter Classic", 4, 6, true, false, 371, 370, kInputs92, kOutputs92, kParams92, {}, "This is a lowpass filter which simulates the classic analog synthesizer filter. The main difference between this filter and other G2 lowpass filters is the more narrow resonance peak, quite similar to the peak found in analog \302\221ladder\302\222 filters.", 4},
-    {94, ModuleKind::Module, "StChorus", "Stereo Chorus", 3, 7, true, false, 836, 835, kInputs94, kOutputs94, kParams94, {}, "The Stereo Chorus module simulates the effect of multiple detuned stereo voices. It has one Audio signal input and stereo outputs.", 0},
-    {95, ModuleKind::PatchSettings, "Gain", "Gain", 0, -1, false, false, 0, 0, {}, {}, kParams95, {}, nullptr, 255},
-    {96, ModuleKind::Module, "OscD", "Osc D", 2, 2, true, false, 720, 714, kInputs96, kOutputs96, kParams96, kModes96, "This oscillator is similar to OscillatorC but has less modulation inputs.", 3},
-    {97, ModuleKind::Module, "OscA", "Osc A", 3, 2, true, false, 725, 719, kInputs97, kOutputs97, kParams97, {}, "This oscillator can produce one of six waveforms: Sine, Triangle, Sawtooth, Square, 25% Pulse or 10% Pulse. The oscillator has two pitch modulation inputs.", 0},
-    {98, ModuleKind::Module, "FreqShift", "Frequency Shifter", 3, 7, true, false, 672, 673, kInputs98, kOutputs98, kParams98, {}, "The Frequency Shifter detunes all sinewave partials in an audio signal by the number of Hertz set by the Shift control. The module is modelled after a design by Harald Bode which was produced by Moog in the early sixties of the last century.", 6},
-    {100, ModuleKind::Module, "Sw2-1", "Switch 2-1", 2, 12, true, false, 777, 776, kInputs100, kOutputs100, kParams100, {}, "The 2-1Switch has two inputs, one output and two Channel Select radio buttons which can also be labelled. This module is very handy when used as an A/B switch.", 4},
-    {102, ModuleKind::Module, "FltPhase", "Filter Phase", 5, 6, true, false, 378, 380, kInputs102, kOutputs102, kParams102, {}, "This is a 14-pole phase filter with peak spread control and adjustable feedback. It features six allpass filters which displace the phase 180 degrees each.", 8},
-    {103, ModuleKind::Module, "EqPeak", "Eq Peak", 4, 6, true, false, 415, 402, kInputs103, kOutputs103, kParams103, {}, "The Eq1 module offers parametric equalization with controls for center frequency, gain and bandwidth.", 15},
-    {105, ModuleKind::Module, "ValSw2-1", "Value Switch 2-1", 2, 12, true, true, 775, 774, kInputs105, kOutputs105, kParams105, {}, "The 2-1 Value Switch switches between two inputs at a definable Control signal input value.", 13},
-    {106, ModuleKind::Module, "OscNoise", "Noise oscillator", 3, 2, true, false, 1019, 1020, kInputs106, kOutputs106, kParams106, {}, "The noise oscillator produces a narrow band of noise. The bandwitdh can be s\303\263 narrow that the noise will have a distinct pitched character, sounding like a noisy sine wave.", 12},
-    {108, ModuleKind::Module, "Vocoder", "Vocoder", 8, 6, true, true, 418, 405, kInputs108, kOutputs108, kParams108, {}, "The Vocoder module is a classic 16 band vocoder with the ability to reroute the analysis bands. The basic principle of a vocoder is to filter a synthesizer sound with the help of another sound - a human voice for example.", 13},
-    {112, ModuleKind::Module, "LevAdd", "Level Add", 2, 10, true, true, 738, 753, kInputs112, kOutputs112, kParams112, {}, "The LevAdd module can be used to add or subtract an offset (bias) to a signal.", 4},
-    {113, ModuleKind::Module, "Fade1-2", "Fader 1-2", 2, 11, true, false, 735, 750, kInputs113, kOutputs113, kParams113, {}, "This is a fader with one input and two outputs, and a fader rotary knob to fade the input signal between the two outputs.", 18},
-    {114, ModuleKind::Module, "Fade2-1", "Fader 2-1", 2, 11, true, false, 736, 751, kInputs114, kOutputs114, kParams114, {}, "This is a fader with two inputs and one output, and a fader rotary knob to fade between the two input signals.", 19},
-    {115, ModuleKind::Module, "LevScaler", "Level Scaler", 3, 1, true, true, 414, 401, kInputs115, kOutputs115, kParams115, {}, "This module is used to scale the level of a signal depending on either a position on the keyboard ( kbt=on and Note input is not used) or depending on the value of a control signal ( kbt =off and the control signal is connected to the Note input).", 10},
-    {116, ModuleKind::Module, "Mix8-1A", "Mixer 8-1 A", 2, 11, true, false, 726, 727, kInputs116, kOutputs116, kParams116, {}, "This mixer has eight Dynamic Control/Audio signal inputs and one output.", 10},
-    {117, ModuleKind::Module, "LevMod", "Level Modulator", 3, 10, true, false, 747, 762, kInputs117, kOutputs117, kParams117, {}, "The Level Modulator module is in essence a multiplier where the depth of the modulation of the main input by the Mod input can be controlled by a Balance knob control.", 9},
-    {118, ModuleKind::Module, "Digitizer", "Digitizer", 3, 7, true, false, 379, 381, kInputs118, kOutputs118, kParams118, {}, "The Digitizer module continuously samples an incoming signal at a selectable sample rate and bit resolution. The module can e.g. sample a clean audio signal and transform it down to a dirty 8 bit, 5 kHz signal. Great for \"low-fi\" effects with lots of aliasing.", 4},
-    {119, ModuleKind::Module, "EnvADDSR", "Envelope ADBDSR", 5, 5, true, false, 700, 701, kInputs119, kOutputs119, kParams119, {}, "This is what you could call an enhanced ADSR-envelope. It features Attack, Decay, Break, Decay, Break and Release controls. The sustain segment is selectable between the first and second Brake stage.", 7},
-    {121, ModuleKind::Module, "SeqNote", "Sequencer Note", 9, 14, true, false, 876, 875, kInputs121, kOutputs121, kParams121, {}, "This is a Note Sequencer which sends a (bipolar) control signal value for each step.", 3},
-    {123, ModuleKind::Module, "Mix4-1C", "Mixer 4-1 C", 4, 11, true, false, 742, 757, kInputs123, kOutputs123, kParams123, {}, "This mixer has four Dynamic Control/Audio signal inputs, one Chain input and one output. Each input is equipped with a separate attenuation control. The mixer has a Channel Mute button for each channel for enabling/disabling the input.", 7},
-    {124, ModuleKind::Module, "Mux8-1", "Multiplexer 8-1", 2, 12, true, false, 793, 780, kInputs124, kOutputs124, {}, {}, "The 8-1Multiplexer has eight inputs and one output. The channels are enabled by sending a control signal on the Ctrl input.", 17},
-    {125, ModuleKind::Module, "WahWah", "Wah-Wah", 2, 6, true, false, 534, 533, kInputs125, kOutputs125, kParams125, {}, "Wah-Wah modulation is often used for electric guitars to get that funky \"talking guitar\" sound. Basically, the Wah-Wah modulation is a lowpass/bandpass type of filter that can be swept across the frequency range.", 11},
-    {126, ModuleKind::NameBar, "Name", "Name Bar", 1, 0, true, false, 0, 510, {}, {}, {}, {}, nullptr, 16},
-    {127, ModuleKind::Module, "Fx-In", "Fx Input", 2, 0, true, true, 889, 884, {}, kOutputs127, kParams127, {}, "This module should be used when you want to route audio signals from the Voice Area to the FX Area. Since the FX In module processes the sum of all voices from the Voice Area, the volume depends on the number of notes you play simultaneously.", 6},
-    {128, ModuleKind::Module, "MinMax", "Min/Max Compare", 2, 10, true, false, 682, 683, kInputs128, kOutputs128, {}, {}, "The MinMax module compares two input signals and outputs the highest levels on the Max output and the lowest levels on the Min output. This module is originally named a \302\221level switcher\302\222 on old analog systems.", 15},
-    {130, ModuleKind::Module, "BinCounter", "Binary Counter", 2, 13, true, false, 809, 808, kInputs130, kOutputs130, {}, {}, "The BinCounter is an 8 bit binary counter which outputs logic high signals. Counting advances one step on the poitive edge of every incoming clock pulse. The eight outputs together form the binary code for the current state value the binary counter is in.", 11},
-    {131, ModuleKind::Module, "ADConv", "A/D Converter", 2, 13, true, false, 847, 848, kInputs131, kOutputs131, {}, {}, "The ADConv module is an 8 bit A/D converter. It converts a control signal between -64 and +64 units to a \302\221two\302\222s complement\302\222 code, where each output represents the weight of one of the bits in the eight bit code.", 12},
-    {132, ModuleKind::Module, "DAConv", "D/A Converter", 2, 13, true, false, 849, 850, kInputs132, kOutputs132, {}, {}, "The DAConv module is an 8 bit D/A converter that accepts a two\302\222s complement coded binary number code. The module outputs a bipolar signal with values depending on the current logic input signals.", 13},
-    {134, ModuleKind::Module, "FltHP", "Filter Highpass", 2, 6, true, false, 851, 852, kInputs134, kOutputs134, kParams134, kModes134, "This is a non-resonant highpass filter with selectable slope (6/12/18/24/30/36 dB/Oct.) and a modulation input for cut-off frequency modulation. The passband is flat with a gain of exactly 1 (unity gain).", 1},
-    {135, ModuleKind::PatchSettings, "Glide", "Glide", 0, -1, false, false, 0, 0, {}, {}, kParams135, {}, "This module will smooth or slew sudden transitions in level of a control signal. This will create a glide effect between \302\221jumping\302\222 values in a control signal, similar to the portamento effect.", 255},
-    {136, ModuleKind::PatchSettings, "Arpeggiator", "Arpeggiator", 0, -1, false, false, 0, 0, {}, {}, kParams136, {}, nullptr, 255},
-    {137, ModuleKind::PatchSettings, "Bend", "Bend", 0, -1, false, false, 0, 0, {}, {}, kParams137, {}, nullptr, 255},
-    {138, ModuleKind::PatchSettings, "Vibrato", "Vibrato", 0, -1, false, false, 0, 0, {}, {}, kParams138, {}, nullptr, 255},
-    {139, ModuleKind::Module, "T&H", "Track & Hold", 2, 12, true, false, 359, 358, kInputs139, kOutputs139, {}, {}, "This module is related to a controllable open/close switch module. When the signal on the Ctrl input is a logic high the Track&Hold module output simply follows the input signal.", 22},
-    {140, ModuleKind::Module, "Mix4-1S", "Mixer 4-1 Stereo", 4, 11, true, false, 743, 758, kInputs140, kOutputs140, kParams140, {}, "This stereo mixer has four Dynamic Control/Audio signal input pairs, two Chain inputs and a stereo output. Each input pair is equipped with a separate attenuation control.", 8},
-    {141, ModuleKind::Module, "CtrlSend", "MIDI Control Send", 2, 15, true, true, 853, 854, kInputs141, kOutputs141, kParams141, {}, "The MIDI Controller Send module can be used to send out MIDI Controller values on a specific MIDI Controller# on a selected MIDI channel.", 0},
-    {142, ModuleKind::Module, "PCSend", "MIDI Program Change Send", 2, 15, true, true, 855, 856, kInputs142, kOutputs142, kParams142, {}, "The PCSend module is used for sending out MIDI Program Change messages on a selected MIDI channel.", 1},
-    {143, ModuleKind::Module, "NoteSend", "MIDI Note Send", 2, 15, true, true, 857, 858, kInputs143, {}, kParams143, {}, "The NoteSend module is used for sending out MIDI Note On and Off messages on a selected MIDI channel. The module can also send out Velocity values.", 2},
-    {144, ModuleKind::Module, "SeqEvent", "Sequencer Event", 5, 14, true, false, 859, 860, kInputs144, kOutputs144, kParams144, {}, "This basic step sequencer features two parallel trigger-rows of 16 steps. It is ideal for sequencing drum and percussive sounds. Each step can send two separate logic pulses on the two separate outputs.", 0},
-    {145, ModuleKind::Module, "SeqVal", "Sequencer Values", 8, 14, true, false, 861, 862, kInputs145, kOutputs145, kParams145, {}, "This is a sequencer which sends one control signal value for each step. The value for each step is shown in the corresponding display box. In Unipolar mode (the Uni button depressed), the values are displayed in steps of 0.5 units.", 1},
-    {146, ModuleKind::Module, "SeqLev", "Sequencer Level", 8, 14, true, false, 863, 864, kInputs146, kOutputs146, kParams146, {}, "This is a Level Sequencer which sends a control signal level for each step. It is ideal for sequencing modulation patterns. There is also a row of Step buttons for sending out a Trig/Gate signal for every step in the sequence.", 2},
-    {147, ModuleKind::Module, "CtrlRcv", "MIDI Control Receive", 2, 15, true, true, 865, 866, {}, kOutputs147, kParams147, {}, "The MIDI Controller Receive module can be used to control things in the Patch based on incoming external MIDI Controller data.", 4},
-    {148, ModuleKind::Module, "NoteRcv", "MIDI Note Receive", 2, 15, true, true, 868, 870, {}, kOutputs148, kParams148, {}, "The MIDI Note Receive module works like sort of a MIDI Note detector and can be used for controlling things in the Patch when receiving a specific incoming MIDI Note number.", 5},
-    {149, ModuleKind::Module, "NoteZone", "MIDI Note Zone", 3, 15, true, true, 867, 869, {}, {}, kParams149, {}, "The Note Zone module can be used for receiving MIDI Note data within a selected note range on a selected MIDI channel and then transmit the notes on a different MIDI channel, transposed or non-transposed.", 7},
-    {150, ModuleKind::Module, "Compress", "Compressor", 5, 7, true, true, 871, 872, kInputs150, kOutputs150, kParams150, {}, "The stereo Compressor module compresses an input signal by amplifying weak signals attenuating strong signals and thus reducing the dynamic range. The practical result of a compressed signal is that the volume is more even over time.", 12},
-    {152, ModuleKind::Module, "KeyQuant", "Key Quantizer", 2, 1, true, false, 878, 879, kInputs152, kOutputs152, kParams152, {}, "This module will first scale down the input signal acoording to the Range setting. Then it will quantize the scaled input signal to the closest exact semitone which fits in the scale set by the mini-keyboard.", 1},
-    {153, ModuleKind::PatchSettings, "Misc", "Misc", 0, -1, false, false, 0, 0, {}, {}, kParams153, {}, nullptr, 255},
-    {154, ModuleKind::Module, "SeqCtr", "Sequencer Controlled", 8, 14, true, false, 880, 881, kInputs154, kOutputs154, kParams154, {}, "The Control Sequencer is special in the way that instead of controlling the step advancement by incoming clock pulses, the step position is controlled by an incoming control signal value.", 5},
-    {156, ModuleKind::Module, "NoteDet", "Note Detector", 2, 0, true, true, 892, 893, {}, kOutputs156, kParams156, {}, "This module can detect if a certain a note is played, either on the Nord Modular G2 keyboard, on the Midi In connector, or when sent from another Slot with a midi NoteSend module with the Slot this module is in as destination.", 14},
-    {157, ModuleKind::Module, "LevConv", "Level Converter", 2, 10, true, true, 894, 895, kInputs157, kOutputs157, kParams157, {}, "The Level Converter module can be used to change polarity of an incoming signal and then output it at selectable polarity and/or phase-shifted 180 degrees.", 5},
-    {158, ModuleKind::Module, "Glide", "Glide", 2, 1, true, false, 362, 363, kInputs158, kOutputs158, kParams158, {}, "This module will smooth or slew sudden transitions in level of a control signal. This will create a glide effect between \302\221jumping\302\222 values in a control signal, similar to the portamento effect.", 5},
-    {159, ModuleKind::Module, "CompSig", "Compare to Signal", 2, 10, true, false, 900, 901, kInputs159, kOutputs159, {}, {}, "This module produces a logic signal on its yellow output by comparing two Dynamic Control/Audio input signals.", 14},
-    {160, ModuleKind::Module, "ZeroCnt", "Zero Crossing Counter", 2, 1, true, false, 902, 903, kInputs160, kOutputs160, {}, {}, "The Zero Crossing Counter module can be used for detecting the pitch of input signals of a single simple waveform. Note that for this module the input signal has to be fairly simple regarding harmonic content.", 8},
-    {161, ModuleKind::Module, "MixFader", "Mixer 8-1 Fader", 9, 11, true, false, 904, 905, kInputs161, kOutputs161, kParams161, {}, "This mixer has eight Dynamic Control/Audio signal inputs, one Chain input and one output. Each input is equipped with a separate attenuation slider. The mixer has an Channel Mute button for each channel for enabling/disabling the input.", 12},
-    {162, ModuleKind::Module, "FltComb", "Filter Comb", 4, 6, true, false, 906, 907, kInputs162, kOutputs162, kParams162, {}, "This is a Comb filter with adjustable feedback.", 9},
-    {163, ModuleKind::Module, "OscShpA", "Osc Shape A", 5, 2, true, false, 909, 911, kInputs163, kOutputs163, kParams163, {}, "This Shape oscillator is able to generate a vast variety of waveform shapes. There are six basic waveforms to choose from.", 7},
-    {164, ModuleKind::Module, "OscDual", "Osc Dual", 5, 2, true, false, 908, 910, kInputs164, kOutputs164, kParams164, {}, "The Dual Oscillator produces pulse and sawtooth waveforms and a suboctave with a square waveform. Three mixer knobs set the blend of the three waveforms on the output of the oscillator.", 10},
-    {165, ModuleKind::Module, "DXRouter", "DX style router", 6, 2, true, false, 912, 913, kInputs165, kOutputs165, kParams165, {}, "The DXRouter module is intended for use with the Operator modules described on Operator . It works exactly like the Algorithm selector on the DX7 synthesizer, i.e.", 22},
-    {167, ModuleKind::Module, "PShift", "Pitch Shifter", 3, 7, true, false, 996, 997, kInputs167, kOutputs167, kParams167, {}, "The pitch shifter module can lower or raise the pitch of a signal. In contrast to the FreqShift module the pitch shifter effect keeps the harmonic relations in the input audio signal unaltered.", 7},
-    {169, ModuleKind::Module, "ModAHD", "Envelope Modulation AHD", 5, 5, true, false, 916, 917, kInputs169, kOutputs169, kParams169, {}, "The AHDMod envelope is an Attack-Hold-Decay envelope with control signal inputs for modulating Attack, Hold and Release times. The Shape characteristics of this envelope is fixed to Linear Attack & Exponential Decay/Release.", 10},
-    {170, ModuleKind::Module, "2-In", "2 Inputs", 2, 0, true, true, 896, 898, {}, kOutputs170, kParams170, {}, "This module is used to route stereo signals from the Audio Ins or the audio Buses.", 3},
-    {171, ModuleKind::Module, "4-In", "4 Inputs", 2, 0, true, true, 897, 899, {}, kOutputs171, kParams171, {}, "This module is used to route individual signals from the Audio Ins or the audio Buses.", 4},
-    {172, ModuleKind::Module, "DlySingleA", "Delay Static", 2, 8, true, false, 920, 921, kInputs172, kOutputs172, kParams172, kModes172, "A static single delay with selectable time control.", 0},
-    {173, ModuleKind::Module, "DlySingleB", "Delay Single", 2, 8, true, false, 929, 922, kInputs173, kOutputs173, kParams173, kModes173, "A single delay with selectable time control. The delay time can also be modulated from an external source.", 1},
-    {174, ModuleKind::Module, "DelayDual", "Delay Dual", 3, 8, true, false, 930, 923, kInputs174, kOutputs174, kParams174, kModes174, "A 2-tap delay with selectable time controls for each tap. The individual delay times can also be modulated from external sources.", 2},
-    {175, ModuleKind::Module, "DelayQuad", "Delay Quad", 5, 8, true, false, 931, 924, kInputs175, kOutputs175, kParams175, kModes175, "A 4-tap delay with selectable time controls for each tap. The individual delay times can also be modulated from external sources. There is also an additional fifth output with a fixed delay time at the currently selected Range.", 3},
-    {176, ModuleKind::Module, "DelayA", "Delay A", 3, 8, true, false, 932, 925, kInputs176, kOutputs176, kParams176, kModes176, "This is a single channel audio delay with Feedback and Filter controls. You can also set the mix between delayed signal and input signal with the Dry/Wet knob.", 8},
-    {177, ModuleKind::Module, "DelayB", "Delay B", 4, 8, true, false, 933, 926, kInputs177, kOutputs177, kParams177, kModes177, "This is a single channel audio delay with Feedback and Filter controls. You can also set the mix between delayed signal and input signal with the Dry/Wet knob. The delay Time, Feedback amount and Dry/Wet mix can also be modulated from external sources.", 9},
-    {178, ModuleKind::Module, "DlyClock", "Delay Clocked", 2, 8, true, true, 934, 927, kInputs178, kOutputs178, kParams178, {}, "The Clocked Delay Register basically works like the Delay Shift Register above but with only one output. With the Sample Delay knob you set how many Clock pulses is required to output the sampled value.", 6},
-    {179, ModuleKind::Module, "DlyShiftReg", "Shift Register", 2, 8, true, false, 935, 928, kInputs179, kOutputs179, {}, {}, "The Delay Shift Register basically works like a Sample & Hold module, with the difference that for every new sample, it shifts the previous sample one step to the right among the eight outputs. This can be useful for \"storing\" keyboard Note data, for example.", 5},
-    {180, ModuleKind::Module, "Operator", "FM Operator", 12, 2, true, false, 940, 941, kInputs180, kOutputs180, kParams180, {}, "The Operator module consists of a sinewave oscillator in combination with a Level & Rate amplitude envelope generator and a keyboard level scaler. The Operator module has the same functionality as an \302\221operator\302\222 in the well-known DX7 FM synthesizer.", 21},
-    {181, ModuleKind::Module, "DlyEight", "Delay 8 Tap", 3, 8, true, false, 937, 939, kInputs181, kOutputs181, kParams181, kModes181, "An 8-tap delay with selectable time control between the taps. Note that the 8 taps are \"in sequence\", i.e. between the input signal and the first tap, the delay corresponds to the displayed time.", 4},
-    {182, ModuleKind::Module, "DlyStereo", "Delay Stereo", 5, 8, true, false, 936, 938, kInputs182, kOutputs182, kParams182, kModes182, "This is a stereo audio delay with separate Time controls for Left and Right outputs, Feedback, X-Feedback (cross feedback between the two stereo channels) and Filter controls.", 10},
-    {183, ModuleKind::Module, "OscPM", "Osc Phase Mod", 3, 2, true, false, 943, 942, kInputs183, kOutputs183, kParams183, kModes183, "The Phase Modulation Oscillator uses the same basic technology for signal generation as the DX7. By constantly modulating the phase of a signal, an \"FM\" type of signal is generated.", 5},
-    {184, ModuleKind::Module, "Mix1-1A", "Mixer 1-1 A", 2, 11, true, false, 945, 949, kInputs184, kOutputs184, kParams184, {}, "This mixer has one Dynamic Control/Audio signal input, a chain input and one output. The mixer has a Channel Mute button for enabling/disabling the input. The Channel Mute button can be labelled.", 0},
-    {185, ModuleKind::Module, "Mix1-1S", "Mixer 1-1 Stereo", 2, 11, true, false, 944, 948, kInputs185, kOutputs185, kParams185, {}, "This mixer has stereo Dynamic Control/Audio signal inputs, stereo chain inputs and stereo outputs. The mixer has a Channel Mute button for enabling/disabling the inputs. The Channel Mute button can be labelled.", 1},
-    {186, ModuleKind::Module, "Sw1-2M", "Switch 1-2 Momentary", 2, 12, true, false, 952, 954, kInputs186, kOutputs186, kParams186, {}, "The 1-2SwitchMom module has one input, two outputs and one momentary Switch button which can also be labelled.", 8},
-    {187, ModuleKind::Module, "Sw2-1M", "Switch 2-1 Momentary", 2, 12, true, false, 950, 953, kInputs187, kOutputs187, kParams187, {}, "The 2-1SwitchMom module has two inputs, one output and one momentary Switch button which can also be labelled.", 3},
-    {188, ModuleKind::Module, "ConstSwM", "Constant Switch Momentary", 2, 10, true, true, 955, 956, {}, kOutputs188, kParams188, {}, "The Momentary Constant Switch module produces a control signal at a selectable offset level when you click the Switch button. Note that the Switch button is momentary, i.e. clicking it will activate the output signal only for a short while.", 1},
-    {189, ModuleKind::Module, "NoiseGate", "Noise Gate", 3, 10, true, true, 957, 958, kInputs189, kOutputs189, kParams189, {}, "The Noise Gate can be used to \"block out\" low signal levels, like faint background noises in a \302\221silent\302\222 period in an external audio signal. When an input signal rises above the set Threshold value, the gate opens with the time set with the Attack knob.", 12},
-    {190, ModuleKind::Module, "LfoB", "LFO B", 4, 3, true, false, 963, 964, kInputs190, kOutputs190, kParams190, {}, "LFO B generates one of four different control signals. The phase of the signal can be controlled and modulated. The rate of the LFO can be modulated by a modulation source and the keyboard. The wave cycle can also be forced to restart via the Rst input.", 1},
-    {192, ModuleKind::Module, "Phaser", "Phaser", 2, 7, true, false, 965, 966, kInputs192, kOutputs192, kParams192, {}, "The Phaser is based on the Nord Electro phaser effects and simulates a vintage type of phaser. The phaser effect has a very characteristic \"sweep\" effect.", 1},
-    {193, ModuleKind::Module, "Mix4-1A", "Mixer 4-1 A", 2, 11, true, false, 967, 968, kInputs193, kOutputs193, {}, {}, "This mixer has four Dynamic Control/Audio signal inputs and one output.", 5},
-    {194, ModuleKind::Module, "Mix2-1A", "Mixer 2-1 A", 2, 11, true, false, 969, 970, kInputs194, kOutputs194, kParams194, {}, "This mixer has two Dynamic Control/Audio signal inputs and one output. Each input is equipped with a separate attenuation control. The mixer has a Channel Mute button per channel for enabling/disabling the inputs. TheChannel Mute buttons can be labelled.", 3},
-    {195, ModuleKind::Module, "ModAmt", "Modulation Amount", 2, 10, true, false, 971, 972, kInputs195, kOutputs195, kParams195, {}, "The Modulation amount control module can be used to change the characteristics of a control signal before being routed to a control signal input of a module.", 17},
-    {196, ModuleKind::Module, "OscPerc", "Osc Percussion", 3, 2, true, false, 973, 974, kInputs196, kOutputs196, kParams196, {}, "This oscillator generates a damped sinewave after being triggered on the Trig input.", 16},
-    {197, ModuleKind::Module, "Status", "Status", 2, 0, true, false, 975, 976, {}, kOutputs197, {}, {}, "The Status module is an extremely useful module for controlling things in a Patch. It gives you the possibility to control or define events on the moment when you load a Patch (e.g.", 12},
-    {198, ModuleKind::Module, "PitchTrack", "Pitch tracker", 2, 1, true, true, 979, 980, kInputs198, kOutputs198, kParams198, {}, "The Pitch Tracker module can transform the pitch of a monophonic audio input signal into a blue control signal on the Pitch output. The output control signal can be patched directly into a Pitch input of an oscillator or filter.", 7},
-    {199, ModuleKind::Module, "MonoKey", "Monophonic Keyboard", 2, 0, true, true, 977, 978, {}, kOutputs199, kParams199, {}, "This module provides three different control signals to emulate the keyboard behaviour of a classic monophonic synth.", 9},
-    {200, ModuleKind::Module, "RandomA", "Random A", 2, 4, true, false, 1005, 1006, kInputs200, kOutputs200, kParams200, {}, "This random wave shape module produces a random waveform that is stepped when Edge is at 100%, slewed between steps for the settings 25%, 50%, and 75%, and a smoothly gliding random wave when Edge is at 0%.", 0},
-    {201, ModuleKind::Module, "Red2Blue", "Red 2 Blue", 2, -1, false, false, 1021, 0, kInputs201, kOutputs201, {}, {}, nullptr, 255},
-    {202, ModuleKind::Module, "RandomB", "Random B", 3, 4, true, false, 1003, 1004, kInputs202, kOutputs202, kParams202, {}, "The modulatable random wave shape module is quite similar to the LfoA module in Random Steps or Random waveform mode, but with the added Step and Edge controls to fine-tune the random wave shapes or sequence of random values.", 1},
-    {203, ModuleKind::Module, "Blue2Red", "Blue 2 Red", 2, -1, false, false, 1023, 0, kInputs203, kOutputs203, {}, {}, nullptr, 255},
-    {204, ModuleKind::Module, "RndClkA", "Random Clock A", 2, 4, true, false, 1007, 1008, kInputs204, kOutputs204, kParams204, {}, "The clocked random step module produces a new random value each time it receives a trigger pulse on its Clk input. Use the Dice button to 'randomize' the module manually, instead of using the Clk input.", 3},
-    {205, ModuleKind::Module, "RndTrig", "Random Trig", 2, 4, true, false, 1001, 1002, kInputs205, kOutputs205, kParams205, {}, "The random state or random pulse module produces a yellow pulse or gate output signal at a state that is either a logic high or logic low . The output signal can be used directly to trigger yellow Trigger or Gate inputs.", 6},
-    {206, ModuleKind::Module, "RndClkB", "Random Clock B", 3, 4, true, false, 1013, 1014, kInputs206, kOutputs206, kParams206, kModes206, "The modulatable clocked random signal module produces a new random value each time it receives a trigger pulse on its Clk input.", 4},
-    {208, ModuleKind::Module, "RndPattern", "Random Pattern", 3, 4, true, true, 1017, 1018, kInputs208, kOutputs208, kParams208, kModes208, "The RndPattern generator produces short repeating sequences of either random values or random state signals. Length of the sequences can be set by the Length control. This module is similar in its core to the modulatable clocked random signal module.", 8},
+    {1, ModuleKind::Module, "Keyboard", "Keyboard", 2, 0, true, false, 985, 986, {}, kOutputs1, {}, {}, "The Keyboard voice module gives you access to a few basic and important signals associated with the keyboard on Nord Modular G2, or a keyboard connected to the synth via MIDI In. The signals are generated from each key played and affect one voice at a time.", 8, {}},
+    {3, ModuleKind::Module, "4-Out", "4 Outputs", 2, 0, true, true, 891, 886, kInputs3, {}, kParams3, {}, "This module is used to patch individual signals to different destinations: the Audio Out, the FX Area or the Global Buses.", 1, {}},
+    {4, ModuleKind::Module, "2-Out", "2 Outputs", 2, 0, true, true, 890, 885, kInputs4, {}, kParams4, {}, "This module is used to patch stereo signals to the Audio Outs, the FX Area or the audio Buses.", 0, {}},
+    {5, ModuleKind::Module, "Invert", "Logic Inverter", 2, 13, true, false, 821, 820, kInputs5, kOutputs5, {}, {}, "The Invert module holds two independent logic inverters. When an incoming signal is at a logic low state the output will transmit a logic high . When an incoming signal is at a logic high state the output will transmit a logic low .", 1, {}},
+    {6, ModuleKind::PatchSettings, "Morph", "Morph", 0, -1, false, false, 0, 0, {}, {}, kParams6, {}, nullptr, 255, {}},
+    {7, ModuleKind::Module, "OscB", "Osc B", 5, 2, true, false, 721, 715, kInputs7, kOutputs7, kParams7, {}, "OscillatorB can produce one of five waveforms: Sine, Triangle, Sawtooth, Pulse with selectable asymmetric pulse width, Pulse with selectable symmetric pulse width and DualSaw.", 1, {}},
+    {8, ModuleKind::Module, "OscShpB", "Osc Shape B", 4, 2, true, false, 722, 716, kInputs8, kOutputs8, kParams8, kModes8, "This Shape oscillator is able to generate a vast variety of waveform shapes.", 8, {}},
+    {9, ModuleKind::Module, "OscC", "Osc C", 3, 2, true, false, 723, 717, kInputs9, kOutputs9, kParams9, kModes9, "This oscillator produces one of six available waveforms. It also has two pitch modulation input.", 2, {}},
+    {12, ModuleKind::Module, "Reverb", "Reverb", 3, 7, true, false, 829, 830, kInputs12, kOutputs12, kParams12, kModes12, "The Reverb module is a stereo reverb with selectable reverb type, time and brightness. The module also features a Dry/Reverb mix control.", 10, {}},
+    {13, ModuleKind::Module, "OscString", "Osc String", 3, 2, true, false, 837, 838, kInputs13, kOutputs13, kParams13, {}, "The String Oscillator is a little different from the other oscillators. One significant difference is that it requires a short burst of audio on the red input to be able to produce sound.", 19, {}},
+    {15, ModuleKind::Module, "Sw8-1", "Switch 8-1", 4, 12, true, false, 795, 794, kInputs15, kOutputs15, kParams15, {}, "The 8-1Switch has eight inputs with an attenuator each, one output and eight Channel Select radio buttons which can also be labelled.", 6, kLabels15},
+    {17, ModuleKind::Module, "ValSw1-2", "Value Switch 1-2", 2, 12, true, true, 765, 764, kInputs17, kOutputs17, kParams17, {}, "The 1-2 Value Switch directs an incoming control/audio signal between two outputs at a definable Control signal input value.", 14, {}},
+    {18, ModuleKind::Module, "X-Fade", "Cross Fader", 2, 11, true, false, 734, 749, kInputs18, kOutputs18, kParams18, {}, "This mixer can be modulated by a control signal to produce a crossfade between two incoming signals.", 17, {}},
+    {19, ModuleKind::Module, "Mix4-1B", "Mixer 4-1 B", 2, 11, true, false, 741, 756, kInputs19, kOutputs19, kParams19, {}, "This mixer has four Dynamic Control/Audio signal inputs, one Chain input and one output. Each input is equipped with a separate attenuation control.", 6, {}},
+    {20, ModuleKind::Module, "EnvADSR", "Envelope ADSR", 4, 5, true, false, 705, 704, kInputs20, kOutputs20, kParams20, {}, "This is a regular four-stage ADSR (Attack, Decay, Sustain and Release) envelope. The ADSR Envelope is well suited for controlling audio signal amplitude, pitch and filter cut-off frequency, for example.", 0, {}},
+    {21, ModuleKind::Module, "Mux1-8", "Multiplexer 1-8", 2, 12, true, false, 771, 770, kInputs21, kOutputs21, {}, {}, "The 1-8Multiplexer has one input and eight outputs. The channels are enabled by sending a control signal on the Ctrl input.", 18, {}},
+    {22, ModuleKind::Module, "PartQuant", "Partial Quantizer", 2, 1, true, false, 410, 397, kInputs22, kOutputs22, kParams22, {}, "The Partial Quantizer module is used to transpose an Oscillator to one of its harmonic partials. It works similar to the NoteQuant module, but instead of quantizing to seminote values this module quantizes to \302\221overtone\302\222 values.", 2, {}},
+    {23, ModuleKind::Module, "ModADSR", "Envelope Modulation ADSR", 5, 5, true, false, 711, 445, kInputs23, kOutputs23, kParams23, {}, "The Mod Envelope is an ADSR envelope with control signal inputs for modulating Attack, Decay, Sustain and Release from external sources. The Shape characteristics of this envelope is fixed to Linear Attack & Exponential Decay/Release.", 11, {}},
+    {24, ModuleKind::Module, "LfoC", "LFO C", 2, 3, true, false, 839, 840, kInputs24, kOutputs24, kParams24, kModes24, "This LFO produces one of six selectable waveforms. The rate of the LFO can be modulated. LfoE has the same wave shapes as LfoA but uses less Patch Load because of the drop-down waveform selector.", 2, {}},
+    {25, ModuleKind::Module, "LfoShpA", "LFO Shape A", 5, 3, true, false, 841, 842, kInputs25, kOutputs25, kParams25, {}, "LfoShpA generates one of six different shapable control signals. The shape and phase of the signal can be controlled and modulated. The rate of the LFO can be modulated by a modulation source and the keyboard.", 4, {}},
+    {26, ModuleKind::Module, "LfoA", "LFO A", 3, 3, true, false, 843, 844, kInputs26, kOutputs26, kParams26, {}, "LFO A produces one of six different control signals. The rate of the LFO can be modulated from external sources.", 0, {}},
+    {27, ModuleKind::Module, "OscMaster", "Osc Master", 3, 2, true, false, 990, 989, kInputs27, kOutputs27, kParams27, {}, "The Master Oscillator doesn\302\222t generate any audio signal. Instead, it generates a Pitch control signal which can be used to control other Oscillator modules on their Pitch inputs.", 24, {}},
+    {28, ModuleKind::Module, "Saturate", "Saturate", 2, 9, true, false, 991, 992, kInputs28, kOutputs28, kParams28, {}, "This module shapes an input signal in a logarithmic fashion. There is a choice of four different distortion curve characteristics, each with modulatable distortion depth control.", 2, {}},
+    {29, ModuleKind::Module, "MetNoise", "Metallic noise oscillator", 2, 2, true, false, 666, 667, kInputs29, kOutputs29, kParams29, {}, "The metallic noise generator produces a noisy signal with a bright metallic timbre. The timbre is created by a dense cloud of short pulses with carefully detuned frequency relations, creating clusters of high pitched partials in its audio spectrum.", 14, {}},
+    {30, ModuleKind::Module, "Device", "Device", 3, 0, true, false, 392, 393, {}, kOutputs30, {}, {}, "The Device module represents a number of physical controls on the synth and routes their respective control signals for use in the Patch.", 10, {}},
+    {31, ModuleKind::Module, "Noise", "Noise", 2, 2, true, false, 372, 373, {}, kOutputs31, kParams31, {}, "This module produces a noise signal, the noise timbre is selectable from white (very bright) to colored (low rumble).", 13, {}},
+    {32, ModuleKind::Module, "Eq2Band", "Eq 2 Band", 3, 6, true, false, 981, 983, kInputs32, kOutputs32, kParams32, {}, "The 2 band EQ is a treble and bass equalizer with gain controls for 80Hz and 12kHz plus a master level control.", 16, {}},
+    {33, ModuleKind::Module, "Eq3band", "Eq 3 Band", 4, 6, true, false, 982, 984, kInputs33, kOutputs33, kParams33, {}, "The 3 band EQ is a treble and bass equalizer with sweepable Mid frequency plus gain controls for the Mid band and for the fixed 80Hz and 12kHz frequency bands. It has also a master level control.", 17, {}},
+    {34, ModuleKind::Module, "ShpExp", "Shape Exp", 2, 9, true, false, 987, 988, kInputs34, kOutputs34, kParams34, {}, "This module shapes an input signal in an exponential fashion. You can choose between four different transformation curve characteristics.", 3, {}},
+    {35, ModuleKind::Module, "Driver", "Driver", 3, -1, false, false, 997, 0, kInputs35, kOutputs35, kParams35, kModes35, nullptr, 255, {}},
+    {36, ModuleKind::Module, "SwOnOffM", "Switch On/Off Momentary", 2, 12, true, false, 376, 377, kInputs36, kOutputs36, kParams36, {}, "The Momentary OnOff Switch is perfect for manual triggering of different things in the Patch - especially when you assign the On button to an Assignable Button on the synth panel.", 0, kLabels36},
+    {38, ModuleKind::Module, "Pulse", "Pulse", 2, 13, true, true, 825, 833, kInputs38, kOutputs38, kParams38, kModes38, "This module will generate a logic high pulse of a set duration on the moment it receives a logic signal on its input.", 7, {}},
+    {40, ModuleKind::Module, "Mix8-1B", "Mixer 8-1 B", 4, 11, true, false, 728, 729, kInputs40, kOutputs40, kParams40, {}, "This mixer has eight Dynamic Control/Audio signal inputs, one Chain input and one output. Each input is equipped with a separate attenuation control. The mixer also has a -6 dB button for attenuating all inputs by another -6 dB.", 11, {}},
+    {41, ModuleKind::Module, "EnvH", "Envelope Hold", 2, 5, true, false, 686, 687, kInputs41, kOutputs41, kParams41, {}, "This is a Hold Envelope that can be used to gate an audio signal for a specified duration. It has a Hold time control and an AM input.", 2, {}},
+    {42, ModuleKind::Module, "Delay", "Logic Delay", 2, 13, true, true, 824, 822, kInputs42, kOutputs42, kParams42, kModes42, "This module can delay the edges of a logic high clock pulse. Depending on the setting of the Delay Type drop-down selector the module will delay the positive edge , the negative edge or both the positive and negative edge by the time set with the Time knob.", 8, {}},
+    {43, ModuleKind::Module, "Constant", "Constant Value", 2, 10, true, false, 419, 406, {}, kOutputs43, kParams43, {}, "The Constant Value module produces a constant control signal that can be instantly set by the knob. Basically this module is a general purpose knob module producing a control value that can be routed to any modulation input of another module.", 0, {}},
+    {44, ModuleKind::Module, "LevMult", "Level Multiplier", 2, 10, true, false, 737, 752, kInputs44, kOutputs44, {}, {}, "The Level Multiplier module performs the same functions as a traditional VCA, a voltage controlled amplifier, in a analog system would do. It multiplies two incoming signals (input 1 times input 2 = output).", 8, {}},
+    {45, ModuleKind::Module, "FltVoice", "Filter Voice", 4, 6, true, false, 417, 404, kInputs45, kOutputs45, kParams45, {}, "The Voice Filter module is designed to simulate the part of the vocal tract that produces the vowels. You can select between a number of preset vowels and change and modulate them to generate really amazing effects.", 12, {}},
+    {46, ModuleKind::Module, "EnvAHD", "Envelope AHD", 4, 5, true, false, 707, 440, kInputs46, kOutputs46, kParams46, {}, "The Attack-Hold-Decay envelope is an envelope with three stages: Attack, Hold and Release. The AHD Envelope is well suited for audio gating applications, for example.", 5, {}},
+    {47, ModuleKind::Module, "Pan", "Pan", 2, 11, true, false, 746, 424, kInputs47, kOutputs47, kParams47, {}, "This module takes an input signal and outputs it in a stereo panorama.", 16, {}},
+    {48, ModuleKind::Module, "MixStereo", "Mixer Stereo", 5, 11, true, true, 669, 668, kInputs48, kOutputs48, kParams48, {}, "This mixer has six Dynamic Control/Audio signal inputs and a stereo output. Each input is equipped with a separate attenuation control of [Attenuator Type II] and a Pan knob. The Pan knobs attenuate the middle of the stereo panorama by -3dB.", 14, {}},
+    {49, ModuleKind::Module, "FltMulti", "Filter Multi-mode", 4, 6, true, false, 369, 368, kInputs49, kOutputs49, kParams49, {}, "This is a multimode filter with a selectable slope of 6 or 12 dB/octave and resonance control. It is a multi-mode filter with three outputs: one highpass (HP), one lowpass (LP) and one bandpass (BP). All three outputs can be used simultaneously.", 5, {}},
+    {50, ModuleKind::Module, "ConstSwT", "Constant Switch Toggling", 2, 10, true, true, 365, 364, {}, kOutputs50, kParams50, {}, "The Toggling Constant Switch module produces a constant control signal that can be instantly set by the knob after you have turned on the Switch button.", 2, kLabels50},
+    {51, ModuleKind::Module, "FltNord", "Filter Nord", 5, 6, true, false, 367, 366, kInputs51, kOutputs51, kParams51, {}, "This is a dynamic synthesizer filter with a slope of either 12 or 24 dB/octave. It is a multi-mode filter, providing a highpass, a lowpass, a bandpass or a bandreject filter. The cut-off frequency and the resonance can be modulated from external sources.", 3, {}},
+    {52, ModuleKind::Module, "EnvMulti", "Envelope Multi", 6, 5, true, false, 702, 712, kInputs52, kOutputs52, kParams52, {}, "The Multi stage envelope is a 5-segment time and level envelope with selectable sustain segment.", 8, {}},
+    {53, ModuleKind::Module, "S&H", "Sample & Hold", 2, 12, true, false, 357, 356, kInputs53, kOutputs53, {}, {}, "This module takes samples of the values of an incoming signal and holds them at the output. The sampling of the input signal occurs every time the signal on the Clk input changes from a logic low to a logic high signal (the positive edge).", 21, {}},
+    {54, ModuleKind::Module, "FltStatic", "Filter Static", 3, 6, true, false, 994, 993, kInputs54, kOutputs54, kParams54, {}, "This is a static filter with selectable modes (LP/BP/HP), frequency and resonance controls. The slope is fixed at 12 dB/octave.", 6, {}},
+    {55, ModuleKind::Module, "EnvD", "Envelope Decay", 2, 5, true, false, 688, 690, kInputs55, kOutputs55, kParams55, {}, "This is a Decay Envelope. It has a Decay time control and an AM modulation input.", 3, {}},
+    {56, ModuleKind::Module, "Resonator", "Resonator", 5, -1, false, false, 995, 0, kInputs56, kOutputs56, kParams56, {}, nullptr, 255, {}},
+    {57, ModuleKind::Module, "Automate", "MIDI Control Automate", 2, 15, true, true, 989, 990, kInputs57, kOutputs57, kParams57, {}, "The midi automation module can be used to send out midi Controller values on a specific midi cc # on a selected midi channel. The module appears very similar to the CtrlSend module.", 8, {}},
+    {58, ModuleKind::Module, "DrumSynth", "Drum Synthesizer", 8, 2, true, false, 1025, 1026, kInputs58, kOutputs58, kParams58, {}, "The Drum synth module is designed to generate classic analog drumcomputer or rhythmbox sounds. It consists of a master and a slave oscillator in combination with a noise source and a multimode noise filter.", 17, {}},
+    {59, ModuleKind::Module, "CompLev", "Compare to Level", 2, 10, true, true, 422, 409, kInputs59, kOutputs59, kParams59, {}, "This module produces a logic signal on its yellow output by comparing a Dynamic Control/Audio signal level to the value set by the knob.", 13, {}},
+    {60, ModuleKind::Module, "Mux8-1X", "Multiplexer 8-1 with variable X-Fade", 3, 12, true, true, 791, 801, kInputs60, kOutputs60, kParams60, {}, "The 8-1 X-Fade Multiplexer has eight inputs and one output. The channels are enabled by sending a control signal on the Ctrl input. You can also define the amount of crossfade between adjacent channels with the X-Fade knob.", 19, {}},
+    {61, ModuleKind::Module, "Clip", "Clip", 2, 9, true, false, 388, 390, kInputs61, kOutputs61, kParams61, {}, "This module can produce digital distortion by decreasing the clip level limit(s) below the normal headroom.", 0, {}},
+    {62, ModuleKind::Module, "Overdrive", "Overdrive", 2, 9, true, false, 389, 391, kInputs62, kOutputs62, kParams62, {}, "This module distorts an audio signal by amplifying the input signal and force it to \302\221hit the headroom\302\222. The special amplification characteristics makes this module produce a warm, tube like distortion.", 1, {}},
+    {63, ModuleKind::Module, "Scratch", "Scratch", 3, 7, true, false, 1000, 999, kInputs63, kOutputs63, kParams63, {}, "The scratch module is a special pitch shifter that creates the effect of shuttling an audiotape backwards and forwards or scratching a vinyl record.", 8, {}},
+    {64, ModuleKind::Module, "Gate", "Gate", 2, 13, true, false, 819, 818, kInputs64, kOutputs64, {}, kModes64, "This module features two independent logic gates. A gate is a device that combines two logic levels, in a way that is a bit similar to how a mixer mixes two audio signals.", 0, {}},
+    {66, ModuleKind::Module, "Mix2-1B", "Mixer 2-1 B", 2, 11, true, false, 740, 755, kInputs66, kOutputs66, kParams66, {}, "This mixer has two Dynamic Control/Audio signal inputs and one output. Each input is equipped with a separate attenuation control. Each channel also has a separate control for inverting the input signal.", 4, {}},
+    {68, ModuleKind::Module, "ClkGen", "Clock Generator", 4, 3, true, true, 684, 429, kInputs68, kOutputs68, kParams68, {}, "The Clock Generator module generates a stream of logic signals. The Clock Generator can either act on its own or use the Master Clock signal.", 6, {}},
+    {69, ModuleKind::Module, "ClkDiv", "Clock Divider", 2, 13, true, true, 420, 407, kInputs69, kOutputs69, kParams69, kModes69, "The Clock Divider module can be used for dividing incoming clock pulses by a factor \302\221n\302\222, which can be set with the Divider control. This module has two possible modes that can be set by the dropdown control.", 5, {}},
+    {71, ModuleKind::Module, "EnvFollow", "Envelope Follower", 2, 10, true, true, 709, 708, kInputs71, kOutputs71, kParams71, {}, "This module will extract an envelope from a signal, producing a smoothed control signal on its blue output that follows the amplitude envelope of an incoming audio signal.", 11, {}},
+    {72, ModuleKind::Module, "NoteScaler", "Note Scaler", 2, 1, true, false, 411, 398, kInputs72, kOutputs72, kParams72, {}, "This module works like a control signal attenuator, with a scale display that makes it easy to process keyboard note values. You set the output peak-to-peak limits in semitones. This could be useful if you want to \"tune\" the output from a controller.", 4, {}},
+    {74, ModuleKind::Module, "WaveWrap", "Wave Wrapper", 2, 9, true, false, 382, 383, kInputs74, kOutputs74, kParams74, {}, "This module amplifies a signal until it hits the headroom. Instead of clipping the signal, it folds down, \"wraps around\".", 5, {}},
+    {75, ModuleKind::Module, "NoteQuant", "Note Quantizer", 2, 1, true, true, 412, 399, kInputs75, kOutputs75, kParams75, {}, "This module will first scale down the input signal acoording to the Range setting. Then it will quantize the scaled input signal to the closest exact semitone which fits in the semitone scale set by the Notes control.", 0, {}},
+    {76, ModuleKind::Module, "SwOnOffT", "Switch On/Off Toggling", 2, 12, true, true, 799, 423, kInputs76, kOutputs76, kParams76, {}, "The Toggling OnOff Switch is perfect for manual activating different things in the Patch - especially when you assign the On button to an Assignable Button on the synth panel.", 1, kLabels76},
+    {78, ModuleKind::Module, "Sw1-8", "Switch 1-8", 4, 12, true, false, 773, 772, kInputs78, kOutputs78, kParams78, {}, "The 1-8Switch has one input, eight outputs and eight Channel Select radio buttons which can also be labelled.", 11, kLabels78},
+    {79, ModuleKind::Module, "Sw4-1", "Switch 4-1", 3, 12, true, false, 779, 778, kInputs79, kOutputs79, kParams79, {}, "The 4-1Switch has four inputs with an attenuator each, one output and four Channel Select radio buttons which can also be labelled.", 5, kLabels79},
+    {81, ModuleKind::Module, "LevAmp", "Level Amplifier", 2, 10, true, true, 748, 763, kInputs81, kOutputs81, kParams81, {}, "This module can amplify or attenuate a signal.", 7, {}},
+    {82, ModuleKind::Module, "Rect", "Rectifier", 2, 9, true, true, 384, 385, kInputs82, kOutputs82, kParams82, {}, "The Rectifier (diode processing) module can be set to discard of any positive or negative input levels (half wave rectification), or to convert the input signal to only positive or only negative levels (full wave rectification).", 8, {}},
+    {83, ModuleKind::Module, "ShpStatic", "Shape Static", 2, 9, true, true, 386, 387, kInputs83, kOutputs83, kParams83, {}, "This module distorts a signal using one of four different amplification/attenuation characteristics. The curves on the buttons describes the transformation functions, i.e the amplification/attenuation curve of each value of the input signal.", 7, {}},
+    {84, ModuleKind::Module, "EnvADR", "Envelope AD/R", 3, 5, true, false, 703, 713, kInputs84, kOutputs84, kParams84, {}, "This is an envelope with two or three stages, Attack and Decay or Attack, Sustain and Release.", 4, {}},
+    {85, ModuleKind::Module, "WindSw", "Window Switch", 2, 12, true, true, 790, 800, kInputs85, kOutputs85, kParams85, {}, "The Window Switch \"closes\" when an incoming Control signal value is within the range set with the From and To parameters. When the switch closes, a high logic gate signal is also output from the yellow logic output.", 15, {}},
+    {86, ModuleKind::Module, "8Counter", "8 Counter", 2, 13, true, false, 807, 806, kInputs86, kOutputs86, {}, {}, "The 8-Counter steps a logic high signal sequentially over eight outputs. Note that only one of the outputs can be high at a time. On every new incoming clock pulse the module advances one step. Note that the Rst input is of the enable/disable type.", 10, {}},
+    {87, ModuleKind::Module, "FltLP", "Filter Lowpass", 2, 6, true, false, 360, 361, kInputs87, kOutputs87, kParams87, kModes87, "This is a non-resonant lowpass filter with selectable slope (6/12/18/24/30/36 dB/Oct.) and a modulation input for cut-off frequency modulation. The passband is flat with a gain of exactly 1 (unity gain).", 0, {}},
+    {88, ModuleKind::Module, "Sw1-4", "Switch 1-4", 3, 12, true, false, 769, 768, kInputs88, kOutputs88, kParams88, {}, "The 1-4Switch has one input with an attenuator, four outputs and four Channel Select radio buttons which can also be labelled.", 10, kLabels88},
+    {89, ModuleKind::Module, "Flanger", "Flanger", 3, 7, true, false, 665, 664, kInputs89, kOutputs89, kParams89, {}, "The Flanger is based on the Nord Electro flanger effect and simulates a vintage type of flanger. The flanger effect is a very characteristic type of \"sweep\" effect. It\302\222s quite similar to the phaser effect but has a little different characteristics.", 2, {}},
+    {90, ModuleKind::Module, "Sw1-2", "Switch 1-2", 2, 12, true, false, 767, 766, kInputs90, kOutputs90, kParams90, {}, "The 1-2Switch has one input, two outputs and two Channel Select radio buttons which can also be labelled.", 9, kLabels90},
+    {91, ModuleKind::Module, "FlipFlop", "Flip Flop", 2, 13, true, false, 817, 816, kInputs91, kOutputs91, {}, kModes91, "The FlipFlop module holds two different functions named a D-type flipflop and a Set-Reset flipflop.", 3, {}},
+    {92, ModuleKind::Module, "FltClassic", "Filter Classic", 4, 6, true, false, 371, 370, kInputs92, kOutputs92, kParams92, {}, "This is a lowpass filter which simulates the classic analog synthesizer filter. The main difference between this filter and other G2 lowpass filters is the more narrow resonance peak, quite similar to the peak found in analog \302\221ladder\302\222 filters.", 4, {}},
+    {94, ModuleKind::Module, "StChorus", "Stereo Chorus", 3, 7, true, false, 836, 835, kInputs94, kOutputs94, kParams94, {}, "The Stereo Chorus module simulates the effect of multiple detuned stereo voices. It has one Audio signal input and stereo outputs.", 0, {}},
+    {95, ModuleKind::PatchSettings, "Gain", "Gain", 0, -1, false, false, 0, 0, {}, {}, kParams95, {}, nullptr, 255, {}},
+    {96, ModuleKind::Module, "OscD", "Osc D", 2, 2, true, false, 720, 714, kInputs96, kOutputs96, kParams96, kModes96, "This oscillator is similar to OscillatorC but has less modulation inputs.", 3, {}},
+    {97, ModuleKind::Module, "OscA", "Osc A", 3, 2, true, false, 725, 719, kInputs97, kOutputs97, kParams97, {}, "This oscillator can produce one of six waveforms: Sine, Triangle, Sawtooth, Square, 25% Pulse or 10% Pulse. The oscillator has two pitch modulation inputs.", 0, {}},
+    {98, ModuleKind::Module, "FreqShift", "Frequency Shifter", 3, 7, true, false, 672, 673, kInputs98, kOutputs98, kParams98, {}, "The Frequency Shifter detunes all sinewave partials in an audio signal by the number of Hertz set by the Shift control. The module is modelled after a design by Harald Bode which was produced by Moog in the early sixties of the last century.", 6, {}},
+    {100, ModuleKind::Module, "Sw2-1", "Switch 2-1", 2, 12, true, false, 777, 776, kInputs100, kOutputs100, kParams100, {}, "The 2-1Switch has two inputs, one output and two Channel Select radio buttons which can also be labelled. This module is very handy when used as an A/B switch.", 4, kLabels100},
+    {102, ModuleKind::Module, "FltPhase", "Filter Phase", 5, 6, true, false, 378, 380, kInputs102, kOutputs102, kParams102, {}, "This is a 14-pole phase filter with peak spread control and adjustable feedback. It features six allpass filters which displace the phase 180 degrees each.", 8, {}},
+    {103, ModuleKind::Module, "EqPeak", "Eq Peak", 4, 6, true, false, 415, 402, kInputs103, kOutputs103, kParams103, {}, "The Eq1 module offers parametric equalization with controls for center frequency, gain and bandwidth.", 15, {}},
+    {105, ModuleKind::Module, "ValSw2-1", "Value Switch 2-1", 2, 12, true, true, 775, 774, kInputs105, kOutputs105, kParams105, {}, "The 2-1 Value Switch switches between two inputs at a definable Control signal input value.", 13, {}},
+    {106, ModuleKind::Module, "OscNoise", "Noise oscillator", 3, 2, true, false, 1019, 1020, kInputs106, kOutputs106, kParams106, {}, "The noise oscillator produces a narrow band of noise. The bandwitdh can be s\303\263 narrow that the noise will have a distinct pitched character, sounding like a noisy sine wave.", 12, {}},
+    {108, ModuleKind::Module, "Vocoder", "Vocoder", 8, 6, true, true, 418, 405, kInputs108, kOutputs108, kParams108, {}, "The Vocoder module is a classic 16 band vocoder with the ability to reroute the analysis bands. The basic principle of a vocoder is to filter a synthesizer sound with the help of another sound - a human voice for example.", 13, {}},
+    {112, ModuleKind::Module, "LevAdd", "Level Add", 2, 10, true, true, 738, 753, kInputs112, kOutputs112, kParams112, {}, "The LevAdd module can be used to add or subtract an offset (bias) to a signal.", 4, {}},
+    {113, ModuleKind::Module, "Fade1-2", "Fader 1-2", 2, 11, true, false, 735, 750, kInputs113, kOutputs113, kParams113, {}, "This is a fader with one input and two outputs, and a fader rotary knob to fade the input signal between the two outputs.", 18, {}},
+    {114, ModuleKind::Module, "Fade2-1", "Fader 2-1", 2, 11, true, false, 736, 751, kInputs114, kOutputs114, kParams114, {}, "This is a fader with two inputs and one output, and a fader rotary knob to fade between the two input signals.", 19, {}},
+    {115, ModuleKind::Module, "LevScaler", "Level Scaler", 3, 1, true, true, 414, 401, kInputs115, kOutputs115, kParams115, {}, "This module is used to scale the level of a signal depending on either a position on the keyboard ( kbt=on and Note input is not used) or depending on the value of a control signal ( kbt =off and the control signal is connected to the Note input).", 10, {}},
+    {116, ModuleKind::Module, "Mix8-1A", "Mixer 8-1 A", 2, 11, true, false, 726, 727, kInputs116, kOutputs116, kParams116, {}, "This mixer has eight Dynamic Control/Audio signal inputs and one output.", 10, {}},
+    {117, ModuleKind::Module, "LevMod", "Level Modulator", 3, 10, true, false, 747, 762, kInputs117, kOutputs117, kParams117, {}, "The Level Modulator module is in essence a multiplier where the depth of the modulation of the main input by the Mod input can be controlled by a Balance knob control.", 9, {}},
+    {118, ModuleKind::Module, "Digitizer", "Digitizer", 3, 7, true, false, 379, 381, kInputs118, kOutputs118, kParams118, {}, "The Digitizer module continuously samples an incoming signal at a selectable sample rate and bit resolution. The module can e.g. sample a clean audio signal and transform it down to a dirty 8 bit, 5 kHz signal. Great for \"low-fi\" effects with lots of aliasing.", 4, {}},
+    {119, ModuleKind::Module, "EnvADDSR", "Envelope ADBDSR", 5, 5, true, false, 700, 701, kInputs119, kOutputs119, kParams119, {}, "This is what you could call an enhanced ADSR-envelope. It features Attack, Decay, Break, Decay, Break and Release controls. The sustain segment is selectable between the first and second Brake stage.", 7, {}},
+    {121, ModuleKind::Module, "SeqNote", "Sequencer Note", 9, 14, true, false, 876, 875, kInputs121, kOutputs121, kParams121, {}, "This is a Note Sequencer which sends a (bipolar) control signal value for each step.", 3, {}},
+    {123, ModuleKind::Module, "Mix4-1C", "Mixer 4-1 C", 4, 11, true, false, 742, 757, kInputs123, kOutputs123, kParams123, {}, "This mixer has four Dynamic Control/Audio signal inputs, one Chain input and one output. Each input is equipped with a separate attenuation control. The mixer has a Channel Mute button for each channel for enabling/disabling the input.", 7, kLabels123},
+    {124, ModuleKind::Module, "Mux8-1", "Multiplexer 8-1", 2, 12, true, false, 793, 780, kInputs124, kOutputs124, {}, {}, "The 8-1Multiplexer has eight inputs and one output. The channels are enabled by sending a control signal on the Ctrl input.", 17, {}},
+    {125, ModuleKind::Module, "WahWah", "Wah-Wah", 2, 6, true, false, 534, 533, kInputs125, kOutputs125, kParams125, {}, "Wah-Wah modulation is often used for electric guitars to get that funky \"talking guitar\" sound. Basically, the Wah-Wah modulation is a lowpass/bandpass type of filter that can be swept across the frequency range.", 11, {}},
+    {126, ModuleKind::NameBar, "Name", "Name Bar", 1, 0, true, false, 0, 510, {}, {}, {}, {}, nullptr, 16, {}},
+    {127, ModuleKind::Module, "Fx-In", "Fx Input", 2, 0, true, true, 889, 884, {}, kOutputs127, kParams127, {}, "This module should be used when you want to route audio signals from the Voice Area to the FX Area. Since the FX In module processes the sum of all voices from the Voice Area, the volume depends on the number of notes you play simultaneously.", 6, {}},
+    {128, ModuleKind::Module, "MinMax", "Min/Max Compare", 2, 10, true, false, 682, 683, kInputs128, kOutputs128, {}, {}, "The MinMax module compares two input signals and outputs the highest levels on the Max output and the lowest levels on the Min output. This module is originally named a \302\221level switcher\302\222 on old analog systems.", 15, {}},
+    {130, ModuleKind::Module, "BinCounter", "Binary Counter", 2, 13, true, false, 809, 808, kInputs130, kOutputs130, {}, {}, "The BinCounter is an 8 bit binary counter which outputs logic high signals. Counting advances one step on the poitive edge of every incoming clock pulse. The eight outputs together form the binary code for the current state value the binary counter is in.", 11, {}},
+    {131, ModuleKind::Module, "ADConv", "A/D Converter", 2, 13, true, false, 847, 848, kInputs131, kOutputs131, {}, {}, "The ADConv module is an 8 bit A/D converter. It converts a control signal between -64 and +64 units to a \302\221two\302\222s complement\302\222 code, where each output represents the weight of one of the bits in the eight bit code.", 12, {}},
+    {132, ModuleKind::Module, "DAConv", "D/A Converter", 2, 13, true, false, 849, 850, kInputs132, kOutputs132, {}, {}, "The DAConv module is an 8 bit D/A converter that accepts a two\302\222s complement coded binary number code. The module outputs a bipolar signal with values depending on the current logic input signals.", 13, {}},
+    {134, ModuleKind::Module, "FltHP", "Filter Highpass", 2, 6, true, false, 851, 852, kInputs134, kOutputs134, kParams134, kModes134, "This is a non-resonant highpass filter with selectable slope (6/12/18/24/30/36 dB/Oct.) and a modulation input for cut-off frequency modulation. The passband is flat with a gain of exactly 1 (unity gain).", 1, {}},
+    {135, ModuleKind::PatchSettings, "Glide", "Glide", 0, -1, false, false, 0, 0, {}, {}, kParams135, {}, "This module will smooth or slew sudden transitions in level of a control signal. This will create a glide effect between \302\221jumping\302\222 values in a control signal, similar to the portamento effect.", 255, {}},
+    {136, ModuleKind::PatchSettings, "Arpeggiator", "Arpeggiator", 0, -1, false, false, 0, 0, {}, {}, kParams136, {}, nullptr, 255, {}},
+    {137, ModuleKind::PatchSettings, "Bend", "Bend", 0, -1, false, false, 0, 0, {}, {}, kParams137, {}, nullptr, 255, {}},
+    {138, ModuleKind::PatchSettings, "Vibrato", "Vibrato", 0, -1, false, false, 0, 0, {}, {}, kParams138, {}, nullptr, 255, {}},
+    {139, ModuleKind::Module, "T&H", "Track & Hold", 2, 12, true, false, 359, 358, kInputs139, kOutputs139, {}, {}, "This module is related to a controllable open/close switch module. When the signal on the Ctrl input is a logic high the Track&Hold module output simply follows the input signal.", 22, {}},
+    {140, ModuleKind::Module, "Mix4-1S", "Mixer 4-1 Stereo", 4, 11, true, false, 743, 758, kInputs140, kOutputs140, kParams140, {}, "This stereo mixer has four Dynamic Control/Audio signal input pairs, two Chain inputs and a stereo output. Each input pair is equipped with a separate attenuation control.", 8, kLabels140},
+    {141, ModuleKind::Module, "CtrlSend", "MIDI Control Send", 2, 15, true, true, 853, 854, kInputs141, kOutputs141, kParams141, {}, "The MIDI Controller Send module can be used to send out MIDI Controller values on a specific MIDI Controller# on a selected MIDI channel.", 0, {}},
+    {142, ModuleKind::Module, "PCSend", "MIDI Program Change Send", 2, 15, true, true, 855, 856, kInputs142, kOutputs142, kParams142, {}, "The PCSend module is used for sending out MIDI Program Change messages on a selected MIDI channel.", 1, {}},
+    {143, ModuleKind::Module, "NoteSend", "MIDI Note Send", 2, 15, true, true, 857, 858, kInputs143, {}, kParams143, {}, "The NoteSend module is used for sending out MIDI Note On and Off messages on a selected MIDI channel. The module can also send out Velocity values.", 2, {}},
+    {144, ModuleKind::Module, "SeqEvent", "Sequencer Event", 5, 14, true, false, 859, 860, kInputs144, kOutputs144, kParams144, {}, "This basic step sequencer features two parallel trigger-rows of 16 steps. It is ideal for sequencing drum and percussive sounds. Each step can send two separate logic pulses on the two separate outputs.", 0, {}},
+    {145, ModuleKind::Module, "SeqVal", "Sequencer Values", 8, 14, true, false, 861, 862, kInputs145, kOutputs145, kParams145, {}, "This is a sequencer which sends one control signal value for each step. The value for each step is shown in the corresponding display box. In Unipolar mode (the Uni button depressed), the values are displayed in steps of 0.5 units.", 1, {}},
+    {146, ModuleKind::Module, "SeqLev", "Sequencer Level", 8, 14, true, false, 863, 864, kInputs146, kOutputs146, kParams146, {}, "This is a Level Sequencer which sends a control signal level for each step. It is ideal for sequencing modulation patterns. There is also a row of Step buttons for sending out a Trig/Gate signal for every step in the sequence.", 2, {}},
+    {147, ModuleKind::Module, "CtrlRcv", "MIDI Control Receive", 2, 15, true, true, 865, 866, {}, kOutputs147, kParams147, {}, "The MIDI Controller Receive module can be used to control things in the Patch based on incoming external MIDI Controller data.", 4, {}},
+    {148, ModuleKind::Module, "NoteRcv", "MIDI Note Receive", 2, 15, true, true, 868, 870, {}, kOutputs148, kParams148, {}, "The MIDI Note Receive module works like sort of a MIDI Note detector and can be used for controlling things in the Patch when receiving a specific incoming MIDI Note number.", 5, {}},
+    {149, ModuleKind::Module, "NoteZone", "MIDI Note Zone", 3, 15, true, true, 867, 869, {}, {}, kParams149, {}, "The Note Zone module can be used for receiving MIDI Note data within a selected note range on a selected MIDI channel and then transmit the notes on a different MIDI channel, transposed or non-transposed.", 7, {}},
+    {150, ModuleKind::Module, "Compress", "Compressor", 5, 7, true, true, 871, 872, kInputs150, kOutputs150, kParams150, {}, "The stereo Compressor module compresses an input signal by amplifying weak signals attenuating strong signals and thus reducing the dynamic range. The practical result of a compressed signal is that the volume is more even over time.", 12, {}},
+    {152, ModuleKind::Module, "KeyQuant", "Key Quantizer", 2, 1, true, false, 878, 879, kInputs152, kOutputs152, kParams152, {}, "This module will first scale down the input signal acoording to the Range setting. Then it will quantize the scaled input signal to the closest exact semitone which fits in the scale set by the mini-keyboard.", 1, {}},
+    {153, ModuleKind::PatchSettings, "Misc", "Misc", 0, -1, false, false, 0, 0, {}, {}, kParams153, {}, nullptr, 255, {}},
+    {154, ModuleKind::Module, "SeqCtr", "Sequencer Controlled", 8, 14, true, false, 880, 881, kInputs154, kOutputs154, kParams154, {}, "The Control Sequencer is special in the way that instead of controlling the step advancement by incoming clock pulses, the step position is controlled by an incoming control signal value.", 5, {}},
+    {156, ModuleKind::Module, "NoteDet", "Note Detector", 2, 0, true, true, 892, 893, {}, kOutputs156, kParams156, {}, "This module can detect if a certain a note is played, either on the Nord Modular G2 keyboard, on the Midi In connector, or when sent from another Slot with a midi NoteSend module with the Slot this module is in as destination.", 14, {}},
+    {157, ModuleKind::Module, "LevConv", "Level Converter", 2, 10, true, true, 894, 895, kInputs157, kOutputs157, kParams157, {}, "The Level Converter module can be used to change polarity of an incoming signal and then output it at selectable polarity and/or phase-shifted 180 degrees.", 5, {}},
+    {158, ModuleKind::Module, "Glide", "Glide", 2, 1, true, false, 362, 363, kInputs158, kOutputs158, kParams158, {}, "This module will smooth or slew sudden transitions in level of a control signal. This will create a glide effect between \302\221jumping\302\222 values in a control signal, similar to the portamento effect.", 5, {}},
+    {159, ModuleKind::Module, "CompSig", "Compare to Signal", 2, 10, true, false, 900, 901, kInputs159, kOutputs159, {}, {}, "This module produces a logic signal on its yellow output by comparing two Dynamic Control/Audio input signals.", 14, {}},
+    {160, ModuleKind::Module, "ZeroCnt", "Zero Crossing Counter", 2, 1, true, false, 902, 903, kInputs160, kOutputs160, {}, {}, "The Zero Crossing Counter module can be used for detecting the pitch of input signals of a single simple waveform. Note that for this module the input signal has to be fairly simple regarding harmonic content.", 8, {}},
+    {161, ModuleKind::Module, "MixFader", "Mixer 8-1 Fader", 9, 11, true, false, 904, 905, kInputs161, kOutputs161, kParams161, {}, "This mixer has eight Dynamic Control/Audio signal inputs, one Chain input and one output. Each input is equipped with a separate attenuation slider. The mixer has an Channel Mute button for each channel for enabling/disabling the input.", 12, kLabels161},
+    {162, ModuleKind::Module, "FltComb", "Filter Comb", 4, 6, true, false, 906, 907, kInputs162, kOutputs162, kParams162, {}, "This is a Comb filter with adjustable feedback.", 9, {}},
+    {163, ModuleKind::Module, "OscShpA", "Osc Shape A", 5, 2, true, false, 909, 911, kInputs163, kOutputs163, kParams163, {}, "This Shape oscillator is able to generate a vast variety of waveform shapes. There are six basic waveforms to choose from.", 7, {}},
+    {164, ModuleKind::Module, "OscDual", "Osc Dual", 5, 2, true, false, 908, 910, kInputs164, kOutputs164, kParams164, {}, "The Dual Oscillator produces pulse and sawtooth waveforms and a suboctave with a square waveform. Three mixer knobs set the blend of the three waveforms on the output of the oscillator.", 10, {}},
+    {165, ModuleKind::Module, "DXRouter", "DX style router", 6, 2, true, false, 912, 913, kInputs165, kOutputs165, kParams165, {}, "The DXRouter module is intended for use with the Operator modules described on Operator . It works exactly like the Algorithm selector on the DX7 synthesizer, i.e.", 22, {}},
+    {167, ModuleKind::Module, "PShift", "Pitch Shifter", 3, 7, true, false, 996, 997, kInputs167, kOutputs167, kParams167, {}, "The pitch shifter module can lower or raise the pitch of a signal. In contrast to the FreqShift module the pitch shifter effect keeps the harmonic relations in the input audio signal unaltered.", 7, {}},
+    {169, ModuleKind::Module, "ModAHD", "Envelope Modulation AHD", 5, 5, true, false, 916, 917, kInputs169, kOutputs169, kParams169, {}, "The AHDMod envelope is an Attack-Hold-Decay envelope with control signal inputs for modulating Attack, Hold and Release times. The Shape characteristics of this envelope is fixed to Linear Attack & Exponential Decay/Release.", 10, {}},
+    {170, ModuleKind::Module, "2-In", "2 Inputs", 2, 0, true, true, 896, 898, {}, kOutputs170, kParams170, {}, "This module is used to route stereo signals from the Audio Ins or the audio Buses.", 3, {}},
+    {171, ModuleKind::Module, "4-In", "4 Inputs", 2, 0, true, true, 897, 899, {}, kOutputs171, kParams171, {}, "This module is used to route individual signals from the Audio Ins or the audio Buses.", 4, {}},
+    {172, ModuleKind::Module, "DlySingleA", "Delay Static", 2, 8, true, false, 920, 921, kInputs172, kOutputs172, kParams172, kModes172, "A static single delay with selectable time control.", 0, {}},
+    {173, ModuleKind::Module, "DlySingleB", "Delay Single", 2, 8, true, false, 929, 922, kInputs173, kOutputs173, kParams173, kModes173, "A single delay with selectable time control. The delay time can also be modulated from an external source.", 1, {}},
+    {174, ModuleKind::Module, "DelayDual", "Delay Dual", 3, 8, true, false, 930, 923, kInputs174, kOutputs174, kParams174, kModes174, "A 2-tap delay with selectable time controls for each tap. The individual delay times can also be modulated from external sources.", 2, {}},
+    {175, ModuleKind::Module, "DelayQuad", "Delay Quad", 5, 8, true, false, 931, 924, kInputs175, kOutputs175, kParams175, kModes175, "A 4-tap delay with selectable time controls for each tap. The individual delay times can also be modulated from external sources. There is also an additional fifth output with a fixed delay time at the currently selected Range.", 3, {}},
+    {176, ModuleKind::Module, "DelayA", "Delay A", 3, 8, true, false, 932, 925, kInputs176, kOutputs176, kParams176, kModes176, "This is a single channel audio delay with Feedback and Filter controls. You can also set the mix between delayed signal and input signal with the Dry/Wet knob.", 8, {}},
+    {177, ModuleKind::Module, "DelayB", "Delay B", 4, 8, true, false, 933, 926, kInputs177, kOutputs177, kParams177, kModes177, "This is a single channel audio delay with Feedback and Filter controls. You can also set the mix between delayed signal and input signal with the Dry/Wet knob. The delay Time, Feedback amount and Dry/Wet mix can also be modulated from external sources.", 9, {}},
+    {178, ModuleKind::Module, "DlyClock", "Delay Clocked", 2, 8, true, true, 934, 927, kInputs178, kOutputs178, kParams178, {}, "The Clocked Delay Register basically works like the Delay Shift Register above but with only one output. With the Sample Delay knob you set how many Clock pulses is required to output the sampled value.", 6, {}},
+    {179, ModuleKind::Module, "DlyShiftReg", "Shift Register", 2, 8, true, false, 935, 928, kInputs179, kOutputs179, {}, {}, "The Delay Shift Register basically works like a Sample & Hold module, with the difference that for every new sample, it shifts the previous sample one step to the right among the eight outputs. This can be useful for \"storing\" keyboard Note data, for example.", 5, {}},
+    {180, ModuleKind::Module, "Operator", "FM Operator", 12, 2, true, false, 940, 941, kInputs180, kOutputs180, kParams180, {}, "The Operator module consists of a sinewave oscillator in combination with a Level & Rate amplitude envelope generator and a keyboard level scaler. The Operator module has the same functionality as an \302\221operator\302\222 in the well-known DX7 FM synthesizer.", 21, {}},
+    {181, ModuleKind::Module, "DlyEight", "Delay 8 Tap", 3, 8, true, false, 937, 939, kInputs181, kOutputs181, kParams181, kModes181, "An 8-tap delay with selectable time control between the taps. Note that the 8 taps are \"in sequence\", i.e. between the input signal and the first tap, the delay corresponds to the displayed time.", 4, {}},
+    {182, ModuleKind::Module, "DlyStereo", "Delay Stereo", 5, 8, true, false, 936, 938, kInputs182, kOutputs182, kParams182, kModes182, "This is a stereo audio delay with separate Time controls for Left and Right outputs, Feedback, X-Feedback (cross feedback between the two stereo channels) and Filter controls.", 10, {}},
+    {183, ModuleKind::Module, "OscPM", "Osc Phase Mod", 3, 2, true, false, 943, 942, kInputs183, kOutputs183, kParams183, kModes183, "The Phase Modulation Oscillator uses the same basic technology for signal generation as the DX7. By constantly modulating the phase of a signal, an \"FM\" type of signal is generated.", 5, {}},
+    {184, ModuleKind::Module, "Mix1-1A", "Mixer 1-1 A", 2, 11, true, false, 945, 949, kInputs184, kOutputs184, kParams184, {}, "This mixer has one Dynamic Control/Audio signal input, a chain input and one output. The mixer has a Channel Mute button for enabling/disabling the input. The Channel Mute button can be labelled.", 0, kLabels184},
+    {185, ModuleKind::Module, "Mix1-1S", "Mixer 1-1 Stereo", 2, 11, true, false, 944, 948, kInputs185, kOutputs185, kParams185, {}, "This mixer has stereo Dynamic Control/Audio signal inputs, stereo chain inputs and stereo outputs. The mixer has a Channel Mute button for enabling/disabling the inputs. The Channel Mute button can be labelled.", 1, kLabels185},
+    {186, ModuleKind::Module, "Sw1-2M", "Switch 1-2 Momentary", 2, 12, true, false, 952, 954, kInputs186, kOutputs186, kParams186, {}, "The 1-2SwitchMom module has one input, two outputs and one momentary Switch button which can also be labelled.", 8, kLabels186},
+    {187, ModuleKind::Module, "Sw2-1M", "Switch 2-1 Momentary", 2, 12, true, false, 950, 953, kInputs187, kOutputs187, kParams187, {}, "The 2-1SwitchMom module has two inputs, one output and one momentary Switch button which can also be labelled.", 3, kLabels187},
+    {188, ModuleKind::Module, "ConstSwM", "Constant Switch Momentary", 2, 10, true, true, 955, 956, {}, kOutputs188, kParams188, {}, "The Momentary Constant Switch module produces a control signal at a selectable offset level when you click the Switch button. Note that the Switch button is momentary, i.e. clicking it will activate the output signal only for a short while.", 1, kLabels188},
+    {189, ModuleKind::Module, "NoiseGate", "Noise Gate", 3, 10, true, true, 957, 958, kInputs189, kOutputs189, kParams189, {}, "The Noise Gate can be used to \"block out\" low signal levels, like faint background noises in a \302\221silent\302\222 period in an external audio signal. When an input signal rises above the set Threshold value, the gate opens with the time set with the Attack knob.", 12, {}},
+    {190, ModuleKind::Module, "LfoB", "LFO B", 4, 3, true, false, 963, 964, kInputs190, kOutputs190, kParams190, {}, "LFO B generates one of four different control signals. The phase of the signal can be controlled and modulated. The rate of the LFO can be modulated by a modulation source and the keyboard. The wave cycle can also be forced to restart via the Rst input.", 1, {}},
+    {192, ModuleKind::Module, "Phaser", "Phaser", 2, 7, true, false, 965, 966, kInputs192, kOutputs192, kParams192, {}, "The Phaser is based on the Nord Electro phaser effects and simulates a vintage type of phaser. The phaser effect has a very characteristic \"sweep\" effect.", 1, {}},
+    {193, ModuleKind::Module, "Mix4-1A", "Mixer 4-1 A", 2, 11, true, false, 967, 968, kInputs193, kOutputs193, {}, {}, "This mixer has four Dynamic Control/Audio signal inputs and one output.", 5, {}},
+    {194, ModuleKind::Module, "Mix2-1A", "Mixer 2-1 A", 2, 11, true, false, 969, 970, kInputs194, kOutputs194, kParams194, {}, "This mixer has two Dynamic Control/Audio signal inputs and one output. Each input is equipped with a separate attenuation control. The mixer has a Channel Mute button per channel for enabling/disabling the inputs. TheChannel Mute buttons can be labelled.", 3, kLabels194},
+    {195, ModuleKind::Module, "ModAmt", "Modulation Amount", 2, 10, true, false, 971, 972, kInputs195, kOutputs195, kParams195, {}, "The Modulation amount control module can be used to change the characteristics of a control signal before being routed to a control signal input of a module.", 17, kLabels195},
+    {196, ModuleKind::Module, "OscPerc", "Osc Percussion", 3, 2, true, false, 973, 974, kInputs196, kOutputs196, kParams196, {}, "This oscillator generates a damped sinewave after being triggered on the Trig input.", 16, {}},
+    {197, ModuleKind::Module, "Status", "Status", 2, 0, true, false, 975, 976, {}, kOutputs197, {}, {}, "The Status module is an extremely useful module for controlling things in a Patch. It gives you the possibility to control or define events on the moment when you load a Patch (e.g.", 12, {}},
+    {198, ModuleKind::Module, "PitchTrack", "Pitch tracker", 2, 1, true, true, 979, 980, kInputs198, kOutputs198, kParams198, {}, "The Pitch Tracker module can transform the pitch of a monophonic audio input signal into a blue control signal on the Pitch output. The output control signal can be patched directly into a Pitch input of an oscillator or filter.", 7, {}},
+    {199, ModuleKind::Module, "MonoKey", "Monophonic Keyboard", 2, 0, true, true, 977, 978, {}, kOutputs199, kParams199, {}, "This module provides three different control signals to emulate the keyboard behaviour of a classic monophonic synth.", 9, {}},
+    {200, ModuleKind::Module, "RandomA", "Random A", 2, 4, true, false, 1005, 1006, kInputs200, kOutputs200, kParams200, {}, "This random wave shape module produces a random waveform that is stepped when Edge is at 100%, slewed between steps for the settings 25%, 50%, and 75%, and a smoothly gliding random wave when Edge is at 0%.", 0, {}},
+    {201, ModuleKind::Module, "Red2Blue", "Red 2 Blue", 2, -1, false, false, 1021, 0, kInputs201, kOutputs201, {}, {}, nullptr, 255, {}},
+    {202, ModuleKind::Module, "RandomB", "Random B", 3, 4, true, false, 1003, 1004, kInputs202, kOutputs202, kParams202, {}, "The modulatable random wave shape module is quite similar to the LfoA module in Random Steps or Random waveform mode, but with the added Step and Edge controls to fine-tune the random wave shapes or sequence of random values.", 1, {}},
+    {203, ModuleKind::Module, "Blue2Red", "Blue 2 Red", 2, -1, false, false, 1023, 0, kInputs203, kOutputs203, {}, {}, nullptr, 255, {}},
+    {204, ModuleKind::Module, "RndClkA", "Random Clock A", 2, 4, true, false, 1007, 1008, kInputs204, kOutputs204, kParams204, {}, "The clocked random step module produces a new random value each time it receives a trigger pulse on its Clk input. Use the Dice button to 'randomize' the module manually, instead of using the Clk input.", 3, kLabels204},
+    {205, ModuleKind::Module, "RndTrig", "Random Trig", 2, 4, true, false, 1001, 1002, kInputs205, kOutputs205, kParams205, {}, "The random state or random pulse module produces a yellow pulse or gate output signal at a state that is either a logic high or logic low . The output signal can be used directly to trigger yellow Trigger or Gate inputs.", 6, {}},
+    {206, ModuleKind::Module, "RndClkB", "Random Clock B", 3, 4, true, false, 1013, 1014, kInputs206, kOutputs206, kParams206, kModes206, "The modulatable clocked random signal module produces a new random value each time it receives a trigger pulse on its Clk input.", 4, {}},
+    {208, ModuleKind::Module, "RndPattern", "Random Pattern", 3, 4, true, true, 1017, 1018, kInputs208, kOutputs208, kParams208, kModes208, "The RndPattern generator produces short repeating sequences of either random values or random state signals. Length of the sequences can be set by the Length control. This module is similar in its core to the modulatable clocked random signal module.", 8, {}},
 };
 
 const CategoryDef kCategories[] = {

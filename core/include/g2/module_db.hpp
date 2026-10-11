@@ -37,6 +37,13 @@ struct ParamDef {
     std::uint8_t textFunc; // display function id, see g2::paramtext
     std::uint8_t deps[2];
     const char* rangeType;
+    // A push button's parameter (param spec +0x0F, CPanel::CtrlRelease): 1
+    // while held, 0 on release, and not an undo step. Sequencer Clear/Random,
+    // the momentary switches, RndClkA Dice.
+    bool momentary;
+    // Can take a MIDI controller (param spec +0x10, CPanel::CtrlIsMidiAssignable);
+    // false for the controller-number parameters of Automate, CtrlSend, CtrlRcv.
+    bool midiAssignable;
 };
 
 struct ModeDef {
@@ -46,6 +53,15 @@ struct ModeDef {
     std::uint8_t defaultValue;
     std::uint8_t textFunc;
     const char* rangeType;
+};
+
+// A label control of a module panel (PANL `TextEdit`: CPnlLabelButton, one
+// button; `ButtonRadioEdit`: CPnlLabelRadioButton, one caption per button):
+// the user can rename its captions, which the patch stores as custom data.
+struct LabelDef {
+    std::uint8_t param;   // the parameter the control edits
+    std::uint8_t buttons; // number of captions
+    const char* defaults; // the panel's captions, comma-separated
 };
 
 struct ModuleDef {
@@ -65,6 +81,7 @@ struct ModuleDef {
     std::span<const ModeDef> modes;
     const char* description; // short summary from the original help, or nullptr
     std::uint8_t browserOrder; // position in its category's toolbar in the original editor (255: none)
+    std::span<const LabelDef> labels; // label controls, in panel order
 };
 
 struct CategoryDef {
