@@ -63,6 +63,36 @@ std::map<MorphKey, g2::file::MorphAssign> morphsOf(const g2::Patch& p, std::size
     return out;
 }
 
+// The Patch Mutator's audition variation (9), which files leave out: whether
+// `now`'s is what `before` has (true when `now` has none).
+bool sameAudition(const g2::Patch& before, const g2::Patch& now)
+{
+    if (!g2::edit::hasAuditionVariation(now))
+        return true;
+    if (!g2::edit::hasAuditionVariation(before))
+        return false;
+    constexpr auto v = static_cast<std::size_t>(g2::kAuditionVariation);
+    for (const auto loc : {Location::Va, Location::Fx})
+        for (const auto& m : now.area(loc).modules) {
+            const auto* o = before.area(loc).find(m.index);
+            if (!o || (v < m.params.size()) != (v < o->params.size()) || (v < m.params.size() && m.params[v] != o->params[v]))
+                return false;
+        }
+    for (const auto& m : now.settings)
+        for (const auto& o : before.settings)
+            if (o.index == m.index && v < m.params.size() && (v >= o.params.size() || m.params[v] != o.params[v]))
+                return false;
+    const auto a = morphsOf(before, v), b = morphsOf(now, v);
+    if (a.size() != b.size())
+        return false;
+    for (const auto& [key, m] : b) {
+        const auto it = a.find(key);
+        if (it == a.end() || it->second.morph != m.morph || it->second.range != m.range)
+            return false;
+    }
+    return true;
+}
+
 bool equalFiles(const g2::Patch& a, const g2::Patch& b)
 {
     try {
@@ -300,7 +330,9 @@ void SynthSync::push(int docSlot)
         return;
     auto& before = *sent_[static_cast<std::size_t>(slot)];
     const auto& now = doc_.slotPatch(docSlot);
-    if (equalFiles(before, now))
+    // (A file leaves out the audition variation, and saves a focused
+    // variation 9 as 0: compare those apart.)
+    if (equalFiles(before, now) && sameAudition(before, now) && before.header.activeVariation == now.header.activeVariation)
         return;
     auto sendAll = [&] {
         link_->sendPatch(slot, now, doc_.isPerformance() ? link_->state().slots[static_cast<std::size_t>(slot)].name
@@ -315,8 +347,22 @@ void SynthSync::push(int docSlot)
     // Single messages for what the original editor sends that way, applied to
     // a copy of what the synth has; anything they do not cover sends it all.
     g2::Patch probe = before;
+    // The Mutator's audition variation (9): the synth has one, which files
+    // and uploads leave out (zeros); send all of it the first time.
+    if (g2::edit::hasAuditionVariation(now) && !g2::edit::hasAuditionVariation(probe)) {
+        g2::edit::addAuditionVariation(probe);
+        constexpr auto v = static_cast<std::size_t>(g2::kAuditionVariation);
+        for (const auto loc : {Location::Va, Location::Fx})
+            for (auto& m : probe.area(loc).modules)
+                if (v < m.params.size())
+                    std::fill(m.params[v].begin(), m.params[v].end(), u8{0xFF});
+        for (auto& m : probe.settings)
+            if (v < m.params.size())
+                std::fill(m.params[v].begin(), m.params[v].end(), u8{0xFF});
+        probe.morphs[v].assigns.clear();
+    }
     try {
-        const auto variations = std::min<std::size_t>(now.variationCount, probe.variationCount);
+        const auto variations = std::min(g2::edit::variationSlots(now), g2::edit::variationSlots(probe));
         for (const auto loc : {Location::Va, Location::Fx})
             for (const auto& m : now.area(loc).modules) {
                 auto* old = probe.area(loc).find(m.index);
@@ -387,14 +433,14 @@ void SynthSync::push(int docSlot)
         for (const auto& [cc, c] : wasCc)
             if (!isCc.count(cc)) {
                 link_->deassignMidiCc(slot, cc);
-                g2::edit::clearMidiCc(probe, cc);
+                g2::edit::eraseMidiCc(probe, cc);
             }
         for (const auto& [cc, c] : isCc) {
             const auto it = wasCc.find(cc);
             if (it == wasCc.end() || it->second.location != c.location || it->second.module != c.module
                 || it->second.param != c.param) {
                 link_->assignMidiCc(slot, cc, static_cast<Location>(c.location), c.module, c.param);
-                g2::edit::assignMidiCc(probe, cc, static_cast<Location>(c.location), c.module, c.param);
+                g2::edit::storeMidiCc(probe, cc, static_cast<Location>(c.location), c.module, c.param);
             }
         }
         if (now.header.activeVariation != probe.header.activeVariation) {
@@ -405,7 +451,7 @@ void SynthSync::push(int docSlot)
         sendAll();
         return;
     }
-    if (equalFiles(probe, now))
+    if (equalFiles(probe, now) && sameAudition(probe, now))
         before = now;
     else
         sendAll(); // names, colours, labels, notes...: the original sends those as edits we do not have yet

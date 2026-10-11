@@ -2,6 +2,7 @@
 
 #include "CableLayout.h"
 
+#include <cstring>
 #include <stdexcept>
 
 namespace g2ui {
@@ -114,6 +115,22 @@ bool PatchDocument::performLive(const std::function<void(g2::Patch&)>& edit)
     return true;
 }
 
+bool PatchDocument::performMomentary(const std::function<void(g2::Patch&)>& edit)
+{
+    g2::Patch next = patch();
+    try {
+        edit(next);
+    } catch (const std::exception&) {
+        return false;
+    }
+    const bool wasDirty = dirty_;
+    replace(slot_, next);
+    dirty_ = wasDirty;
+    // The press must reach the synth before the release: no coalescing.
+    sendSynchronousChangeMessage();
+    return true;
+}
+
 bool PatchDocument::performLiveOnSlot(int slot, const std::function<void(g2::Patch&)>& edit)
 {
     if (!perf_ || slot == slot_)
@@ -139,9 +156,10 @@ void PatchDocument::loadPatch(const g2::Patch& patch, const juce::String& name)
     patch_ = patch;
     slot_ = 0;
     file_ = juce::File();
-    name_ = name.substring(0, kMaxNameLength);
+    name_ = juce::String(g2::edit::modularName(name.toStdString()));
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch_.header.activeVariation));
     dirty_ = false;
+    loadReport_.clear();
     sendChangeMessage();
 }
 
@@ -153,6 +171,7 @@ void PatchDocument::loadPerformance(const g2::Performance& perf)
     file_ = juce::File();
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch().header.activeVariation));
     dirty_ = false;
+    loadReport_.clear();
     sendChangeMessage();
 }
 
@@ -172,6 +191,7 @@ bool PatchDocument::redo()
 
 void PatchDocument::setVariation(int v)
 {
+    // Choosing a variation also leaves the Mutator's audition variation.
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, v);
     // The selected variation is saved with the patch, like in the original editor.
     auto& header = perf_ ? perf_->slots[static_cast<std::size_t>(slot_)].header : patch_.header;
@@ -179,24 +199,49 @@ void PatchDocument::setVariation(int v)
     sendChangeMessage();
 }
 
+int PatchDocument::focusedVariation() const
+{
+    const auto& p = patch();
+    if (p.header.activeVariation == g2::kAuditionVariation && g2::edit::hasAuditionVariation(p))
+        return g2::kAuditionVariation;
+    return variation_;
+}
+
 void PatchDocument::setFile(const juce::File& f)
 {
     file_ = f;
     if (!perf_ && f != juce::File())
-        name_ = f.getFileNameWithoutExtension().substring(0, kMaxNameLength);
+        name_ = juce::String(g2::edit::modularName(f.getFileNameWithoutExtension().toStdString()));
+    sendChangeMessage();
+}
+
+void PatchDocument::markSaved()
+{
+    bool differs = false;
+    if (file_ != juce::File()) {
+        juce::MemoryBlock onDisk;
+        try {
+            const auto bytes = saveBytes();
+            differs = !file_.loadFileAsData(onDisk) || onDisk.getSize() != bytes.size()
+                   || std::memcmp(onDisk.getData(), bytes.data(), bytes.size()) != 0;
+        } catch (const std::exception&) {
+            differs = true;
+        }
+    }
+    dirty_ = differs;
     sendChangeMessage();
 }
 
 juce::String PatchDocument::name() const
 {
     if (perf_)
-        return juce::String(perf_->header.slots[static_cast<std::size_t>(slot_)].patchName);
+        return fromG2Bytes(perf_->header.slots[static_cast<std::size_t>(slot_)].patchName);
     return name_;
 }
 
 void PatchDocument::setName(const juce::String& name)
 {
-    const auto trimmed = name.trim().substring(0, kMaxNameLength);
+    const auto trimmed = juce::String(g2::edit::modularName(name.trim().toStdString())).trim();
     if (trimmed.isEmpty() || trimmed == this->name())
         return;
     if (perf_)
@@ -217,6 +262,7 @@ void PatchDocument::newPatch()
     file_ = juce::File();
     name_ = "New patch";
     dirty_ = false;
+    loadReport_.clear();
     sendChangeMessage();
 }
 
@@ -253,6 +299,7 @@ void PatchDocument::loadBytes(const std::vector<std::uint8_t>& bytes, bool ignor
 {
     auto loaded = g2::load(bytes, {ignoreChecksum});
     resetHistory();
+    embeddedNameFiltered_ = false;
     if (auto* perf = std::get_if<g2::Performance>(&loaded.content)) {
         perf_ = std::move(*perf);
         slot_ = juce::jlimit(0, 3, static_cast<int>(perf_->header.focusedSlot));
@@ -260,12 +307,42 @@ void PatchDocument::loadBytes(const std::vector<std::uint8_t>& bytes, bool ignor
         perf_.reset();
         patch_ = std::move(std::get<g2::Patch>(loaded.content));
         slot_ = 0;
-        if (!loaded.embeddedName.empty())
-            name_ = juce::String(loaded.embeddedName).substring(0, kMaxNameLength);
+        if (!loaded.embeddedName.empty()) {
+            const auto filtered = g2::edit::modularBytes(loaded.embeddedName.substr(0, kMaxNameLength));
+            if (filtered != loaded.embeddedName.substr(0, kMaxNameLength))
+                embeddedNameFiltered_ = true;
+            name_ = juce::String(filtered);
+        }
     }
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch().header.activeVariation));
     dirty_ = false;
+    repairLoaded();
     sendChangeMessage();
+}
+
+void PatchDocument::repairLoaded()
+{
+    // As the original loads a file: the controller map is validated and
+    // repaired (CCtrlMap::ValidateAndRepairMap, "Ctrl assignment problem")
+    // and module names are filtered to the G2 characters (CModule::SetName).
+    bool ctrl = false, names = false;
+    auto fix = [&](g2::Patch& p) {
+        ctrl = g2::edit::repairMidiCcs(p) || ctrl;
+        names = g2::edit::filterLoadedNames(p) || names;
+    };
+    if (perf_)
+        for (auto& slot : perf_->slots)
+            fix(slot);
+    else
+        fix(patch_);
+    if (embeddedNameFiltered_)
+        names = true;
+    juce::StringArray report;
+    if (ctrl)
+        report.add("Ctrl assignment problem: invalid MIDI controller assignments were removed");
+    if (names)
+        report.add("characters a G2 cannot show were replaced by spaces in names");
+    loadReport_ = report.joinIntoString("; ");
 }
 
 juce::String PatchDocument::layoutJson() const

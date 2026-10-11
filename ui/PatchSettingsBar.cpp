@@ -245,12 +245,12 @@ PatchSettingsBar::PatchSettingsBar(PatchDocument& doc) : doc_(doc)
         const auto* def = edit::settingDef(s);
         const std::uint8_t textFunc = def ? def->params[param].textFunc : 0;
         c->get = [this, s, param] {
-            return static_cast<int>(edit::settingValue(doc_.patch(), s, param, static_cast<std::uint8_t>(doc_.variation())));
+            return static_cast<int>(edit::settingValue(doc_.patch(), s, param, static_cast<std::uint8_t>(doc_.focusedVariation())));
         };
         c->max = [def, param] { return def ? static_cast<int>(def->params[param].max) : 127; };
         c->text = [textFunc](int v) { return juce::String(g2::paramtext::formatSingle(textFunc, static_cast<std::uint8_t>(v))); };
         c->set = [this, s, param, name](int v, bool coalesce) {
-            const auto variation = static_cast<std::uint8_t>(doc_.variation());
+            const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
             auto edit = [=](g2::Patch& p) { edit::setSetting(p, s, param, variation, static_cast<std::uint8_t>(v)); };
             if (coalesce)
                 doc_.performCoalesced("setting:" + name, edit);
@@ -333,12 +333,15 @@ PatchSettingsBar::PatchSettingsBar(PatchDocument& doc) : doc_(doc)
         bar.onRename = [this, i] {
             auto* w = new juce::AlertWindow("Rename morph group", "Name (up to 7 characters):", juce::MessageBoxIconType::NoIcon);
             w->addTextEditor("name", juce::String(edit::morphLabel(doc_.patch(), i)));
+            // 7 characters of the G2 set, as the original's name dialog (CPnlMorphKnob::DoChangeName).
+            if (auto* editor = w->getTextEditor("name"))
+                editor->setInputRestrictions(static_cast<int>(edit::kLabelLength), PatchDocument::allowedNameCharacters());
             w->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
             w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
             w->enterModalState(true, juce::ModalCallbackFunction::create([this, i, w](int r) {
                 if (r != 1)
                     return;
-                const auto label = w->getTextEditorContents("name").substring(0, 7).toStdString();
+                const auto label = w->getTextEditorContents("name").toStdString();
                 doc_.perform("Rename morph group", [=](g2::Patch& p) { edit::setMorphLabel(p, i, label); });
             }), true);
         };
@@ -381,7 +384,7 @@ void PatchSettingsBar::changeListenerCallback(juce::ChangeBroadcaster*)
 juce::String PatchSettingsBar::summary() const
 {
     const auto& p = doc_.patch();
-    const auto v = static_cast<std::uint8_t>(doc_.variation());
+    const auto v = static_cast<std::uint8_t>(doc_.focusedVariation());
     auto on = [&](Setting s, std::uint8_t param) { return edit::settingValue(p, s, param, v) != 0; };
     juce::StringArray parts;
     const auto voices = juce::String(edit::voicesText(p));
@@ -433,7 +436,7 @@ void PatchSettingsBar::paint(juce::Graphics& g)
     g.drawText("Patch settings", header.withTrimmedLeft(26).withWidth(titleWidth), juce::Justification::centredLeft);
     g.setColour(kDim);
     g.setFont(theme::font());
-    g.drawText(collapsed_ ? summary() : "Variation " + juce::String(doc_.variation() + 1),
+    g.drawText(collapsed_ ? summary() : doc_.auditioning() ? juce::String("Mutator audition") : "Variation " + juce::String(doc_.focusedVariation() + 1),
                header.withTrimmedLeft(26 + titleWidth).reduced(4, 0), juce::Justification::centredLeft, true);
     if (collapsed_)
         return;

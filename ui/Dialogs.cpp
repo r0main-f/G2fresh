@@ -93,10 +93,11 @@ public:
             const auto& s = perf->header.slots[static_cast<std::size_t>(i)];
             row.slot.setText(juce::String::charToString(static_cast<juce::juce_wchar>('A' + i)), juce::dontSendNotification);
             row.slot.setFont(theme::font(true));
-            row.name.setText(juce::String(s.patchName), false);
-            row.name.setInputRestrictions(PatchDocument::kMaxNameLength);
+            row.name.setText(PatchDocument::fromG2Bytes(s.patchName), false);
+            // 16 characters of the G2 set; others become spaces (CDialogPerformance, RemoveNonModularChars).
+            row.name.setInputRestrictions(PatchDocument::kMaxNameLength, PatchDocument::allowedNameCharacters());
             row.name.onTextChange = [this, i] {
-                const auto name = rows_[static_cast<std::size_t>(i)].name.getText().toStdString();
+                const auto name = g2::edit::modularName(rows_[static_cast<std::size_t>(i)].name.getText().toStdString());
                 doc_.editPerformance([&](g2::file::PerfHeader& h) { h.slots[static_cast<std::size_t>(i)].patchName = name; });
             };
             auto toggle = [this, i](juce::ToggleButton& b, bool on, std::uint8_t g2::file::SlotSettings::*field) {

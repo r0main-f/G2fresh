@@ -116,10 +116,10 @@ public:
             addAndMakeVisible(clear);
         }
 
-        auto slider = [this](juce::Slider& s, juce::Label& l, const juce::String& name, double value) {
+        auto slider = [this](juce::Slider& s, juce::Label& l, const juce::String& name, double value, double max) {
             s.setSliderStyle(juce::Slider::LinearHorizontal);
             s.setTextBoxStyle(juce::Slider::TextBoxRight, false, 52, 22);
-            s.setRange(0.0, 100.0, 1.0);
+            s.setRange(0.0, max, 1.0);
             s.setTextValueSuffix("%");
             s.setValue(value * 100.0, juce::dontSendNotification);
             l.setText(name, juce::dontSendNotification);
@@ -127,9 +127,10 @@ public:
             addAndMakeVisible(s);
             addAndMakeVisible(l);
         };
-        slider(probability_, probabilityLabel_, "Probability", mutator_.settings.probability);
-        slider(range_, rangeLabel_, "Range", mutator_.settings.range);
-        slider(crossover_, crossoverLabel_, "Crossover", mutator_.settings.crossover);
+        // Probability 0-100 %, Range 0-50 % (the original's knob, CSmallKnob(..., 0x32)), Crossover 0-100 %.
+        slider(probability_, probabilityLabel_, "Probability", mutator_.settings.probability, 100.0);
+        slider(range_, rangeLabel_, "Range", mutator_.settings.range, mut::kMaxRange * 100.0);
+        slider(crossover_, crossoverLabel_, "Crossover", mutator_.settings.crossover, 100.0);
         probability_.onValueChange = [this] {
             mutator_.settings.setProbability(probability_.getValue() / 100.0);
             range_.setValue(mutator_.settings.range * 100.0, juce::dontSendNotification);
@@ -140,7 +141,10 @@ public:
         };
         crossover_.onValueChange = [this] { mutator_.settings.crossover = crossover_.getValue() / 100.0; };
         link_.setToggleState(mutator_.settings.link, juce::dontSendNotification);
-        link_.onClick = [this] { mutator_.settings.setLink(link_.getToggleState()); };
+        link_.onClick = [this] {
+            mutator_.settings.setLink(link_.getToggleState());
+            range_.setValue(mutator_.settings.range * 100.0, juce::dontSendNotification);
+        };
         link_.setTooltip("Link Probability and Range as the original does");
         addAndMakeVisible(link_);
 
@@ -162,7 +166,8 @@ public:
         status_.setFont(theme::font());
         status_.setColour(juce::Label::textColourId, kDim);
         addAndMakeVisible(status_);
-        status("Randomize or Mutate to make six children; click one to hear it in the current variation.");
+        status("Randomize or Mutate to make six children; click one to hear it (it plays in the Mutator's own "
+               "variation, variations 1-8 stay as they are).");
 
         doc_.addChangeListener(this);
         refresh();
@@ -255,14 +260,20 @@ private:
         mutator_.copy(scratch, currentVariation(), to);
     }
 
-    // Plays an individual: writes it into the current variation (undoable).
+    // Plays an individual as the original does: in the patch's hidden
+    // variation 9, which becomes the focused one (on the synth too); the
+    // user's variations 1-8 are untouched until it is copied into one.
+    // Undoable, as the original's focus molecules.
     void audition(mut::Box box)
     {
         if (!mutator_.hasData(box))
             return;
-        mutator_.focus = box;
-        doc_.perform("Audition mutation", [&](g2::Patch& p) { mutator_.copy(p, box, currentVariation()); });
-        status("Playing it in variation " + juce::String(doc_.variation() + 1) + " (Undo to go back)");
+        doc_.perform("Audition mutation", [&](g2::Patch& p) {
+            if (mutator_.audition(p, box))
+                p.header.activeVariation = static_cast<std::uint8_t>(g2::kAuditionVariation);
+        });
+        status("Playing it in the Mutator's variation (right-click > Copy to Variation keeps it; "
+               "click a variation button to go back)");
         refresh();
     }
 

@@ -42,6 +42,11 @@ public:
     bool performLive(const std::function<void(g2::Patch&)>& edit);
     // The same on a given slot of a performance (the slot shown is unchanged).
     bool performLiveOnSlot(int slot, const std::function<void(g2::Patch&)>& edit);
+    // A push button's press or release (g2::edit::isMomentary): not an undo
+    // step and not an edit that needs saving (the value goes 1 then back to
+    // 0), as the original's CPanel::CtrlRelease. Listeners hear it at once,
+    // so the synth gets both the press and the release.
+    bool performMomentary(const std::function<void(g2::Patch&)>& edit);
     // The patch of a slot (a patch document has only slot 0).
     const g2::Patch& slotPatch(int slot) const
     {
@@ -53,8 +58,14 @@ public:
     bool canUndo() const { return undo_.canUndo(); }
     bool canRedo() const { return undo_.canRedo(); }
 
+    // The user variation (0..7) last chosen.
     int variation() const { return variation_; }
     void setVariation(int v);
+    // The variation shown and edited: variation(), or the Patch Mutator's
+    // audition variation (9) while it plays an individual there, as the
+    // original focuses it (CMutaSynthData::GetFocusIndividMolecules).
+    int focusedVariation() const;
+    bool auditioning() const { return focusedVariation() == g2::kAuditionVariation; }
 
     // File handling. load* replace the document and clear the undo history.
     void newPatch();
@@ -78,22 +89,46 @@ public:
     void applyLayoutJson(const juce::String& json);
     juce::File file() const { return file_; }
     // Remembers the file the document was loaded from or saved to; a patch
-    // takes its name from the file name (that's how the G2 names patches).
+    // takes its name from the file name (that's how the G2 names patches),
+    // filtered to the G2 characters (Utils::MakePatchNameFromFileName).
     void setFile(const juce::File& f);
+    // What the last load repaired or filtered as the original does (an
+    // invalid MIDI controller map, characters outside the G2 set in module
+    // names), for a message; empty if nothing.
+    juce::String loadReport() const { return loadReport_; }
 
     // The name shown and edited in the toolbar: the patch's name, or in a
     // performance the current slot's patch name (stored in the file). G2 names
-    // have at most 16 characters.
+    // have at most 16 characters, from the G2 set (g2::edit::kModularChars:
+    // others become spaces, Utils::RemoveNonModularChars).
     static constexpr int kMaxNameLength = 16;
     juce::String name() const;
     void setName(const juce::String& name);
+    // A name or label as stored (one byte per character; bytes from files
+    // that are not ASCII shown as Latin-1).
+    static juce::String fromG2Bytes(const std::string& bytes)
+    {
+        juce::String s;
+        for (const char c : bytes)
+            s += static_cast<juce::juce_wchar>(static_cast<unsigned char>(c));
+        return s;
+    }
+    // The characters a G2 name may contain, for text editors' input restrictions.
+    static juce::String allowedNameCharacters() { return juce::String(g2::edit::kModularChars.data(), g2::edit::kModularChars.size()); }
     bool isDirty() const { return dirty_; }
-    void markSaved() { dirty_ = false; sendChangeMessage(); }
+    // The document is what its file holds: after a save, or a restored
+    // session. A document that differs from its file on disk (a session
+    // restored with edits that were never saved) stays marked edited, so
+    // unsaved edits never show as saved. Without a file: not edited.
+    void markSaved();
 
 private:
     class Step;
     void replace(int slot, const g2::Patch& p);
     void resetHistory();
+    // The original's load-time repairs (CCtrlMap::ValidateAndRepairMap,
+    // CModule::SetName) on the loaded patch(es); fills loadReport_.
+    void repairLoaded();
 
     g2::Patch patch_;
     std::optional<g2::Performance> perf_;
@@ -105,6 +140,8 @@ private:
     juce::File file_;
     juce::String name_ = "New patch"; // patch name (performances use slot names)
     bool dirty_ = false;
+    juce::String loadReport_;
+    bool embeddedNameFiltered_ = false;
 };
 
 } // namespace g2ui

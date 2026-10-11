@@ -1,13 +1,32 @@
 #include "ModulePainter.h"
 
+#include "PatchDocument.h"
 #include "SpecialControls.h"
 
+#include "g2/edit.hpp"
 #include "g2/module_db.hpp"
 #include "g2/graphs.hpp"
 #include "g2/param_text.hpp"
 
 namespace g2ui {
 namespace {
+
+// The captions a control shows: a label control's (TextEdit, ButtonRadioEdit)
+// come from the patch (custom labels, else the panel's), others from the panel.
+// Label bytes from files are shown as Latin-1.
+juce::StringArray captions(const ModuleContext& c, const PanelElement& e)
+{
+    if ((e.kind == "TextEdit" || e.kind == "ButtonRadioEdit") && e.codeRef >= 0) {
+        const auto labels = g2::edit::paramLabels(c.patch, c.location, c.module.index, static_cast<std::uint8_t>(e.codeRef));
+        if (!labels.empty()) {
+            juce::StringArray out;
+            for (const auto& l : labels)
+                out.add(PatchDocument::fromG2Bytes(l));
+            return out;
+        }
+    }
+    return e.options;
+}
 
 // Knob sprite strips: 10 frames each (0 = selected, 1 = normal, 2..9 = morph
 // groups 1..8).
@@ -477,7 +496,7 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
         if (e.image.isValid())
             g.drawImageAt(e.image, r.getCentreX() - e.image.getWidth() / 2, r.getCentreY() - e.image.getHeight() / 2);
         else
-            drawLabel(g, r, e.options.joinIntoString(","), juce::Colours::black);
+            drawLabel(g, r, captions(c, e).joinIntoString(","), juce::Colours::black);
         return;
     }
     if (e.kind == "ButtonFlat" || e.kind == "LevelShift") {
@@ -498,13 +517,14 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
         const int n = e.kind == "ButtonRadio" ? std::max(1, e.buttonCount) : std::max(1, e.columns * e.rows);
         const int cols = e.kind == "ButtonRadio" ? (vertical ? 1 : n) : std::max(1, e.columns);
         const int w = r.getWidth() / cols, h = r.getHeight() / std::max(1, (n + cols - 1) / cols);
+        const auto texts = captions(c, e);
         for (int i = 0; i < n; ++i) {
             const juce::Rectangle<int> b(r.getX() + (i % cols) * w, r.getY() + (i / cols) * h, w, h);
             drawButtonBox(g, b, v.value_or(-1) == i, highlighted && v.value_or(-1) == i);
             if (e.image.isValid() && e.imageWidth > 0)
                 drawImageFrame(g, e.image, i, e.imageWidth, b.withSizeKeepingCentre(e.imageWidth, e.image.getHeight()));
-            else if (i < e.options.size())
-                drawLabel(g, b, e.options[i], juce::Colours::black);
+            else if (i < texts.size())
+                drawLabel(g, b, texts[i], juce::Colours::black);
         }
         return;
     }
@@ -804,7 +824,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         if (e.image.isValid()) {
             drawGlyph(g, e.image, 0, e.image.getWidth(), r.getCentre(), on ? juce::Colours::white : kInk);
         } else {
-            centredText(g, r, e.options.joinIntoString(","), on ? juce::Colours::white : kInk);
+            centredText(g, r, captions(c, e).joinIntoString(","), on ? juce::Colours::white : kInk);
         }
         return;
     }
@@ -826,6 +846,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         // A segmented control: one rounded outline, active segment filled.
         g.setColour(kControl);
         g.fillRoundedRectangle(r, 3.0f);
+        const auto texts = captions(c, e);
         for (int i = 0; i < n; ++i) {
             const juce::Rectangle<float> b(r.getX() + static_cast<float>(i % cols) * w,
                                            r.getY() + static_cast<float>(i / cols) * h, w, h);
@@ -836,8 +857,8 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
             }
             if (e.image.isValid() && e.imageWidth > 0) {
                 drawGlyph(g, e.image, i, e.imageWidth, b.getCentre(), on ? juce::Colours::white : kInk);
-            } else if (i < e.options.size()) {
-                centredText(g, b, e.options[i], on ? juce::Colours::white : kInk, 9.0f);
+            } else if (i < texts.size()) {
+                centredText(g, b, texts[i], on ? juce::Colours::white : kInk, 9.0f);
             }
             if (i % cols > 0) {
                 g.setColour(kControlEdge.withAlpha(0.6f));
