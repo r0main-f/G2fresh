@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <set>
 
 namespace g2ui {
 
@@ -254,7 +255,8 @@ class LiveView::Panel : public juce::Component, public juce::SettableTooltipClie
 public:
     explicit Panel(LiveView& owner) : owner_(owner), buttons_(buttons()), leds_(leds()), labels_(labels()) {}
 
-    float masterLevel = 1.0f; // the OS starts with the knob all the way up (Machine::Options::masterVolume)
+    float masterLevel = 1.0f; // the knob where the host keeps it (EmulatorHost::masterLevel)
+    bool draggingMaster() const { return dragMaster_; }
 
     void paint(juce::Graphics& g) override
     {
@@ -312,7 +314,7 @@ public:
         drawCap(g, {272, 790}, 100, std::nullopt);                  // the rotary dial
 
         for (const auto& b : buttons_)
-            drawButton(g, b.r, b.style, pressed_ == b.id);
+            drawButton(g, b.r, b.style, pressed_ == b.id || held_.count(b.id) > 0 || (keyShift_ && b.id == PanelButton::Shift));
         for (const auto& l : leds_)
             drawLed(g, l.c, s.leds[static_cast<std::size_t>(l.id)], l.c.x > kSndX ? 9 * kSnd : 12);
     }
@@ -322,7 +324,9 @@ public:
         const auto p = toPanel(e.position);
         juce::String tip;
         if (const auto* b = buttonAt(p))
-            tip = panelLabel(b->id);
+            tip = juce::String(panelLabel(b->id))
+                + (b->id == PanelButton::Shift ? " - a click holds it for the next button"
+                                               : " - Shift key: with Shift; Option-click: hold it down");
         else if (const int k = encoderAt(p); k >= 0)
             tip = k == kPanelDial ? "Rotary dial (drag or scroll)" : "Knob " + juce::String(k + 1) + " (drag or scroll)";
         else if (masterAt(p))
@@ -336,8 +340,31 @@ public:
         dragAccum_ = 0;
         lastDragY_ = e.position.y;
         if (const auto* b = buttonAt(p)) {
+            // A G2 is played with two buttons at once (Shift + Store, a Slot + the dial, Morph + a knob): Option-click
+            // holds a button down until it is clicked again; a click on Shift holds it for the next button; the
+            // computer's Shift key while clicking means Shift + that button.
+            auto* h = owner_.host_;
+            if (e.mods.isAltDown() || b->id == PanelButton::Shift) {
+                if (held_.erase(b->id) > 0) {
+                    if (h != nullptr)
+                        h->panelButton(b->id, false);
+                    stickyShift_ = false;
+                } else {
+                    held_.insert(b->id);
+                    if (h != nullptr)
+                        h->panelButton(b->id, true);
+                    stickyShift_ = b->id == PanelButton::Shift && !e.mods.isAltDown();
+                }
+                repaint();
+                return;
+            }
+            if (e.mods.isShiftDown() && held_.count(PanelButton::Shift) == 0) {
+                keyShift_ = true;
+                if (h != nullptr)
+                    h->panelButton(PanelButton::Shift, true);
+            }
             pressed_ = b->id;
-            if (auto* h = owner_.host_)
+            if (h != nullptr)
                 h->panelButton(b->id, true);
             repaint();
         } else {
@@ -368,9 +395,17 @@ public:
     void mouseUp(const juce::MouseEvent&) override
     {
         if (pressed_) {
-            if (auto* h = owner_.host_)
+            auto* h = owner_.host_;
+            if (h != nullptr)
                 h->panelButton(*pressed_, false);
             pressed_.reset();
+            // Shift, held by the computer's key or by a single click on it, goes up after the button it shifted
+            if (keyShift_ || stickyShift_) {
+                if (h != nullptr)
+                    h->panelButton(PanelButton::Shift, false);
+                held_.erase(PanelButton::Shift);
+                keyShift_ = stickyShift_ = false;
+            }
             repaint();
         }
         dragEncoder_ = -1;
@@ -433,6 +468,9 @@ private:
     const std::vector<LedSpec> leds_;
     const std::vector<LabelSpec> labels_;
     std::optional<PanelButton> pressed_;
+    std::set<PanelButton> held_;    // buttons held down (Option-click, or Shift clicked)
+    bool stickyShift_ = false;      // Shift was clicked: it goes up after the next button
+    bool keyShift_ = false;         // Shift is down for the computer's Shift key, for this press
     int dragEncoder_ = -1;
     bool dragMaster_ = false;
     float dragAccum_ = 0, lastDragY_ = 0, wheelAccum_ = 0;
@@ -755,6 +793,10 @@ void LiveView::resized()
 void LiveView::timerCallback()
 {
     const auto s = host_ != nullptr ? host_->panel() : PanelSnapshot{};
+    if (host_ != nullptr && !panel_->draggingMaster() && std::abs(panel_->masterLevel - host_->masterLevel()) > 1e-4f) {
+        panel_->masterLevel = host_->masterLevel(); // the knob where it was left (kept with the project)
+        panel_->repaint();
+    }
     const bool changed = s.live != snapshot_.live || s.generation != snapshot_.generation;
     const bool running = host_ != nullptr && host_->emulatorRunning();
     snapshot_ = s;

@@ -60,6 +60,7 @@ public:
     int emulatorsInHost() const override;
     bool hostClock() const override { return hostClockOn_; }
     bool mixOut34() const override { return mixOut34_; }
+    float masterLevel() const override { return masterLevel_; }
     void setMixOut34(bool on) override;
     void setHostClock(bool on) override;
     void emulatorMidi(std::span<const std::uint8_t> bytes) override;
@@ -79,6 +80,8 @@ private:
     // Swaps the emulated G2's engine (nullptr: none) while the audio thread
     // does not run; the old one is destroyed here, on the message thread.
     void setEmulated(std::unique_ptr<SoundEngine> engine);
+    // The emulated G2's system settings once it is up: a factory G2's on an erased memory, and what the options need.
+    void applySynthSettings();
 #if G2FRESH_EMULATOR
     // Starts the emulated G2 if it should run (it ran when the project was saved, or a new instance), does not run
     // yet, and the G2 OS is known.
@@ -95,7 +98,8 @@ private:
     // it: the only sound G2fresh makes. Before synth_, whose link uses it.
     std::unique_ptr<SoundEngine> emulated_;
     bool emulatedSent_ = false; // the document went to the emulated G2 once it was up
-    bool emulatedLocal_ = false; // its MIDI Local switched on (its panel's keys play), once it was up
+    bool emulatedLocal_ = false; // its system settings applied once it was up (applySynthSettings)
+    bool emulatedFresh_ = false; // it started from an erased memory: a factory G2's settings apply
     // In the state: whether the emulated G2 runs (it starts again with the project), and its flash (gzip): each
     // plugin instance keeps its own synth memory in the host's project.
     bool emulatorWanted_ = true;
@@ -110,7 +114,8 @@ private:
     std::uint64_t flashSeen_ = 0;
     int flashQuiet_ = 0;
     // The host's tempo and transport as MIDI clock into the emulated G2 (HostClock: audio thread only).
-    std::atomic<bool> hostClockOn_{true};
+    std::atomic<bool> hostClockOn_{false}; // opt-in: it changes the patch's tempo
+    std::atomic<float> masterLevel_{1.0f}; // the panel's Master Level knob (in the state)
     std::atomic<bool> mixOut34_{false}; // Out 3/4 into Out 1/2 when not routed (in the state)
     std::atomic<bool> resetClock_{false};
     HostClock hostClock_;

@@ -1,4 +1,6 @@
 #include "PluginProcessor.h"
+
+#include <algorithm>
 #include "PluginEditor.h"
 #include "Skin.h"
 
@@ -25,6 +27,7 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
     state.setProperty("midiChannel", midiOut_.channel(), nullptr);
     state.setProperty("emulated", emulatorWanted_, nullptr);
     state.setProperty("hostClock", hostClockOn_.load(), nullptr);
+    state.setProperty("masterLevel", static_cast<double>(masterLevel_.load()), nullptr);
     state.setProperty("mixOut34", mixOut34_.load(), nullptr);
     if (flashGz_.getSize() > 0)
         state.setProperty("emulatorFlash", flashGz_.toBase64Encoding(), nullptr);
@@ -97,6 +100,29 @@ std::vector<std::uint8_t> gunzip(const juce::MemoryBlock& gz)
 
 } // namespace
 
+void G2EditorProcessor::applySynthSettings()
+{
+    const auto* link = synth_.link();
+    if (link == nullptr || !synth_.ready() || synth_.kind() != g2ui::SynthSync::Kind::Emulated)
+        return;
+    auto settings = link->state().settings;
+    bool change = false;
+    // A G2 leaves the factory with MIDI Local On (the manual's System menu); an erased flash boots with it Off, and
+    // the panel's keys would then only go out as MIDI. So on a fresh (erased) memory only: a memory in use keeps
+    // what its user set.
+    if (emulatedFresh_ && !settings.localOn) {
+        settings.localOn = true;
+        change = true;
+    }
+    // Following the host's tempo (opt-in) needs the G2 to follow an external clock.
+    if (hostClockOn_ && settings.ignoreExternalClock) {
+        settings.ignoreExternalClock = false;
+        change = true;
+    }
+    if (change)
+        synth_.setSynthSettings(settings);
+}
+
 void G2EditorProcessor::setMixOut34(bool on)
 {
     mixOut34_ = on;
@@ -111,6 +137,7 @@ void G2EditorProcessor::setHostClock(bool on)
 {
     hostClockOn_ = on;
     resetClock_ = true;
+    applySynthSettings();
     refreshState();
 }
 
@@ -229,12 +256,15 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
             return "no G2 OS in " + firmware.getFileName();
         // The stand-alone app keeps its flash in a file; a plugin instance in the host's project.
         const auto saveTo = wrapperType == wrapperType_Standalone ? EmulatedSoundEngine::defaultFlashFile() : juce::File();
-        engine = std::make_unique<EmulatedSoundEngine>(fw, startingFlash(), saveTo);
+        auto flash = startingFlash();
+        emulatedFresh_ = std::all_of(flash.begin(), flash.end(), [](std::uint8_t b) { return b == 0xff; }); // empty too
+        engine = std::make_unique<EmulatedSoundEngine>(fw, std::move(flash), saveTo);
     } catch (const std::exception& e) {
         return juce::String("the emulated G2 cannot start: ") + e.what();
     }
     engine->prepare(sampleRate_ > 0 ? sampleRate_ : 48000.0, blockSize_);
     engine->setMixOut34(mixOut34_);
+    engine->machine().panelAnalog(g2emu::PanelAnalog::MasterLevel, masterLevel_); // the knob where it was left
     flashSeen_ = engine->flashChanges();
     synth_.connectEmulated(g2emu::emulatedG2Link(engine->machine()));
     emulatedSent_ = false;
@@ -382,6 +412,10 @@ void G2EditorProcessor::panelAnalog(g2ui::PanelAnalog control, float value)
 {
     using U = g2ui::PanelAnalog;
     using E = g2emu::PanelAnalog;
+    if (control == U::MasterLevel) { // kept with the project, as the knob stays where it is on a G2
+        masterLevel_ = std::clamp(value, 0.0f, 1.0f);
+        refreshState();
+    }
     if (emulated_ == nullptr)
         return;
     const E e = control == U::MasterLevel ? E::MasterLevel : control == U::PitchStick ? E::PitchStick
@@ -413,17 +447,10 @@ void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
             setEmulated(nullptr);
             refreshState();
         }
-        // An erased flash leaves the OS's MIDI Local Off: its panel's keys and controls would only go out as MIDI.
+        // The G2's system settings, once it is up: only what the user asked for, or a factory G2's.
         if (synth_.kind() == Kind::Emulated && synth_.ready() && !emulatedLocal_) {
             emulatedLocal_ = true;
-            // and its external clock followed (for the host's tempo, HostClock)
-            if (const auto* link = synth_.link();
-                link != nullptr && (!link->state().settings.localOn || link->state().settings.ignoreExternalClock)) {
-                auto settings = link->state().settings;
-                settings.localOn = true;
-                settings.ignoreExternalClock = false;
-                synth_.setSynthSettings(settings);
-            }
+            applySynthSettings();
         }
         // Once up, the emulated G2 plays the document (later, the user sends what they want).
         if (synth_.kind() == Kind::Emulated && synth_.ready() && !synth_.bound() && !emulatedSent_) {
@@ -571,7 +598,8 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         document_.applyLayoutJson(state["layout"].toString());
         midiOut_.restore(state["midiOut"].toString(), state["midiOutName"].toString(), state["midiChannel"]);
         emulatorWanted_ = static_cast<bool>(state.getProperty("emulated", true));
-        hostClockOn_ = static_cast<bool>(state.getProperty("hostClock", true));
+        hostClockOn_ = static_cast<bool>(state.getProperty("hostClock", false));
+        masterLevel_ = static_cast<float>(state.getProperty("masterLevel", 1.0f));
         setMixOut34(static_cast<bool>(state.getProperty("mixOut34", false)));
         flashGz_.reset();
         flashGz_.fromBase64Encoding(state["emulatorFlash"].toString());

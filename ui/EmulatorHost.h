@@ -32,6 +32,8 @@ public:
     // Whether Out 3/4 are mixed into Out 1/2 when the host does not take the Out 3/4 output (off: as the G2, whose
     // headphones carry Out 1/2 only).
     virtual bool mixOut34() const { return false; }
+    // The panel's Master Level knob, 0 .. 1 (kept by the host with the project).
+    virtual float masterLevel() const { return 1.0f; }
     virtual void setMixOut34(bool on) { juce::ignoreUnused(on); }
     // How many emulated G2s run in this host process (all plugin instances).
     virtual int emulatorsInHost() const { return 0; }
