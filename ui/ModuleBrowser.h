@@ -15,7 +15,7 @@ struct ModuleDef;
 namespace g2ui {
 
 // A compact description of a module for tooltips: name and category on the
-// first line, then the summary from the original help and the connectors.
+// first line, then the module's short summary and the connectors.
 juce::String moduleTooltip(const g2::db::ModuleDef& def);
 
 class ModuleBrowser : public juce::Component, private juce::ChangeListener {

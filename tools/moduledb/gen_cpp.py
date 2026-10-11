@@ -3,6 +3,12 @@
 data/param_text.json and the panel layouts (assets/clavia/panels.json, for
 the label controls), so the editor carries its module database compiled in.
 
+The module descriptions (tooltips) come from data/module_help.json, keyed by
+module short name. That file is G2fresh's own text, written and maintained by
+hand: edit it directly. Do not fill it from Clavia's help pages or manual.
+Only real modules get a description; the patch-settings pseudo modules (some
+share a module's short name, e.g. Glide) get none.
+
     gen_cpp.py [--check]
 
 --check exits 1 if the committed file is out of date (used by the tests).
@@ -178,7 +184,7 @@ def generate():
             f"{'true' if fl.get('selectable') else 'false'}, {'true' if fl.get('defaultLocked') else 'false'}, "
             f"{m.get('panelResId') or 0}, {m.get('faceResId') or 0}, "
             f"{span('Inputs', 'inputs')}, {span('Outputs', 'outputs')}, "
-            f"{span('Params', 'params')}, {span('Modes', 'modes')}, {cstr(descriptions.get(m['shortName']))}, "
+            f"{span('Params', 'params')}, {span('Modes', 'modes')}, {cstr(descriptions.get(m['shortName']) if m['kind'] == 'module' else None)}, "
             f"{m['toolbarSlot'] if m.get('toolbarSlot') is not None else 255}, "
             f"{('kLabels' + str(t)) if t in labels else '{}'}}},")
     lines += ["};", "", "const CategoryDef kCategories[] = {"]
