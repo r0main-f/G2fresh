@@ -1,7 +1,7 @@
 # Nord Modular G2 — USB protocol (editor ⇄ synth)
 
 Reverse-engineered from the Clavia G2 editor v1.62 for Mac (Ghidra program `G2Editor_i386`, decompiled C in
-`re/out/decomp/`). It is cross-checked against Bruno Verhue's GPL-2+ editor (`third_party/nord_g2_editor/`), which was
+`re/out/decomp/`). It is cross-checked against Bruno Verhue's GPL-2+ editor (`references/nord_g2_editor/`), which was
 written against real hardware. It is meant to be precise enough to write both a host-side codec/client (libusb) and a
 device emulator.
 
@@ -11,7 +11,7 @@ not repeated here.
 
 Evidence tags used throughout:
 * **[C]** proven from Clavia code or data (function name and address given).
-* **[V]** from Verhue's sources (file:line, paths relative to `third_party/nord_g2_editor/`; "Gen2 Mess" =
+* **[V]** from Verhue's sources (file:line, paths relative to `references/nord_g2_editor/`; "Gen2 Mess" =
   `Gen2/Common/BVE.NMG2Mess.pas`, "Gen2 USB" = `Gen2/Common/BVE.NMG2USB.pas`).
 * **[V-cap]** a hex dump found in Verhue's comments, probably captured from the original editor.
 * **[I]** inferred, not proven by code. Treat as a hypothesis to verify on hardware.

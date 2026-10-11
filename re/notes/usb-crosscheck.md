@@ -15,7 +15,7 @@ other editors found about edits.
 | **g2fx** | sirlensalot/g2fx, `src/main/java/org/g2fx/g2lib/...` | `89ffa2b486eef89419036cd0a9f8639a9645e43d` |
 | **Web** | ty-art-ty/g2-webeditor (its backend vendors g2fx's g2lib at g2fx `e75c6d0`) | `ded17c5a1d9970e65e0bd1aabbc44b9cde3097fa` |
 | **JB** | JanBurp/NordModularG2-Editor (AGPL-3, cited only), `cli/src`, `cli/include` | `a1a7e83c44e9ded70be46e1a312e7d94fe9b6440` |
-| **Verhue** | `third_party/nord_g2_editor` (local clone) | `870d4a8` |
+| **Verhue** | `references/nord_g2_editor` (local clone) | `870d4a8` |
 
 ### The captures are the strongest evidence here
 

@@ -63,7 +63,12 @@ TEST_CASE("a new patch matches what the original editor writes")
 
 TEST_CASE("a performance built from four patches saves and reloads unchanged")
 {
-    const auto files = g2test::corpusFiles();
+    // four current-version patches (an older one would be converted, so not saved back as it was read)
+    std::vector<std::filesystem::path> files;
+    for (const auto& path : g2test::corpusFiles())
+        if (path.extension() == ".pch2" && files.size() < 4 && g2::load(g2test::readBytes(path)).convertedFrom == 0)
+            files.push_back(path);
+    REQUIRE(files.size() == 4);
     Performance perf;
     for (std::size_t i = 0; i < 4; ++i)
         perf.slots[i] = loadPatch(g2test::readBytes(files[i]));

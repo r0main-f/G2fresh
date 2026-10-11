@@ -1,6 +1,6 @@
 # Nord Modular G2 USB protocol as implemented by Bruno Verhue's editor (GPL-2+)
 
-Source tree: `third_party/nord_g2_editor/` (paths below are relative to it).
+Source tree: `references/nord_g2_editor/` (paths below are relative to it).
 Primary reference = **Gen2** (finished product, used on real hardware):
 `Gen2/Common/BVE.NMG2Mess.pas` (abbrev. **Mess**), `Gen2/Common/BVE.NMG2USB.pas` (**USB**),
 `Gen2/Common/BVE.NMG2Types.pas` (**Types**), `Gen2/Common/BVE.NMG2File.pas` (**File**).

@@ -12,7 +12,7 @@ hardware evidence settles what its code leaves open.
 | [sirlensalot/g2fx](https://github.com/sirlensalot/g2fx) | BSD-3-Clause | `89ffa2b` | Editor ported from Verhue's and g2ools. `data/capture/*.pcapng`: 18 USB captures of a real G2X (decoded in `usb-crosscheck.md`) |
 | [ty-art-ty/g2-webeditor](https://github.com/ty-art-ty/g2-webeditor) | BSD-3-Clause | `ded17c5` | Browser editor on a headless board next to the G2, "verified against real hardware"; vendors g2fx's library |
 | [JanBurp/NordModularG2-Editor](https://github.com/JanBurp/NordModularG2-Editor) | AGPL-3.0 | `a1a7e83` | Electron editor with a C USB daemon; protocol and file-format docs, hardware notes (e.g. the ~34 KB message hang) |
-| [BVerhue/nord_g2_editor](https://github.com/BVerhue/nord_g2_editor) | GPL-2.0+ | local clone in `third_party/` | The older open-source editor; source of some module-database facts |
+| [BVerhue/nord_g2_editor](https://github.com/BVerhue/nord_g2_editor) | GPL-2.0+ | `870d4a8` (2021-12-12) | The older open-source editor; source of some module-database facts |
 
 Refresh a clone with `git -C references/<name> pull`; note the new commit here when a finding cites it.
 

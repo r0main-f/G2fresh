@@ -252,7 +252,7 @@ Repo state: `main` @ 775fc55. Read-only audit; no repository file was changed.
 - **Menu resource:** `original/rsrc/SMNU/128_Foo.bin` (the menu bar and its shortcuts).
 - **Notes:** `re/notes/*.md`.
 - **Manual:** `original/manual/g2-manual-v1.2.txt`. The "=== PAGE n" markers match the printed page numbers.
-- **Cross-check:** Verhue's editor, `third_party/nord_g2_editor`.
+- **Cross-check:** Verhue's editor, `references/nord_g2_editor`.
 
 **Method**
 - Four parallel read-only passes:

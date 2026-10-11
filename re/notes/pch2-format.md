@@ -2,9 +2,9 @@
 
 Reverse-engineered from the Mac G2 editor v1.62 (`original/mac/G2Editor_i386`, Ghidra
 project `re/ghidra-db`, export in `re/out/decomp/`), cross-checked against Bruno Verhue's
-reader (`third_party/nord_g2_editor/Gen2/Common/BVE.NMG2File.pas`, `BVE.NMG2Types.pas`)
+reader (`references/nord_g2_editor/Gen2/Common/BVE.NMG2File.pas`, `BVE.NMG2Types.pas`)
 and against every patch we have (11 files in `tests/corpus/pch2csd/`, 4 private patches,
-`third_party/.../Gen3/Patch/hi_hat_machine.pch2`, which is version 22).
+`references/nord_g2_editor/.../Gen3/Patch/hi_hat_machine.pch2`, which is version 22).
 
 Reference implementation: `tools/pch2/pch2dump.py` (decode to JSON, encode back,
 byte-identical round trip on all of the above). Every address below is a Ghidra

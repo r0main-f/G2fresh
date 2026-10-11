@@ -242,7 +242,7 @@ deterministic across platforms.
 
 ## 5. Comparison with Verhue's editor
 
-`third_party/.../BVE.NMG2Function.pas` (`TG2Function.InfoFunction`) switches on
+`references/nord_g2_editor/.../BVE.NMG2Function.pas` (`TG2Function.InfoFunction`) switches on
 the same ids (e.g. 21 `FilterCutOff`, 110/45 ClkGen tempo, 137/16 env levels),
 which confirms the numbering. His strings are approximations, though:
 enumerations mostly agree (On/Off, Poly/Mono, LevelShift, ...), numeric ones

@@ -42,7 +42,7 @@ inline std::vector<std::filesystem::path> corpusFiles()
                 files.push_back(e.path());
         }
     }
-    const fs::path verhue = G2_SOURCE_DIR "/third_party/nord_g2_editor/Gen3/Patch/hi_hat_machine.pch2";
+    const fs::path verhue = G2_SOURCE_DIR "/references/nord_g2_editor/Gen3/Patch/hi_hat_machine.pch2";
     if (fs::exists(verhue))
         files.push_back(verhue);
     std::sort(files.begin(), files.end());
