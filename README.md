@@ -35,10 +35,10 @@ Builds for macOS (universal), Windows and Linux are attached to each [release](h
 
 G2fresh can make the G2's sound itself, in the stand-alone app and in the plugin, with the **Emulated G2 (experimental)**: a whole G2 in software (its processor, its four DSPs, the USB link) running Clavia's own G2 OS 1.62, which therefore plays every module and patch. G2fresh contains no Clavia code: download the free **Nord Modular G2 OS v1.62 update for the Mac** from Nord's website ([nordkeyboards.com](https://www.nordkeyboards.com), in the Nord Modular G2 downloads) and keep the `.dmg`; G2fresh reads the Mac download on every system. Then choose **Synth > Connect to Emulated G2**: the first time, G2fresh asks where the `.dmg` (or the updater app in it) is. The synth boots in about 2 seconds; your patch is then sent to it and plays from MIDI (the plugin's track, or a MIDI input in the app's Options), and every edit, variation, knob and memory bank works as with a G2. In a DAW, each G2fresh instance keeps its emulated G2's memory (stored patches and settings) in the project and starts it again when the project opens; the stand-alone app keeps its memory in `Emulated G2 flash.bin` next to G2fresh's settings.
 
-**Live** (in the toolbar, **View > Live** or Cmd L) turns the editor into the instrument: the Emulated G2's front panel, laid out as on a G2X and driven by the G2 OS itself (its five displays and menus, LEDs, knob rings, buttons, knobs and dial, master level), the pitch stick, the mod wheel and the two global wheels, and a 61-key keyboard played with the mouse (velocity from where a key is hit) or the computer keyboard (Z/X: octave). The keys are the G2's own, so focus, octave shift, KB Hold and split work as on the machine. G2fresh switches the G2 OS's MIDI Local on when it starts (an empty memory starts with it off).
+**Live** (in the toolbar, **View > Live** or Cmd L) turns the editor into the instrument: the Emulated G2's front panel, laid out as on a G2X and driven by the G2 OS itself (its five displays and menus, LEDs, knob rings, buttons, knobs and dial, master level), the pitch stick, the mod wheel and the two global wheels, and a 61-key keyboard played with the mouse (velocity from where a key is hit) or the computer keyboard (Z/X: octave). The keys are the G2's own, so focus, octave shift, KB Hold and split work as on the machine. On an emulated G2 whose memory is still empty, G2fresh switches the G2 OS's MIDI Local on once (an erased G2 starts with it off); after that, the G2's own setting is kept.
 
 - It needs a fast computer: one emulated G2 uses about 1.3 (light patches) to 1.6 (heavy ones) CPU cores of an Apple M1, and runs at 2-2.8 times real time there. Only the first G2fresh instance in a project starts one by itself; others start from the Synth menu or the Live view (each runs its own emulated G2).
-- In a DAW, the emulated G2's master clock (arpeggiator, clocked LFOs and delays) follows the host's tempo and transport, as MIDI clock into its MIDI IN (Synth > Emulated G2 Follows the Host's Tempo, on by default). Its Out 3/4 come out on a second stereo output, "Out 3/4": route it to a track of its own to hear them. Otherwise only Out 1/2 are heard, as on a G2 whose headphones carry Out 1/2 only; Synth > Mix Out 3/4 into Out 1/2 mixes them in instead (a patch that sends the same signal to both pairs then plays it twice as loud).
+- In a DAW, the emulated G2's master clock (arpeggiator, clocked LFOs and delays) follows the host's tempo and transport, as MIDI clock into its MIDI IN (Synth > Emulated G2 Follows the Host's Tempo, off by default: the G2 then keeps its own tempo, as a G2 without MIDI clock does; when on, it also switches the G2's "MIDI Clk Recv" on). Its Out 3/4 come out on a second stereo output, "Out 3/4": route it to a track of its own to hear them. Otherwise only Out 1/2 are heard, as on a G2 whose headphones carry Out 1/2 only; Synth > Mix Out 3/4 into Out 1/2 mixes them in instead (a patch that sends the same signal to both pairs then plays it twice as loud).
 - The latency from a MIDI note to its sound is about 32 ms at 48 kHz with 512-sample blocks (26 ms with 256); G2fresh reports it to the host, which compensates it on playback.
 - The audio inputs and the expansion ports are not emulated; the pedals are not connected (the control pedal reads 0, the sustain pedal is up). Checked in the emulator (as the G2 OS reads them): the lowest key plays C1, the pitch stick bends up to the right, the mod wheel's vibrato grows upwards. Not verified: the global wheels' direction and the key velocity curve (approximated).
 - In a DAW on macOS, the emulator generates code at run time; a host that forbids it cannot run it (not seen so far).
@@ -59,6 +59,60 @@ Everything above is built from the original editor's code and tested against a v
 1. Connect it by USB (see the notes above for Windows and Linux), start G2fresh and choose **Synth > Connect to G2 (USB)**. The status bar shows "Looking for a G2...", then the synth's version.
 2. Try **Get Patch from Slot A**, edit a knob (live editing), **Send Patch to Slot B**, **Synth Memory (Banks)...**, and watch the LEDs and meters.
 3. Whatever happens, choose **Synth > Show USB Log** and send `usb.log` (and `usb.log.1` if present) with a short description to the project's [issues](https://github.com/r0main-f/G2fresh/issues). The log holds the USB traffic and nothing else, and by default it leaves your patches out: patch and performance contents and names (and the synth's memory lists) appear only as their size and a fingerprint. If we ask for more detail on a specific problem, **Synth > Full USB Log** includes them (best done with a factory patch).
+
+## Deliberate deviations
+
+G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, and Clavia's editor v1.62. Everything below differs on purpose. What changes the sound or the patch is off by default, except where noted. The full comparison, including the gaps not closed yet, is in [re/notes/fidelity-audit.md](re/notes/fidelity-audit.md).
+
+**Settings, off by default**
+
+| Setting | Where | Default (as the original) |
+|---|---|---|
+| Emulated G2 Follows the Host's Tempo | Synth menu | Off: the G2 keeps its own clock |
+| Mix Out 3/4 into Out 1/2 | Synth menu | Off: Out 3/4 on their own output, or not heard |
+| Mouse Wheel Edits Knobs | View menu | Off: the wheel scrolls |
+| Double-Click on a Knob | View menu | Drag the morph range ("Reset to the Default Value" and "Nothing" are options) |
+| Show Load Estimate Offline | View menu | Off: "--" until the synth reports |
+
+**Emulated G2 and plugin**
+- An emulated G2 with an empty memory gets MIDI Local on, once, so the Live keyboard plays. Its other system settings are those of an erased G2, not a factory one (MIDI Ctrl off, every slot on channel 1, no factory patches).
+- Output level: a full-scale signal inside the G2 (1.0) reaches the host at 0 dBFS. Not yet compared with a real G2's line outputs.
+- Latency: 26-32 ms from MIDI to sound, reported to the host, where a G2 takes about 2 ms.
+- The Master Level knob is stored in the project, as the hardware knob stays where it was left.
+- The Live view keeps the G2X's layout but not its look. A mouse can hold only one button, so Option-click latches a button, a click on Shift holds it until the next button, and Shift on the computer keyboard holds Shift during a click.
+
+**Editor: what it shows**
+- G2fresh's own look: colours, the animated cables, an 8-colour morph display, the sequencer's morph band in the Classic look, an amber load threshold, the settings bar, the drum preset menu, the white cable colour.
+- Additions with no original equivalent: zoom, cable highlight and Delete, cable bend points (saved next to the patch, never in it), USB log redaction, MIDI output forwarding.
+
+**Editor: what it does**
+- Unsaved changes: G2fresh asks "Discard changes?" before New, Open, Get Patch and Quit. The original never asks and drops unsaved patches.
+- The stand-alone app restores the last session at startup (the original starts empty). Edits never saved to a file stay marked edited; "Discard" at Quit returns to the file as saved, or to a new patch.
+- Also kept as safety checks: a confirmation before overwriting a stored patch, "Open anyway" for a file with a bad checksum, messages at the module limit, no automatic download on connecting.
+- Structural edits (adding, removing, or cabling modules) resend the whole patch to the synth. The original sends each change.
+  - During a Patch Mutator audition, such an edit makes the synth play the saved variation while the editor stays on the audition.
+  - The audition's variation 9 is sent as one message per parameter, not as one dump.
+  - In the plugin, host automation during an audition edits your variation.
+- Paste drops the copy below the selection and renames default-named modules. The original places it with the mouse and keeps names.
+- Patches read from the synth are not repaired as files are, so G2fresh never sends deassignments back.
+- Labels and names:
+  - Clearing a label restores the panel's caption.
+  - Labels and modules are renamed from the pop-up menu.
+  - Typed names are filtered per character; slot names from the synth are kept as they are.
+- Input:
+  - Buttons act on mouse-up, except push buttons, which act on press as in the original.
+  - Shift gives fine adjustment.
+  - Alt is the morph key on every platform.
+  - The morph drag on double-click uses the last morph group used.
+  - The random generator is seeded from the clock.
+  - The stand-alone app has Randomize.
+  - Recent Files holds 12 entries and offers Clear.
+- Shortcuts that differ:
+  - ⌘D duplicates (original: Download To Slot).
+  - ⌘L switches to Live (original: Parameter Overview).
+  - ⌘1-8 select variations (original: 1-8).
+  - ⇧⌘S is Save As.
+  - Several of the original's ⌘ shortcuts are not bound yet.
 
 ## Build
 
