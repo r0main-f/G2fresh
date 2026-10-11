@@ -85,7 +85,7 @@ endif()
 # The real-time G2 emulator (emu/g2emu, built with -DG2_BUILD_EMU=ON). Its [firmware] case boots the user's own OS
 # when it finds it (G2_FIRMWARE, or original/firmware) and is skipped otherwise.
 if(TARGET g2emu)
-  add_executable(g2emutests test_g2emu.cpp)
+  add_executable(g2emutests test_g2emu.cpp test_live_firmware.cpp)
   target_link_libraries(g2emutests PRIVATE g2emu g2coldfire dsp56kEmu Catch2::Catch2WithMain)
   target_include_directories(g2emutests PRIVATE ${PROJECT_SOURCE_DIR}/emu/g2emu/src)
   target_include_directories(g2emutests PRIVATE ${PROJECT_SOURCE_DIR}/ui) # SynthSettingsForm.h (plain C++)
