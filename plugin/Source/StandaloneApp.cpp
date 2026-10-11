@@ -67,6 +67,14 @@ public:
         // The holder runs the (silent) processor and restores the last
         // session's patch from the settings.
         holder_ = std::make_unique<juce::StandalonePluginHolder>(properties_.getUserSettings(), false);
+        // The audio device's inputs 1-4 are the G2's IN 1-4 (Audio Settings chooses them). JUCE mutes a plugin's
+        // inputs until the user says otherwise, against feedback through an effect, and has saved that default since
+        // before G2fresh had inputs. A G2 plays its inputs only where a patch has an In module, so they are live from
+        // the first start with inputs on; from then on "Mute audio input" in Audio Settings is the user's.
+        if (auto* settings = properties_.getUserSettings(); settings != nullptr && !settings->getBoolValue("audioInputsLive")) {
+            settings->setValue("audioInputsLive", true);
+            holder_->getMuteInputValue().setValue(false);
+        }
         window_ = std::make_unique<MainWindow>(*holder_);
         window_->setVisible(true);
         anotherInstanceStarted(commandLine);

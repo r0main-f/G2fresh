@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 
 #include <algorithm>
+#include "AudioIo.h"
 #include "PluginEditor.h"
 #include "Skin.h"
 
@@ -31,6 +32,8 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
     state.setProperty("hostClock", hostClockOn_.load(), nullptr);
     state.setProperty("masterLevel", static_cast<double>(masterLevel_.load()), nullptr);
     state.setProperty("mixOut34", mixOut34_.load(), nullptr);
+    state.setProperty("micInput", micInput_.load(), nullptr);
+    state.setProperty("micLevel", static_cast<double>(micLevel_.load()), nullptr);
     if (flashGz_.getSize() > 0)
         state.setProperty("emulatorFlash", flashGz_.toBase64Encoding(), nullptr);
     juce::MemoryOutputStream out;
@@ -39,10 +42,39 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
     return {p, p + out.getDataSize()};
 }
 
-G2EditorProcessor::G2EditorProcessor()
-    : AudioProcessor(BusesProperties()
-                         .withOutput("Out 1/2", juce::AudioChannelSet::stereo(), true)
-                         .withOutput("Out 3/4", juce::AudioChannelSet::stereo(), false)) // a second stereo output, if routed
+// The G2's jacks as buses (AudioIo.h). In a host: In 1/2 and Out 1/2, and a second stereo pair each way, if routed.
+// The stand-alone app plays an audio device: its inputs 1-4 are IN 1-4, its outputs Out 1/2.
+juce::AudioProcessor::BusesProperties G2EditorProcessor::buses()
+{
+    using Set = juce::AudioChannelSet;
+    if (juce::PluginHostType::getPluginLoadedAs() == wrapperType_Standalone)
+        return BusesProperties().withInput("In 1-4", Set::discreteChannels(4), true).withOutput("Out 1/2", Set::stereo(), true);
+    return BusesProperties()
+        .withInput("In 1/2", Set::stereo(), true)
+        .withInput("In 3/4", Set::stereo(), false)
+        .withOutput("Out 1/2", Set::stereo(), true)
+        .withOutput("Out 3/4", Set::stereo(), false);
+}
+
+namespace {
+
+// A bus's channels for g2io::layoutSupported: mono, stereo or off; for an input also plain channels (the
+// stand-alone app's device inputs, which JUCE's player may also name by a surround format of that size).
+int channelsOf(const juce::AudioChannelSet& set, bool input)
+{
+    if (set.isDisabled())
+        return 0;
+    if (set == juce::AudioChannelSet::mono())
+        return 1;
+    if (set == juce::AudioChannelSet::stereo())
+        return 2;
+    const int n = set.size();
+    return input && (set == juce::AudioChannelSet::discreteChannels(n) || set == juce::AudioChannelSet::canonicalChannelSet(n)) ? n : -1;
+}
+
+} // namespace
+
+G2EditorProcessor::G2EditorProcessor() : AudioProcessor(buses())
 {
     stateBytes_ = encodeState();
     document_.addChangeListener(this);
@@ -133,6 +165,14 @@ void G2EditorProcessor::setMixOut34(bool on)
     if (emulated_ != nullptr)
         static_cast<EmulatedSoundEngine&>(*emulated_).setMixOut34(on);
 #endif
+    refreshState();
+}
+
+void G2EditorProcessor::setMicInput(bool on)
+{
+    micInput_ = on;
+    if (emulated_ != nullptr)
+        static_cast<EmulatedSoundEngine&>(*emulated_).setMic(on, micLevel_);
     refreshState();
 }
 
@@ -270,6 +310,7 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
     }
     engine->prepare(sampleRate_ > 0 ? sampleRate_ : 48000.0, blockSize_);
     engine->setMixOut34(mixOut34_);
+    engine->setMic(micInput_, micLevel_);
     engine->machine().panelAnalog(g2emu::PanelAnalog::MasterLevel, masterLevel_); // the knob where it was left
     flashSeen_ = engine->flashChanges();
     synth_.connectEmulated(g2emu::emulatedG2Link(engine->machine()));
@@ -427,6 +468,13 @@ void G2EditorProcessor::panelAnalog(g2ui::PanelAnalog control, float value)
         masterLevel_ = std::clamp(value, 0.0f, 1.0f);
         refreshState();
     }
+    if (control == U::MicLevel) { // not the OS's: the microphone preamp's gain (kept with the project too)
+        micLevel_ = std::clamp(value, 0.0f, 1.0f);
+        if (emulated_ != nullptr)
+            static_cast<EmulatedSoundEngine&>(*emulated_).setMic(micInput_, micLevel_);
+        refreshState();
+        return;
+    }
     if (emulated_ == nullptr)
         return;
     const E e = control == U::MasterLevel ? E::MasterLevel : control == U::PitchStick ? E::PitchStick
@@ -500,6 +548,7 @@ void G2EditorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     const juce::ScopedLock lock(getCallbackLock());
     sampleRate_ = sampleRate;
     blockSize_ = samplesPerBlock;
+    inputs_.setSize(4, std::max(1, samplesPerBlock));
     if (emulated_ != nullptr) {
         emulated_->prepare(sampleRate, samplesPerBlock);
 #if G2FRESH_EMULATOR
@@ -510,12 +559,17 @@ void G2EditorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 
 bool G2EditorProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
-    const auto& out = layouts.getMainOutputChannelSet();
-    // Out 3/4: off or stereo, next to a stereo Out 1/2
-    const auto aux = layouts.outputBuses.size() > 1 ? layouts.getChannelSet(false, 1) : juce::AudioChannelSet::disabled();
-    if (aux == juce::AudioChannelSet::stereo())
-        return out == juce::AudioChannelSet::stereo();
-    return aux.isDisabled() && (out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono());
+    // The rule is g2io::layoutSupported's: Out 1/2 stereo or mono, Out 3/4 off or stereo next to a stereo Out 1/2;
+    // In 1/2 off, mono or stereo, In 3/4 off or stereo; or a single input bus of up to 4 channels (stand-alone)
+    if (layouts.inputBuses.size() > 2 || layouts.outputBuses.size() > 2)
+        return false;
+    int in[2] = {0, 0}, out[2] = {0, 0};
+    for (int b = 0; b < layouts.inputBuses.size(); ++b)
+        in[b] = channelsOf(layouts.getChannelSet(true, b), true);
+    for (int b = 0; b < layouts.outputBuses.size(); ++b)
+        out[b] = channelsOf(layouts.getChannelSet(false, b), false);
+    return g2io::layoutSupported({in, static_cast<std::size_t>(layouts.inputBuses.size())},
+                                 {out, static_cast<std::size_t>(layouts.outputBuses.size())});
 }
 
 void G2EditorProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -548,14 +602,29 @@ void G2EditorProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
                 }
             }
         }
-        emulated.render(buffer, *toG2);
+        // The host's inputs as IN 1-4 (the first bus from IN 1, "In 3/4" from IN 3), taken before the outputs are
+        // written: they share the buffer's channels.
+        const int samples = buffer.getNumSamples();
+        if (inputs_.getNumSamples() < samples)
+            inputs_.setSize(4, samples, false, false, true); // a block larger than the host announced
+        inputs_.clear();
+        for (int bus = 0; bus < getBusCount(true); ++bus)
+            for (int ch = 0; ch < getChannelCountOfBus(true, bus); ++ch)
+                if (const int input = g2io::inputOf(bus, ch); input >= 0)
+                    inputs_.copyFrom(input, 0, buffer, getChannelIndexInProcessBlockBuffer(true, bus, ch), 0, samples);
+        // The outputs are the buffer's first channels; a channel only the inputs use is left silent
+        const int outs = std::min(getTotalNumOutputChannels(), buffer.getNumChannels());
+        juce::AudioBuffer<float> out(buffer.getArrayOfWritePointers(), outs, samples);
+        emulated.render(out, *toG2, &inputs_);
+        for (int c = outs; c < buffer.getNumChannels(); ++c)
+            buffer.clear(c, 0, samples);
         midi.clear();
         if (capturing_.load(std::memory_order_acquire)) {
             const auto at = captured_.load(std::memory_order_relaxed);
             const auto n = std::min<std::size_t>(static_cast<std::size_t>(buffer.getNumSamples()), capture_.size() / 2 - at);
             for (std::size_t i = 0; i < n; ++i)
                 for (int c = 0; c < 2; ++c)
-                    capture_[(at + i) * 2 + static_cast<std::size_t>(c)] = buffer.getSample(std::min(c, buffer.getNumChannels() - 1), static_cast<int>(i));
+                    capture_[(at + i) * 2 + static_cast<std::size_t>(c)] = buffer.getSample(std::min(c, outs - 1), static_cast<int>(i));
             captured_.store(at + n, std::memory_order_release);
         }
         return;
@@ -614,6 +683,12 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         hostClockOn_ = static_cast<bool>(state.getProperty("hostClock", false));
         masterLevel_ = static_cast<float>(state.getProperty("masterLevel", 1.0f));
         setMixOut34(static_cast<bool>(state.getProperty("mixOut34", false)));
+        micLevel_ = static_cast<float>(state.getProperty("micLevel", 0.5f));
+        micInput_ = static_cast<bool>(state.getProperty("micInput", false));
+#if G2FRESH_EMULATOR
+        if (emulated_ != nullptr)
+            static_cast<EmulatedSoundEngine&>(*emulated_).setMic(micInput_, micLevel_);
+#endif
         flashGz_.reset();
         flashGz_.fromBase64Encoding(state["emulatorFlash"].toString());
 #if G2FRESH_EMULATOR

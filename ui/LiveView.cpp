@@ -256,7 +256,9 @@ public:
     explicit Panel(LiveView& owner) : owner_(owner), buttons_(buttons()), leds_(leds()), labels_(labels()) {}
 
     float masterLevel = 1.0f; // the knob where the host keeps it (EmulatorHost::masterLevel)
+    float micLevel = 0.5f;    // the same for Mic Level (EmulatorHost::micLevel)
     bool draggingMaster() const { return dragMaster_; }
+    bool draggingMic() const { return dragMic_; }
 
     void paint(juce::Graphics& g) override
     {
@@ -310,7 +312,7 @@ public:
         }
         const auto master = juce::degreesToRadians(-150.0f + 300.0f * masterLevel);
         drawCap(g, {212, 183}, 50, master);
-        drawCap(g, {452, 183}, 50, juce::degreesToRadians(20.0f)); // Mic Level: an analog preamp, not emulated
+        drawCap(g, {452, 183}, 50, juce::degreesToRadians(-150.0f + 300.0f * micLevel)); // the microphone preamp's gain
         drawCap(g, {272, 790}, 100, std::nullopt);                  // the rotary dial
 
         for (const auto& b : buttons_)
@@ -331,6 +333,11 @@ public:
             tip = k == kPanelDial ? "Rotary dial (drag or scroll)" : "Knob " + juce::String(k + 1) + " (drag or scroll)";
         else if (masterAt(p))
             tip = "Master Level";
+        else if (micAt(p))
+            // As on a G2: the knob is the XLR microphone input's gain and does nothing to the IN 1 jack
+            tip = owner_.host_ != nullptr && owner_.host_->micInput()
+                      ? "Mic Level (drag or scroll): In 1 is the microphone input, through its preamp - right-click for the IN 1 jack"
+                      : "Mic Level: In 1 is the IN 1 jack, which this knob does not change - right-click to make In 1 the microphone input";
         setTooltip(tip);
     }
 
@@ -367,9 +374,24 @@ public:
             if (h != nullptr)
                 h->panelButton(b->id, true);
             repaint();
+        } else if (micAt(p) && e.mods.isPopupMenu()) {
+            // What In 1 is: on a G2, the IN 1 jack when something is plugged into it, else the XLR microphone input
+            auto* h = owner_.host_;
+            const bool mic = h != nullptr && h->micInput();
+            juce::PopupMenu menu;
+            menu.addItem(1, "In 1 is the IN 1 jack (line level)", h != nullptr, !mic);
+            menu.addItem(2, "In 1 is the microphone input (XLR), at the Mic Level knob's gain", h != nullptr, mic);
+            menu.showMenuAsync(juce::PopupMenu::Options().withMousePosition(),
+                               [safe = juce::Component::SafePointer<Panel>(this)](int choice) {
+                                   if (safe == nullptr || choice == 0)
+                                       return;
+                                   if (auto* host = safe->owner_.host_)
+                                       host->setMicInput(choice == 2);
+                               });
         } else {
             dragEncoder_ = encoderAt(p);
             dragMaster_ = dragEncoder_ < 0 && masterAt(p);
+            dragMic_ = dragEncoder_ < 0 && !dragMaster_ && micAt(p);
         }
     }
 
@@ -388,6 +410,11 @@ public:
             masterLevel = std::clamp(masterLevel + dy / 150.0f, 0.0f, 1.0f);
             if (auto* h = owner_.host_)
                 h->panelAnalog(PanelAnalog::MasterLevel, masterLevel);
+            repaint();
+        } else if (dragMic_) {
+            micLevel = std::clamp(micLevel + dy / 150.0f, 0.0f, 1.0f);
+            if (auto* h = owner_.host_)
+                h->panelAnalog(PanelAnalog::MicLevel, micLevel);
             repaint();
         }
     }
@@ -409,7 +436,7 @@ public:
             repaint();
         }
         dragEncoder_ = -1;
-        dragMaster_ = false;
+        dragMaster_ = dragMic_ = false;
     }
 
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
@@ -426,6 +453,11 @@ public:
             masterLevel = std::clamp(masterLevel + static_cast<float>(steps) / 50.0f, 0.0f, 1.0f);
             if (auto* h = owner_.host_)
                 h->panelAnalog(PanelAnalog::MasterLevel, masterLevel);
+            repaint();
+        } else if (micAt(p)) {
+            micLevel = std::clamp(micLevel + static_cast<float>(steps) / 50.0f, 0.0f, 1.0f);
+            if (auto* h = owner_.host_)
+                h->panelAnalog(PanelAnalog::MicLevel, micLevel);
             repaint();
         }
     }
@@ -456,6 +488,7 @@ private:
         return -1;
     }
     static bool masterAt(juce::Point<float> p) { return p.getDistanceFrom({212, 183}) < 55; }
+    static bool micAt(juce::Point<float> p) { return p.getDistanceFrom({452, 183}) < 55; }
 
     void turn(int encoder, int steps)
     {
@@ -472,7 +505,7 @@ private:
     bool stickyShift_ = false;      // Shift was clicked: it goes up after the next button
     bool keyShift_ = false;         // Shift is down for the computer's Shift key, for this press
     int dragEncoder_ = -1;
-    bool dragMaster_ = false;
+    bool dragMaster_ = false, dragMic_ = false;
     float dragAccum_ = 0, lastDragY_ = 0, wheelAccum_ = 0;
 };
 
@@ -795,6 +828,10 @@ void LiveView::timerCallback()
     const auto s = host_ != nullptr ? host_->panel() : PanelSnapshot{};
     if (host_ != nullptr && !panel_->draggingMaster() && std::abs(panel_->masterLevel - host_->masterLevel()) > 1e-4f) {
         panel_->masterLevel = host_->masterLevel(); // the knob where it was left (kept with the project)
+        panel_->repaint();
+    }
+    if (host_ != nullptr && !panel_->draggingMic() && std::abs(panel_->micLevel - host_->micLevel()) > 1e-4f) {
+        panel_->micLevel = host_->micLevel();
         panel_->repaint();
     }
     const bool changed = s.live != snapshot_.live || s.generation != snapshot_.generation;

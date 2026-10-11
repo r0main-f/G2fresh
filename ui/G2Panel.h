@@ -48,8 +48,9 @@ enum class PanelLed {
     Count
 };
 
-// Continuous controls the OS reads (through the panel's ADC).
-enum class PanelAnalog { MasterLevel, PitchStick, ModWheel, GlobalWheel1, GlobalWheel2, Count };
+// Continuous controls the OS reads (through the panel's ADC), and the Mic Level knob, which it does not: that one
+// is the gain of the XLR microphone input's analogue preamp.
+enum class PanelAnalog { MasterLevel, PitchStick, ModWheel, GlobalWheel1, GlobalWheel2, MicLevel, Count };
 
 // The endless encoders: the 8 assignable knobs, then the rotary dial.
 constexpr int kPanelKnobs = 8;

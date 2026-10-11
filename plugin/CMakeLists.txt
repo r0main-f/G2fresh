@@ -10,7 +10,11 @@ juce_add_plugin(G2Editor
   PLUGIN_MANUFACTURER_CODE G2fr
   PLUGIN_CODE G2ed
   FORMATS ${G2_PLUGIN_FORMATS}
-  # An instrument so hosts route a MIDI track to it; it plays the emulated G2.
+  # An instrument so hosts route a MIDI track to it; it plays the emulated G2. Its audio inputs (the G2's IN 1-4)
+  # are side-chain buses in a host; the stand-alone app takes them from the audio device, which macOS allows
+  # only with this text in the Info.plist.
+  MICROPHONE_PERMISSION_ENABLED TRUE
+  MICROPHONE_PERMISSION_TEXT "G2fresh plays the audio inputs through the emulated Nord Modular G2's IN 1-4 (vocoders, effects)."
   IS_SYNTH TRUE
   NEEDS_MIDI_INPUT TRUE
   NEEDS_MIDI_OUTPUT FALSE

@@ -16,7 +16,8 @@
 // automatable parameters (AutomationBank); forwards its MIDI to a hardware
 // port into a G2 (MidiForwarder); and holds the editor's connection to a G2
 // (SynthSync). Its audio output is the emulated G2's, while the editor is
-// connected to it; otherwise silence (a G2 makes its own sound).
+// connected to it; otherwise silence (a G2 makes its own sound). Its audio
+// inputs are the emulated G2's IN 1-4 (the buses and levels: AudioIo.h).
 class G2EditorProcessor final : public juce::AudioProcessor,
                                 public g2ui::EmulatorHost,
                                 private juce::ChangeListener,
@@ -47,6 +48,8 @@ public:
 
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
+    // VST3: the inputs are side-chain (aux) buses, as an instrument's are; it has no main input.
+    juce::VST3ClientExtensions* getVST3ClientExtensions() override { return &vst3_; }
 
     g2ui::PatchDocument& document() { return document_; }
     MidiForwarder& midiOutput() { return midiOut_; }
@@ -61,6 +64,9 @@ public:
     bool hostClock() const override { return hostClockOn_; }
     bool mixOut34() const override { return mixOut34_; }
     float masterLevel() const override { return masterLevel_; }
+    float micLevel() const override { return micLevel_; }
+    bool micInput() const override { return micInput_; }
+    void setMicInput(bool on) override;
     void setMixOut34(bool on) override;
     void setHostClock(bool on) override;
     void emulatorMidi(std::span<const std::uint8_t> bytes) override;
@@ -72,6 +78,7 @@ public:
 #endif
 
 private:
+    static BusesProperties buses();
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
     void timerCallback() override; // keeps the emulated G2's flash in the state
     void loadState(std::vector<std::uint8_t> bytes);
@@ -117,6 +124,13 @@ private:
     std::atomic<bool> hostClockOn_{false}; // opt-in: it changes the patch's tempo
     std::atomic<float> masterLevel_{1.0f}; // the panel's Master Level knob (in the state)
     std::atomic<bool> mixOut34_{false}; // Out 3/4 into Out 1/2 when not routed (in the state)
+    // The microphone (in the state): whether In 1 is the XLR input instead of the IN 1 jack, and the Mic Level knob
+    std::atomic<bool> micInput_{false};
+    std::atomic<float> micLevel_{0.5f};
+    juce::AudioBuffer<float> inputs_; // the block's In 1-4, taken before the outputs are written (sized in prepareToPlay)
+    struct Vst3 final : juce::VST3ClientExtensions {
+        bool getPluginHasMainInput() const override { return false; }
+    } vst3_;
     std::atomic<bool> resetClock_{false};
     HostClock hostClock_;
     juce::MidiBuffer clockMidi_; // the track's MIDI plus the clock, made on the audio thread (sized in prepareToPlay)

@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #if JUCE_MAC
+#include <CoreFoundation/CoreFoundation.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 #include <mach/thread_policy.h>
@@ -198,6 +199,54 @@ juce::MemoryBlock withPluginState(const juce::MemoryBlock& hostState, const juce
     return out;
 }
 
+#if JUCE_MAC
+// The same for an Audio Unit: a JUCE AU host stores the unit's ClassInfo, a property list; G2fresh's tree is the
+// data under "jucePluginState".
+juce::MemoryBlock withAuPluginState(const juce::MemoryBlock& hostState, const std::function<void(juce::ValueTree&)>& edit)
+{
+    juce::MemoryBlock result;
+    const auto data = CFDataCreate(nullptr, static_cast<const UInt8*>(hostState.getData()), static_cast<CFIndex>(hostState.getSize()));
+    const auto plist = CFPropertyListCreateWithData(nullptr, data, kCFPropertyListMutableContainers, nullptr, nullptr);
+    CFRelease(data);
+    if (plist == nullptr)
+        return result;
+    if (CFGetTypeID(plist) == CFDictionaryGetTypeID()) {
+        const auto dict = static_cast<CFMutableDictionaryRef>(const_cast<void*>(plist));
+        if (const auto held = static_cast<CFDataRef>(CFDictionaryGetValue(dict, CFSTR("jucePluginState")))) {
+            auto tree = juce::ValueTree::readFromData(CFDataGetBytePtr(held), static_cast<size_t>(CFDataGetLength(held)));
+            edit(tree);
+            juce::MemoryOutputStream o;
+            tree.writeToStream(o);
+            const auto changed = CFDataCreate(nullptr, static_cast<const UInt8*>(o.getData()), static_cast<CFIndex>(o.getDataSize()));
+            CFDictionarySetValue(dict, CFSTR("jucePluginState"), changed);
+            CFRelease(changed);
+            if (const auto out = CFPropertyListCreateData(nullptr, dict, kCFPropertyListBinaryFormat_v1_0, 0, nullptr)) {
+                result.append(CFDataGetBytePtr(out), static_cast<size_t>(CFDataGetLength(out)));
+                CFRelease(out);
+            }
+        }
+    }
+    CFRelease(plist);
+    return result;
+}
+#endif
+
+// The state a host would have saved for `p` with G2fresh's own tree changed by `edit` (a project with this patch).
+juce::MemoryBlock projectState(juce::AudioPluginInstance& p, bool au, const std::function<void(juce::ValueTree&)>& edit)
+{
+    juce::MemoryBlock empty;
+    p.getStateInformation(empty);
+#if JUCE_MAC
+    if (au)
+        return withAuPluginState(empty, edit);
+#else
+    juce::ignoreUnused(au);
+#endif
+    auto s = pluginState(empty);
+    edit(s);
+    return withPluginState(empty, s);
+}
+
 void waitMs(int ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 
 // A project reopened: the plugin restored from the state bytes a host saved (e.g. the AU's ClassInfo from a Live
@@ -304,6 +353,123 @@ void outputs(const juce::String& path, const juce::File& patch)
                 check(has440 && has659, "Out 1/2 with Out 3/4 mixed in");
             else
                 check(has440 && !has659, "Out 1/2 only");
+        }
+        onMessageThread([&] { p.reset(); });
+    }
+}
+
+// The plugin's inputs: a patch that passes In 1-4 to Out 1-4 (4-In -> 4-Out), a tone of its own on each input,
+// with both stereo pairs routed (4 in, 4 out), with In 1/2 and Out 1/2 alone, and with no input at all (an
+// instrument as before). Checks the level (an input of 1.0 comes out as 1.0), that each input reaches its own
+// output only, the delay against the latency the plugin reports, and that the tone has no gaps.
+void inputs(const juce::String& path, const juce::File& patch)
+{
+    // (G2TEST_RATE, G2TEST_BLOCK: another sample rate or block size)
+    const double rate = juce::SystemStats::getEnvironmentVariable("G2TEST_RATE", "48000").getDoubleValue();
+    const int block = juce::SystemStats::getEnvironmentVariable("G2TEST_BLOCK", "256").getIntValue();
+    constexpr double hz[4] = {440.0, 659.255, 880.0, 1174.66};
+    constexpr float level = 0.5f;
+    // An Audio Unit has no bus that is off: all four pairs are there, and a host leaves unconnected what it does
+    // not use (as the first case here; the other two are the VST3's).
+    const bool au = path.endsWithIgnoreCase(".component");
+    for (const int mode : {0, 1, 2}) {
+        const bool four = mode == 0, none = mode == 2;
+        if (au && !four)
+            break;
+        std::cout << (four ? "In 1/2 and In 3/4, Out 1/2 and Out 3/4" : none ? "No input bus" : "In 1/2 and Out 1/2 only") << std::endl;
+        auto p = load(path, rate, block);
+        if (p == nullptr)
+            return;
+        bool laidOut = false;
+        onMessageThread([&] {
+            auto layout = p->getBusesLayout();
+            std::cout << "  buses: " << layout.inputBuses.size() << " in, " << layout.outputBuses.size() << " out; by default "
+                      << p->getTotalNumInputChannels() << " input and " << p->getTotalNumOutputChannels() << " output channels" << std::endl;
+            const auto pair = four ? juce::AudioChannelSet::stereo() : juce::AudioChannelSet::disabled();
+            if (layout.inputBuses.size() > 0)
+                layout.inputBuses.getReference(0) = none ? juce::AudioChannelSet::disabled() : juce::AudioChannelSet::stereo();
+            if (layout.inputBuses.size() > 1)
+                layout.inputBuses.getReference(1) = pair;
+            if (layout.outputBuses.size() > 1)
+                layout.outputBuses.getReference(1) = pair;
+            laidOut = layout == p->getBusesLayout() || p->setBusesLayout(layout);
+            juce::MemoryBlock data;
+            patch.loadFileAsData(data);
+            const auto wrapped = projectState(*p, au, [&](juce::ValueTree& s) { s.setProperty("data", data.toBase64Encoding(), nullptr); });
+            if (wrapped.getSize() == 0)
+                std::cout << "  (cannot wrap the patch into the host's state)" << std::endl;
+            p->setStateInformation(wrapped.getData(), static_cast<int>(wrapped.getSize()));
+            p->prepareToPlay(rate, block);
+        });
+        const int ins = p->getTotalNumInputChannels(), outs = p->getTotalNumOutputChannels();
+        check(laidOut && ins == (four ? 4 : none ? 0 : 2) && outs == (four ? 4 : 2),
+              "the layout is accepted: " + juce::String(ins) + " input and " + juce::String(outs) + " output channels");
+        const int channels = std::max(ins, outs);
+        std::vector<std::vector<float>> out(static_cast<std::size_t>(outs));
+        juce::AudioBuffer<float> buffer(channels, block);
+        // 5 s for the emulated G2 to start and take the patch, then the tones from an exact sample on
+        const int quiet = static_cast<int>(5.0 * rate / block), blocks = quiet + static_cast<int>(3.0 * rate / block);
+        auto next = std::chrono::steady_clock::now();
+        makeRealtime(block / rate);
+        for (int b = 0; b < blocks; ++b) {
+            juce::MidiBuffer midi;
+            buffer.clear();
+            if (b >= quiet)
+                for (int c = 0; c < ins; ++c)
+                    for (int i = 0; i < block; ++i)
+                        buffer.setSample(c, i, level * static_cast<float>(std::sin(2 * juce::MathConstants<double>::pi * hz[c]
+                                                                                    * ((b - quiet) * block + i) / rate)));
+            {
+                const juce::ScopedLock lock(p->getCallbackLock());
+                p->processBlock(buffer, midi);
+            }
+            if (b >= quiet)
+                for (int c = 0; c < outs; ++c)
+                    out[static_cast<std::size_t>(c)].insert(out[static_cast<std::size_t>(c)].end(), buffer.getReadPointer(c), buffer.getReadPointer(c) + block);
+            next += std::chrono::microseconds(static_cast<long long>(1e6 * block / rate));
+            std::this_thread::sleep_until(next);
+        }
+        const int latency = p->getLatencySamples();
+        const auto from = static_cast<std::size_t>(1 * rate), to = static_cast<std::size_t>(3 * rate);
+        for (int c = 0; c < outs; ++c) {
+            const auto& v = out[static_cast<std::size_t>(c)];
+            juce::String line = "  Out " + juce::String(c + 1) + ":";
+            bool own = false, others = false;
+            for (int k = 0; k < 4; ++k) {
+                const double a = toneLevel(v, from, to, rate, hz[k]);
+                line += " " + juce::String(hz[k], 0) + " Hz " + juce::String(a, 4);
+                if (k == c)
+                    own = std::abs(a / level - 1.0) < 0.03; // within 0.25 dB of the input
+                else
+                    others = others || a > 0.001;
+            }
+            std::cout << line << std::endl;
+            if (c >= ins) {
+                check(peak(v, 0, v.size()) < 1e-4f, "Out " + juce::String(c + 1) + " is silent without its input");
+                continue;
+            }
+            check(own && !others, "In " + juce::String(c + 1) + " comes out of Out " + juce::String(c + 1) + " alone, at the level it went in");
+            // the delay: the first sample that is not silence (the interpolators spread the start over a few samples)
+            std::size_t onset = 0;
+            while (onset < v.size() && std::abs(v[onset]) < 0.002f)
+                ++onset;
+            // the tone's own start is slow (a sine from zero): where its first samples reach the threshold
+            const double rise = std::asin(0.002 / level) / (2 * juce::MathConstants<double>::pi * hz[c]) * rate;
+            const double measured = static_cast<double>(onset) - rise;
+            check(std::abs(measured - latency) < 4.0,
+                  "it comes " + juce::String(measured, 1) + " samples after it went in; the plugin reports " + juce::String(latency)
+                      + " (" + juce::String(latency * 1000.0 / rate, 2) + " ms)");
+            // no gaps: no run of zeros, and the tone's level over every tenth of a second stays the same
+            double low = 1e9, high = 0;
+            const auto window = static_cast<std::size_t>(rate / 10);
+            for (auto at = from; at + window <= to; at += window) {
+                const double a = toneLevel(v, at, at + window, rate, hz[c]);
+                low = std::min(low, a);
+                high = std::max(high, a);
+            }
+            check(low > 0.97 * high && longestSilence(v, from, to) < 8,
+                  "without gaps (level over 0.1 s between " + juce::String(low, 4) + " and " + juce::String(high, 4) + ", longest silence "
+                      + juce::String(static_cast<int>(longestSilence(v, from, to))) + " samples)");
         }
         onMessageThread([&] { p.reset(); });
     }
@@ -477,7 +643,11 @@ public:
         const auto args = getCommandLineParameterArray();
         if (args.isEmpty()) {
             std::cerr << "usage: g2plugintest <G2fresh.vst3|.component> [patch.pch2 that sounds without notes]\n"
-                         "       g2plugintest <plugin> --restore <state saved by a host>\n";
+                         "       g2plugintest <plugin> --restore <state saved by a host>\n"
+                         "       g2plugintest <plugin> --outputs <patch with 440 Hz on Out 1/2 and 659 Hz on Out 3/4>\n"
+                         "       g2plugintest <plugin> --inputs <patch that passes In 1-4 to Out 1-4>, e.g. from\n"
+                         "           g2mkpatch in.pch2 in=4-In out=4-Out 'in.0>out.0' 'in.1>out.1' 'in.2>out.2' 'in.3>out.3' gain=127\n"
+                         "       g2plugintest <plugin> --clock\n";
             setApplicationReturnValue(2);
             quit();
             return;
@@ -495,11 +665,14 @@ public:
             });
             return;
         }
-        if (args.size() > 2 && args[1] == "--outputs") {
+        if (args.size() > 2 && (args[1] == "--outputs" || args[1] == "--inputs")) {
             const juce::String path(args[0]);
             const auto patch = juce::File::getCurrentWorkingDirectory().getChildFile(args[2]);
-            test_ = std::thread([this, path, patch] {
-                outputs(path, patch);
+            test_ = std::thread([this, path, patch, in = args[1] == "--inputs"] {
+                if (in)
+                    inputs(path, patch);
+                else
+                    outputs(path, patch);
                 std::cout << (failures == 0 ? "all checks passed" : juce::String(failures) + " check(s) failed") << std::endl;
                 juce::MessageManager::callAsync([this] {
                     setApplicationReturnValue(failures == 0 ? 0 : 1);

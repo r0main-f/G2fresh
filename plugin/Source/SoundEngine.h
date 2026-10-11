@@ -11,8 +11,9 @@ public:
     // Audio thread (prepareToPlay): the host's sample rate and block size.
     virtual void prepare(double sampleRate, int maxBlock) = 0;
     // Audio thread: renders the block into `out` (stereo: Out 1/2) from the
-    // MIDI in `midi`.
-    virtual void render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi) = 0;
+    // MIDI in `midi` and the audio inputs `in` (In 1-4 on four channels, as
+    // many samples as `out`; null: silence).
+    virtual void render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi, const juce::AudioBuffer<float>* in = nullptr) = 0;
     // Message thread: one line for the user (what does not play yet).
     virtual juce::String status() const = 0;
 };

@@ -35,6 +35,12 @@ public:
     // The panel's Master Level knob, 0 .. 1 (kept by the host with the project).
     virtual float masterLevel() const { return 1.0f; }
     virtual void setMixOut34(bool on) { juce::ignoreUnused(on); }
+    // The panel's Mic Level knob, 0 .. 1 (kept with the project): the gain of the XLR microphone input's preamp.
+    virtual float micLevel() const { return 0.5f; }
+    // Whether the audio input In 1 is the XLR microphone input, through its preamp, instead of the IN 1 jack (off:
+    // the jack, which on a G2 disconnects the microphone; the Mic Level knob then does nothing, as on a G2).
+    virtual bool micInput() const { return false; }
+    virtual void setMicInput(bool on) { juce::ignoreUnused(on); }
     // How many emulated G2s run in this host process (all plugin instances).
     virtual int emulatorsInHost() const { return 0; }
     // MIDI into its MIDI IN (e.g. the on-screen keyboard), from the message

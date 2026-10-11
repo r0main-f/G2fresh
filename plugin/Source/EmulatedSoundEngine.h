@@ -9,7 +9,8 @@
 // channels, and Out 3/4 on the next two when the host gives four (the plugin's
 // second output bus). Without them Out 3/4 are not heard, as on a G2 whose
 // headphones carry Out 1/2 only, unless setMixOut34() mixes them in. The track's MIDI goes to the G2's MIDI IN,
-// sample-accurate (a fixed latency, Runner::latencyFrames). The "flash" (the
+// sample-accurate (a fixed latency, Runner::latencyFrames). The audio inputs In 1-4, also in signal units (AudioIo.h),
+// are resampled to 96 kHz and reach the G2's ADCs at a fixed latency too (Runner::write). The "flash" (the
 // G2's memory: its flash with the banks, then its EEPROM with the system
 // settings, Machine::memorySnapshot) comes from the caller: the plugin keeps it
 // in the host's project, the stand-alone app in a file.
@@ -49,8 +50,20 @@ public:
     std::uint64_t framesMissing() const { return runner_->stats().framesMissing; }
     // For diagnostics: the runner's speed while running, its longest chunk, the DSP threads in use.
     juce::String diagnostics() const;
-    // From a MIDI event to the DACs, in host samples (the runner's buffer, the resampler).
+    // What the plugin reports to the host, in host samples: from an input sample to what the G2 makes of it at the
+    // output (the two resamplers, the runner's buffer, and the emulated G2's own way from its ADCs to its DACs,
+    // kAdcToDacFrames). A MIDI event sounds about half a millisecond sooner than that, plus the OS's reaction
+    // (midiLatencySamples).
     int latencySamples() const;
+    int midiLatencySamples() const;
+    // The emulated G2's way from the ADCs to the DACs through an In and an Out module, in 96 kHz frames: 19 to 21,
+    // set when the DSPs start [emulated: tests/test_g2emu.cpp]. The board's own figure is not known.
+    static constexpr int kAdcToDacFrames = 20;
+    // 96 kHz frames the ADCs took as silence because their input was late (none, by construction: a check).
+    std::uint64_t inputMissing() const { return runner_->stats().inputMissing; }
+    // In 1 as the XLR microphone input, through its preamp at the Mic Level knob's gain (`level` 0 .. 1), instead of
+    // the IN 1 jack (any thread).
+    void setMic(bool in1IsMic, float level);
 
     g2emu::Machine& machine() { return runner_->machine(); }
     // Offline rendering (a bounce): wait for the emulator instead of dropping
@@ -60,7 +73,7 @@ public:
     void setMixOut34(bool on) { mixOut34_ = on; }
 
     void prepare(double sampleRate, int maxBlock) override;
-    void render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi) override;
+    void render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi, const juce::AudioBuffer<float>* in = nullptr) override;
     juce::String status() const override;
 
     // The stand-alone app's flash, and the first flash of a new plugin
@@ -80,6 +93,7 @@ private:
 #endif
 
     std::atomic<bool> mixOut34_{false};
+    std::atomic<float> in1Gain_{1.0f}; // the microphone preamp's gain while In 1 is the microphone, else 1
 
     // Audio thread.
     bool offline_ = false;
@@ -88,4 +102,11 @@ private:
     std::vector<float> frames_;      // 4 channels, interleaved, as the runner gives them
     std::vector<float> render96_[4]; // outputs 1-4 at 96 kHz not consumed yet
     juce::AudioBuffer<float> outs_;  // outputs 1-4 at the host's rate
+    // The inputs, the other way: the same interpolation as the outputs (it leaves images of the input above the
+    // host's Nyquist frequency, as the outputs fold what is above it: re/notes/fidelity-audit.md).
+    juce::Interpolators::Lagrange inResamplers_[4];
+    int inHeld_ = 0;                 // host samples of silence the inputs start with: they are never short then
+    std::vector<float> inHost_[4];   // inputs 1-4 at the host's rate not consumed yet
+    std::vector<float> in96_;        // one input at 96 kHz
+    std::vector<float> inFrames_;    // 4 channels, interleaved, as the runner takes them
 };
