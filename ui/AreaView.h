@@ -173,7 +173,8 @@ private:
     std::vector<std::uint8_t> selection_;
     Hit hover_;
 
-    // Value: knob drag; Range: Alt-drag sets the knob's morph range;
+    // Value: knob drag; Range: Alt-drag sets the knob's morph range in the
+    // focused morph group;
     // Module: moves the selection; Cable: patching; Band: rubber-band selection.
     // Bend: pulling a cable into shape.
     enum class Drag { None, Value, Range, Module, Cable, Band, Bend };
@@ -182,7 +183,8 @@ private:
     Hit dragHit_;
     int dragStartValue_ = 0;
     int dragStartRange_ = 0;
-    std::uint8_t morphGroupForRange_ = 0; // the group Alt-drag assigns to unassigned knobs
+    int rangeDragDistance_ = 0; // morph drag: pixels moved, pulled back at the ends of the range
+    int rangeDragLastY_ = 0;
     juce::Point<int> dragOffset_;   // module drag: mouse offset in the module
     juce::Point<int> dragPos_;      // current mouse position
     std::optional<Jack> cableFrom_;

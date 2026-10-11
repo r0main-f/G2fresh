@@ -199,6 +199,15 @@ void PatchDocument::setVariation(int v)
     sendChangeMessage();
 }
 
+void PatchDocument::setFocusedMorphGroup(int group)
+{
+    group = juce::jlimit(0, g2::kMorphGroups - 1, group);
+    if (group == morphGroup_)
+        return;
+    morphGroup_ = group;
+    sendChangeMessage();
+}
+
 int PatchDocument::focusedVariation() const
 {
     const auto& p = patch();
@@ -322,12 +331,14 @@ void PatchDocument::loadBytes(const std::vector<std::uint8_t>& bytes, bool ignor
 
 void PatchDocument::repairLoaded()
 {
-    // As the original loads a file: the controller map is validated and
-    // repaired (CCtrlMap::ValidateAndRepairMap, "Ctrl assignment problem")
-    // and module names are filtered to the G2 characters (CModule::SetName).
-    bool ctrl = false, names = false;
+    // As the original loads a file: the controller and morph maps are
+    // validated and repaired (CCtrlMap/CMorphMap::ValidateAndRepairMap, "Ctrl
+    // assignment problem", "Morph assignment problem") and module names are
+    // filtered to the G2 characters (CModule::SetName).
+    bool ctrl = false, morph = false, names = false;
     auto fix = [&](g2::Patch& p) {
         ctrl = g2::edit::repairMidiCcs(p) || ctrl;
+        morph = g2::edit::repairMorphs(p) || morph;
         names = g2::edit::filterLoadedNames(p) || names;
     };
     if (perf_)
@@ -340,6 +351,8 @@ void PatchDocument::repairLoaded()
     juce::StringArray report;
     if (ctrl)
         report.add("Ctrl assignment problem: invalid MIDI controller assignments were removed");
+    if (morph)
+        report.add("Morph assignment problem: morphs of parameters the patch does not have were removed");
     if (names)
         report.add("characters a G2 cannot show were replaced by spaces in names");
     loadReport_ = report.joinIntoString("; ");

@@ -66,6 +66,12 @@ public:
     // original focuses it (CMutaSynthData::GetFocusIndividMolecules).
     int focusedVariation() const;
     bool auditioning() const { return focusedVariation() == g2::kAuditionVariation; }
+    // The focused morph group (0..7): the one a click on a toolbar morph dial
+    // selects (CMorphContainer::Click @00123a84), that Morph assign and the
+    // morph drag work on, and whose ranges the knobs show (manual p92). Not
+    // saved; group 1 at start.
+    int focusedMorphGroup() const { return morphGroup_; }
+    void setFocusedMorphGroup(int group);
 
     // File handling. load* replace the document and clear the undo history.
     void newPatch();
@@ -143,6 +149,7 @@ private:
     juce::String coalesceKey_;
     Step* lastStep_ = nullptr; // the step a coalesced edit extends
     int variation_ = 0;
+    int morphGroup_ = 0;
     juce::File file_;
     juce::String name_ = "New patch"; // patch name (performances use slot names)
     bool dirty_ = false;

@@ -449,7 +449,7 @@ void apply(Patch& patch, u8 variation, const Individual& ind)
         patch.morphs.resize(variation + 1, {std::vector<u8>(kMorphGroups, 0), {}});
     auto& dst = patch.morphs[variation].assigns;
     dst.clear();
-    std::set<std::tuple<u8, u8, u8>> seen; // one group per parameter in our model
+    std::set<std::tuple<u8, u8, u8, u8>> seen; // one assignment per (parameter, group)
     for (const auto& a : ind.morphs) {
         const auto loc = static_cast<Location>(a.location);
         std::size_t count = 0;
@@ -461,7 +461,7 @@ void apply(Patch& patch, u8 variation, const Individual& ind)
             if (const Module* m = patch.area(loc).find(a.module); m && variation < m->params.size())
                 count = m->params[variation].size();
         }
-        if (a.param < count && seen.insert({a.location, a.module, a.param}).second)
+        if (a.param < count && seen.insert({a.location, a.module, a.param, a.morph}).second)
             dst.push_back(a);
     }
 }

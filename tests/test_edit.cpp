@@ -157,13 +157,11 @@ TEST_CASE("morph, knob and MIDI assignments")
     Patch p = Patch::makeDefault();
     const u8 osc = edit::addModule(p, Location::Va, kOscB, 0, 0);
     edit::setMorph(p, 0, Location::Va, osc, 0, 2, -40);
-    REQUIRE(edit::morphOf(p, 0, Location::Va, osc, 0));
-    CHECK(edit::morphOf(p, 0, Location::Va, osc, 0)->group == 2);
-    CHECK(edit::morphOf(p, 0, Location::Va, osc, 0)->range == -40);
-    CHECK_FALSE(edit::morphOf(p, 1, Location::Va, osc, 0)); // per variation
-    edit::setMorph(p, 0, Location::Va, osc, 0, 5, 100);     // re-assign, no duplicate
+    CHECK(edit::morphRange(p, 0, Location::Va, osc, 0, 2) == std::int8_t{-40});
+    CHECK(edit::morphsOf(p, 1, Location::Va, osc, 0).empty()); // per variation
+    edit::setMorph(p, 0, Location::Va, osc, 0, 2, -30);         // the same group: no duplicate
     CHECK(p.morphs[0].assigns.size() == 1);
-    CHECK(edit::morphOf(p, 0, Location::Va, osc, 0)->group == 5);
+    CHECK(edit::morphRange(p, 0, Location::Va, osc, 0, 2) == std::int8_t{-30});
 
     edit::assignKnob(p, 9, Location::Va, osc, 0);
     CHECK(edit::knobOf(p, Location::Va, osc, 0) == 9);

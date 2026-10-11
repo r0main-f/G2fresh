@@ -42,6 +42,7 @@ if(G2_BUILD_PLUGIN)
   file(GLOB G2_SKIN_FILES CONFIGURE_DEPENDS
     ${PROJECT_SOURCE_DIR}/assets/clavia/panels.json
     ${PROJECT_SOURCE_DIR}/assets/clavia/cbmp/*.png
+    ${PROJECT_SOURCE_DIR}/assets/clavia/smtb/*.png
     ${PROJECT_SOURCE_DIR}/assets/clavia/jpeg/*.jpg)
   juce_add_binary_data(G2SkinData HEADER_NAME G2SkinData.h NAMESPACE G2SkinData SOURCES ${G2_SKIN_FILES})
   set_target_properties(G2SkinData PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -57,6 +58,7 @@ if(G2_BUILD_PLUGIN)
     ${PROJECT_SOURCE_DIR}/ui/BankBrowser.cpp
     ${PROJECT_SOURCE_DIR}/ui/PatchDocument.cpp
     ${PROJECT_SOURCE_DIR}/ui/AreaView.cpp
+    ${PROJECT_SOURCE_DIR}/ui/AssignMenus.cpp
     ${PROJECT_SOURCE_DIR}/ui/ModuleBrowser.cpp
     ${PROJECT_SOURCE_DIR}/ui/MainView.cpp
     ${PROJECT_SOURCE_DIR}/ui/PatchSettingsBar.cpp

@@ -63,6 +63,13 @@ void setWheelEditsKnobs(bool on);
 enum class KnobDoubleClick { Morph, Reset, Nothing };
 KnobDoubleClick knobDoubleClick();
 void setKnobDoubleClick(KnobDoubleClick action);
+// Morphed parameters and the toolbar morph dials in the eight group colours,
+// a parameter showing the range of the focused group if it is in it, else of
+// its lowest group. The original shows the focused group only: red when the
+// parameter is in it (with its range), blue when it is in another group
+// (manual p92; CPanel::CtrlGetMorphGroup @000c1e5c, CPnlMorphKnob::UpdateGraphics).
+bool morphGroupColours();
+void setMorphGroupColours(bool on);
 // Offline, the load meter shows G2fresh's estimate instead of "--" (the
 // original shows "--" until the synth reports, CTBWindow::SetupLoadMeter).
 bool showLoadEstimate();
@@ -88,6 +95,8 @@ public:
     juce::Image tintedFace(int resId, juce::Colour colour) const;
     // A small JPEG sprite; invalid if missing.
     juce::Image jpeg(int resId) const;
+    // An SMTB bitmap (the note sequencer's morph strips); invalid if missing.
+    juce::Image smtb(int resId) const;
 
 private:
     Skin();

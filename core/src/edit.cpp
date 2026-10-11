@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <stdexcept>
+#include <tuple>
 
 namespace g2::edit {
 namespace {
@@ -936,39 +937,221 @@ void checkParam(const Patch& patch, Location loc, u8 module, u8 param)
         throw std::invalid_argument("no such parameter");
 }
 
-} // namespace
+// The definition of a module parameter or patch setting, or nullptr.
+const db::ParamDef* paramDefOf(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    if (loc == Location::Settings) {
+        const auto* def = settingDef(static_cast<Setting>(module));
+        return def && param < def->params.size() ? &def->params[param] : nullptr;
+    }
+    if (loc != Location::Va && loc != Location::Fx)
+        return nullptr;
+    const Module* m = patch.area(loc).find(module);
+    const auto* def = m ? m->def() : nullptr;
+    return def && param < def->params.size() ? &def->params[param] : nullptr;
+}
 
-std::optional<Morph> morphOf(const Patch& patch, u8 variation, Location loc, u8 module, u8 param)
+u8 valueOf(const Patch& patch, Location loc, u8 module, u8 param, u8 variation)
+{
+    if (loc == Location::Settings)
+        return settingValue(patch, static_cast<Setting>(module), param, variation);
+    const Module* m = patch.area(loc).find(module);
+    return m && variation < m->params.size() && param < m->params[variation].size() ? m->params[variation][param] : 0;
+}
+
+// The order of the original's map, which is also the order it writes the
+// assignments in: location, module, parameter, group (CMorphSpec::operator<).
+auto morphKey(const MorphAssign& a)
+{
+    return std::tuple(a.location, a.module, a.param, a.morph);
+}
+
+std::vector<MorphAssign>& morphList(Patch& patch, u8 variation)
 {
     if (variation >= patch.morphs.size())
-        return std::nullopt;
-    for (const auto& a : patch.morphs[variation].assigns)
-        if (sameTarget(a.location, a.module, a.param, loc, module, param))
-            return Morph{a.morph, a.range};
+        throw std::invalid_argument("no such variation");
+    return patch.morphs[variation].assigns;
+}
+
+// Sets the range of an assignment, or adds it where the original's map has
+// it (lists loaded from files are in that order already); range 0 removes it.
+void putMorph(std::vector<MorphAssign>& list, MorphAssign a)
+{
+    const auto key = morphKey(a);
+    const auto same = std::find_if(list.begin(), list.end(), [&](const MorphAssign& x) { return morphKey(x) == key; });
+    if (a.range == 0) {
+        if (same != list.end())
+            list.erase(same);
+        return;
+    }
+    if (same != list.end()) {
+        same->range = a.range;
+        return;
+    }
+    const auto after = std::find_if(list.begin(), list.end(), [&](const MorphAssign& x) { return key < morphKey(x); });
+    list.insert(after, a);
+}
+
+bool inAnyGroup(const std::vector<MorphAssign>& list, Location loc, u8 module, u8 param)
+{
+    return std::any_of(list.begin(), list.end(),
+                       [&](const MorphAssign& a) { return sameTarget(a.location, a.module, a.param, loc, module, param); });
+}
+
+} // namespace
+
+std::vector<Morph> morphsOf(const Patch& patch, u8 variation, Location loc, u8 module, u8 param)
+{
+    std::vector<Morph> out;
+    if (variation < patch.morphs.size())
+        for (const auto& a : patch.morphs[variation].assigns)
+            if (sameTarget(a.location, a.module, a.param, loc, module, param)
+                && std::none_of(out.begin(), out.end(), [&](const Morph& m) { return m.group == a.morph; }))
+                out.push_back({a.morph, a.range});
+    std::sort(out.begin(), out.end(), [](const Morph& a, const Morph& b) { return a.group < b.group; });
+    return out;
+}
+
+std::optional<std::int8_t> morphRange(const Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group)
+{
+    if (variation < patch.morphs.size())
+        for (const auto& a : patch.morphs[variation].assigns)
+            if (sameTarget(a.location, a.module, a.param, loc, module, param) && a.morph == group)
+                return a.range;
     return std::nullopt;
 }
 
-void setMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group, std::int8_t range)
+bool isMorphable(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    const auto* def = paramDefOf(patch, loc, module, param);
+    return def && def->morphable;
+}
+
+int morphedParamCount(const Patch& patch, u8 variation)
+{
+    if (variation >= patch.morphs.size())
+        return 0;
+    std::vector<std::tuple<u8, u8, u8>> params;
+    for (const auto& a : patch.morphs[variation].assigns)
+        params.emplace_back(a.location, a.module, a.param);
+    std::sort(params.begin(), params.end());
+    return static_cast<int>(std::unique(params.begin(), params.end()) - params.begin());
+}
+
+bool canMorph(const Patch& patch, u8 variation, Location loc, u8 module, u8 param)
+{
+    if (variation >= patch.morphs.size() || !isMorphable(patch, loc, module, param))
+        return false;
+    return inAnyGroup(patch.morphs[variation].assigns, loc, module, param)
+        || morphedParamCount(patch, variation) < kMaxMorphedParams;
+}
+
+std::int8_t clampMorphRange(const Patch& patch, u8 variation, Location loc, u8 module, u8 param, int range)
+{
+    const auto* def = paramDefOf(patch, loc, module, param);
+    const int max = def ? std::min<int>(def->max, 127) : 127;
+    const int value = std::min<int>(valueOf(patch, loc, module, param, variation), max);
+    return static_cast<std::int8_t>(std::clamp(range, -value, max - value));
+}
+
+void setMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group, int range)
 {
     checkParam(patch, loc, module, param);
     if (variation >= patch.morphs.size() || group >= kMorphGroups)
         throw std::invalid_argument("no such variation or morph group");
-    auto& list = patch.morphs[variation].assigns;
-    for (auto& a : list)
-        if (sameTarget(a.location, a.module, a.param, loc, module, param)) {
-            a.morph = group;
-            a.range = range;
-            return;
-        }
-    list.push_back({static_cast<u8>(loc), module, param, group, range});
+    if (!isMorphable(patch, loc, module, param))
+        throw std::invalid_argument("this parameter cannot be morphed");
+    if (!canMorph(patch, variation, loc, module, param))
+        throw std::invalid_argument("a variation morphs at most 25 parameters");
+    const auto r = clampMorphRange(patch, variation, loc, module, param, range);
+    putMorph(patch.morphs[variation].assigns, {static_cast<u8>(loc), module, param, group, r});
 }
 
-void clearMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param)
+void clearMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group)
 {
     if (variation >= patch.morphs.size())
         return;
-    std::erase_if(patch.morphs[variation].assigns,
-                  [&](const MorphAssign& a) { return sameTarget(a.location, a.module, a.param, loc, module, param); });
+    std::erase_if(patch.morphs[variation].assigns, [&](const MorphAssign& a) {
+        return sameTarget(a.location, a.module, a.param, loc, module, param) && a.morph == group;
+    });
+}
+
+bool toggleMorphAssign(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group)
+{
+    if (morphRange(patch, variation, loc, module, param, group)) {
+        clearMorph(patch, variation, loc, module, param, group);
+        return false;
+    }
+    if (!canMorph(patch, variation, loc, module, param))
+        throw std::invalid_argument(isMorphable(patch, loc, module, param) ? "a variation morphs at most 25 parameters"
+                                                                          : "this parameter cannot be morphed");
+    // The value goes to 0 and the range to the full +max (the control's
+    // maximum, CPnlControl+0x45).
+    if (loc == Location::Settings)
+        setSetting(patch, static_cast<Setting>(module), param, variation, 0);
+    else
+        setParam(patch, loc, module, param, variation, 0);
+    setMorph(patch, variation, loc, module, param, group, paramDefOf(patch, loc, module, param)->max);
+    return true;
+}
+
+void clearMorphGroup(Patch& patch, u8 variation, u8 group)
+{
+    std::erase_if(morphList(patch, variation), [&](const MorphAssign& a) { return a.morph == group; });
+}
+
+void copyMorphGroup(Patch& patch, u8 variation, u8 from, u8 to)
+{
+    if (from >= kMorphGroups || to >= kMorphGroups)
+        throw std::invalid_argument("no such morph group");
+    auto& list = morphList(patch, variation);
+    std::vector<MorphAssign> copies;
+    for (const auto& a : list)
+        if (a.morph == from)
+            copies.push_back({a.location, a.module, a.param, to, a.range});
+    // CMorphMap::GetAssignMorphToParamMolecules: the old assignment in `to`
+    // goes, the copy comes (the parameter is morphed, so the limit allows it).
+    for (const auto& a : copies)
+        putMorph(list, a);
+}
+
+void storeMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group, int range)
+{
+    checkParam(patch, loc, module, param);
+    if (group >= kMorphGroups)
+        throw std::invalid_argument("no such morph group");
+    putMorph(morphList(patch, variation),
+             {static_cast<u8>(loc), module, param, group, static_cast<std::int8_t>(std::clamp(range, -128, 127))});
+}
+
+bool repairMorphs(Patch& patch)
+{
+    bool dropped = false;
+    for (auto& v : patch.morphs) {
+        std::vector<MorphAssign> kept;
+        for (const auto& a : v.assigns) {
+            const auto key = morphKey(a);
+            if (std::any_of(kept.begin(), kept.end(), [&](const MorphAssign& x) { return morphKey(x) == key; }))
+                continue;
+            // CPatch::IsParamValid @000d4288: the module exists and has the parameter.
+            const auto loc = static_cast<Location>(a.location);
+            bool valid = false;
+            if (loc == Location::Settings) {
+                for (const auto& m : patch.settings)
+                    valid = valid || (m.index == a.module && !m.params.empty() && a.param < m.params.front().size());
+            } else if (loc == Location::Va || loc == Location::Fx) {
+                const Module* m = patch.area(loc).find(a.module);
+                valid = m && m->def() && a.param < m->def()->params.size();
+            }
+            if (!valid) {
+                dropped = true;
+                continue;
+            }
+            kept.push_back(a);
+        }
+        v.assigns = std::move(kept);
+    }
+    return dropped;
 }
 
 std::optional<int> knobOf(const Patch& patch, Location loc, u8 module, u8 param)
@@ -1421,12 +1604,26 @@ std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, 
             c.color = cableColor(patch, loc, {c.fromModule, c.fromConn, c.fromIsOutput});
         area.cables.push_back(c);
     }
-    for (auto [v, a] : clip.morphs) {
-        if (v >= patch.morphs.size())
-            continue;
-        a.location = static_cast<u8>(loc);
-        a.module = mapped(a.module);
-        patch.morphs[v].assigns.push_back(a);
+    // Morphs, per variation, module by module, parameter by parameter, group
+    // by group; each counts one, and none is added past 25
+    // (CPatchData::GetNewModulesMolecules @000eba8e).
+    for (std::size_t v = 0; v < patch.morphs.size(); ++v) {
+        int count = morphedParamCount(patch, static_cast<u8>(v));
+        for (const auto& src : clip.modules) {
+            std::vector<MorphAssign> own;
+            for (const auto& [var, a] : clip.morphs)
+                if (var == v && a.module == src.index && a.range != 0)
+                    own.push_back(a);
+            std::sort(own.begin(), own.end(),
+                      [](const MorphAssign& a, const MorphAssign& b) { return std::pair(a.param, a.morph) < std::pair(b.param, b.morph); });
+            for (auto a : own) {
+                if (++count > kMaxMorphedParams)
+                    break;
+                a.location = static_cast<u8>(loc);
+                a.module = mapped(a.module);
+                putMorph(patch.morphs[v].assigns, a);
+            }
+        }
     }
     for (u8 index : added)
         resolveOverlaps(patch, loc, index);

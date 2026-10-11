@@ -73,6 +73,7 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 | Mouse Wheel Edits Knobs | View menu | Off: the wheel scrolls |
 | Double-Click on a Knob | View menu | Drag the morph range ("Reset to the Default Value" and "Nothing" are options) |
 | Show Load Estimate Offline | View menu | Off: "--" until the synth reports |
+| Morph Groups in Eight Colours | View menu | Off: the focused morph group in red with its range, other groups in blue |
 
 **Emulated G2 and plugin**
 - An emulated G2 with an empty memory gets MIDI Local on, once, so the Live keyboard plays. Its other system settings are those of an erased G2, not a factory one (MIDI Ctrl off, every slot on channel 1, no factory patches).
@@ -82,7 +83,9 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - The Live view keeps the G2X's layout but not its look. A mouse can hold only one button, so Option-click latches a button, a click on Shift holds it until the next button, and Shift on the computer keyboard holds Shift during a click.
 
 **Editor: what it shows**
-- G2fresh's own look: colours, the animated cables, an 8-colour morph display, the sequencer's morph band in the Classic look, an amber load threshold, the settings bar, the drum preset menu, the white cable colour.
+- G2fresh's own look: colours, the animated cables, an amber load threshold, the settings bar (its morph dials are focused by a click on their card), the drum preset menu, the white cable colour.
+- Morphed sliders in the Classic look and morphed increment/decrement buttons show no morph colour (the original colours them).
+- The morph dial's pop-up has no Global Assign (no global knobs yet).
 - Additions with no original equivalent: zoom, cable highlight and Delete, cable bend points (saved next to the patch, never in it), USB log redaction, MIDI output forwarding.
 
 **Editor: what it does**
@@ -102,8 +105,7 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - Input:
   - Buttons act on mouse-up, except push buttons, which act on press as in the original.
   - Shift gives fine adjustment.
-  - Alt is the morph key on every platform.
-  - The morph drag on double-click uses the last morph group used.
+  - Alt is the morph key on every platform, and works on knobs only.
   - The random generator is seeded from the clock.
   - The stand-alone app has Randomize.
   - Recent Files holds 12 entries and offers Clear.

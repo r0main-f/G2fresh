@@ -54,39 +54,23 @@ juce::Font smallFont(float size = 9.0f)
     return juce::Font(juce::FontOptions(size));
 }
 
-const g2::MorphAssign* morphOf(const ModuleContext& c, int param)
+// The arc a morph adds to a knob: from the value to where the morph takes it
+// (value + range, clipped to [0, max] as CModule::GetMorphAbsValue does), in
+// the morph group's colour, just outside the knob.
+void drawMorphRange(juce::Graphics& g, const MorphLook& morph, juce::Point<float> centre, float radius, int value,
+                    int max, float thickness)
 {
-    if (c.variation < 0 || static_cast<std::size_t>(c.variation) >= c.patch.morphs.size())
-        return nullptr;
-    for (const auto& a : c.patch.morphs[static_cast<std::size_t>(c.variation)].assigns)
-        if (a.location == static_cast<std::uint8_t>(c.location) && a.module == c.module.index && a.param == param)
-            return &a;
-    return nullptr;
-}
-
-int morphGroup(const ModuleContext& c, int param)
-{
-    const auto* a = morphOf(c, param);
-    return a ? a->morph : -1;
-}
-
-// The arc a morph adds to a knob: from the value to where the morph takes it,
-// in the morph group's colour, just outside the knob.
-void drawMorphRange(juce::Graphics& g, const ModuleContext& c, int param, juce::Point<float> centre, float radius,
-                    int value, int max, float thickness)
-{
-    const auto* a = morphOf(c, param);
-    if (!a || a->range == 0)
+    if (!morph.range || *morph.range == 0 || morph.colourGroup < 0)
         return;
     const float start = juce::degreesToRadians(-135.0f), sweep = juce::degreesToRadians(270.0f);
     const float from = static_cast<float>(value) / static_cast<float>(max);
-    const float to = juce::jlimit(0.0f, 1.0f, from + static_cast<float>(a->range) / 127.0f);
+    const float to = static_cast<float>(juce::jlimit(0, max, value + *morph.range)) / static_cast<float>(max);
     juce::Path arc;
     arc.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, start + sweep * std::min(from, to),
                       start + sweep * std::max(from, to), true);
     g.setColour(juce::Colours::black.withAlpha(0.5f));
     g.strokePath(arc, juce::PathStrokeType(thickness + 1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
-    g.setColour(ModulePainter::morphColour(a->morph).brighter(0.1f));
+    g.setColour(ModulePainter::morphColour(morph.colourGroup).brighter(0.1f));
     g.strokePath(arc, juce::PathStrokeType(thickness, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
 }
 
@@ -136,6 +120,17 @@ void drawButtonBox(juce::Graphics& g, juce::Rectangle<int> r, bool on, bool high
         g.setColour(juce::Colours::red);
         g.drawRect(r, 1);
     }
+}
+
+// A morphed button's face takes the group colour, as the original's rotating
+// buttons do (CPnlRotateButtonABC::UpdateGraphics: kBtnFaceGroup1 or 3).
+void drawMorphFace(juce::Graphics& g, juce::Rectangle<float> r, const MorphLook& morph, bool on, float radius)
+{
+    if (morph.colourGroup < 0)
+        return;
+    const auto face = ModulePainter::morphColour(morph.colourGroup);
+    g.setColour(on ? face.darker(0.45f) : face);
+    g.fillRoundedRectangle(r, radius);
 }
 
 void drawLabel(juce::Graphics& g, juce::Rectangle<int> r, const juce::String& text, juce::Colour colour)
@@ -390,6 +385,24 @@ const std::array<int, ModulePainter::kModuleColours>& ModulePainter::moduleColou
     return order;
 }
 
+MorphLook ModulePainter::morphLook(const ModuleContext& c, int param)
+{
+    if (c.variation < 0 || param < 0 || param > 255)
+        return {};
+    const auto morphs = g2::edit::morphsOf(c.patch, static_cast<std::uint8_t>(c.variation), c.location, c.module.index,
+                                           static_cast<std::uint8_t>(param));
+    if (morphs.empty())
+        return {};
+    const auto focused = std::find_if(morphs.begin(), morphs.end(), [&](const g2::edit::Morph& m) { return m.group == c.morphGroup; });
+    if (morphGroupColours()) {
+        const auto& shown = focused != morphs.end() ? *focused : morphs.front();
+        return {shown.group, shown.range};
+    }
+    if (focused != morphs.end())
+        return {0, focused->range}; // Morph::kGrp1: red
+    return {2, std::nullopt};       // Morph::kGrp3: blue
+}
+
 juce::Colour ModulePainter::morphColour(int group)
 {
     static const juce::uint32 colours[8] = {0xffe5a1a1, 0xffc5dac5, 0xffa1a1e5, 0xffdadac5,
@@ -450,15 +463,15 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
             return;
         }
         const auto sprite = knobSprite(e.type);
-        const int group = morphGroup(c, e.codeRef);
-        const int frame = highlighted ? 0 : group >= 0 ? 2 + group : 1;
+        const auto morph = morphLook(c, e.codeRef);
+        const int frame = highlighted ? 0 : morph.colourGroup >= 0 ? 2 + morph.colourGroup : 1;
         drawImageFrame(g, Skin::get().sprite(sprite.resId, sprite.size), frame, sprite.size, r);
         const auto centre = r.toFloat().getCentre();
         const float angle = juce::degreesToRadians(-135.0f + 270.0f * static_cast<float>(val) / static_cast<float>(max));
         const float radius = static_cast<float>(sprite.size) * 0.5f - 2.5f;
         g.setColour(juce::Colours::black);
         g.drawLine(centre.x, centre.y, centre.x + radius * std::sin(angle), centre.y - radius * std::cos(angle), 2.0f);
-        drawMorphRange(g, c, e.codeRef, centre, static_cast<float>(sprite.size) * 0.5f + 1.5f, val, max, 2.5f);
+        drawMorphRange(g, morph, centre, static_cast<float>(sprite.size) * 0.5f + 1.5f, val, max, 2.5f);
         return;
     }
     if (isJack(e)) {
@@ -493,6 +506,8 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
     if (e.kind == "ButtonText" || e.kind == "TextEdit") {
         const bool on = v.value_or(0) != 0;
         drawButtonBox(g, r, on, highlighted);
+        if (e.kind == "ButtonText")
+            drawMorphFace(g, r.reduced(1).toFloat(), morphLook(c, e.codeRef), on, 0.0f);
         if (e.image.isValid())
             g.drawImageAt(e.image, r.getCentreX() - e.image.getWidth() / 2, r.getCentreY() - e.image.getHeight() / 2);
         else
@@ -501,6 +516,8 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
     }
     if (e.kind == "ButtonFlat" || e.kind == "LevelShift") {
         drawButtonBox(g, r, false, highlighted);
+        if (e.kind == "ButtonFlat")
+            drawMorphFace(g, r.reduced(1).toFloat(), morphLook(c, e.codeRef), false, 0.0f);
         const int val = v.value_or(0);
         if (e.image.isValid() && e.imageCount > 0) {
             const int fh = e.image.getHeight();
@@ -750,7 +767,8 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
     }
     if (e.kind == "Knob") {
         const int val = v.value_or(0);
-        const int group = morphGroup(c, e.codeRef);
+        const auto morph = morphLook(c, e.codeRef);
+        const int group = morph.colourGroup;
         const auto ring = group >= 0 ? morphColour(group).darker(0.15f) : kAccent;
         if (isSlider(e)) {
             const auto track = r.withSizeKeepingCentre(4.0f, r.getHeight());
@@ -786,7 +804,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         g.setColour(kInk);
         g.drawLine(centre.x + (cap * 0.25f) * std::sin(angle), centre.y - (cap * 0.25f) * std::cos(angle),
                    centre.x + (cap - 1.0f) * std::sin(angle), centre.y - (cap - 1.0f) * std::cos(angle), 1.8f);
-        drawMorphRange(g, c, e.codeRef, centre, radius + 1.5f, val, max, 2.6f);
+        drawMorphRange(g, morph, centre, radius + 1.5f, val, max, 2.6f);
         return;
     }
     if (isJack(e)) {
@@ -821,6 +839,8 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
     if (e.kind == "ButtonText" || e.kind == "TextEdit") {
         const bool on = v.value_or(0) != 0;
         roundedButton(g, r, on, highlighted);
+        if (e.kind == "ButtonText")
+            drawMorphFace(g, r.reduced(1.0f), morphLook(c, e.codeRef), on, 2.5f);
         if (e.image.isValid()) {
             drawGlyph(g, e.image, 0, e.image.getWidth(), r.getCentre(), on ? juce::Colours::white : kInk);
         } else {
@@ -830,6 +850,8 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
     }
     if (e.kind == "ButtonFlat" || e.kind == "LevelShift") {
         roundedButton(g, r, false, highlighted);
+        if (e.kind == "ButtonFlat")
+            drawMorphFace(g, r.reduced(1.0f), morphLook(c, e.codeRef), false, 2.5f);
         const int val = v.value_or(0);
         if (e.image.isValid() && e.imageCount > 0)
             drawGlyph(g, e.image, juce::jlimit(0, e.imageCount - 1, val), e.imageWidth, r.getCentre(), kInk);

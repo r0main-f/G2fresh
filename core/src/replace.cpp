@@ -400,20 +400,18 @@ u8 replaceModule(Patch& patch, Location loc, u8 index, u8 newType)
     // ---- Morphs, knobs, controllers (CMorphMap/CKnobMap/CCtrlMap::GetReplaceModuleMolecules) ----
     const u8 l = static_cast<u8>(loc);
     auto mapParam = [&](u8 p) -> u8 { return p < map.params.size() ? map.params[p] : kNone; };
-    for (auto& v : patch.morphs) {
-        std::vector<MorphAssign> out;
-        for (const auto& a : v.assigns) {
-            if (a.location != l || a.module != index) {
-                out.push_back(a);
-                continue;
-            }
-            const u8 q = mapParam(a.param);
-            if (q == kNone)
-                continue;
-            std::erase_if(out, [&](const MorphAssign& x) { return x.location == l && x.module == newIndex && x.param == q; });
-            out.push_back({l, newIndex, q, a.morph, a.range});
+    // Each (parameter, group) assignment follows its parameter, in its group.
+    for (std::size_t v = 0; v < patch.morphs.size(); ++v) {
+        std::vector<MorphAssign> kept, moved;
+        for (const auto& a : patch.morphs[v].assigns) {
+            if (a.location != l || a.module != index)
+                kept.push_back(a);
+            else if (const u8 q = mapParam(a.param); q != kNone)
+                moved.push_back({l, newIndex, q, a.morph, a.range});
         }
-        v.assigns = std::move(out);
+        patch.morphs[v].assigns = std::move(kept);
+        for (const auto& a : moved)
+            edit::storeMorph(patch, static_cast<u8>(v), loc, a.module, a.param, a.morph, a.range);
     }
     for (auto& k : patch.knobs) {
         if (!k || k->location != l || k->module != index)

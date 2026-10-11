@@ -8,6 +8,7 @@ Outputs (committed):
     assets/clavia/panels.json      module panel layouts (PANL), compact JSON
     assets/clavia/cbmp/<id>.png    module faces and control sprites (CBMP)
     assets/clavia/jpeg/<id>.jpg    small UI sprites (LEDs, cable swatches, ...)
+    assets/clavia/smtb/<id>.png    the note sequencer's morph strips (SMTB, BMP)
 """
 import json
 import os
@@ -25,6 +26,9 @@ OUT = os.path.join(ROOT, "assets", "clavia")
 CBMP_SPRITES = [199, 200, 201, 202, 203, 204, 205, 531, 532]
 JPEG_SPRITES = [115, 116, 117, 118, 212, 213, 214, 215, 216, 217, 240, 241, 242, 243, 244, 245,
                 246, 247, 248, 250, 251, 268, 269, 272, 273, 874, 877]
+# CSeqSliderGUI::Draw's strips for a morphed step: 0xD01 (focused group),
+# 0xD02 (the range) and 0xD03 (another group).
+SMTB_SPRITES = [0xD01, 0xD02, 0xD03]
 
 
 def main(argv):
@@ -38,8 +42,9 @@ def main(argv):
 
     os.makedirs(os.path.join(OUT, "cbmp"), exist_ok=True)
     os.makedirs(os.path.join(OUT, "jpeg"), exist_ok=True)
+    os.makedirs(os.path.join(OUT, "smtb"), exist_ok=True)
     panels = []
-    counts = {"panels": 0, "cbmp": 0, "jpeg": 0}
+    counts = {"panels": 0, "cbmp": 0, "jpeg": 0, "smtb": 0}
     for r in resources:
         if r.type == "PANL":
             p = parse_panl(r.data.decode("mac_roman"))
@@ -50,6 +55,10 @@ def main(argv):
             w, h, rgb = bmp_to_rgb(r.data)
             write_png(os.path.join(OUT, "cbmp", f"{r.id}.png"), w, h, rgb)
             counts["cbmp"] += 1
+        elif r.type == "SMTB" and r.id in SMTB_SPRITES:
+            w, h, rgb = bmp_to_rgb(r.data)
+            write_png(os.path.join(OUT, "smtb", f"{r.id}.png"), w, h, rgb)
+            counts["smtb"] += 1
         elif r.type == "JPEG" and r.id in JPEG_SPRITES:
             with open(os.path.join(OUT, "jpeg", f"{r.id}.jpg"), "wb") as f:
                 f.write(r.data)
