@@ -6,7 +6,8 @@ Sources, in order of authority:
      v1.62 (module tables, factory registration, PANL facts), produced by
      extract_ghidra_facts.py. Wins whenever it has the information.
   2. Bruno Verhue's ModuleDef.xml / ParamDef.xml (GPL-2-or-later) from
-     third_party/nord_g2_editor/Gen1/Bin: connector names, range types
+     third_party/nord_g2_editor/Gen1/Bin (clone https://github.com/BVerhue/nord_g2_editor
+     there; not part of the repository): connector names, range types
      (RangeType, ButtonText), default param labels, and the 4 modules the
      editor no longer knows (Driver, Resonator, Red2Blue, Blue2Red).
 

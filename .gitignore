@@ -16,3 +16,6 @@ corpus-external/
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# Reference sources cloned locally, never committed (e.g. git clone https://github.com/BVerhue/nord_g2_editor third_party/nord_g2_editor)
+third_party/
