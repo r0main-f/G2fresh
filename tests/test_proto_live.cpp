@@ -214,7 +214,7 @@ TEST_CASE("live: knob and controller assignments in the original's order")
     CHECK(ids(e.undo()) == "23 22 22");
 }
 
-TEST_CASE("live: the morph menu is a realtime pair; a variation copy is one 44 without undo")
+TEST_CASE("live: the morph menu is a realtime pair; a variation copy is one 44")
 {
     Fixture f;
     const u8 coarse = 0;
@@ -226,7 +226,8 @@ TEST_CASE("live: the morph menu is a realtime pair; a variation copy is one 44 w
     CHECK(ids(e.redo()) == "43");
     e = recorded(f.p, [&](g2::Patch& p) { g2::edit::copyVariation(p, 2, 5); });
     CHECK(ids(e.redo()) == "44");
-    CHECK(e.undo().empty());
+    // (The original has no undo for it; ours sends the variation's old values back as a dump.)
+    CHECK(ids(e.undo()) == "65 4D 4D 4D");
 }
 
 TEST_CASE("live: LiveSlot sends the rest by comparison, as the original sends each kind")

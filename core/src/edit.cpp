@@ -1613,9 +1613,15 @@ void copyVariation(Patch& patch, u8 from, u8 to)
         throw std::invalid_argument("no such variation");
     if (from == to)
         return;
-    // One 44 (CPatchToolbar: Copy To, and Init with from = 8); the original
-    // makes no undo of it.
-    live::record(live::VariationCopy{from, to}, std::vector<live::Op>{});
+    // One 44 (CPatchToolbar: Copy To, and Init with from = 8). The original
+    // makes no undo of it; G2fresh's undo sends the variation's old values
+    // back, as the Mutator's dump of a variation (4D x3, 65).
+    if (live::recording())
+        live::record(live::VariationCopy{from, to},
+                     {live::Section{live::variationMorphs(patch, to)},
+                      live::Section{live::variationParams(patch, Location::Fx, to)},
+                      live::Section{live::variationParams(patch, Location::Va, to)},
+                      live::Section{live::variationParams(patch, Location::Settings, to)}});
     for (auto* area : {&patch.va, &patch.fx})
         for (auto& m : area->modules)
             if (from < m.params.size() && to < m.params.size())
