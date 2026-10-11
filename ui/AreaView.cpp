@@ -1316,10 +1316,9 @@ void AreaView::clickControl(const Hit& h)
                 drawable->setImage(frame);
                 item.image = std::move(drawable);
             }
-            item.text = g2::paramtext::formatSingle(
-                m->def() && juce::isPositiveAndBelow(e.codeRef, static_cast<int>(m->def()->modes.size()))
-                    ? m->def()->modes[static_cast<std::size_t>(e.codeRef)].textFunc : 0,
-                static_cast<std::uint8_t>(i));
+            item.text = m->def() && e.codeRef >= 0
+                            ? g2::db::formatMode(*m->def(), static_cast<std::size_t>(e.codeRef), static_cast<std::uint8_t>(i))
+                            : g2::paramtext::formatSingle(0, static_cast<std::uint8_t>(i));
             menu.addItem(std::move(item));
         }
         const auto target = localAreaToGlobal(r.translated(ModulePainter::moduleBounds(*m).getX(),

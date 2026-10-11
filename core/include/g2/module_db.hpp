@@ -100,4 +100,9 @@ std::string formatParam(const ModuleDef& def, std::size_t param,
                         std::span<const std::uint8_t> paramValues,
                         std::span<const std::uint8_t> modeValues);
 
+// Display text of mode `mode` at `value`. As the original's text function,
+// except the Reverb's room type: its function says Room/Hall/Plate/Gate, where
+// its panel and the manual say Small, Medium, Large and Hall.
+std::string formatMode(const ModuleDef& def, std::size_t mode, std::uint8_t value);
+
 } // namespace g2::db

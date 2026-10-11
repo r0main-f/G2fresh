@@ -45,4 +45,15 @@ std::string formatParam(const ModuleDef& def, std::size_t param,
     return paramtext::format(p.textFunc, std::span<const std::uint8_t>(args.data(), n));
 }
 
+std::string formatMode(const ModuleDef& def, std::size_t mode, std::uint8_t value)
+{
+    if (mode >= def.modes.size())
+        return {};
+    if (def.typeId == 12 && mode == 0) { // Reverb, RoomType
+        constexpr const char* rooms[] = {"Small", "Medium", "Large", "Hall"};
+        return value < 4 ? rooms[value] : std::to_string(value);
+    }
+    return paramtext::formatSingle(def.modes[mode].textFunc, value);
+}
+
 } // namespace g2::db

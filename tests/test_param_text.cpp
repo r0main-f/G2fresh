@@ -6,6 +6,7 @@
 // re/notes/param-display.md. The hand-written cases above it are worked
 // through from the decompiled formulas.
 #include <catch2/catch_test_macros.hpp>
+#include "g2/module_db.hpp"
 
 #include "g2/param_text.hpp"
 
@@ -1207,4 +1208,12 @@ TEST_CASE("param text: matches the emulated original editor")
         INFO(pt::functionName(r.id, int(v.size())) << " id " << r.id);
         CHECK(pt::format(r.id, v) == r.text);
     }
+}
+
+TEST_CASE("the Reverb's room type reads as on its panel and in the manual")
+{
+    const auto* reverb = g2::db::find(12);
+    REQUIRE(reverb);
+    CHECK(g2::db::formatMode(*reverb, 0, 0) == "Small");
+    CHECK(g2::db::formatMode(*reverb, 0, 3) == "Hall");
 }

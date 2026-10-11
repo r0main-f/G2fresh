@@ -22,7 +22,6 @@ Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a 
 | `plugin/` | JUCE target: stand-alone app, VST3, AU |
 | `emu/` | Emulation, built with `-DG2_BUILD_EMU=ON`: `g2emu`, the whole G2 in C++ running the user's own firmware (`re/notes/g2-hardware-and-emulation.md` §3.9), and the DSP experiments |
 | `tests/` | Catch2 tests; `tests/corpus/` holds freely licensed patch files. Set `G2_EXTRA_CORPUS=<dir>` to also test your own patches |
-| `third_party/nord_g2_editor` | Bruno Verhue's editor (GPL-2-or-later), used as a reference |
 
 ## Download
 
@@ -96,6 +95,7 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - Additions with no original equivalent: zoom; a click on a cord highlights its chain, and Delete removes that chain; a cord's pop-up menu (Chain Colour, Delete Chain, bend points); cable bend points (saved next to the patch, never in it); USB log redaction; MIDI output forwarding.
 - The morph range shows in the status line while dragging. There are no F5/F7 overlays, no hint box, and no Ctrl+Up/Down range keys.
 - The parameter pop-up's Morph Assign item names the group it acts on.
+- The Reverb's room type reads Small, Medium, Large or Hall everywhere, as on its panel and in the manual. The original's value text says Room, Hall, Plate or Gate.
 
 **Editor: what it does**
 - Unsaved changes: G2fresh asks "Discard changes?" before New, Open, Get Patch and Quit. The original never asks and drops unsaved patches.

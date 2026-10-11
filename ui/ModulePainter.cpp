@@ -322,8 +322,7 @@ juce::String ModulePainter::valueText(const ModuleContext& c, const PanelElement
         const auto v = value(c, e);
         if (!v || static_cast<std::size_t>(e.codeRef) >= def->modes.size())
             return {};
-        return g2::paramtext::formatSingle(def->modes[static_cast<std::size_t>(e.codeRef)].textFunc,
-                                           static_cast<std::uint8_t>(*v));
+        return g2::db::formatMode(*def, static_cast<std::size_t>(e.codeRef), static_cast<std::uint8_t>(*v));
     }
     if (!p)
         return {};
