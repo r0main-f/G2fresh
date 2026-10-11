@@ -189,11 +189,10 @@ juce::PropertiesFile& userSettings()
     return file;
 }
 
-// The look and the cable animation start at their defaults (modern, animated)
-// on every launch; the View menu changes them for the session.
+// The look starts at its default (modern) on every launch; the View menu
+// changes it for the session.
 namespace {
 Look sessionLook = Look::Modern;
-bool sessionAnimation = true;
 } // namespace
 
 Look currentLook()
@@ -208,14 +207,16 @@ void setCurrentLook(Look look)
     sessionLook = look;
 }
 
+// The cable flow animation (a G2fresh addition: the original's cables do not
+// move). On unless the user turned it off; the choice is kept between launches.
 bool cableAnimation()
 {
-    return sessionAnimation;
+    return userSettings().getBoolValue("cableAnimation", true);
 }
 
 void setCableAnimation(bool on)
 {
-    sessionAnimation = on;
+    userSettings().setValue("cableAnimation", on);
 }
 
 bool wheelEditsKnobs()

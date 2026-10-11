@@ -45,7 +45,8 @@ void setCurrentLook(Look look);
 // The user's saved settings (look, cable animation, zoom...).
 juce::PropertiesFile& userSettings();
 
-// Whether cables show their signal flow with moving pulses (on at every launch).
+// Whether cables show their signal flow with moving pulses (a deliberate
+// deviation kept on by default; the user's choice is saved).
 bool cableAnimation();
 void setCableAnimation(bool on);
 
