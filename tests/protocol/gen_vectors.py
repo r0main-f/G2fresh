@@ -409,11 +409,12 @@ def led_vu():
     words[1] = 0x0203
     pl = [0x3A, 0x00]
     for w in words:
-        pl += [w >> 8, w & 0xFF]
+        pl += [w & 0xFF, w >> 8]
     body = in_body(0x01, 0x03, pl)
-    for st in device_msg(body, " -- 0x3A multi-bit (VU/strip) data, slot B sess 3, start 0, 4 entries of 2 bytes. "
-                               "Byte order of each entry UNCERTAIN (Clavia reads a raw i386 ushort = little-endian; "
-                               "Verhue uses the 2nd byte as the value)"):
+    for st in device_msg(body, " -- 0x3A multi-bit (VU/strip) data, slot B sess 3, start 0, 4 entries of 2 bytes, "
+                               "little-endian: Clavia reads a raw i386 ushort (CLedBlinkData::SetMultiLed @0x101e4a), "
+                               "and in every captured real-G2X 0x3A message the value is in the first byte of each "
+                               "word, the second 0 (re/notes/usb-crosscheck.md H4)"):
         st["provenance"] = "synthetic"
         s.append(st)
     s.append(tx(SLOT_REQ(0), 0x11, [0x70], "CMFlushBlink slot A", provenance="clavia-derived"))

@@ -215,7 +215,7 @@ TEST_CASE("messages: LEDs and meters (led_vu)")
     const auto meters = messageOf("led_vu", 2);
     CHECK(meters.slot() == 1);
     applyToSlot(slot, single<Blink>(meters));
-    CHECK(slot.meters[0] == 0x0010); // big-endian words [I]
+    CHECK(slot.meters[0] == 0x0010); // little-endian words, value first
     CHECK(slot.meters[1] == 0x0203);
     CHECK(frameOf(Bubble::patch(0, 0x11, {Request{id::FlushBlink}})) == hexOf(vectorBytes("led_vu", 3)));
 }

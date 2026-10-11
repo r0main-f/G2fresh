@@ -469,15 +469,15 @@ std::vector<u8> encodeLeds(std::span<const u8> leds)
 void decodeMeters(const Blink& b, std::array<std::uint16_t, kLedsPerSlot>& meters)
 {
     for (std::size_t i = b.start, k = 0; i < meters.size() && 2 * k + 1 < b.data.size(); ++i, ++k)
-        meters[i] = static_cast<std::uint16_t>((b.data[2 * k] << 8) | b.data[2 * k + 1]);
+        meters[i] = static_cast<std::uint16_t>(b.data[2 * k] | (b.data[2 * k + 1] << 8));
 }
 
 std::vector<u8> encodeMeters(std::span<const std::uint16_t> meters)
 {
     std::vector<u8> data;
     for (std::uint16_t w : meters) {
-        data.push_back(static_cast<u8>(w >> 8));
         data.push_back(static_cast<u8>(w & 0xFF));
+        data.push_back(static_cast<u8>(w >> 8));
     }
     return data;
 }

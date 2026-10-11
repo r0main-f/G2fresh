@@ -701,8 +701,9 @@ variation whose meaning is unknown [V].
   * `d[1]` = start index; then one 16-bit word per entry for indices start..39 (40 per slot,
     `CLedBlinkData::SetMultiLed` 0x101e4a);
   * Clavia reads each word as a raw i386 `ushort` (**little-endian**, no swap);
-  * Verhue reads `[unknown byte][value byte]` per entry [V];
-  * **the byte order is an open question** (§14).
+  * a real G2X agrees: in every captured `3A` message the value is in the first byte of each word and the second is 0
+    (re/notes/usb-crosscheck.md H4). Verhue's `[unknown byte][value byte]` pairs start one byte earlier, at the start
+    byte, so they read the same value.
 * Index → module mapping [C] (`CPatch::UpdateBlink` 0xdb45e, `CPatchBackground::UpdateBlink` 0xdf744):
   * VA modules first, then FX, each sorted by module index; one entry per LED **group** of the module, in group order;
   * single-LED groups go to the 0x39 list, multi-LED groups and VU meters to the 0x3A list;
@@ -875,7 +876,7 @@ This section answers the requirement that the VST3/AU plugin send DAW MIDI to th
 | names | molecule semantics | several misnomers: `13` "R_LIST_NAMES" is flash usage; `3E` "S_SET_PARAM_MODE" is perf mode; `42`/`5B`/`4F` "param labels/names" are module custom data; `71`/`72` "resources" is DSP patch load; `81`/`80`/`59`/`70` "unknown" |
 | global knob assign | performance-level molecule (dest 3) | sent inside a slot frame |
 | LED 0x39 decode | correct (shift 2j) | bug (shift j) |
-| LED 0x3A entry | 16-bit host-order word | [unknown byte][value] |
+| LED 0x3A entry | 16-bit little-endian word | [unknown byte][value] from the start byte (the same value) |
 | `19` outer type | real file type | always 0 |
 | on close | no message | none (old code: `7D 01`) |
 
@@ -888,7 +889,7 @@ This section answers the requirement that the VST3/AU plugin send DAW MIDI to th
 2. Version reply: total length; meaning of bytes 4–5, 10–25, 26–29, 30–31, 32–33; is model 0 the 49-key G2 (string
    resource `kModularG237ModelString`) and 1 the G2X?
 3. Which commands are answered with a bare `7F` and whether a reply ever carries data *and* `7F`.
-4. 0x3A word byte order and the meaning of the first byte; the device-side LED/meter rate; whether `70` triggers a full
+4. ~~0x3A word byte order~~ (little-endian, from captures); the device-side LED/meter rate; whether `70` triggers a full
    resend.
 5. `56` PlayNote: velocity used, slot selection, polyphony, timing.
 6. Whether the G2 itself rejects bubbles with a stale session number (expected; `7E`?) and which `7E` codes appear.
@@ -946,9 +947,8 @@ spec says [I] or lists an open question. Check them in this order on the first h
    adopts the session of any reply to a slot request, and re-reads a slot whose unsolicited traffic carries another
    session); the header and session of `38`, `1F` and other synth-level news (the emulator sends them on hdr 4 with
    session `0x40`; the client accepts any session at synth level).
-5. **LEDs and meters.** The `0x3A` word byte order: read as big-endian (Verhue's "second byte is the value", the
-   vectors' generator), against Clavia's raw little-endian i386 read; the LED rate; whether `70` makes the synth resend
-   everything. LED messages are accepted only after both `72` replies of the slot (as Clavia).
+5. **LEDs and meters.** The `0x3A` words are read little-endian, as Clavia's raw i386 read and the real-G2X captures
+   have them (settled); still open: the LED rate; whether `70` makes the synth resend everything. LED messages are accepted only after both `72` replies of the slot (as Clavia).
 6. **Flash.** The name-list chunk size and tags (the emulator sends 16 names per `16`); `17` -> `18 code` then `19`
    (the emulator sends code 0); `19`'s size counting the data bytes after the version byte (Clavia's ReadStream).
 7. **Realtime order.** A deliberate deviation: Clavia sends realtime messages (`40`, `2F`, dragging `43`) at once; the

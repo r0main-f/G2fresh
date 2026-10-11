@@ -21,8 +21,8 @@
     {
       "dir": "device->host",
       "endpoint": "interrupt_in",
-      "hex": "F2 01 01 03 3A 00 00 10 02 03 00 00 00 00 55 5F",
-      "annotation": "embedded message -- 0x3A multi-bit (VU/strip) data, slot B sess 3, start 0, 4 entries of 2 bytes. Byte order of each entry UNCERTAIN (Clavia reads a raw i386 ushort = little-endian; Verhue uses the 2nd byte as the value)",
+      "hex": "F2 01 01 03 3A 00 10 00 03 02 00 00 00 00 B0 61",
+      "annotation": "embedded message -- 0x3A multi-bit (VU/strip) data, slot B sess 3, start 0, 4 entries of 2 bytes, little-endian: Clavia reads a raw i386 ushort (CLedBlinkData::SetMultiLed @0x101e4a), and in every captured real-G2X 0x3A message the value is in the first byte of each word, the second 0 (re/notes/usb-crosscheck.md H4)",
       "provenance": "synthetic"
     },
     {

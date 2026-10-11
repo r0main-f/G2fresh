@@ -85,10 +85,9 @@ bool applyToSynth(SynthState& state, const Molecule& m);
 // LED decoding (§10). 0x39: 2 bits per LED, 4 per byte, LSB first, from `start`.
 void decodeLeds(const Blink& b, std::array<u8, kLedsPerSlot>& leds);
 std::vector<u8> encodeLeds(std::span<const u8> leds); // from index 0
-// 0x3A: one 16-bit word per entry from `start`. The byte order is an open
-// question (§14.4): Clavia reads a raw little-endian i386 ushort, Verhue takes
-// the second byte as the value. Read here as big-endian, like the golden
-// vectors' generator [I]; see the hardware checklist.
+// 0x3A: one 16-bit word per entry from `start`, little-endian: Clavia reads a
+// raw i386 ushort (CLedBlinkData::SetMultiLed @0x101e4a), and a real G2X puts
+// the value in each word's first byte (re/notes/usb-crosscheck.md H4).
 void decodeMeters(const Blink& b, std::array<std::uint16_t, kLedsPerSlot>& meters);
 std::vector<u8> encodeMeters(std::span<const std::uint16_t> meters);
 
