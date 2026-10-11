@@ -83,10 +83,14 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - The Live view keeps the G2X's layout but not its look. A mouse can hold only one button, so Option-click latches a button, a click on Shift holds it until the next button, and Shift on the computer keyboard holds Shift during a click.
 
 **Editor: what it shows**
-- G2fresh's own look: colours, the animated cables, an amber load threshold, the settings bar (its morph dials are focused by a click on their card), the drum preset menu, the white cable colour.
+- G2fresh's own look: colours, an amber load threshold, the settings bar (its morph dials are focused by a click on their card), the drum preset menu.
+- Animated cables: on by default (a choice made for G2fresh; the original's cables don't move). View > Animate Cables turns them off, and the choice is kept.
+- While a jack is held, its chain is highlighted as in the original, and the other cables are dimmed. What a drop will do is shown in the status line, not by the original's cursor shapes.
 - Morphed sliders in the Classic look and morphed increment/decrement buttons show no morph colour (the original colours them).
 - The morph dial's pop-up has no Global Assign (no global knobs yet).
-- Additions with no original equivalent: zoom, cable highlight and Delete, cable bend points (saved next to the patch, never in it), USB log redaction, MIDI output forwarding.
+- Additions with no original equivalent: zoom; a click on a cord highlights its chain, and Delete removes that chain; a cord's pop-up menu (Chain Colour, Delete Chain, bend points); cable bend points (saved next to the patch, never in it); USB log redaction; MIDI output forwarding.
+- The morph range shows in the status line while dragging. There are no F5/F7 overlays, no hint box, and no Ctrl+Up/Down range keys.
+- The parameter pop-up's Morph Assign item names the group it acts on.
 
 **Editor: what it does**
 - Unsaved changes: G2fresh asks "Discard changes?" before New, Open, Get Patch and Quit. The original never asks and drops unsaved patches.
@@ -98,6 +102,9 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
   - In the plugin, host automation during an audition edits your variation.
 - Paste drops the copy below the selection and renames default-named modules. The original places it with the mouse and keeps names.
 - Patches read from the synth are not repaired as files are, so G2fresh never sends deassignments back.
+- An unedited file saves byte for byte as it was loaded, including cable and morph lists in an order the original would have sorted. The first cable edit in an area rewrites its cable list in the original's order.
+- A loaded file with a cable loop (none is known) loses the cable closing the loop at the next cable edit; the original's cable tree would be corrupted instead.
+- A morph drag is one undo step; the original records it on release too, but sends the changes as you drag. On buttons whose maximum isn't 127, the original's morph-key toggle quirk is not reproduced.
 - Labels and names:
   - Clearing a label restores the panel's caption.
   - Labels and modules are renamed from the pop-up menu.
