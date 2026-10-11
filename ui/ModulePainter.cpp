@@ -1,5 +1,6 @@
 #include "ModulePainter.h"
 
+#include "ModernIcons.h"
 #include "PatchDocument.h"
 #include "SpecialControls.h"
 
@@ -629,26 +630,16 @@ void centredText(juce::Graphics& g, juce::Rectangle<float> r, const juce::String
     g.drawFittedText(text, r.toNearestInt(), juce::Justification::centred, 1, 0.75f);
 }
 
-// Draws a frame of an original 1-bit-style icon as a glyph: dark pixels in
-// `colour`, light background transparent, centred on `centre`.
-void drawGlyph(juce::Graphics& g, const juce::Image& strip, int frame, int frameWidth, juce::Point<float> centre,
-               juce::Colour colour)
+// The picture a control shows for `value` (G2fresh's own icons, see
+// ModernIcons.h), or nullptr if the control shows text.
+const icons::Option* pictureOf(const ModuleContext& c, const PanelElement& e, int value)
 {
-    if (!strip.isValid() || frameWidth <= 0)
-        return;
-    const int h = strip.getHeight();
-    const float x0 = std::round(centre.x - static_cast<float>(frameWidth) * 0.5f);
-    const float y0 = std::round(centre.y - static_cast<float>(h) * 0.5f);
-    g.setColour(colour);
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < frameWidth; ++x) {
-            const float b = strip.getPixelAt(frame * frameWidth + x, y).getBrightness();
-            if (b < 0.6f) {
-                g.setOpacity(b < 0.3f ? 1.0f : 0.55f);
-                g.fillRect(x0 + static_cast<float>(x), y0 + static_cast<float>(y), 1.0f, 1.0f);
-            }
-        }
-    g.setOpacity(1.0f);
+    const auto* def = c.module.def();
+    if (!def)
+        return nullptr;
+    const auto list = icons::options(*def, e);
+    return juce::isPositiveAndBelow(value, static_cast<int>(list.size())) ? &list[static_cast<std::size_t>(value)]
+                                                                           : nullptr;
 }
 
 void chevron(juce::Graphics& g, juce::Point<float> c, float size, float angle, juce::Colour colour)
@@ -733,11 +724,9 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         return;
     }
     if (e.kind == "Bitmap") {
-        if (e.image.isValid())
-            drawGlyph(g, e.image, 0, e.image.getWidth(),
-                      juce::Rectangle<float>(static_cast<float>(e.x), static_cast<float>(e.y),
-                                             static_cast<float>(e.image.getWidth()), static_cast<float>(e.image.getHeight())).getCentre(),
-                      kInk.withAlpha(0.85f));
+        // Signal-flow symbols and section titles, as our own vectors.
+        if (const auto* def = c.module.def())
+            icons::paintDecoration(g, *def, e, kSubtle, kInk.withAlpha(0.85f));
         return;
     }
     if (e.kind == "Symbol") {
@@ -841,11 +830,13 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         roundedButton(g, r, on, highlighted);
         if (e.kind == "ButtonText")
             drawMorphFace(g, r.reduced(1.0f), morphLook(c, e.codeRef), on, 2.5f);
-        if (e.image.isValid()) {
-            drawGlyph(g, e.image, 0, e.image.getWidth(), r.getCentre(), on ? juce::Colours::white : kInk);
-        } else {
+        const auto icon = c.module.def() ? icons::buttonIcon(*c.module.def(), e) : icons::Icon::None;
+        if (icon == icons::Icon::BlackKey) // KeyQuant's keyboard
+            icons::draw(g, icon, r.reduced(1.5f, 1.5f), on ? juce::Colours::white : kInk.withAlpha(0.85f));
+        else if (icon != icons::Icon::None)
+            icons::draw(g, icon, r.reduced(2.0f, 1.5f), on ? juce::Colours::white : kInk);
+        else
             centredText(g, r, captions(c, e).joinIntoString(","), on ? juce::Colours::white : kInk);
-        }
         return;
     }
     if (e.kind == "ButtonFlat" || e.kind == "LevelShift") {
@@ -853,8 +844,8 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         if (e.kind == "ButtonFlat")
             drawMorphFace(g, r.reduced(1.0f), morphLook(c, e.codeRef), false, 2.5f);
         const int val = v.value_or(0);
-        if (e.image.isValid() && e.imageCount > 0)
-            drawGlyph(g, e.image, juce::jlimit(0, e.imageCount - 1, val), e.imageWidth, r.getCentre(), kInk);
+        if (const auto* pic = pictureOf(c, e, val))
+            icons::drawOption(g, *pic, r.reduced(2.5f, 1.5f), kInk);
         else
             centredText(g, r, juce::isPositiveAndBelow(val, e.options.size()) ? e.options[val] : juce::String(val), kInk);
         return;
@@ -877,8 +868,8 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
                 g.setColour(kAccent);
                 g.fillRoundedRectangle(b.reduced(1.0f), 2.5f);
             }
-            if (e.image.isValid() && e.imageWidth > 0) {
-                drawGlyph(g, e.image, i, e.imageWidth, b.getCentre(), on ? juce::Colours::white : kInk);
+            if (const auto* pic = e.kind == "ButtonRadio" ? pictureOf(c, e, i) : nullptr) {
+                icons::drawOption(g, *pic, b.reduced(3.5f, 2.5f), on ? juce::Colours::white : kInk);
             } else if (i < texts.size()) {
                 centredText(g, b, texts[i], on ? juce::Colours::white : kInk, 9.0f);
             }
@@ -904,11 +895,15 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
     }
     if (e.kind == "PartSelector") {
         roundedButton(g, r, false, highlighted);
-        if (e.image.isValid() && e.imageCount > 0)
-            drawGlyph(g, e.image, juce::jlimit(0, e.imageCount - 1, v.value_or(0)), e.imageWidth,
-                      r.withTrimmedRight(8.0f).getCentre(), kInk);
-        else
-            centredText(g, r.withTrimmedRight(8.0f), valueText(c, e), kInk);
+        // A narrow selector is only its drop-down button: the graph beside
+        // it shows the value (FltLP, OscShpB...).
+        const auto face = r.withTrimmedRight(8.0f);
+        if (face.getWidth() >= 8.0f) {
+            if (const auto* pic = pictureOf(c, e, v.value_or(0)))
+                icons::drawOption(g, *pic, face.reduced(2.5f, 2.5f).withTrimmedLeft(0.5f), kInk);
+            else
+                centredText(g, face, valueText(c, e), kInk);
+        }
         chevron(g, {r.getRight() - 5.0f, r.getCentreY()}, 2.5f, 0.0f, kInk);
         return;
     }

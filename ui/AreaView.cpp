@@ -1,6 +1,7 @@
 #include "AreaView.h"
 
 #include "AssignMenus.h"
+#include "ModernIcons.h"
 #include "ModuleBrowser.h"
 #include "SpecialControls.h"
 
@@ -1295,11 +1296,21 @@ void AreaView::clickControl(const Hit& h)
         setValue(h, juce::jlimit(0, max, value + (up ? 1 : -1)), false);
     } else if (e.kind == "PartSelector") {
         juce::PopupMenu menu;
+        // Modern: G2fresh's own icons and names (ModernIcons.h).
+        const auto pictures = c.look == Look::Modern && m->def() ? icons::options(*m->def(), e)
+                                                                 : std::span<const icons::Option>();
         for (int i = 0; i <= max; ++i) {
             juce::PopupMenu::Item item;
             item.itemID = i + 1;
             item.isTicked = i == value;
-            if (e.image.isValid() && e.imageWidth > 0 && i < std::max(1, e.imageCount)) {
+            if (i < static_cast<int>(pictures.size())) {
+                const auto& o = pictures[static_cast<std::size_t>(i)];
+                item.image = icons::menuImage(o, findColour(juce::PopupMenu::textColourId));
+                item.text = o.label;
+                menu.addItem(std::move(item));
+                continue;
+            }
+            if (c.look == Look::Classic && e.image.isValid() && e.imageWidth > 0 && i < std::max(1, e.imageCount)) {
                 auto frame = e.image.getClippedImage({i * e.imageWidth, 0, e.imageWidth, e.image.getHeight()});
                 auto drawable = std::make_unique<juce::DrawableImage>();
                 drawable->setImage(frame);

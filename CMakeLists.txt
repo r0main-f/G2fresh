@@ -51,6 +51,7 @@ if(G2_BUILD_PLUGIN)
   set(G2_UI_SOURCES
     ${PROJECT_SOURCE_DIR}/ui/Skin.cpp
     ${PROJECT_SOURCE_DIR}/ui/ModulePainter.cpp
+    ${PROJECT_SOURCE_DIR}/ui/ModernIcons.cpp
     ${PROJECT_SOURCE_DIR}/ui/SpecialControls.cpp
     ${PROJECT_SOURCE_DIR}/ui/CableLayout.cpp
     ${PROJECT_SOURCE_DIR}/ui/SynthSync.cpp
