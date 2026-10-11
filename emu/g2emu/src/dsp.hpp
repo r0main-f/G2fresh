@@ -27,17 +27,25 @@
 
 namespace g2emu {
 
+class AdcSource;  // g2emu/machine.hpp
 class Dsp;
 
 // Serial line pair between two DSPs: the slots of transmitters txBase, txBase+1 of `up`'s ESAI `upEsai` arrive in
 // receivers 0 and 1 of `down`'s ESAI `downEsai`, whole frames at a time (the library's ESAI hands a frame over at
 // the end of its last transmit slot and takes one at the start of its first receive slot). A single-producer
 // single-consumer queue; the machine runs the DSPs in an order that keeps it filled.
+//
+// The line has a fixed delay: the receiver takes the frame the sender finished `prefill` frames earlier, by the two
+// DSPs' clocks (both on the machine's time). A frame that is not there in time is lost, as on a wire. (Until
+// 2026-10-11 the receiver took the frames in their order of arrival: every frame a sender missed while the OS
+// reprogrammed it made its line one frame longer for good, and the way from the ADCs to the DACs grew from 50 to
+// 150 frames over four patch uploads.)
 struct Link {
     static constexpr std::uint32_t Capacity = 256;  // frames
     static constexpr std::uint32_t Slots = 8;
     struct Frame {
         std::uint32_t slots = 0;
+        std::uint64_t number = 0;  // the sender's clock at the end of the frame, in frames
         dsp56k::TWord w[Slots][2];
     };
 
@@ -45,14 +53,14 @@ struct Link {
     int upEsai = 0, txBase = 0;
     Dsp* down = nullptr;
     int downEsai = 0;
-    std::uint32_t prefill = 0;  // empty frames queued when the line starts (the receiver's head start)
+    std::uint32_t prefill = 0;  // the line's delay in frames (the receiver's head start over the sender)
 
     std::array<Frame, Capacity> ring{};
     std::atomic<std::uint32_t> head{0}, tail{0};
     std::atomic<bool> active{false};
 
     // statistics
-    std::atomic<std::uint64_t> sent{0}, received{0}, dropped{0}, underruns{0}, overruns{0};
+    std::atomic<std::uint64_t> sent{0}, received{0}, dropped{0}, late{0}, underruns{0}, overruns{0};
 
     std::uint32_t size() const { return head.load(std::memory_order_acquire) - tail.load(std::memory_order_acquire); }
 };
@@ -100,7 +108,14 @@ public:
     void setDividers(std::uint32_t tx0, std::uint32_t rx0, std::uint32_t tx1, std::uint32_t rx1);
     // An unlinked ESAI transmitter (the DACs on the output DSP): its frames go here, 4 words per frame
     // (slot 0 TX0, slot 0 TX1, slot 1 TX0, slot 1 TX1).
-    void setSink(std::vector<std::int32_t>* sink, std::mutex* mutex) { sink_ = sink; sinkMutex_ = mutex; }
+    // `clock` gets the time of the last frame's last slot (this DSP's clock), under the same mutex.
+    void setSink(std::vector<std::int32_t>* sink, std::mutex* mutex, std::uint64_t* clock = nullptr)
+    {
+        sink_ = sink; sinkMutex_ = mutex; sinkClock_ = clock;
+    }
+    // An unlinked ESAI receiver (the ADCs on the first DSP): each of its frames is asked from `source`, 4 words in
+    // the sink's order, with the time of the frame's first slot (this DSP's clock). Without one: silence.
+    void setSource(AdcSource* source) { source_.store(source, std::memory_order_release); }
 
     // ---- statistics and debugging ----
     std::uint64_t txFrames(int esaiIndex) const { return txFrames_[esaiIndex & 1]; }
@@ -160,6 +175,8 @@ private:
     Link* out_[2] = {nullptr, nullptr};
     std::vector<std::int32_t>* sink_ = nullptr;
     std::mutex* sinkMutex_ = nullptr;
+    std::uint64_t* sinkClock_ = nullptr;
+    std::atomic<AdcSource*> source_{nullptr};
     std::uint64_t txFrames_[2] = {0, 0}, rxFrames_[2] = {0, 0};
 
     std::uint64_t skipped_ = 0;

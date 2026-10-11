@@ -1,5 +1,7 @@
 #include "dsp.hpp"
 
+#include "g2emu/machine.hpp"
+
 #include "dsp56kEmu/jitconfig.h"
 #include "dsp56kEmu/jittrampoline.h"
 
@@ -279,17 +281,38 @@ void Dsp::readRx(int i, Audio::RxFrame& f)
     f.resize(Audio::MaxSlotsPerFrame);
     for(std::uint32_t s = 0; s < Audio::MaxSlotsPerFrame; ++s) f[s].fill(0);
     Link* l = in_[i];
-    if(!l || !l->active.load(std::memory_order_acquire)) return;  // nothing sends yet, or the ADCs: silence
-    if(l->size() == 0)
+    if(!l)
     {
-        ++l->underruns;
+        // the ADCs: two slots of two words (RX0, RX1), as the DACs' frames in writeTx(); without a source, silence
+        if(auto* source = i == 0 ? source_.load(std::memory_order_acquire) : nullptr)
+        {
+            std::int32_t w[4] = {0, 0, 0, 0};
+            source->adcFrame(ClockAccess::lastClock(periphX_.getEsaiClock()), w);
+            for(std::uint32_t s = 0; s < 2; ++s)
+                for(std::uint32_t r = 0; r < 2; ++r) f[s][r] = TWord(w[s * 2 + r]) & 0xffffff;
+        }
         return;
     }
-    const auto t = l->tail.load(std::memory_order_relaxed);
-    const auto& fr = l->ring[t % Link::Capacity];
-    for(std::uint32_t s = 0; s < fr.slots; ++s) { f[s][0] = fr.w[s][0]; f[s][1] = fr.w[s][1]; }
-    l->tail.store(t + 1, std::memory_order_release);
-    ++l->received;
+    if(!l->active.load(std::memory_order_acquire)) return;  // nothing sends yet: silence
+    // the frame the sender finished `prefill` frames before this one starts; older ones came too late and are lost
+    const std::uint64_t now = ClockAccess::lastClock(periphX_.getEsaiClock()) / CyclesPerFrame;
+    auto t = l->tail.load(std::memory_order_relaxed);
+    const auto h = l->head.load(std::memory_order_acquire);
+    while(t != h && l->ring[t % Link::Capacity].number + l->prefill < now)
+    {
+        ++t;
+        ++l->late;
+    }
+    if(t != h && l->ring[t % Link::Capacity].number + l->prefill == now)
+    {
+        const auto& fr = l->ring[t % Link::Capacity];
+        for(std::uint32_t s = 0; s < fr.slots; ++s) { f[s][0] = fr.w[s][0]; f[s][1] = fr.w[s][1]; }
+        ++t;
+        ++l->received;
+    }
+    else
+        ++l->underruns;  // not sent (yet): silence
+    l->tail.store(t, std::memory_order_release);
 }
 
 void Dsp::writeTx(int i, const Audio::TxFrame& f)
@@ -306,6 +329,7 @@ void Dsp::writeTx(int i, const Audio::TxFrame& f)
                     w[s * 2 + t] = s < f.size() ? std::int32_t(f[s][t] << 8) >> 8 : 0;
             std::lock_guard lock(*sinkMutex_);
             sink_->insert(sink_->end(), w, w + 4);
+            if(sinkClock_) *sinkClock_ = ClockAccess::lastClock(periphX_.getEsaiClock());
         }
         return;
     }
@@ -320,16 +344,8 @@ void Dsp::writeTx(int i, const Audio::TxFrame& f)
     auto h = l->head.load(std::memory_order_relaxed);
     if(!l->active.load(std::memory_order_acquire))
     {
-        // the first frame since the receiver listens: start with `prefill` empty frames
+        // the first frame since the receiver listens
         l->tail.store(h);
-        for(std::uint32_t k = 0; k < l->prefill; ++k)
-        {
-            auto& fr = l->ring[h % Link::Capacity];
-            fr.slots = Link::Slots;
-            std::memset(fr.w, 0, sizeof(fr.w));
-            ++h;
-        }
-        l->head.store(h, std::memory_order_release);
         l->active.store(true, std::memory_order_release);
     }
     if(l->size() >= Link::Capacity - 1)
@@ -339,6 +355,7 @@ void Dsp::writeTx(int i, const Audio::TxFrame& f)
     }
     auto& fr = l->ring[h % Link::Capacity];
     fr.slots = std::min<std::uint32_t>(f.size(), Link::Slots);
+    fr.number = ClockAccess::lastClock(periphX_.getEsaiClock()) / CyclesPerFrame;
     for(std::uint32_t s = 0; s < fr.slots; ++s) { fr.w[s][0] = f[s][l->txBase]; fr.w[s][1] = f[s][l->txBase + 1]; }
     l->head.store(h + 1, std::memory_order_release);
     ++l->sent;

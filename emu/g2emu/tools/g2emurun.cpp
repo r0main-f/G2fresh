@@ -4,6 +4,10 @@
 //            [--note N@ON-OFF ...] [--midi N@ON-OFF[:CH] ...] [--wav OUT.wav] [--json OUT.json]
 //            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0..4|-1] [--skew N] [--dsp-lead N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
 //            [--no-usb] [--panel] [--panel-at T] [--press RAW@T[-T2]] [--turn RAW:N@T] [--adc POS:V@T] [--key K@T-T2[:MS]] [--var V@T]
+//            [--in N:HZ[:LEVEL] ...]
+//
+// The audio inputs (re/notes §3.11): --in puts a sine of HZ on input N (1-4), LEVEL of the ADCs' full scale (0.25
+// unless given: a signal of 1.0 in the patch), all along (not with --realtime).
 //
 // The front panel (re/notes §3.10): --panel prints the displays, the LEDs and the knobs' rings at the end (and
 // MIDI OUT), --panel-at T during the recording; --press a button by scan position, --turn an encoder by scan
@@ -190,6 +194,21 @@ struct PanelEvent {
 std::vector<PanelEvent> g_panelEvents;
 std::vector<std::pair<double, int>> g_variations;  // --var V@T: select variation V (1-8) of slot A over USB
 bool g_panelPrint = false;
+
+// --in N:HZ[:LEVEL]: a sine on audio input N (1-4) all along, LEVEL of the ADCs' full scale (0.25, a signal of 1.0
+// in the patch, unless given). The ADCs' frame holds inputs 1, 3, 2, 4 (re/notes §3.11).
+struct InputTones final : g2emu::AdcSource {
+    double hz[4] = {0, 0, 0, 0}, level[4] = {0, 0, 0, 0};
+    bool any = false;
+    void adcFrame(std::uint64_t clock, std::int32_t words[4]) override
+    {
+        static constexpr int word[4] = {0, 2, 1, 3};
+        const double t = double(clock) / g2emu::Machine::ClocksPerFrame / g2emu::Machine::FrameRate;
+        for(int n = 0; n < 4; ++n)
+            words[word[n]] = std::int32_t(std::lround(std::clamp(level[n], 0.0, 1.0) * 8388607.0 * std::sin(6.283185307179586 * hz[n] * t)));
+    }
+};
+InputTones g_inputs;
 
 void parsePanel(const std::string& opt, const std::string& s)
 {
@@ -522,6 +541,15 @@ int main(int argc, char** argv)
             g_variations.emplace_back(at, v);
         }
         else if(a == "--no-usb") noUsb = true;
+        else if(a == "--in")
+        {
+            int n = 0;
+            double hz = 0, level = 0.25;
+            if(std::sscanf(next().c_str(), "%d:%lf:%lf", &n, &hz, &level) < 2 || n < 1 || n > 4) throw std::runtime_error("bad --in");
+            g_inputs.hz[n - 1] = hz;
+            g_inputs.level[n - 1] = level;
+            g_inputs.any = true;
+        }
         else if(a == "--press" || a == "--turn" || a == "--adc" || a == "--key" || a == "--panel-at") parsePanel(a, next());
         else
         {
@@ -538,6 +566,7 @@ int main(int argc, char** argv)
     std::fprintf(stderr, "firmware: OS %d.%02d, CODE %zu bytes at %08x\n", fw.version / 100, fw.version % 100,
                  fw.code()->data.size(), fw.code()->address);
     g2emu::Machine m(fw, opt);
+    if(g_inputs.any) m.setAdcSource(&g_inputs);
     // --flash FILE: the synth's memory (the flash's patches, the EEPROM's settings: Machine::loadMemory) from a previous
     // run, saved again at the end
     if(!flashPath.empty() && std::filesystem::exists(flashPath))

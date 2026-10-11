@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <thread>
 #include <vector>
@@ -16,12 +17,24 @@ struct Runner::Thread {
 
 Runner::Runner(const Firmware& firmware) : Runner(firmware, Options{}) {}
 
-Runner::Runner(const Firmware& firmware, Options options)
-    : options_(options), machine_(std::make_unique<Machine>(firmware, options.machine))
+namespace {
+// room for the buffer, the largest read size (setReadSize) and a few chunks
+std::size_t ringFrames(const Runner::Options& o)
 {
-    // room for the buffer, the largest read size (setReadSize) and a few chunks
-    capacity_ = std::size_t(options_.bufferMs * Machine::FrameRate / 1000.0) + MaxReadSize + 8 * options_.chunkFrames + 1;
+    return std::size_t(o.bufferMs * Machine::FrameRate / 1000.0) + Runner::MaxReadSize + 8 * o.chunkFrames + 1;
+}
+} // namespace
+
+Runner::Runner(const Firmware& firmware, Options options)
+    : options_(options),
+      // the inputs wait for the ADCs over the same stretch, the input latency and one more read
+      input_(ringFrames(options) + MaxReadSize + inputLead() + 64, MaxReadSize),
+      machine_(std::make_unique<Machine>(firmware, options.machine))
+{
+    capacity_ = ringFrames(options_);
     ring_.assign(capacity_ * 4, 0.0f);
+    input_.setLatency(latencyFrames() + inputLead());
+    machine_->setAdcSource(&input_);
     if(!options_.flash.empty())
     {
         machine_->loadMemory(options_.flash);
@@ -68,6 +81,49 @@ std::size_t Runner::read(float* out, std::size_t frames)
     return n;
 }
 
+InputQueue::InputQueue(std::size_t capacity, std::size_t maxWrite)
+    : ring_(capacity * 4, 0.0f), capacity_(capacity), maxWrite_(maxWrite)
+{
+}
+
+void InputQueue::write(std::uint64_t at, const float* in, std::size_t frames)
+{
+    frames = std::min(frames, maxWrite_);
+    if(end_.load(std::memory_order_relaxed) != at) start_.store(at, std::memory_order_release);  // after a pause
+    for(std::size_t i = 0; i < frames; ++i)
+        std::memcpy(&ring_[((at + i) % capacity_) * 4], in + 4 * i, 4 * sizeof(float));
+    end_.store(at + frames, std::memory_order_release);
+}
+
+// The DACs send ring frame q at dacClock + q frames; the ADCs sample this frame while the DACs send ring frame
+// `now`, and take the input written `latency` frames before it. In the Runner that one is there: the machine runs
+// no further than latencyFrames() ahead of the reader, and A6 no more than inputLead() ahead of the machine.
+void InputQueue::adcFrame(std::uint64_t clock, std::int32_t words[4])
+{
+    const auto e = end_.load(std::memory_order_acquire);
+    const auto s = start_.load(std::memory_order_acquire);
+    const auto zero = dacClock_.load(std::memory_order_acquire);
+    if(e == s || zero == NoClock) return;  // write() is not in use, or the DACs do not run yet
+    const std::int64_t ticks = std::int64_t(clock) - zero;
+    const std::int64_t per = Machine::ClocksPerFrame;
+    const std::int64_t now = ticks >= 0 ? ticks / per : -((-ticks + per - 1) / per);
+    const std::int64_t at = now - std::int64_t(latency_.load(std::memory_order_relaxed));
+    if(at < std::int64_t(s)) return;  // from before the first write()
+    if(at >= std::int64_t(e))
+    {
+        missing_.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+    if(e - std::uint64_t(at) + maxWrite_ > capacity_) return;  // the machine fell far behind: written over since
+    const float* f = &ring_[(std::uint64_t(at) % capacity_) * 4];
+    for(int k = 0; k < 4; ++k)
+    {
+        // 24-bit words; the converters clip at their full scale
+        const float v = std::clamp(f[k], -1.0f, 1.0f) * 8388607.0f;
+        words[k] = std::int32_t(std::lrintf(v));
+    }
+}
+
 void Runner::loop()
 {
     using Clock = std::chrono::steady_clock;
@@ -107,6 +163,8 @@ void Runner::loop()
         written_.store(w, std::memory_order_release);  // room: it only runs below the target level
         // ring frame i was made at machine frame i + offset (the DACs' pipeline is constant)
         frameOffset_.store(std::int64_t(machine_->frame()) - std::int64_t(w), std::memory_order_release);
+        // for the inputs, to the DSP clock: the last frame handed out, ring frame w - 1, left the DACs at dacClock()
+        if(frames) input_.setDacClock(std::int64_t(machine_->dacClock()) - std::int64_t(w - 1) * std::int64_t(Machine::ClocksPerFrame));
         busyFrames += frames;
         const double chunkWall = std::chrono::duration<double>(Clock::now() - chunkStart).count();
         busyWall += chunkWall;
@@ -151,6 +209,7 @@ Runner::Stats Runner::stats() const
     Stats s;
     s.framesRead = read_.load();
     s.framesMissing = missing_.load();
+    s.inputMissing = input_.missing();
     s.speed = speed_.load();
     s.longestChunkMs = longestChunk_.load() * 1e3;
     return s;

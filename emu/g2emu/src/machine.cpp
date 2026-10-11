@@ -108,6 +108,8 @@ struct Machine::Impl final : coldfire::Bus {
     std::array<std::unique_ptr<Link>, 8> links;
     std::array<int, 4> chain{3, 2, 1, 0};  // A6 (clock master, ADCs) -> A5 -> A4 -> A3 (DACs) [§3.7.3]
     std::vector<std::int32_t> dac;          // the DACs' words, 4 per frame
+    std::uint64_t dacSent = 0;              // when the last of them was sent (A3's clock)
+    std::uint64_t dacClock = 0;             // the same for the last frame run() handed out
     std::mutex dacMutex;
 
     // threads = N > 0: N DSP threads, each running a stretch of the chain (in chain order) up to `horizon`; each
@@ -360,7 +362,7 @@ struct Machine::Impl final : coldfire::Bus {
             link(chain[k], 1, 2, chain[k + 1], 1, opt.chainPrefill);
         }
         link(last, 1, 2, first, 1, opt.ringPrefill);
-        dsps[std::size_t(last)]->setSink(&dac, &dacMutex);
+        dsps[std::size_t(last)]->setSink(&dac, &dacMutex, &dacSent);
     }
 
     // ---- time ----
@@ -920,6 +922,7 @@ struct Machine::Impl final : coldfire::Bus {
         {
             std::lock_guard lock(dacMutex);
             words.swap(dac);
+            if(!words.empty()) dacClock = dacSent;
         }
         if(out)
             for(auto w : words) out->push_back(float(w) / 8388608.0f);
@@ -1048,6 +1051,11 @@ Machine::~Machine() = default;
 
 void Machine::run(std::uint32_t frames, std::vector<float>* out) { impl_->run(frames, out); }
 std::uint64_t Machine::frame() const { return impl_->t / Dsp::CyclesPerFrame; }
+
+static_assert(Machine::ClocksPerFrame == Dsp::CyclesPerFrame);
+
+void Machine::setAdcSource(AdcSource* source) { impl_->dsps[std::size_t(impl_->chain.front())]->setSource(source); }
+std::uint64_t Machine::dacClock() const { return impl_->dacClock; }
 
 void Machine::plugUsb()
 {

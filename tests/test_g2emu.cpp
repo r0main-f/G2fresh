@@ -1947,3 +1947,605 @@ TEST_CASE("The user's G2 OS: the Synth Settings window's fields reach the OS and
     CHECK(back.cent == 12);
     CHECK(m.stats().exceptions == 0);
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// The audio inputs (re/notes §3.11)
+
+namespace {
+
+constexpr double kTwoPi = 2 * 3.14159265358979323846;
+
+// A patch put together module by module (voice area), by the names of the module database.
+struct PatchBuilder {
+    g2::Patch patch = g2::Patch::makeDefault();
+    g2::u8 add(const char* name, g2::u8 col, g2::u8 row = 0)
+    {
+        for(const auto& m : g2::db::modules())
+            if(m.kind == g2::db::ModuleKind::Module && std::string(m.shortName) == name)
+                return g2::edit::addModule(patch, g2::Location::Va, m.typeId, col, row);
+        throw std::runtime_error(name);
+    }
+    g2::u8 paramIndex(g2::u8 module, const char* name) const
+    {
+        const auto* def = patch.va.find(module)->def();
+        for(std::size_t i = 0; i < def->params.size(); ++i)
+            if(std::string(def->params[i].name) == name) return g2::u8(i);
+        throw std::runtime_error(name);
+    }
+    void param(g2::u8 module, const char* name, g2::u8 value)
+    {
+        for(g2::u8 v = 0; v < g2::kFileVariations; ++v)
+            g2::edit::setParam(patch, g2::Location::Va, module, paramIndex(module, name), v, value);
+    }
+    void cable(g2::u8 from, g2::u8 output, g2::u8 to, g2::u8 input)
+    {
+        g2::edit::connect(patch, g2::Location::Va, {from, output, true}, {to, input, false});
+    }
+    g2::Patch done()
+    {
+        for(g2::u8 v = 0; v < g2::kFileVariations; ++v) g2::edit::setSetting(patch, g2::edit::Setting::Gain, 0, v, 127);
+        g2::uprate::update(patch, g2::Location::Va);
+        return patch;
+    }
+};
+
+// What the ADCs give: a level and a sine per word (inputs 1, 3, 2, 4; 1 = the ADCs' full scale), the sine by each
+// frame's own time, so that the delay to the DACs can be read off the phase.
+struct ToneSource final : AdcSource {
+    double hz[4] = {0, 0, 0, 0}, amplitude[4] = {0, 0, 0, 0}, level[4] = {0, 0, 0, 0};
+    std::uint64_t frames = 0, last = 0, irregular = 0;  // irregular: frames not one frame after the one before
+    void adcFrame(std::uint64_t clock, std::int32_t words[4]) override
+    {
+        if(frames && clock != last + Machine::ClocksPerFrame) ++irregular;
+        last = clock;
+        ++frames;
+        const double t = double(clock) / Machine::ClocksPerFrame / Machine::FrameRate;
+        for(int k = 0; k < 4; ++k)
+            words[k] = std::int32_t(std::lround(8388607.0 * (level[k] + amplitude[k] * std::sin(kTwoPi * hz[k] * t))));
+    }
+    void silence()
+    {
+        for(int k = 0; k < 4; ++k) hz[k] = amplitude[k] = level[k] = 0;
+    }
+};
+
+// The amplitude and phase (radians, of a sine) of `hz` in word `word` of the frames `out`, the first of which the
+// DACs sent at time `clock0` (DSP clocks).
+struct Tone {
+    double amplitude = 0, phase = 0;
+};
+Tone tone(const std::vector<float>& out, std::size_t word, double hz, std::uint64_t clock0)
+{
+    double re = 0, im = 0;
+    const std::size_t n = out.size() / 4;
+    for(std::size_t i = 0; i < n; ++i)
+    {
+        const double w = kTwoPi * hz * (double(clock0) / Machine::ClocksPerFrame + double(i)) / Machine::FrameRate;
+        re += out[4 * i + word] * std::sin(w);
+        im += out[4 * i + word] * std::cos(w);
+    }
+    return {2 * std::hypot(re, im) / double(n), std::atan2(im, re)};
+}
+
+// What is left of word `word` without that sine, relative to it (power): 0 for a clean sine without gaps.
+double residue(const std::vector<float>& out, std::size_t word, double hz, std::uint64_t clock0)
+{
+    const auto t = tone(out, word, hz, clock0);
+    double rest = 0, all = 0;
+    for(std::size_t i = 0; i < out.size() / 4; ++i)
+    {
+        const double w = kTwoPi * hz * (double(clock0) / Machine::ClocksPerFrame + double(i)) / Machine::FrameRate;
+        const double d = out[4 * i + word] - t.amplitude * std::sin(w + t.phase);
+        rest += d * d;
+        all += double(out[4 * i + word]) * out[4 * i + word];
+    }
+    return all > 0 ? rest / all : 1.0;
+}
+
+// The power of word `word` between two frequencies (a plain Fourier sum every 50 Hz over the first 9600 frames).
+double band(const std::vector<float>& out, std::size_t word, double from, double to)
+{
+    const std::size_t n = std::min<std::size_t>(out.size() / 4, 9600);
+    double power = 0;
+    for(double hz = from; hz <= to; hz += 50)
+    {
+        double re = 0, im = 0;
+        for(std::size_t i = 0; i < n; ++i)
+        {
+            const double w = kTwoPi * hz * double(i) / Machine::FrameRate;
+            re += out[4 * i + word] * std::cos(w);
+            im += out[4 * i + word] * std::sin(w);
+        }
+        power += (re * re + im * im) / (double(n) * double(n));
+    }
+    return power;
+}
+
+// A G2 and our client, its ADCs fed by `source`; everything on this thread (deterministic).
+struct InputRig {
+    ToneSource source;
+    Machine m;
+    MachineTransport transport{m};
+    g2::proto::ManualClock clock;
+    g2::proto::Client client{transport, clock};
+    explicit InputRig(const Firmware& fw) : m(fw)
+    {
+        m.setAdcSource(&source);
+        m.run(Machine::FrameRate * 2);
+        m.plugUsb();
+        while(!client.synced() && m.seconds() < 4) step();
+    }
+    void step()
+    {
+        m.run(Machine::FrameRate / 1000);
+        clock.set(std::uint64_t(m.seconds() * 1000));
+        client.tick();
+    }
+    void run(double s)
+    {
+        const double end = m.seconds() + s;
+        while(m.seconds() < end) step();
+    }
+    bool upload(const g2::Patch& patch)
+    {
+        client.sendPerformance(g2::Performance::playing(patch, "In"), "In");
+        const double end = m.seconds() + 4;
+        while(!client.idle() && m.seconds() < end) step();
+        run(0.5);  // the output ramps up after an upload
+        return client.idle();
+    }
+    void param(g2::u8 module, g2::u8 index, g2::u8 value)
+    {
+        client.setParam(0, g2::Location::Va, module, index, value, 0);
+        run(0.1);
+    }
+    // `seconds` of the DACs' frames; `clock0`: when they sent the first one.
+    std::vector<float> record(double seconds, std::uint64_t& clock0)
+    {
+        std::vector<float> out;
+        m.run(std::uint32_t(seconds * Machine::FrameRate), &out);
+        clock0 = m.dacClock() - (out.size() / 4 - 1) * Machine::ClocksPerFrame;
+        return out;
+    }
+    // The delay in frames of a tone that comes out inverted with phase `phase` (as tone() gives it).
+    static double delayOf(double phase, double hz)
+    {
+        const double period = Machine::FrameRate / hz;
+        double d = (kTwoPi / 2 - phase) / kTwoPi * period;
+        while(d < 0) d += period;
+        while(d >= period) d -= period;
+        return d;
+    }
+};
+
+} // namespace
+
+TEST_CASE("InputQueue: an input frame reaches the ADCs a fixed time after the DACs send the frame it was written with", "[g2emu]")
+{
+    InputQueue q(1024, 256);
+    const std::int64_t per = Machine::ClocksPerFrame;
+    std::int32_t w[4];
+    auto take = [&](std::int64_t clock) {
+        std::fill(w, w + 4, -1);
+        std::int32_t words[4] = {0, 0, 0, 0};  // as Dsp::readRx hands them over
+        q.adcFrame(std::uint64_t(clock), words);
+        std::copy(words, words + 4, w);
+        return w[0];
+    };
+    // frames that say where they were written: word k of ring frame p is 4 p + k + 1 (of 2^23 - 1)
+    auto write = [&](std::uint64_t at, std::size_t frames) {
+        std::vector<float> in(4 * frames);
+        for(std::size_t i = 0; i < frames; ++i)
+            for(std::size_t k = 0; k < 4; ++k) in[4 * i + k] = float(4 * (at + i) + k + 1) / 8388607.0f;
+        q.write(at, in.data(), frames);
+    };
+    // nothing written, and the DACs do not run yet: silence, and nothing is missing
+    CHECK(take(100 * per) == 0);
+    write(0, 256);
+    CHECK(take(100 * per) == 0);
+    CHECK(q.missing() == 0);
+
+    // The DACs send ring frame 0 at `zero` (before the machine's time 0 here); the ADCs take ring frame p's input
+    // 100 frames after the DACs send ring frame p, wherever in that frame the ADCs' own frame starts
+    const std::int64_t zero = -5 * per + 200;
+    q.setDacClock(zero);
+    q.setLatency(100);
+    CHECK(q.latency() == 100);
+    CHECK(take(zero + 100 * per) == 1);
+    CHECK(w[1] == 2);
+    CHECK(w[2] == 3);
+    CHECK(w[3] == 4);
+    CHECK(take(zero + 100 * per + per - 1) == 1);
+    CHECK(take(zero + 101 * per) == 5);
+    CHECK(take(zero + 355 * per) == 4 * 255 + 1);
+    // before the first frame written: silence
+    CHECK(take(zero + 100 * per - 1) == 0);
+    CHECK(take(zero) == 0);
+    CHECK(q.missing() == 0);
+    // a frame that is not written yet (the latency is too short for this reader): silence, counted
+    CHECK(take(zero + 356 * per) == 0);
+    CHECK(q.missing() == 1);
+    write(256, 100);
+    CHECK(take(zero + 356 * per) == 4 * 256 + 1);
+    // a longer latency takes an earlier frame at the same time
+    q.setLatency(150);
+    CHECK(take(zero + 356 * per) == 4 * 206 + 1);
+    q.setLatency(100);
+
+    // after a pause (a write that does not follow the last one) nothing older is taken: the ring holds old frames there
+    write(1000, 256);
+    CHECK(take(zero + 1099 * per) == 0);
+    CHECK(take(zero + 400 * per) == 0);
+    CHECK(take(zero + 1100 * per) == 4 * 1000 + 1);
+    CHECK(q.missing() == 1);
+    // a frame so old that the next write may write over it is not taken (the machine fell behind the reader)
+    write(1256, 256);
+    write(1512, 256);
+    write(1768, 232);  // written: ring frames 1000 to 1999, in a ring of 1024 whose next write brings up to 256
+    CHECK(take(zero + (1300 + 100) * per) == 4 * 1300 + 1);
+    CHECK(take(zero + (1232 + 100) * per) == 4 * 1232 + 1);
+    CHECK(take(zero + (1231 + 100) * per) == 0);
+    CHECK(q.missing() == 1);
+
+    // the converters clip at their full scale
+    const float loud[8] = {2.0f, -3.0f, 1.0f, -1.0f, 0.5f, -0.5f, 0.0f, 1e-9f};
+    q.write(2000, loud, 2);
+    CHECK(take(zero + 2100 * per) == 8388607);
+    CHECK(w[1] == -8388607);
+    CHECK(w[2] == 8388607);
+    CHECK(w[3] == -8388607);
+    CHECK(take(zero + 2101 * per) == 4194304);  // 0.5 * (2^23 - 1), rounded to even
+    CHECK(w[1] == -4194304);
+    CHECK(w[2] == 0);
+    CHECK(w[3] == 0);
+}
+
+TEST_CASE("The user's G2 OS: the audio inputs through the In modules, and the In 1 level LEDs", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    auto& src = g2.source;
+    // the DACs' words in the order of Machine::run(): Out 1, 3, 2, 4; the ADCs' the same way: In 1, 3, 2, 4
+    constexpr std::size_t Out1 = 0, Out2 = 2, Out3 = 1, Out4 = 3;
+    constexpr int In1 = 0, In2 = 2, In3 = 1, In4 = 3;
+    // An In module (Pad 0 dB) into an Out module (0 dB), the Master Level knob all the way up: the DACs' word is
+    // minus half the ADCs' (0.4987: the OS's level table ends at 0.997). In signal units (an oscillator: 1.0) the
+    // ADCs' full scale is 4.0 and the DACs' 8.0.
+    constexpr double Through = 0.4987;
+
+    // ---- 2-In (In 1/2) -> 2-Out (Out 1/2) ----
+    PatchBuilder two;
+    const auto in2 = two.add("2-In", 0), out2 = two.add("2-Out", 1);
+    two.cable(in2, 0, out2, 0);
+    two.cable(in2, 1, out2, 1);
+    const auto source = two.paramIndex(in2, "Source"), pad = two.paramIndex(in2, "Pad"), onOff = two.paramIndex(in2, "On/Off");
+    REQUIRE(g2.upload(two.done()));
+    const double hz[4] = {1000, 3000, 2000, 4000};  // by word: In 1 1 kHz, In 2 2 kHz, In 3 3 kHz, In 4 4 kHz
+    for(int k = 0; k < 4; ++k) src.hz[k] = hz[k];
+    src.amplitude[In1] = 0.125;
+    src.amplitude[In2] = 0.0625;
+    src.amplitude[In3] = src.amplitude[In4] = 0.125;
+    g2.run(0.1);
+    const auto irregular = src.irregular;
+    const auto underruns = g2.m.stats().linkUnderruns;
+    std::uint64_t clock0 = 0;
+    auto out = g2.record(0.25, clock0);
+    REQUIRE(out.size() / 4 + 2 >= Machine::FrameRate / 4);
+    // no frame of the ADCs or between the DSPs was late or lost meanwhile
+    CHECK(src.irregular == irregular);
+    CHECK(g2.m.stats().linkUnderruns == underruns);
+    const auto left = tone(out, Out1, 1000, clock0), right = tone(out, Out2, 2000, clock0);
+    CHECK_THAT(left.amplitude, Catch::Matchers::WithinRel(0.125 * Through, 0.01));
+    CHECK_THAT(right.amplitude, Catch::Matchers::WithinRel(0.0625 * Through, 0.01));
+    CHECK(tone(out, Out1, 2000, clock0).amplitude < 1e-5);
+    CHECK(tone(out, Out1, 3000, clock0).amplitude < 1e-5);
+    CHECK(tone(out, Out2, 1000, clock0).amplitude < 1e-5);
+    CHECK(tone(out, Out2, 4000, clock0).amplitude < 1e-5);
+    // a clean sine, without gaps
+    CHECK(residue(out, Out1, 1000, clock0) < 1e-6);
+    CHECK(residue(out, Out2, 2000, clock0) < 1e-6);
+    // Out 3/4 stay silent
+    for(std::size_t f = 0; f < out.size() / 4; ++f)
+    {
+        REQUIRE(std::fabs(out[4 * f + Out3]) < 1e-6f);
+        REQUIRE(std::fabs(out[4 * f + Out4]) < 1e-6f);
+    }
+    // The way from the ADCs to the DACs: inverted (the DACs' words are, §3.9) and about 20 frames late, the same on
+    // both channels: 2 frames in each DSP and the 3 lines between them (the board's own figure is not known).
+    const double delay = InputRig::delayOf(left.phase, 1000);
+    INFO("ADCs to DACs: " << delay << " frames");
+    CHECK(delay > 17);
+    CHECK(delay < 23);
+    CHECK_THAT(std::fmod(delay, 48.0), Catch::Matchers::WithinAbs(InputRig::delayOf(right.phase, 2000), 0.01));
+
+    // ---- Source In 3/4 ----
+    g2.param(in2, source, 1);
+    out = g2.record(0.1, clock0);
+    CHECK_THAT(tone(out, Out1, 3000, clock0).amplitude, Catch::Matchers::WithinRel(0.125 * Through, 0.01));
+    CHECK_THAT(tone(out, Out2, 4000, clock0).amplitude, Catch::Matchers::WithinRel(0.125 * Through, 0.01));
+    CHECK(tone(out, Out1, 1000, clock0).amplitude < 1e-5);
+    g2.param(in2, source, 0);
+
+    // ---- Pad: +6 dB, 0 dB, -6 dB, -12 dB ----
+    const double gains[4] = {2, 1, 0.5, 0.25};
+    for(g2::u8 p = 0; p < 4; ++p)
+    {
+        g2.param(in2, pad, p);
+        out = g2.record(0.1, clock0);
+        INFO("Pad " << int(p));
+        CHECK_THAT(tone(out, Out1, 1000, clock0).amplitude, Catch::Matchers::WithinRel(0.125 * Through * gains[p], 0.01));
+    }
+    g2.param(in2, pad, 1);
+
+    // ---- the ADCs' full scale passes unclipped (it is a signal of 4.0; the Out module has room up to 8.0) ----
+    src.amplitude[In1] = 1.0;
+    g2.run(0.05);
+    out = g2.record(0.1, clock0);
+    CHECK_THAT(tone(out, Out1, 1000, clock0).amplitude, Catch::Matchers::WithinRel(Through, 0.01));
+    CHECK(residue(out, Out1, 1000, clock0) < 1e-6);
+    src.amplitude[In1] = 0.125;
+
+    // ---- the module switched off ----
+    g2.param(in2, onOff, 0);
+    out = g2.record(0.1, clock0);
+    CHECK(tone(out, Out1, 1000, clock0).amplitude < 1e-5);
+
+    // ---- 4-In -> 4-Out: each input on its own output, as late as before (the lines' delay is fixed) ----
+    PatchBuilder four;
+    const auto in4 = four.add("4-In", 0), out4 = four.add("4-Out", 1);
+    for(g2::u8 k = 0; k < 4; ++k) four.cable(in4, k, out4, k);
+    REQUIRE(g2.upload(four.done()));
+    src.amplitude[In2] = 0.125;
+    g2.run(0.1);
+    out = g2.record(0.25, clock0);
+    const std::size_t outs[4] = {Out1, Out3, Out2, Out4};  // the output of the input on word k
+    for(int k = 0; k < 4; ++k)
+        for(int j = 0; j < 4; ++j)
+        {
+            INFO("the input at " << hz[j] << " Hz on the output whose own is " << hz[k] << " Hz");
+            const double a = tone(out, outs[k], hz[j], clock0).amplitude;
+            if(j == k) CHECK_THAT(a, Catch::Matchers::WithinRel(0.125 * Through, 0.01));
+            else CHECK(a < 1e-5);
+        }
+    CHECK_THAT(InputRig::delayOf(tone(out, Out1, 1000, clock0).phase, 1000), Catch::Matchers::WithinAbs(delay, 0.01));
+
+    // ---- the In 1 level LEDs: -20, -12 and 0 dB at 0.1, 0.25 and 0.89 of the ADC's full scale, either sign ----
+    // (the OS reads one sample of In 1 at a time, takes its magnitude and lets the LEDs fall back one by one; the
+    // 0 dB LED stays on for 128 of its readings [C 0x3006bd98])
+    src.silence();
+    g2.run(2.5);
+    auto leds = [&](double level) {
+        src.level[In1] = level;
+        g2.run(level == 0 ? 2.5 : 0.3);
+        const auto p = g2.m.panel();
+        return std::array<bool, 3>{p.led(PanelLed::Mic20), p.led(PanelLed::Mic12), p.led(PanelLed::Mic0)};
+    };
+    CHECK(leds(0.05) == std::array<bool, 3>{false, false, false});
+    CHECK(leds(0.15) == std::array<bool, 3>{true, false, false});
+    CHECK(leds(0.4) == std::array<bool, 3>{true, true, false});
+    CHECK(leds(0.95) == std::array<bool, 3>{true, true, true});
+    CHECK(leds(0) == std::array<bool, 3>{false, false, false});
+    CHECK(leds(-0.15) == std::array<bool, 3>{true, false, false});
+    // the other inputs do not show
+    src.silence();
+    src.level[In2] = src.level[In3] = src.level[In4] = 0.95;
+    g2.run(2.5);
+    CHECK_FALSE(g2.m.panel().led(PanelLed::Mic20));
+    CHECK(g2.m.stats().exceptions == 0);
+}
+
+TEST_CASE("The user's G2 OS: a Vocoder driven by an audio input", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    // Noise (the synthesizer input) through a Vocoder whose analysis input (Ctrl) is In 1: the noise comes out in
+    // the bands where the input has sound, and not at all while the input is silent.
+    PatchBuilder b;
+    const auto in = b.add("2-In", 0), noise = b.add("Noise", 1), vocoder = b.add("Vocoder", 2), out = b.add("2-Out", 3);
+    b.cable(in, 0, vocoder, 0);     // Ctrl
+    b.cable(noise, 0, vocoder, 1);  // In
+    b.cable(vocoder, 0, out, 0);
+    b.cable(vocoder, 0, out, 1);
+    REQUIRE(g2.upload(b.done()));
+    auto listen = [&](double hz, double amplitude) {
+        g2.source.hz[0] = hz;
+        g2.source.amplitude[0] = amplitude;
+        g2.run(0.3);  // the envelope followers settle
+        std::uint64_t clock0 = 0;
+        return g2.record(0.25, clock0);
+    };
+    auto power = [](const std::vector<float>& o) {
+        double sum = 0;
+        for(std::size_t f = 0; f < o.size() / 4; ++f) sum += double(o[4 * f]) * o[4 * f];
+        return sum / double(std::max<std::size_t>(1, o.size() / 4));
+    };
+    const auto silent = listen(0, 0);
+    // In 1 at a quarter of the ADC's full scale: a signal of 1.0, as an oscillator's
+    const auto low = listen(500, 0.25);
+    const auto high = listen(4000, 0.25);
+    INFO("output power: input silent " << power(silent) << ", 500 Hz " << power(low) << ", 4 kHz " << power(high));
+    CHECK(power(low) > 1e-7);
+    CHECK(power(high) > 1e-7);
+    CHECK(power(silent) < 0.001 * power(low));
+    const double lowLow = band(low, 0, 300, 800), lowHigh = band(low, 0, 3000, 5500);
+    const double highLow = band(high, 0, 300, 800), highHigh = band(high, 0, 3000, 5500);
+    INFO("with 500 Hz: 300-800 Hz " << lowLow << ", 3-5.5 kHz " << lowHigh << "; with 4 kHz: " << highLow << ", " << highHigh);
+    CHECK(lowLow > 10 * lowHigh);
+    CHECK(highHigh > 10 * highLow);
+    CHECK(g2.m.stats().exceptions == 0);
+}
+
+TEST_CASE("The user's G2 OS in real time: audio inputs on the reader's timeline (Runner::write)", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    Runner runner(fw);  // as the plugin runs it: the DSPs on threads of their own
+    auto link = emulatedG2Link(runner.machine());
+    // As an audio thread: blocks of N frames in, N frames out. It waits for the machine instead of the clock (as the
+    // plugin does offline), so that no frame is missing and every frame can be checked.
+    constexpr std::size_t N = 256;
+    std::vector<float> in(4 * N, 0.0f), out(4 * N), heard;
+    std::uint64_t position = 0;
+    double amplitude = 0;
+    bool keep = false;
+    using Clock = std::chrono::steady_clock;
+    const auto start = Clock::now();
+    auto within = [&](double s) { return std::chrono::duration<double>(Clock::now() - start).count() < s; };
+    auto block = [&] {
+        while(runner.available() < N && within(120)) std::this_thread::sleep_for(std::chrono::microseconds(200));
+        for(std::size_t i = 0; i < N; ++i)
+        {
+            // In 1 (word 0): 1 kHz; In 2 (word 2): 1.5 kHz at half the level
+            in[4 * i] = float(amplitude * std::sin(kTwoPi * 1000.0 * double(position + i) / Machine::FrameRate));
+            in[4 * i + 2] = float(0.5 * amplitude * std::sin(kTwoPi * 1500.0 * double(position + i) / Machine::FrameRate));
+        }
+        runner.write(in.data(), N);
+        runner.read(out.data(), N);
+        position += N;
+        if(keep) heard.insert(heard.end(), out.begin(), out.end());
+        link->tick();
+    };
+    while(!link->synced() && within(20)) block();
+    REQUIRE(link->synced());
+    PatchBuilder b;
+    const auto in2 = b.add("2-In", 0), out2 = b.add("2-Out", 1);
+    b.cable(in2, 0, out2, 0);
+    b.cable(in2, 1, out2, 1);
+    link->sendPerformance(g2::Performance::playing(b.done(), "In"), "In");
+    while(!link->client().idle() && within(30)) block();
+    REQUIRE(link->client().idle());
+    for(int i = 0; i < 200; ++i) block();  // the output ramps up after an upload
+
+    // The tone starts with a block: it comes out inputLatencyFrames() later, plus the G2's own way from its ADCs
+    // to its DACs (about 20 frames).
+    keep = true;
+    amplitude = 0.25;
+    const std::uint64_t started = position;
+    for(int i = 0; i < 150; ++i) block();
+    REQUIRE(runner.stats().framesMissing == 0);
+    CHECK(runner.stats().inputMissing == 0);  // every frame's input was there when the ADCs took it
+    std::size_t onset = 0;
+    while(onset < heard.size() / 4 && std::fabs(heard[4 * onset]) < 1e-5f) ++onset;
+    const double way = double(onset) - double(runner.inputLatencyFrames());
+    INFO("the tone came out " << onset << " frames after it went in; input latency " << runner.inputLatencyFrames()
+                              << " frames (of which the reader's " << runner.latencyFrames() << ")");
+    CHECK(runner.inputLatencyFrames() > runner.latencyFrames());
+    CHECK(way > 16);
+    CHECK(way < 24);
+    // steady from there on: both tones at their levels (the DACs' word is minus 0.4987 of the ADCs'), without gaps,
+    // and as late as the start was
+    const std::vector<float> steady(heard.begin() + std::ptrdiff_t(4 * (onset + 2000)), heard.end());
+    const std::uint64_t at = (started + onset + 2000) * std::uint64_t(Machine::ClocksPerFrame);  // its first frame, on the input's time
+    const auto left = tone(steady, 0, 1000, at), right = tone(steady, 2, 1500, at);
+    CHECK_THAT(left.amplitude, Catch::Matchers::WithinRel(0.25 * 0.4987, 0.01));
+    CHECK_THAT(right.amplitude, Catch::Matchers::WithinRel(0.125 * 0.4987, 0.01));
+    CHECK(residue(steady, 0, 1000, at) < 1e-6);
+    CHECK(residue(steady, 2, 1500, at) < 1e-6);
+    const double delay = InputRig::delayOf(left.phase, 1000);  // modulo the tone's period, 96 frames
+    INFO("by the phase: " << delay << " frames (modulo 96)");
+    CHECK(std::fabs(std::remainder(delay - double(onset), 96.0)) < 1.5);
+
+    // Beyond the ADCs' full scale the converters clip: an input of twice that comes out flat at 0.4987
+    heard.clear();
+    amplitude = 2.0;
+    for(int i = 0; i < 40; ++i) block();
+    float peak = 0;
+    std::size_t flat = 0;
+    for(std::size_t f = heard.size() / 8; f < heard.size() / 4; ++f)
+    {
+        peak = std::max(peak, std::fabs(heard[4 * f]));
+        if(std::fabs(heard[4 * f]) > 0.4987f * 0.999f) ++flat;
+    }
+    CHECK_THAT(peak, Catch::Matchers::WithinRel(0.4987, 0.005));
+    CHECK(flat > heard.size() / 8 / 2);  // a sine of twice the full scale is beyond it two thirds of the time
+    CHECK(runner.stats().inputMissing == 0);
+    runner.stop();
+    CHECK(runner.machine().stats().exceptions == 0);
+    CHECK(runner.machine().stats().dspsWild == 0);
+}
+
+TEST_CASE("The user's G2 OS: a bus and an FX send cross the lines between the DSPs", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    // A 440 Hz sine to Bus 1/2 and a 2-In (Bus 1/2) to Out 1/2: once around the ring (§3.7.2). An 880 Hz sine to
+    // FX 1/2 and, in the FX area, an Fx-In to Out 3/4: down the chain.
+    PatchBuilder b;
+    const auto osc = b.add("OscA", 0), toBus = b.add("2-Out", 1), fromBus = b.add("2-In", 2), out = b.add("2-Out", 3);
+    const auto osc2 = b.add("OscA", 0, 10), toFx = b.add("2-Out", 1, 10);
+    for(const auto o : {osc, osc2})
+    {
+        b.param(o, "Wave", 0);
+        b.param(o, "KBT", 0);
+    }
+    b.param(osc, "Coarse", 69);
+    b.param(osc2, "Coarse", 81);
+    b.param(toBus, "Dest", 4);
+    b.param(fromBus, "Source", 2);
+    b.param(toFx, "Dest", 2);
+    b.cable(osc, 0, toBus, 0);
+    b.cable(fromBus, 0, out, 0);
+    b.cable(osc2, 0, toFx, 0);
+    auto patch = b.done();
+    g2::u8 fxIn = 0, fxOut = 0;
+    for(const auto& d : g2::db::modules())
+        if(std::string(d.shortName) == "Fx-In") fxIn = g2::edit::addModule(patch, g2::Location::Fx, d.typeId, 0, 0);
+    for(const auto& d : g2::db::modules())
+        if(std::string(d.shortName) == "2-Out") fxOut = g2::edit::addModule(patch, g2::Location::Fx, d.typeId, 1, 0);
+    const auto* def = patch.fx.find(fxOut)->def();
+    for(std::size_t i = 0; i < def->params.size(); ++i)
+        if(std::string(def->params[i].name) == "Dest")
+            for(g2::u8 v = 0; v < g2::kFileVariations; ++v) g2::edit::setParam(patch, g2::Location::Fx, fxOut, g2::u8(i), v, 1);
+    g2::edit::connect(patch, g2::Location::Fx, {fxIn, 0, true}, {fxOut, 0, false});
+    g2::uprate::update(patch, g2::Location::Fx);
+    // twice: the lines are as long after another upload (they grew with each one before they had a fixed delay)
+    for(int upload = 0; upload < 2; ++upload)
+    {
+        REQUIRE(g2.upload(patch));
+        const auto underruns = g2.m.stats().linkUnderruns;
+        std::uint64_t clock0 = 0;
+        const auto o = g2.record(0.25, clock0);
+        INFO("upload " << upload);
+        // a sine of 1.0 through an Out module (and a bus, or the FX area): a DAC word of 0.125 (x 0.997)
+        CHECK_THAT(tone(o, 0, 440.0, clock0).amplitude, Catch::Matchers::WithinRel(0.1247, 0.01));  // Out 1
+        CHECK_THAT(tone(o, 1, 880.0, clock0).amplitude, Catch::Matchers::WithinRel(0.1247, 0.01));  // Out 3
+        CHECK(tone(o, 0, 880.0, clock0).amplitude < 1e-4);
+        CHECK(tone(o, 1, 440.0, clock0).amplitude < 1e-4);
+        // no frame is lost on any line while the patch plays
+        CHECK(g2.m.stats().linkUnderruns == underruns);
+    }
+}

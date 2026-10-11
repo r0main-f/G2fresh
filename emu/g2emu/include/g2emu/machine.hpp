@@ -21,17 +21,33 @@
 
 namespace g2emu {
 
+// The audio inputs: what the two stereo ADCs give A6's two-slot serial receiver (§3.7.3), one frame of 4 words per
+// 96 kHz sample. Asked on the thread that runs A6 (the caller of Machine::run(), or a DSP thread: no locks, no
+// waiting), for every frame once the OS has started the DSPs' serial audio.
+class AdcSource {
+public:
+    virtual ~AdcSource() = default;
+    // `clock`: when the frame is sampled, on the machine's master clock in DSP clocks (ClocksPerFrame per frame; see
+    // Machine::dacClock()). `words` (zero on entry): 24-bit signed words, full scale +-2^23, in the ADCs' order:
+    // ADC 1 L, ADC 2 L, ADC 1 R, ADC 2 R, i.e. inputs 1, 3, 2, 4 (as the DACs' frames of Machine::run()).
+    virtual void adcFrame(std::uint64_t clock, std::int32_t words[4]) = 0;
+};
+
 class Machine {
 public:
     static constexpr std::uint32_t FrameRate = 96000;  // as the OS's pitch tables assume (§3.7.1)
+    static constexpr std::uint32_t ClocksPerFrame = 1536;  // DSP clocks per frame [C] (§3.7.1)
 
     struct Options {
         bool jit = true;               // the DSPs on dsp56300's JIT (the interpreter cannot be stepped: debugging)
         bool idleSkip = true;          // skip the DSPs' idle background loop (no state changes)
         bool pollSkip = true;          // skip the ColdFire's loops that wait on a DSP's host port
         double cfHz = 162e6;           // ColdFire core clock: cycles of the core's (V2) timing per second
-        std::uint32_t ringPrefill = 16;  // frames of head start on the ESAI_1 line that closes the ring (A3 -> A6)
-        std::uint32_t chainPrefill = 2;  // the same on each hop of the chain (absorbs the JIT's overshoot)
+        // The delay in frames of the serial lines between the DSPs (the receiver takes the frame sent that long before,
+        // re/notes §3.11.4): on the ESAI_1 line that closes the ring (A3 -> A6, which may run that far ahead of A3),
+        // and on each hop of the chain (it absorbs the JIT's overshoot)
+        std::uint32_t ringPrefill = 16;
+        std::uint32_t chainPrefill = 2;
         std::uint32_t quantum = 1536;  // DSP clocks the ColdFire runs ahead of the DSPs at most (1 frame)
         // 0: everything on the caller's thread, deterministic. 1..4: the DSPs on that many threads of their own (each
         // a stretch of the chain), running alongside the ColdFire (not deterministic: when a host-port access meets
@@ -93,6 +109,13 @@ public:
     void run(std::uint32_t frames, std::vector<float>* out = nullptr);
     std::uint64_t frame() const;
     double seconds() const { return double(frame()) / FrameRate; }
+
+    // ---- the audio inputs IN 1-4 (without a source: silence) ----
+    // Any thread; the source must outlive the machine, or be taken away (nullptr) while the machine does not run.
+    void setAdcSource(AdcSource* source);
+    // When the last DAC frame that run() has handed out was sent, on the clock of AdcSource::adcFrame (0: none
+    // yet); the frames before it are ClocksPerFrame apart. The caller of run().
+    std::uint64_t dacClock() const;
 
     // ---- USB: our protocol client on the other end of the cable (thread-safe) ----
     // Plug the cable in (at the earliest Options::usbAfter after power-on): bus reset, SET_ADDRESS/SET_CONFIGURATION
