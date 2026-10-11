@@ -421,7 +421,7 @@ The original File menu (SMNU): New Patch ⌘N, New Performance, Open ⌘O, New T
 | D3 | Load computation and synth report | `CPatchLoad` 0xed144-0xeeaae; `CMPatchLoad::ReadStream` | `core/src/patch_load.cpp`, bit-exact on 17,732 rows. | **Matches.** | – | V |
 | D4 | Load display offline | `CTBWindow::SetupLoadMeter @0x129c84`: "--" and an empty bar until the synth reports. Four bars (VA/FX × cycles/memory), red above 100. | Always a figure, "Load (estimate)" (`MainView.cpp:232-247`). patch-load.md §2: some tables are stubbed, so the estimate is too low. One label; amber above 85%. | The user may believe a patch fits when it doesn't. | M | "--" by default, estimate opt-in, four bars. 0.5 d. | V |
 | D5 | Over 100% | The editor doesn't refuse on percentage (the synth mutes, manual p59). It refuses on dynamic RAM, cable count, paste and 127 modules. | Same checks, with a message instead of silence (`edit.cpp:55, 210, 763`). | Same rule; better feedback; flag it. | L | V |
-| D6 | Module help | Full HTML help page per module (popup Help, F1). | ~260-character tooltip (`ModuleBrowser.cpp:7-21`). cp1252 decoded as Latin-1 leaves U+0091/U+0092 in 24 strings (`tools/assets/extract_help.py:20`). The patch-settings Glide (type 135) shows the Glide module's text (`module_db_data.cpp:2852`). | Missing full help; text bugs. | L | V |
+| D6 | Module help | Full HTML help page per module (popup Help, F1). | ~260-character tooltip (`ModuleBrowser.cpp:7-21`) in G2fresh's own words (`data/module_help.json`, hand-written; Clavia's help text is not shipped). The stray U+0091/U+0092 and the patch-settings Glide showing the Glide module's text are fixed. | Missing full help. | L | V |
 
 #### 3.2 Gestures
 

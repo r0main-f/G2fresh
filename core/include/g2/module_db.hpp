@@ -79,7 +79,7 @@ struct ModuleDef {
     std::span<const ConnectorDef> outputs;
     std::span<const ParamDef> params;
     std::span<const ModeDef> modes;
-    const char* description; // short summary from the original help, or nullptr
+    const char* description; // G2fresh's short summary (data/module_help.json), or nullptr
     std::uint8_t browserOrder; // position in its category's toolbar in the original editor (255: none)
     std::span<const LabelDef> labels; // label controls, in panel order
 };
