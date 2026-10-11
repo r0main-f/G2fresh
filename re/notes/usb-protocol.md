@@ -490,7 +490,7 @@ Addresses are `WriteStream`/`ReadStream` of the `CM*` class.
 | 3F | CMPerformanceHeaderParam 0x16d86/0x16dfe | S_SET_MASTER_CLOCK | both | 0 | P | 3 | `u8 scope (0xFF = global), u8 param, [u8 value if scope > 3 && param < 3]`; param 0 = clock run, 1 = BPM, 2 = Global Pages (the knob floater, 0x132420; the keyboard range travels in `11`) | |
 | 40 | CMParamChange 0x15008/0x155b6 | S_SET_PARAM | both | **1** | RT | 2 | `u8 loc, u8 module, u8 param, u8 value(0..127), u8 variation` | no reply; also sent unsolicited by the synth |
 | 42 | CMCustomData 0x15d68 | S_SET_PARAM_LABEL | E→S | 0 | T | – | `u8 loc, u8 module, u8 n, n×u8` (module custom data = Verhue's "param labels") | |
-| 43 | CMMorphChange 0x150a4/0x15360 | S_SET_MORPH_RANGE | both | 0 or 1 | T or RT | 2 | `u8 loc, u8 module, u8 param, u8 morph(0..7), u8 \|range\|, u8 negative, u8 variation` | realtime while dragging |
+| 43 | CMMorphChange 0x150a4/0x15360 | S_SET_MORPH_RANGE | both | 0 or 1 | T or RT | 2 | `u8 loc, u8 module, u8 param, u8 morph(0..7), u8 \|range\|, u8 negative, u8 variation` | realtime from the panels (drag, pop-up); T inside Paste Params |
 | 44 | CMParamSettingCopy 0x160fe/0x160c2 | S_COPY_VARIATION | both | 0 | T | 2 | `u8 from, u8 to` (8 = init variation) | |
 | 4A | CMModuleDump (`CModuleData_11`) | C_MODULE_LIST | both | 0 | T | 2 | (sect) | |
 | 4B | CMModuleRequest 0x12bb6 | – | E→S | 2 | T | – | `u8 loc` | `4A` |
@@ -498,8 +498,8 @@ Addresses are `WriteStream`/`ReadStream` of the `CM*` class.
 | 4D | CMModuleParamDump (`CModuleParamData_11`) | C_PARAM_LIST | both | 0 | T | 2 | (sect); **10 variations over USB** [V] | |
 | 4E | CMModuleNameRequest 0x12c42 | – | E→S | 2 | T | – | `u8 loc` | `5A` |
 | 4F | CMModuleCustomDataRequest 0x12c88 | Q_PARAM_NAMES | E→S | 2 | T | – | `u8 loc` | `5B` |
-| 50 | CMCableConnect 0xd46c | S_ADD_CABLE | E→S | 0 | T | – | `pad3, b1 1(not-dump), b1 isVA, b3 color, u8 fromModule, u8 fromConn\|0x40·isOutput, u8 toModule, u8 toConn\|0x40·isOutput` | |
-| 51 | CMCableDelete 0xd2c6 | S_DEL_CABLE | E→S | 0 | T | – | `pad6, b1 1, b1 isVA`, from, to (as 50) | |
+| 50 | CMCableConnect 0xd46c | S_ADD_CABLE | E→S | 0 | T | – | `pad3, b1 not-a-dump, b1 isVA, b3 color, u8 fromModule, u8 fromConn\|0x40·isOutput, u8 toModule, u8 toConn\|0x40·isOutput` | from/to and the dump bit: §9.4 |
+| 51 | CMCableDelete 0xd2c6 | S_DEL_CABLE | E→S | 0 | T | – | `pad6, b1 not-a-dump, b1 isVA`, then the child and its parent (§9.4) | |
 | 52 | CMCableDump (`CCableData_11`) | C_CABLE_LIST | both | 0 | T | 2 | (sect) | |
 | 53 | CMCableRequest 0xd210 | – | E→S | 2 | T | – | `u8 loc` | `52` |
 | 54 | CMCableRecolor 0xd398 | S_CABLE_COLOR | E→S | 0 | T | – | `pad4, b1 isVA, b3 color`, from, to | |
@@ -664,26 +664,119 @@ Origin: 0 = bank-list window (`CFlashData`), 1 = file transfer (`CFlashDumper`).
 
 ---------------------------------------------------------------------------------------------------
 
-## 9. Live parameter changes, morph, variation, knobs, MIDI CC
+## 9. Live edits: what the editor sends for each action
 
-| action | message | notes |
+### 9.1 The framework [C]
+* Every user action builds a `CUndoRedoPair` (0x18bdc): a redo bubble and an undo bubble. `PushRedoMolecule` 0x18e02
+  appends; `PushUndoMolecule` 0x18e20 pushes to the **front**, so the undo bubble is the inverse of each molecule in
+  reverse order.
+* `CPatch::UndoUserBubbleOutput` 0xd6492 sends the redo bubble (`UserBubbleOutput` 0xd5e74: one T bubble if connected,
+  then applied locally with `BubbleInput` 0xd56d2, without waiting for the answer) and stores the pair
+  (`CUndoRedo::AddUndoRedoBubblePair` 0x18eae, at most 100 steps, per patch). Realtime pairs (`CUndoRedoPair(true)`) go
+  through `RealTimeBubbleOutput` 0xd5840: one message per molecule, never answered.
+* `CPatch::Undo` 0xd6442 / `Redo` 0xd63f2 send the stored undo / redo bubble again, as a user bubble or realtime.
+* One action = one bubble = one USB message (`GenerateMessages` 0x11828a splits only at 0xFFFF bytes). The answer is a
+  bare `7F`; `7E code` ends the connection (§11.2) and nothing is rolled back.
+* After a bubble with `30`, `32`, `50`, `51`, `52`, `2A` or `2B`, the patch load of that area is no longer "reported"
+  (`CPatchLoad::UpdateCriticalResource` 0xee488), so the next idle pass sends `T: 71 01` (VA) or `71 00` (FX)
+  (`SendLoadRequest` 0xee866); every `72` (answer or unsolicited) is followed by one `T: 70`
+  (`CPatch::SetDspReportedLoad` 0xd4a74, `CleanDirtyData` 0xd601e). Nothing else is read again. Moves, names, colours,
+  cable recolours and locks trigger nothing.
+* The synth keeps the slot's session through all of this (checked on the emulated G2 OS and in the captures).
+
+### 9.2 Values (realtime, hdr `0x38|slot`)
+| action | redo | undo | source |
+|---|---|---|---|
+| knob / button / slider | `40 loc module param value variation` per change while dragging; nothing on release | `40` old value (`43` old range if the drag changed it) | `CPanel::CtrlRequestParamChange` 0xc163a, `CtrlRelease` 0xc0794 |
+| push button | `40 … 1`, then `40 … 0` on release | none | `CtrlRelease` (momentary flag) |
+| patch settings (morph dials, glide, bend, vibrato, arpeggiator, octave shift, sustain) | the same with loc 2 | the same | `CMorphContainer` 0x124d96 etc. |
+| morph range drag | `43 loc module param group \|range\| negative variation` per change; range 0 removes | `43` old range | `CPanel::CtrlRequestMorphChange` 0xc19b2 |
+| pop-up Morph: join the focused group | `40 … 0` (if the value was not 0), `43 group +max` | `43 group 0`, `40` old | `CMorphMap::GetAssignMorphToParamMolecules` 0xf1e62 |
+| pop-up Morph: leave it | `43 group 0` | `43 group` old | `GetDeassignMorphMolecules` 0xf1d58 |
+| preset controls (sequencer Clear/Random, vocoder, drum, filter bank) | one `40` per changed parameter | the old values | `CPanel::CustomDependencyRequestChange` 0xc0c86 |
+
+A parameter can be in several morph groups: each `43` addresses one (variation, parameter, group). The editor never
+sends variation 0x7F (its "all variations" flag `CPatch+0x68` is never set). Received, a `40` with variation 0x7F sets
+all 10 variations (`CPatch::HandleParamChange` 0xdc636 → `CModule::SetCommonParamValue` 0xaa1b4) and a `43` with 0x7F
+changes nothing.
+
+### 9.3 Acknowledged patch edits (T bubble, hdr `0x28|slot`, the slot's session)
+| action | redo bubble, in order | undo bubble, in order | source |
+|---|---|---|---|
+| mode selector | `2B loc module mode value` | `2B` old | `CPanel::SelectorRequestChange` 0xc060a |
+| variation | `6A v` | `6A` old | `CPatch::InternalSetFocusedParamSetting` 0xd81a6 |
+| copy variation / init | `44 from to` (init: `44 08 focused`) | none | `CPatchToolbar` 0xf5b9c / 0xf622a |
+| knob assign | `26 K0` (the parameter's knob), `26 K` (the knob's parameter), `25 … K`, `2D K>>3` | `2D K>>3`, `26 K`, `25` back, `25` back | `CKnobMap::GetAssignKnobToTargetMolecules` 0xf1580 |
+| knob deassign | `26 K` | `25` | the same, knob 120 |
+| MIDI controller assign | `23` (the parameter's CC), `23 c` (the CC's parameter), `22 loc module param c` | reversed | `CCtrlMap::GetAssignCtrlToParamMolecules` 0xf10ae |
+| MIDI controller deassign | `23 c` | `22` | |
+| module name | `33 loc module str16` (only when it changed) | `33` old | `CPanel::ChangePanelNameDialog` 0xbf08a |
+| module colour | `31 loc module colour` for every selected module | `31` old, reversed | `CPatch::InternalRecolorSelection` 0xd7880 |
+| Mutator lock | `90 loc module locked` per module that changes | `90` old | `CPatch::InternalLockSelection` 0xd7fca |
+| labels, sequencer zoom/offset | `42 loc module n bytes` (the module's whole custom data) | `42` | `CPanel::CustomDataItemRequestChange` 0xc177e |
+| patch header (voices, mono/legato, cable visibility, category) | `21` (the whole section); a change of the voice count goes 600 ms after the last one | none | `CPatch::RequestPatchHeaderChange` 0xd62ae, `SendPatchHeaderBubble` 0xd5f66 |
+| patch name | `27 str16` (the rename dialog; Save As when the file gives another name) | none | `CPatch::SendFlashNameDump` 0xd83e2 |
+| patch notes | `6F u16 len text` (the whole text, while typing) | none | `CPatch::SetTextpadString` 0xd8c54 |
+| Mutator: play an individual | `4D` loc 2, `4D` loc 1, `4D` loc 0 and `65`, each with variation 9 only; then `6A 09` | `6A` old, then the old variation 9 | `CMutaSynthData::GetFocusIndividMolecules` 0x142ef8, `CMMutaParamDump::WriteStream` 0x13a18 |
+| Mutator: copy to variation v | the same four sections for v, then `6A v` | the old variation | `GetCopyIndividMolecules` 0x144528 |
+
+The original's undo of a `42` holds the new data again (it reads the panel after the change): its undo of a label is a
+no-op. An empty `6F` leaves the G2 OS's notes as they are (seen on the emulated G2).
+
+### 9.4 Modules and cables (one T bubble per action)
+Cable molecules name two connectors, each `module, conn | 0x40·isOutput`. A **new** cable goes from the drag's origin to
+its target (`CCableDragDropManager::Drop` 0x19514). Every cable taken from the cable trees (delete, recolour, relink,
+undo) goes **child → parent**, the child being the connector farther from the net's output: an output → input cable is
+sent input first (`CCableSegmentIterator::operator*` 0xe4036). Flags: `50` = `0x10·notDump | 0x08·VA | colour`,
+`51` = `0x02·notDump | VA`, `54` = `0x08·VA | colour`. The "not a dump" bit is clear for the cable molecules of a
+module deletion, paste undo or replacement, set otherwise. The uprate pass (`GenerateBandwidthChangeMolecules` 0xe5048)
+appends, per module whose rate flips, `2A loc module rate` and a `54` for every cable of each net its dynamic outputs
+feed; it always comes last in the redo bubble (first in the undo).
+
+| action | redo bubble, in order | source |
 |---|---|---|
-| move a knob / parameter | `RT: 40 loc module param value variation` | no reply. Verhue coalesces per (slot, loc, module, param, variation) and sends only when nothing is outstanding (Gen2 USB:1476-1580) |
-| select parameter | `RT: 2F 00 loc module param` | no reply |
-| morph range drag | `RT: 43 loc module param morph |range| neg variation` | realtime while dragging; a final `T: 43 …` (normal, acked) on release [I] |
-| mode parameter (waveform etc.) | `T: 2B loc module selector value` | acked |
-| select variation | `T: 6A v` | acked |
-| copy / init variation | `T: 44 from to` (to/from 8 = init) | acked |
-| knob assign / deassign | `T: 25 …` / `T: 26 00 knob` | + `2D page` |
-| global knob | `P: 1C …` / `P: 1D 00 knob` / `P: 1E page` | Verhue sends these in a T frame |
-| MIDI CC assign | `T: 22 loc module param cc` / `T: 23 cc` | |
-| module add / move / delete / recolor / rename / uprate | `30` / `34` / `32` / `31` / `33` / `2A` | one T bubble may hold several molecules (Verhue builds composite edits plus an undo bubble) |
-| cables | `50` / `51` / `54` | |
-| patch notes | `T: 6F len text` | |
-| synth → editor panel edits | unsolicited `40`, `2F`, `6A`, `43`, … with hdr = slot (no response flag) | routed only if the session matches |
+| connect | [`54`s: the other net takes the fed side's colour], `50` origin → target, [uprate] | `CPatchData::GetNewCableMolecules` 0xeb87c, `GetConnectRecolorMolecules` 0xe4c32 |
+| Delete (chain) | `51` child → parent per cable of the chain; **no uprate pass** | `GetDeleteCableChainMolecules` 0xe41d6 |
+| Color | `54` per cable of the chain; no uprate pass | `GetRecolorCableMolecules` 0xe43f8 |
+| Delete Unused Cables | the chains without an output, FX then VA, as Delete | `CPatch::InternalDeleteUnusedCables` 0xd7168 |
+| Break | `54` white below the connector (or for the whole net of an output), `51`(s), [uprate] | `GetBreakCableNodeMolecules` 0xeb27a |
+| Disconnect | [`54` white for an output's branch], `51 N P`, `50 A P`, then per child `51 N c`, `50 A c`, [uprate] | `GetDisconnectCableNodeMolecules` 0xea48a |
+| move a plug | [`54`s], `51 N P`, `50 T P`, then per child `51 N c`, `50 T c`, [uprate] | `GetMoveCableNodeMolecules` 0xeab6c |
+| new module (module bar) | `30`, `52` (empty), `4D` (10 variations), [`5B`], `5A`, then `34` for each module that makes room | `CTabButton::Action` 0x12698e, `GetNewModulesMolecules` 0xeba8e, `GetMakeRoomForMolecules` 0xea184 |
+| new module (dragged in), paste, drag-copy | the make-room `34`s, a `30` per module, `52` (the cables between them), `4D`, a `43` per pasted morph (25 per variation at most), [`5B`], `5A`, [uprate] | `CClipboard::Drop` 0x14d882 |
+| move modules | the make-room `34`s, then a `34` per moved module | `GetMoveModulesMolecules` 0xe5398 |
+| delete modules | per module: `26` per knob, `23` per controller, `43` range 0 per morph (every variation); per net: [`54` white if its output goes], `51` per cable touching the selection, `50` for each relink; `32` per module; [uprate] | `CPatch::InternalDeleteSelection` 0xd7e16, `GenerateDeleteSelectionMolecules` 0xe7fe4 |
+| replace | the old module's `26`, `23`, `43`=0; [`54` white], `51`s, `32`; make-room `34`s; `30`, `33`, `42`, `4D`; `54` recolours and `50` relinks; [uprate]; `25`, `22`, `43` for what the mapping keeps | `CPatch::InternalReplaceModule` 0xd7a14, `GetReplaceModuleMolecules` 0xebf7e |
 
-The realtime variation field: 0..7 = variations 1..8; 8 = init (patch-file variation 8). Over USB, `4D` has a 10th
-variation whose meaning is unknown [V].
+Undo is always the reverse list of inverses: `50` ↔ `51`, `54` with the old colour, `34` back, `30` ↔ `32`. A deleted
+module comes back as `30`, `33`, `42`, `4D` (10 variations), its cables as `50` child → parent with their old colours,
+then `43`, `22`, `25` for its morphs, controllers and knobs. The sections of a paste have no inverse: its undo is the
+`43`s at range 0, a `51` (dump) per pasted cable, the `32`s and the `34`s back. `4D` over USB holds 10 variations (0..9,
+the Mutator's last), `5B` only the modules with custom data. Knob and controller assignments are not pasted. In a
+performance, a deleted or replaced module's global knobs go as `1D` / `1C` inside the same slot bubble.
+
+Captured from Clavia's editor on a real G2X (g2fx's `data/capture`, `tests/protocol/live_edits.json`):
+`50 19 01 40 02 01`; `50 18 04 40 02 00` + `2A 01 02 01` in one bubble; `51 03 02 00 04 40` + `2A 01 02 00`; the undo
+of a paste `51 01 08 00 05 40 …, 32 01 08, 32 01 07, …`; a paste `30 61 01 05 01 0F 00 00 00 "OscA1"` … `52`, `4D`,
+`5B`, `5A`; then `T: 71 01`, the `72`, and `T: 70`.
+
+### 9.5 Performance and synth
+| action | message | source |
+|---|---|---|
+| Performance Settings | `P: 29 name` if the name changed (and nothing else for a name-only change), else `P: 11` (the whole section) | `CDialogPerformance::TrySendData` 0x39b36, `CPerformance::SetPerformanceHeader` 0x100800, `SetPerformanceName` 0x10089a |
+| toolbar clock | `P: 3F FF 00 run`, `P: 3F FF 01 bpm` (30–240); `3F FF 02` is the knob floater's global pages | `CTBWindow::HandleChangeRequests` 0x12ad8c |
+| slot buttons | `P: 07 mask` (+ `0F mask` when a slot holding the keyboard is disabled); the keyboard toggle sends `11` | `CSlotButton::Click` 0x773fe, `SetSlotSelection` 0x100b7e |
+| slot focus | `P: 09 slot` (the window shown); from the synth, `09` shows that slot's patch | `CPerformance::CleanDirtyData` 0x100e5a, 0x100582 |
+| Perf button | `S: 3E perfMode shift` | `CTBWindow::SetPerformanceMode` 0x12a306 |
+| before a performance upload | `S: 03` (the whole synth data) with only perfMode changed, when the synth's mode differs: on for a performance, off for a patch downloaded alone | `CSynth::CleanDirtyData` 0x11f394 |
+| global knobs | `1D`, `1D`, `1C`, `1E` as §9.3's knobs; from the menus inside the patch's T bubble (with undo), from drag-and-drop as a P bubble | `CPerfKnobMap::GetAssignKnobToTargetMolecules` 0xff1a6 |
+
+None of the performance edits has an undo. From the synth: `74` clears the slot's knob map and asks for it again
+(`63`, `CPatch::HandleBarbMapChangeNotify` 0xd3918); `75` does the same for the global map (`5E`, 0xffeda); `0D`
+results other than 0, 2 and 5 show "Flash Problem": 1 "Can't load from flash", 4 "Memory protect on", else "Flash
+memory full" (`CFlashData::HandleFlashCommandResult` 0x11b062).
+
+The realtime variation field: 0..7 = variations 1..8; 8 = init (patch-file variation 8); 9 = the Patch Mutator's.
 
 ---------------------------------------------------------------------------------------------------
 

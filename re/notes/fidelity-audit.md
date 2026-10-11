@@ -6,7 +6,9 @@ what the user hears or sees, and flagged. Part A covers the emulator, the plugin
 editor. Each part lists the original behavior with its source, G2fresh's, the gap, a severity and a recommendation;
 "verified" marks what was measured (in the emulator running the user's OS) or read in the code or decompilation,
 "inferred" the rest. Fixed since the audit: Out 3/4 no longer mixed into Out 1/2 by default (manual: the headphones
-carry Out 1/2 only).
+carry Out 1/2 only). Live editing (gap 4; part B §4.1, most of §4.2, L9's `03`, L12, B3): every edit, undo and
+redo goes to the synth as the original's messages, see `re/notes/usb-protocol.md` §9 and the README's deviations;
+still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2F`), global knobs (`1C`/`1D`).
 
 ## Ranked gaps (both parts)
 

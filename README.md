@@ -104,17 +104,23 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - Unsaved changes: G2fresh asks "Discard changes?" before New, Open, Get Patch and Quit. The original never asks and drops unsaved patches.
 - The stand-alone app restores the last session at startup (the original starts empty). Edits never saved to a file stay marked edited; "Discard" at Quit returns to the file as saved, or to a new patch.
 - Also kept as safety checks: a confirmation before overwriting a stored patch, "Open anyway" for a file with a bad checksum, messages at the module limit, no automatic download on connecting.
-- Structural edits (adding, removing, or cabling modules) resend the whole patch to the synth. The original sends each change.
-  - During a Patch Mutator audition, such an edit makes the synth play the saved variation while the editor stays on the audition.
-  - The audition's variation 9 is sent as one message per parameter, not as one dump.
-  - In the plugin, host automation during an audition edits your variation.
-- Paste drops the copy below the selection and renames default-named modules. The original places it with the mouse and keeps names.
+- Live editing sends every edit to the synth as the original does, message for message, and undo and redo send the original's inverse messages. What differs:
+  - The voices, category and cable visibility (the patch header), the patch notes and variation copies are undo steps; the original has no undo for them. Undoing one sends the header or the notes again, or the variation's old values as one dump.
+  - Undoing a label rename restores the old label on the synth too; the original's undo sends the new one again.
+  - The variation shown is not an undo step (the original's undo goes back to the previous variation).
+  - The patch notes go to the synth when their dialog is closed with OK; the original sends them as you type. (The G2 keeps its notes when it receives empty ones, with either editor.)
+  - A voice count changed and changed back within 0.6 s sends nothing; the original sends the value in between.
+  - The patch name goes to the synth whenever it changes; the original sends it from its rename dialog and on Save As.
+  - Clear Group and Copy To in a morph dial's pop-up send one morph message per parameter, not acknowledged; what the original sends there is not known.
+  - A slot's patch name edited in Performance Settings (a field the original does not have) is sent to that slot as a rename.
+- In the plugin, host automation during a Patch Mutator audition edits your variation.
+- Paste drops the copy below the selection and renames default-named modules. The original places it with the mouse and keeps names. Which modules make room for a moved, added or pasted one follows G2fresh's own rule; the synth gets those moves as the original sends its own.
 - Patches read from the synth are not repaired as files are, so G2fresh never sends deassignments back.
 - Files from older editor versions (12 to 22) are converted on opening exactly as the original converts them, and saving asks first, as the original does. G2fresh also says "converted from version N" in the status line when the file opens; the original says nothing until you save.
 - An unedited version-23 file keeps its own header (for example "BUILD 266") when saved again; the original writes "BUILD 320". The release velocity is written as stored; the original's writer stores the attack velocity there.
 - An unedited file saves byte for byte as it was loaded, including cable and morph lists in an order the original would have sorted. The first cable edit in an area rewrites its cable list in the original's order.
 - A loaded file with a cable loop (none is known) loses the cable closing the loop at the next cable edit; the original's cable tree would be corrupted instead.
-- A morph drag is one undo step; the original records it on release too, but sends the changes as you drag. On buttons whose maximum isn't 127, the original's morph-key toggle quirk is not reproduced.
+- On buttons whose maximum isn't 127, the original's morph-key toggle quirk is not reproduced.
 - Labels and names:
   - Clearing a label restores the panel's caption.
   - Labels and modules are renamed from the pop-up menu.

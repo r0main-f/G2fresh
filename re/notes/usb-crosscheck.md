@@ -2,7 +2,7 @@
 
 Date: 2026-10-11. This is a read-only audit; nothing in `proto/`, `usb/`, `bridge/`, `ui/` or `tests/` was changed.
 It covers USB device handling, start-up, dumps and bank operations, streams from the synth, and errors.
-Per-edit messages are left out: the live-editing work checks those itself. Section 8 passes on the hardware facts the
+Per-edit messages are in section 11, added by the live-editing work; section 9 passes on the hardware facts the
 other editors found about edits.
 
 ## Sources
@@ -500,3 +500,37 @@ These are only relayed here. Each comes from the other editors' hardware tests; 
   bare `7F`.
 - **§14.8.** Each of the 654 captured requests got exactly one response message before the next request; no reply
   was split. The high nibble of an extended announcement is always 0 (`b0 = 0x01` in all 1002).
+
+---------------------------------------------------------------------------------------------------
+
+## 11. Edit messages: G2fresh against the other editors (the live-editing work)
+
+What each editor sends for the same edit, and how each difference was settled. The original's code decides
+(`re/notes/usb-protocol.md` §9 has the addresses); the captures and the other editors' hardware tests are evidence
+where the code leaves a doubt. **Edit** is chrispurusha/G2-Edit (`82224c0`, GPL-3, cited only). "Emulated OS" is the
+user's G2 OS 1.62 in g2emu, which every edit below was read back from (`tests/test_live_firmware.cpp`).
+
+| # | edit | others | original (and G2fresh now) | settled by |
+|---|---|---|---|---|
+| 1 | order of a cable's two ends in `51` / `54` | g2fx: input end first, output (0x40) second. Web, Edit: output end first; the G2 takes both | child → parent, so input first (`CCableSegmentIterator::operator*` 0xe4036); a new `50` goes drag origin → target (`Drop` 0x19514) | code; Cap `51 03 02 00 04 40`, `50 19 01 40 02 01` |
+| 2 | "not a dump" bit of `50` / `51` | g2fx clears it in a module delete. Web, Edit: always set | clear for the cables of a delete-selection, paste undo and replace; set otherwise | code; Cap `51 01 08 00 05 40` in the undo of a paste |
+| 3 | grouping | g2fx: one bubble per compound edit. Web, Edit: one message per molecule (Edit brackets each with `7D 01` / `7D 00`) | one bubble per action (`GenerateMessages` 0x11828a) | code; Cap (`50` + `2A`, `51`s + `32`s in one message) |
+| 4 | new module | g2fx, Web: `30`, `52`, `4D` (10 variations), `5B`, `5A`; colour byte 0, "locked" = the type's LED flag. Edit: a bare `30` | `30` (colour, rate and lock of the module), `52`, `4D`, [`5B`], `5A`, then the make-room `34`s (before the `30` for a drop) | code (`GetNewModulesMolecules` 0xeba8e); Cap 009 |
+| 5 | delete modules | g2fx: `51`s (dump), `32`s, then `71`. Web: one message per cable, then `32`. Edit: `51`s, `54`s, `26`/`1D`/`23`, `32`, no relinks, no `43` | `26`, `23`, `43`=0 per module; per net `54` white, `51`, `50` relinks; `32`s; uprate | code (`InternalDeleteSelection` 0xd7e16) |
+| 6 | connect | Edit: `50`, then `54` recolours, then `2A`, and a `50` (not `54`) to recolour after a rate change, which duplicates the cable on the G2 | `54` recolours, `50`, then `2A` and its `54`s | code (`GetNewCableMolecules` 0xeb87c); Edit's hardware finding agrees that a recolour must be `54` |
+| 7 | chain Delete and rates | g2fx packs `2A` after every `51` | no uprate pass after the jack pop-up's Delete (`GetDeleteCableChainMolecules` 0xe41d6); Disconnect, Break and move have one | code. (Cap 011's `51` + `2A` fits a Disconnect) |
+| 8 | morph `43` | Web: realtime only; an explicit range 0 for the group left. Edit: sign byte always 0, the range as two's complement; no morph undo | realtime; `\|range\|` and a sign byte (`CMMorphChange::WriteStream` 0x150a4); one `43` per (parameter, group); no `43` on release | code. G2fresh no longer sends an acknowledged `43` at the end of a drag |
+| 9 | knob assign | Web: `25` / `26`, no `2D`. Edit: `26`, `26`, `25` as three messages, no `2D` | `26` (the parameter's knob), `26` (the knob's parameter), `25`, `2D` in one bubble | code (0xf1580) |
+| 10 | MIDI controller | Web, Edit: `22` / `23` alone | `23`, `23`, `22` in one bubble | code (0xf10ae); Edit's capture of Clavia's MIDI Learn `22 01 01 07 10` (a parameter without a CC) |
+| 11 | after an edit | g2fx: `71` after deletes, `70` after each `72`. Edit: reads the whole slot again on a `38` | `71 01` / `71 00` for the area changed, `70` after each `72`; nothing else | code (`CPatchLoad`, 0xd601e); Cap; the emulated OS keeps the slot's session across edits and sends no `38` |
+| 12 | morph group names | Web: a whole `5B` section for the patch settings | `42` loc 2 (`CustomDataItemRequestChange` 0xc177e) | code; accepted by the emulated OS |
+| 13 | patch notes `6F` alone | JB: hung a G2 twice. Edit: only inside a whole patch | sent alone, the whole text (`SetTextpadString` 0xd8c54) | code; the emulated OS takes it (and ignores an empty one). **Check on hardware** |
+| 14 | patch header `21` | all: the whole section at once | the whole section; a voice-count change 600 ms after the last one | code (0xd62ae) |
+| 15 | slot focus | Edit: `09`, and `0F` too in patch mode (on hardware, `09` alone left slot A sounding) | `09` only (`0F` goes with a slot switched off) | code. **Check on hardware** whether the keyboard follows the focus |
+| 16 | performance mode | Edit: `3E`, about three sends before the `1F` | `03` before a performance upload when the mode differs; `3E` from the Perf button (not in G2fresh) | code (0x11f394). On the emulated OS, a mode switched after an upload drops what was uploaded |
+| 17 | undo | g2fx, Web, Edit: their own undo, re-adding with `30` + values | the stored inverse bubble (`CPatch::Undo` 0xd6442) | code |
+| 18 | `74`, `75`, `0D`, `7E` | ignored (Edit exits on an unknown id) | `63` / `5E` asked again; alerts for `0D` 1, 3, 4 and `7E` | code |
+| 19 | bursts of acknowledged edits | Edit: back-to-back slot commands "silently rejected" (a session race, inferred) | one bubble at a time, the next after the answer; the session does not change | code; emulated OS |
+
+Not settled here: `1C` / `1D` global knob edits (Web sends them in a slot frame, Edit in a performance frame; the
+original does both, by entry point) are not sent by G2fresh yet, and neither is `3E`.
