@@ -19,3 +19,6 @@ corpus-external/
 
 # Reference sources cloned locally, never committed (e.g. git clone https://github.com/BVerhue/nord_g2_editor third_party/nord_g2_editor)
 third_party/
+
+# Other G2 editors cloned for bench testing (see re/notes/references.md), never committed
+references/
