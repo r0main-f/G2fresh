@@ -30,8 +30,9 @@ add_executable(g2tests
   test_proto_log.cpp
   test_bridge.cpp
   test_engine.cpp
+  test_clavia.cpp
 )
-target_link_libraries(g2tests PRIVATE g2bridgelib g2engine Catch2::Catch2WithMain) # g2proto and g2core come with it
+target_link_libraries(g2tests PRIVATE g2bridgelib g2engine g2clavia Catch2::Catch2WithMain) # g2proto and g2core come with it
 target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/plugin/Source) # HostClock.h (plain C++)
 target_compile_definitions(g2tests PRIVATE G2_BRIDGE_EXECUTABLE="$<TARGET_FILE:g2bridge>")
 add_dependencies(g2tests g2bridge)
@@ -59,6 +60,8 @@ if(Python3_FOUND)
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/patchload/gen_table.py --check)
   add_test(NAME protocol_vectors_are_current
     COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/protocol/gen_cpp.py --check)
+  add_test(NAME no_clavia_pixels_in_assets
+    COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/assets/build_assets.py --check)
   add_test(NAME module_db_generated_is_current
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/moduledb/gen_cpp.py --check)
   file(GLOB G2_CORPUS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/corpus/pch2csd/*.pch2)

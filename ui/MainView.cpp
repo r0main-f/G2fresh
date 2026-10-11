@@ -300,16 +300,26 @@ void MainView::startEmulator(bool chooseFirmware)
         start(known);
         return;
     }
+    chooseClaviaDownload("Locate Clavia's G2 OS 1.62 updater for the Mac (the .dmg as downloaded, or the updater app)",
+                         start);
+}
+
+void MainView::chooseClaviaDownload(const juce::String& title, std::function<void(const juce::File&)> chosen)
+{
     // Clavia's free OS updater for the Mac, as downloaded from nordkeyboards.com:
-    // the .dmg itself, the updater app in it, or the app's .rsrc file.
+    // the .dmg itself, or an app in it (or the app's .rsrc file).
+    juce::File known;
+    for (const auto& path : classicSkinSources())
+        if (juce::File(path).exists() && known == juce::File())
+            known = juce::File(path);
     chooser_ = std::make_unique<juce::FileChooser>(
-        "Locate Clavia's G2 OS 1.62 updater for the Mac (the .dmg as downloaded, or the updater app)",
-        known.exists() ? known : juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.dmg;*.app;*.rsrc;*.bin");
+        title, known.exists() ? known : juce::File::getSpecialLocation(juce::File::userHomeDirectory),
+        "*.dmg;*.app;*.rsrc;*.bin");
     chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles
                               | juce::FileBrowserComponent::canSelectDirectories,
-                          [this, start](const juce::FileChooser& fc) {
+                          [done = std::move(chosen)](const juce::FileChooser& fc) {
                               if (const auto f = fc.getResult(); f != juce::File())
-                                  start(f);
+                                  done(f);
                           });
 }
 
@@ -713,6 +723,31 @@ void MainView::pasteClipboard()
 
 void MainView::setLook(Look look)
 {
+    if (look == Look::Classic && !Skin::get().classicLoaded()) {
+        // The Classic look's graphics come from the user's own copy of Clavia's
+        // download: the one already chosen (for the Emulated G2 too), else ask.
+        juce::MouseCursor::showWaitCursor(); // the first time, a second or so to extract them
+        const auto error = ensureClassicSkin();
+        juce::MouseCursor::hideWaitCursor();
+        if (error.isNotEmpty()) {
+            setStatus(error);
+            chooseClaviaDownload("Locate your copy of Clavia's \"Nord Modular G2 OS v1.62 Update.dmg\" (the Classic look "
+                                 "is drawn with the original editor's graphics in it)",
+                                 [this](const juce::File& f) {
+                                     juce::MouseCursor::showWaitCursor();
+                                     const auto e = Skin::get().loadClassic(f);
+                                     juce::MouseCursor::hideWaitCursor();
+                                     if (e.isNotEmpty()) {
+                                         setStatus("Classic look: " + e);
+                                         return;
+                                     }
+                                     rememberClassicSkinSource(f);
+                                     setStatus("Classic look: the original editor's graphics, from " + f.getFileName());
+                                     setLook(Look::Classic);
+                                 });
+            return;
+        }
+    }
     setCurrentLook(look);
     for (auto* a : {&va_, &fx_}) {
         a->settingsChanged();

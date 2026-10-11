@@ -1,5 +1,8 @@
-// The bundled Clavia skin: module panel layouts (PANL) and graphics, compiled
-// into the binary from assets/clavia/ (see tools/assets/build_assets.py).
+// The module panels and the Classic look's images. The panel layouts (from the
+// original editor's PANL resources, without their pixels) are compiled in from
+// assets/clavia/panels.json (tools/assets/build_assets.py). The images are not:
+// they come from the user's own copy of Clavia's free download, read at run
+// time (clavia/) and cached in the user's settings folder.
 #pragma once
 
 #include <juce_data_structures/juce_data_structures.h>
@@ -30,7 +33,9 @@ struct PanelElement {
     juce::String dependencies;
     int buttonCount = 0, buttonWidth = 0, columns = 0, rows = 0;
     int imageCount = 0, imageWidth = 0;
-    juce::Image image;   // decoded inline "rrggbb:..." image strip, if any
+    // The original's inline image strip (a Bitmap, a button's icons), from the
+    // user's download: invalid until the Classic skin is loaded. Classic look only.
+    juce::Image image;
     float fontSize = 9.0f;  // Text
     int length = 0;         // Line
     bool thick = false;     // Line
@@ -97,12 +102,34 @@ public:
     juce::Image jpeg(int resId) const;
     // An SMTB bitmap (the note sequencer's morph strips); invalid if missing.
     juce::Image smtb(int resId) const;
+    // The images above and the panels' inline images are the Classic skin's:
+    // invalid until it is loaded.
+    bool classicLoaded() const { return classicDir_ != juce::File(); }
+    // Loads the Classic skin from `source` (Clavia's .dmg, the editor app or its
+    // .rsrc), extracting its images into the cache unless the cache already holds
+    // them for that very file. Empty on success, else what went wrong.
+    juce::String loadClassic(const juce::File& source);
 
 private:
     Skin();
     std::map<int, PanelDef> panels_;
+    juce::File classicDir_; // the cache the Classic skin's images are read from
     mutable std::map<juce::String, juce::Image> images_;
     juce::Image load(const juce::String& name) const;
+    void attachInlineImages();
 };
+
+// The user's copy of Clavia's "Nord Modular G2 OS v1.62 Update.dmg" (or the
+// editor app, or its .rsrc) the Classic look is built from: the G2_CLAVIA_DMG
+// environment variable, else the file chosen for the Classic look, else the one
+// chosen for the Emulated G2 (the same .dmg serves both): the paths set, in
+// that order.
+juce::StringArray classicSkinSources();
+// Loads the Classic skin from those, if it is not loaded yet. Empty when it is,
+// else why not (for the status bar).
+juce::String ensureClassicSkin();
+// Remembers the download chosen for the Classic look; a .dmg also becomes the
+// Emulated G2's if none is set for it.
+void rememberClassicSkinSource(const juce::File& source);
 
 } // namespace g2ui

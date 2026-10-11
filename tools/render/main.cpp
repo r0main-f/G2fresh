@@ -5,8 +5,10 @@
 //   g2render patch <file.pch2> <out.png>
 //   g2render ui <file.pch2> <out.png>        (the whole editor window)
 //
-// Set G2_LOOK=classic to draw with the original bitmaps instead of the modern look,
-// and G2_ZOOM=<factor> to render the editor window zoomed.
+// Set G2_LOOK=classic to draw with the original bitmaps instead of the modern look
+// (they come from Clavia's download: G2_CLAVIA_DMG=<the .dmg>, or the one chosen in
+// the app; without it, the modern look is drawn), and G2_ZOOM=<factor> to render the
+// editor window zoomed.
 #include "LiveView.h"
 #include "MainView.h"
 #include "MutatorWindow.h"

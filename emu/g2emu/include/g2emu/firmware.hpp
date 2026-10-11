@@ -6,6 +6,8 @@
 // Nothing from Clavia is in this code. The bytes come from the user's files at run time.
 #pragma once
 
+#include "g2/clavia/download.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <span>
@@ -40,14 +42,11 @@ struct Firmware {
     static Firmware load(const std::filesystem::path& path);
 };
 
-// One resource of a classic Mac OS resource map (Inside Macintosh: More Macintosh Toolbox, Resource Manager).
-struct Resource {
-    std::string type;  // four characters
-    int id = 0;
-    std::string name;
-    std::vector<std::uint8_t> data;
-};
-std::vector<Resource> parseResources(std::span<const std::uint8_t> rsrc);
+// The resource map and the .dmg reader are shared with the Classic look (clavia/).
+using g2::clavia::Resource;
+using g2::clavia::parseResources;
+using g2::clavia::isUdifImage;
+using g2::clavia::udifDisk;
 
 // LZO1X decompression, the semantics of lzo1x_decompress() (and of the G2 boot loader). Throws on a malformed
 // stream.
@@ -56,10 +55,8 @@ std::vector<std::uint8_t> lzo1xDecompress(std::span<const std::uint8_t> src);
 // The checksum of the OS image: the one's complement of the byte sum.
 std::uint32_t onesComplementSum(std::span<const std::uint8_t> data);
 
-// Apple UDIF disk images (.dmg): whether `file` is one, the disk it holds (stored and zlib chunks; zlib needs a
-// build with zlib), and the updater's firmware found on such a disk.
-bool isUdifImage(std::span<const std::uint8_t> file);
-std::vector<std::uint8_t> udifDisk(std::span<const std::uint8_t> file);
+// The updater's firmware found on the disk of an Apple UDIF image (udifDisk): the resource file on it that holds
+// NMG2 128 and BOOT 128 (fromUpdaterResources checks the OS image's own checksums, so a false match cannot pass).
 Firmware firmwareFromDisk(std::span<const std::uint8_t> disk);
 
 } // namespace g2emu

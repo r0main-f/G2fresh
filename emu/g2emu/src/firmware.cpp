@@ -126,43 +126,6 @@ std::vector<std::uint8_t> lzo1xDecompress(std::span<const std::uint8_t> src)
     }
 }
 
-std::vector<Resource> parseResources(std::span<const std::uint8_t> blob)
-{
-    const auto dataOff = be32(blob, 0), mapOff = be32(blob, 4), mapLen = be32(blob, 12);
-    if(std::size_t(mapOff) + mapLen > blob.size()) throw std::runtime_error("resources: map past the end");
-    const auto m = blob.subspan(mapOff, mapLen);
-    const auto typeList = be16(m, 24), nameList = be16(m, 26);
-    const auto types = be16(m, typeList) + 1;
-    std::vector<Resource> out;
-    for(std::uint32_t i = 0; i < types; ++i)
-    {
-        const std::size_t p = typeList + 2 + 8 * i;
-        if(p + 8 > m.size()) throw std::runtime_error("resources: type list past the end");
-        const std::string type(reinterpret_cast<const char*>(&m[p]), 4);
-        const auto count = be16(m, p + 4) + 1, refOff = be16(m, p + 6);
-        for(std::uint32_t j = 0; j < count; ++j)
-        {
-            const std::size_t q = typeList + refOff + 12 * j;
-            Resource r;
-            r.type = type;
-            r.id = std::int16_t(be16(m, q));
-            const auto nameOff = std::int16_t(be16(m, q + 2));
-            const auto d = dataOff + (be32(m, q + 4) & 0xffffff);
-            const auto size = be32(blob, d);
-            if(std::size_t(d) + 4 + size > blob.size()) throw std::runtime_error("resources: data past the end");
-            r.data.assign(blob.begin() + d + 4, blob.begin() + d + 4 + size);
-            if(nameOff != -1)
-            {
-                const std::size_t n = nameList + std::size_t(nameOff);
-                if(n >= m.size() || n + 1 + m[n] > m.size()) throw std::runtime_error("resources: name past the end");
-                r.name.assign(reinterpret_cast<const char*>(&m[n + 1]), m[n]);  // Mac Roman, ASCII here
-            }
-            out.push_back(std::move(r));
-        }
-    }
-    return out;
-}
-
 const OsSection* Firmware::section(const std::string& name) const
 {
     for(const auto& s : sections)
@@ -221,6 +184,24 @@ Firmware Firmware::fromUpdaterResources(std::span<const std::uint8_t> rsrc)
     }
     if(!os) throw std::runtime_error("firmware: no NMG2 128 (\"OS\") resource: not the G2 updater's resource file");
     return fromOsImage(os->data, boot ? std::span<const std::uint8_t>(boot->data) : std::span<const std::uint8_t>());
+}
+
+Firmware firmwareFromDisk(std::span<const std::uint8_t> disk)
+{
+    for(const auto rsrc : g2::clavia::resourceFilesOnDisk(disk))
+    {
+        try
+        {
+            bool hasOs = false;
+            for(const auto& r : parseResources(rsrc))
+                if(r.type == "NMG2" && r.id == 128) hasOs = true;
+            if(hasOs) return Firmware::fromUpdaterResources(rsrc);
+        }
+        catch(const std::exception&)
+        {
+        }
+    }
+    throw std::runtime_error("dmg: no G2 updater resources in this disk image");
 }
 
 Firmware Firmware::load(const std::filesystem::path& path)

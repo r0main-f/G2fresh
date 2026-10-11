@@ -1299,7 +1299,8 @@ void AreaView::clickControl(const Hit& h)
             juce::PopupMenu::Item item;
             item.itemID = i + 1;
             item.isTicked = i == value;
-            if (e.image.isValid() && e.imageWidth > 0 && i < std::max(1, e.imageCount)) {
+            if (currentLook() == Look::Classic && e.image.isValid() && e.imageWidth > 0
+                && i < std::max(1, e.imageCount)) {
                 auto frame = e.image.getClippedImage({i * e.imageWidth, 0, e.imageWidth, e.image.getHeight()});
                 auto drawable = std::make_unique<juce::DrawableImage>();
                 drawable->setImage(frame);

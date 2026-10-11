@@ -17,6 +17,7 @@ else()
 endif()
 
 add_subdirectory(core)
+add_subdirectory(clavia)
 add_subdirectory(proto)
 if(G2_WITH_USB)
   add_subdirectory(usb)
@@ -38,13 +39,11 @@ if(G2_BUILD_PLUGIN)
     GIT_SHALLOW TRUE)
   FetchContent_MakeAvailable(JUCE)
 
-  # The bundled Clavia skin (see NOTICE), compiled in as binary data.
-  file(GLOB G2_SKIN_FILES CONFIGURE_DEPENDS
-    ${PROJECT_SOURCE_DIR}/assets/clavia/panels.json
-    ${PROJECT_SOURCE_DIR}/assets/clavia/cbmp/*.png
-    ${PROJECT_SOURCE_DIR}/assets/clavia/smtb/*.png
-    ${PROJECT_SOURCE_DIR}/assets/clavia/jpeg/*.jpg)
-  juce_add_binary_data(G2SkinData HEADER_NAME G2SkinData.h NAMESPACE G2SkinData SOURCES ${G2_SKIN_FILES})
+  # The module panel layouts (positions, sizes, captions; no pixels, see NOTICE), compiled in as binary data. The
+  # Classic look's images are not in the build: they are taken from the user's own copy of Clavia's download at run
+  # time (clavia/, ui/Skin.cpp).
+  juce_add_binary_data(G2SkinData HEADER_NAME G2SkinData.h NAMESPACE G2SkinData
+    SOURCES ${PROJECT_SOURCE_DIR}/assets/clavia/panels.json)
   set_target_properties(G2SkinData PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
   # UI sources shared by the plugin/app and the render tool.

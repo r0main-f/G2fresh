@@ -1504,7 +1504,7 @@ Where the time went:
 1. **Firmware:** let the user point at their updater: Clavia's `.dmg` as downloaded, the `.rsrc`, the `.app`, or
    `g2os.py`'s output (`Firmware::load`). The `.dmg` (UDIF, zlib chunks, an HFS volume) is put back together in memory
    and the updater's resource file is found on it by its resource map, checked by the OS image's own checksums
-   (`emu/g2emu/src/dmg.cpp`; needs zlib, found by CMake on macOS and Linux; assumes the file is stored in one piece, as
+   (`clavia/src/download.cpp`, shared with the Classic look; needs zlib, the system's on macOS and Linux, built from source on Windows; assumes the file is stored in one piece, as
    in Clavia's image). Still missing: the Windows `.zip`/`.exe` (Wise, §4.7).
 2. **Run it:** `g2emu::Runner` (machine on its own threads, `threads = 1` or 2) from `prepare()`; the audio thread
    calls `Runner::read()` for 96 kHz frames (lock-free, real-time safe) and resamples to the host's rate (JUCE's

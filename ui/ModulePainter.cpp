@@ -629,28 +629,6 @@ void centredText(juce::Graphics& g, juce::Rectangle<float> r, const juce::String
     g.drawFittedText(text, r.toNearestInt(), juce::Justification::centred, 1, 0.75f);
 }
 
-// Draws a frame of an original 1-bit-style icon as a glyph: dark pixels in
-// `colour`, light background transparent, centred on `centre`.
-void drawGlyph(juce::Graphics& g, const juce::Image& strip, int frame, int frameWidth, juce::Point<float> centre,
-               juce::Colour colour)
-{
-    if (!strip.isValid() || frameWidth <= 0)
-        return;
-    const int h = strip.getHeight();
-    const float x0 = std::round(centre.x - static_cast<float>(frameWidth) * 0.5f);
-    const float y0 = std::round(centre.y - static_cast<float>(h) * 0.5f);
-    g.setColour(colour);
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < frameWidth; ++x) {
-            const float b = strip.getPixelAt(frame * frameWidth + x, y).getBrightness();
-            if (b < 0.6f) {
-                g.setOpacity(b < 0.3f ? 1.0f : 0.55f);
-                g.fillRect(x0 + static_cast<float>(x), y0 + static_cast<float>(y), 1.0f, 1.0f);
-            }
-        }
-    g.setOpacity(1.0f);
-}
-
 void chevron(juce::Graphics& g, juce::Point<float> c, float size, float angle, juce::Colour colour)
 {
     juce::Path p;
@@ -732,14 +710,10 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
             g.fillRoundedRectangle(static_cast<float>(e.x), static_cast<float>(e.y), static_cast<float>(e.length), w, w * 0.5f);
         return;
     }
-    if (e.kind == "Bitmap") {
-        if (e.image.isValid())
-            drawGlyph(g, e.image, 0, e.image.getWidth(),
-                      juce::Rectangle<float>(static_cast<float>(e.x), static_cast<float>(e.y),
-                                             static_cast<float>(e.image.getWidth()), static_cast<float>(e.image.getHeight())).getCentre(),
-                      kInk.withAlpha(0.85f));
+    // The Modern look draws none of the original's pixels (PanelElement::image
+    // is the Classic look's): a Bitmap is left out, buttons show their captions.
+    if (e.kind == "Bitmap")
         return;
-    }
     if (e.kind == "Symbol") {
         const auto s = juce::Rectangle<float>(static_cast<float>(e.x), static_cast<float>(e.y),
                                               static_cast<float>(std::max(e.width, 3)), static_cast<float>(std::max(e.height, 3)));
@@ -841,11 +815,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         roundedButton(g, r, on, highlighted);
         if (e.kind == "ButtonText")
             drawMorphFace(g, r.reduced(1.0f), morphLook(c, e.codeRef), on, 2.5f);
-        if (e.image.isValid()) {
-            drawGlyph(g, e.image, 0, e.image.getWidth(), r.getCentre(), on ? juce::Colours::white : kInk);
-        } else {
-            centredText(g, r, captions(c, e).joinIntoString(","), on ? juce::Colours::white : kInk);
-        }
+        centredText(g, r, captions(c, e).joinIntoString(","), on ? juce::Colours::white : kInk);
         return;
     }
     if (e.kind == "ButtonFlat" || e.kind == "LevelShift") {
@@ -853,10 +823,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         if (e.kind == "ButtonFlat")
             drawMorphFace(g, r.reduced(1.0f), morphLook(c, e.codeRef), false, 2.5f);
         const int val = v.value_or(0);
-        if (e.image.isValid() && e.imageCount > 0)
-            drawGlyph(g, e.image, juce::jlimit(0, e.imageCount - 1, val), e.imageWidth, r.getCentre(), kInk);
-        else
-            centredText(g, r, juce::isPositiveAndBelow(val, e.options.size()) ? e.options[val] : juce::String(val), kInk);
+        centredText(g, r, juce::isPositiveAndBelow(val, e.options.size()) ? e.options[val] : juce::String(val), kInk);
         return;
     }
     if (e.kind == "ButtonRadio" || e.kind == "ButtonRadioEdit") {
@@ -877,9 +844,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
                 g.setColour(kAccent);
                 g.fillRoundedRectangle(b.reduced(1.0f), 2.5f);
             }
-            if (e.image.isValid() && e.imageWidth > 0) {
-                drawGlyph(g, e.image, i, e.imageWidth, b.getCentre(), on ? juce::Colours::white : kInk);
-            } else if (i < texts.size()) {
+            if (i < texts.size()) {
                 centredText(g, b, texts[i], on ? juce::Colours::white : kInk, 9.0f);
             }
             if (i % cols > 0) {
@@ -904,11 +869,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
     }
     if (e.kind == "PartSelector") {
         roundedButton(g, r, false, highlighted);
-        if (e.image.isValid() && e.imageCount > 0)
-            drawGlyph(g, e.image, juce::jlimit(0, e.imageCount - 1, v.value_or(0)), e.imageWidth,
-                      r.withTrimmedRight(8.0f).getCentre(), kInk);
-        else
-            centredText(g, r.withTrimmedRight(8.0f), valueText(c, e), kInk);
+        centredText(g, r.withTrimmedRight(8.0f), valueText(c, e), kInk);
         chevron(g, {r.getRight() - 5.0f, r.getCentreY()}, 2.5f, 0.0f, kInk);
         return;
     }
