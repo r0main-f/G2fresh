@@ -44,6 +44,9 @@ bool isFatal(Status s);
 // 7E codes (XMHostMidi): 3 error in synth, 4 down-link checksum error, 5 stream
 // execute error, 6 unfinished bubble.
 const char* exceptionText(u8 code);
+// What the original editor says about a flash command's result (0D), "" for
+// none: 1 "Can't load from flash", 3 "Flash memory full", 4 "Memory protect on".
+const char* flashResultText(u8 result);
 
 class Client : private Transport::Sink {
 public:
@@ -80,6 +83,8 @@ public:
         virtual void ledsChanged(int /*slot*/) {}
         virtual void midiLearned(const MidiLearn&) {}
         virtual void error(u8 /*exceptionCode*/) {}
+        // The synth's answer to storeToFlash (result 2 = stored; flashResultText for what went wrong).
+        virtual void flashResult(const FlashResult&) {}
     };
 
     // Told about every change to state(), in order: what g2bridge needs to keep
@@ -155,8 +160,9 @@ public:
     void loadFromFlash(int slot, u8 bank, u8 prog);  // slot 4 = a performance; the synth releases
     void storeToFlash(int slot, u8 bank, u8 prog);
     void playNote(u8 note, bool on);                  // 56: no velocity, no channel (§12)
-    // 03 CMSynthDataDump: the synth settings (MIDI channels, Local, ...). Clavia's editor sends it only to change
-    // perfMode; the OS reads every field (CSynthMap::ReadStream).
+    // 03 CMSynthDataDump: the synth settings (MIDI channels, Local, ...), as Clavia's editor sends them from its
+    // Synth Settings dialog (CSynth::TrySendingSynthDataSystemInfo 0x11e06c) and to change perfMode. The OS reads
+    // every field (CSynthMap::ReadStream) and answers with an ack only.
     void setSynthSettings(const SynthSettings& settings);
     // Any patch edit: applied to the slot's mirror, sent as one T bubble.
     void edit(int slot, std::vector<Molecule> molecules);

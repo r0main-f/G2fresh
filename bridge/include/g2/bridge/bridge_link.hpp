@@ -68,6 +68,7 @@ public:
     void loadFromFlash(int slot, u8 bank, u8 prog) override;
     void storeToFlash(int slot, u8 bank, u8 prog) override;
     void playNote(u8 note, bool on) override;
+    void setSynthSettings(const proto::SynthSettings& settings) override;
     void edit(int slot, std::vector<proto::Molecule> molecules) override;
 
 private:

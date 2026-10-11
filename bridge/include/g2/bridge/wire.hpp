@@ -74,6 +74,7 @@ enum class Op : u8 {
     StoreToFlash = 18,     // slot, bank, prog
     PlayNote = 19,         // note, on
     Edit = 20,             // slot, bytes molecules
+    SetSynthSettings = 21, // molecule: SynthData
 };
 
 // Listener callbacks, in Event messages.
@@ -90,6 +91,7 @@ enum class EventKind : u8 {
     LedsChanged = 10,
     MidiLearned = 11,      // molecule: MidiLearn
     Error = 12,            // value: exception code
+    FlashResult = 13,      // molecule: FlashResult; to the editor that stored only
 };
 
 // ---- Encoding ----------------------------------------------------------------

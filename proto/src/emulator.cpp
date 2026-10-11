@@ -328,6 +328,11 @@ void Emulator::handle(u8 slot, bool sessionOk, const Molecule& molecule, std::ve
                     break;
                 }
                 case id::FlashStore: {
+                    // Memory Protect: the G2 OS answers result 4 and stores nothing (tested on OS 1.62).
+                    if (state_.settings.memoryProtect) {
+                        reply.push_back(FlashResult{type, m.bank, m.prog, 0, 4});
+                        break;
+                    }
                     FlashEntry e;
                     if (type == 0 && m.slot < kSlots) {
                         e.name = state_.slots[m.slot].name;
@@ -337,7 +342,7 @@ void Emulator::handle(u8 slot, bool sessionOk, const Molecule& molecule, std::ve
                         e.file = savePerformance(state_.performance());
                     }
                     flash_[type][{m.bank, m.prog}] = std::move(e);
-                    reply.push_back(FlashResult{type, m.bank, m.prog, 0, 0});
+                    reply.push_back(FlashResult{type, m.bank, m.prog, 0, 2}); // 2: the OS's answer to a store
                     break;
                 }
                 case id::FlashDataRequest: {
@@ -369,6 +374,10 @@ void Emulator::handle(u8 slot, bool sessionOk, const Molecule& molecule, std::ve
                 }
             },
             [&](const FlashDelete& m) {
+                if (state_.settings.memoryProtect) {
+                    reply.push_back(FlashResult{m.type, m.bank, m.prog, m.origin, 4});
+                    return;
+                }
                 flash_[m.type & 1].erase({m.bank, m.prog});
                 reply.push_back(FlashResult{m.type, m.bank, m.prog, m.origin, 0});
             },

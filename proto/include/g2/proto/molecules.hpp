@@ -85,6 +85,7 @@ struct SynthSettings {
     bool sustainPolarity = false;
     u8 controlPedalGain = 0;
     std::array<u8, 16> reserved{}; // written as zero
+    bool operator==(const SynthSettings&) const = default;
 };
 struct SynthData {
     SynthSettings settings;
@@ -118,7 +119,8 @@ struct FlashCommand {
 struct FlashDelete {
     u8 type = 0, bank = 0, prog = 0, origin = 0;
 };
-// 0D CMFlashCommandResult: result 0 = ok.
+// 0D CMFlashCommandResult: result 0, 2 (OS 1.62 after a store) and 5 = done, 1 can't load, 3 memory full,
+// 4 Memory Protect on (CFlashData::HandleFlashCommandResult 0x11b062).
 struct FlashResult {
     u8 type = 0, bank = 0, prog = 0, origin = 0, result = 0;
 };

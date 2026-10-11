@@ -32,8 +32,9 @@ std::string testSocketPath()
 
 // Records what a listener hears.
 struct Recorder : SynthLink::Listener {
-    int params = 0, slots = 0, variations = 0, edits = 0, syncs = 0, statuses = 0;
+    int params = 0, slots = 0, variations = 0, edits = 0, syncs = 0, statuses = 0, synthChanges = 0;
     std::optional<ParamChange> lastParam;
+    std::vector<FlashResult> flashResults;
     void paramChanged(int, const ParamChange& p) override
     {
         ++params;
@@ -44,6 +45,8 @@ struct Recorder : SynthLink::Listener {
     void patchEdited(int, const Molecule&) override { ++edits; }
     void synced() override { ++syncs; }
     void statusChanged(Status) override { ++statuses; }
+    void synthChanged() override { ++synthChanges; }
+    void flashResult(const FlashResult& r) override { flashResults.push_back(r); }
 };
 
 struct Bridge {
@@ -195,6 +198,52 @@ TEST_CASE("bridge: a knob turned on the synth reaches every editor")
     REQUIRE(bridge.run({a.get(), b.get()}, [&] { return ra.params > 0 && rb.params > 0; }));
     CHECK(a->state().slots[1].patch.va.find(osc)->params[0][0] == 17);
     CHECK(b->state().slots[1].patch.va.find(osc)->params[0][0] == 17);
+}
+
+TEST_CASE("bridge: synth settings from one editor reach the synth and the other editor; a refused store answers its editor")
+{
+    Bridge bridge;
+    auto a = bridge.link();
+    auto b = bridge.link();
+    Recorder ra, rb;
+    a->setListener(&ra);
+    b->setListener(&rb);
+    REQUIRE(bridge.run({a.get(), b.get()}, [&] { return a->synced() && b->synced(); }));
+
+    // The Synth Settings window in A: Memory Protect on, a name, slot B's channel off.
+    auto s = a->state().settings;
+    s.memoryProtect = true;
+    s.name = "Bridged";
+    s.midiChannels[1] = 16;
+    a->setSynthSettings(s);
+    REQUIRE(bridge.run({a.get(), b.get()}, [&] {
+        return bridge.emulator().state().settings == s && a->state().settings == s && b->state().settings == s;
+    }));
+    bridge.settle({a.get(), b.get()});
+    CHECK(rb.synthChanges == 1); // B hears it, as a change made on the synth
+    CHECK(ra.synthChanges == 0);
+
+    // A store from B: the synth refuses, and B alone is told.
+    b->storeToFlash(0, 0, 0);
+    REQUIRE(bridge.run({a.get(), b.get()}, [&] { return !rb.flashResults.empty(); }));
+    bridge.settle({a.get(), b.get()});
+    CHECK(rb.flashResults.size() == 1);
+    CHECK(rb.flashResults[0].result == 4);
+    CHECK(ra.flashResults.empty());
+    CHECK(bridge.emulator().flash()[0].empty());
+
+    // Protect off from B, then A stores: A is told it went well.
+    s.memoryProtect = false;
+    b->setSynthSettings(s);
+    REQUIRE(bridge.run({a.get(), b.get()}, [&] { return !bridge.emulator().state().settings.memoryProtect; }));
+    a->storeToFlash(0, 0, 0);
+    REQUIRE(bridge.run({a.get(), b.get()}, [&] { return !ra.flashResults.empty(); }));
+    bridge.settle({a.get(), b.get()});
+    CHECK(ra.flashResults[0].result == 2);
+    CHECK(rb.flashResults.size() == 1);
+    CHECK(bridge.emulator().flash()[0].count({0, 0}) == 1);
+    CHECK(sameMirror(a->state(), bridge.server.link().state()));
+    CHECK(sameMirror(b->state(), bridge.server.link().state()));
 }
 
 TEST_CASE("bridge: an editor leaving does not disturb the others, and the bridge exits when idle")

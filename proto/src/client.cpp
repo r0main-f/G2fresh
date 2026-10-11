@@ -49,6 +49,17 @@ const char* exceptionText(u8 code)
     }
 }
 
+const char* flashResultText(u8 result)
+{
+    // CFlashData::HandleFlashCommandResult 0x11b062: 0, 2 and 5 are done; others say nothing.
+    switch (result) {
+    case 1: return "Can't load from flash";
+    case 3: return "Flash memory full";
+    case 4: return "Memory protect on";
+    default: return "";
+    }
+}
+
 Client::Client(Transport& transport, Clock& clock) : Client(transport, clock, Options{}) {}
 
 Client::Client(Transport& transport, Clock& clock, Options options)
@@ -750,9 +761,13 @@ void Client::storeToFlash(int slot, u8 bank, u8 prog)
     if (slot < 0 || slot > kSlotSynth)
         return;
     // The synth does not send the new name list by itself: read it again once
-    // the store is answered, so editors see the new entry.
+    // the store is answered, so editors see the new entry. The answer carries
+    // the result (0D), e.g. 4 when Memory Protect is on.
     enqueueUser([slot, bank, prog] { return Bubble::synth({FlashCommand{id::FlashStore, static_cast<u8>(slot), bank, prog}}); },
-                [this, slot](const std::vector<Molecule>&) {
+                [this, slot](const std::vector<Molecule>& reply) {
+                    for (const auto& m : reply)
+                        if (const auto* r = std::get_if<FlashResult>(&m); r && listener_)
+                            listener_->flashResult(*r);
                     if (options_.readFlashNames)
                         enqueueFlashNames(slot == kSlotSynth ? 1 : 0, 0, 0, false);
                 });
@@ -766,6 +781,7 @@ void Client::playNote(u8 note, bool on)
 void Client::setSynthSettings(const SynthSettings& settings)
 {
     state_.settings = settings;
+    applied(kSlotSynth, SynthData{settings});
     enqueueUser([settings] { return Bubble::synth({SynthData{settings}}); });
 }
 

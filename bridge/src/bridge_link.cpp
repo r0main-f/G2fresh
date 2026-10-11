@@ -194,6 +194,10 @@ void BridgeLink::event(Reader& r)
             listener_->midiLearned(*p);
         break;
     case EventKind::Error: listener_->error(value); break;
+    case EventKind::FlashResult:
+        if (const auto* p = molecule ? std::get_if<FlashResult>(&*molecule) : nullptr)
+            listener_->flashResult(*p);
+        break;
     default: break; // unknown: ignored
     }
 }
@@ -324,6 +328,11 @@ void BridgeLink::storeToFlash(int slot, u8 bank, u8 prog)
 }
 
 void BridgeLink::playNote(u8 note, bool on) { op(std::move(opWriter(Op::PlayNote).u8(note).u8(on ? 1 : 0))); }
+
+void BridgeLink::setSynthSettings(const proto::SynthSettings& settings)
+{
+    op(std::move(opWriter(Op::SetSynthSettings).molecule(proto::SynthData{settings})));
+}
 
 void BridgeLink::edit(int slot, std::vector<Molecule> molecules)
 {

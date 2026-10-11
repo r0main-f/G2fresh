@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <string>
 #include <vector>
@@ -95,6 +96,7 @@ private:
     void ledsChanged(int slot) override;
     void midiLearned(const proto::MidiLearn& l) override;
     void error(u8 code) override;
+    void flashResult(const proto::FlashResult& r) override;
 
     // Client::Observer
     void applied(u8 target, const proto::Molecule& m) override;
@@ -107,6 +109,8 @@ private:
     std::vector<std::unique_ptr<Editor>> clients_;
     std::uint32_t nextId_ = 1;
     std::uint32_t origin_ = 0; // the editor whose call is executing
+    // The editors whose stores await the synth's answer, in order: the answer goes to that editor.
+    std::deque<std::uint32_t> storeOrigins_;
     std::chrono::steady_clock::time_point idleSince_;
 };
 

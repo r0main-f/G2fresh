@@ -27,6 +27,7 @@ struct Recorder : Client::Listener {
     std::vector<u8> errors;
     std::vector<MidiLearn> learned;
     int performanceChanges = 0;
+    std::vector<FlashResult> flashResults;
 
     void statusChanged(Status s) override { statuses.push_back(s); }
     void synced() override { ++syncs; }
@@ -37,6 +38,7 @@ struct Recorder : Client::Listener {
     void ledsChanged(int slot) override { leds.push_back(slot); }
     void midiLearned(const MidiLearn& m) override { learned.push_back(m); }
     void error(u8 code) override { errors.push_back(code); }
+    void flashResult(const FlashResult& r) override { flashResults.push_back(r); }
 };
 
 struct Rig {
@@ -410,6 +412,70 @@ TEST_CASE("session: flash name lists in chunks, load and store")
     CHECK(after.size() == bank.size());
     CHECK(std::any_of(after.begin(), after.end(),
                       [](const FlashName& n) { return n.bank == 5 && n.prog == 9 && n.name == "Far Away"; }));
+}
+
+TEST_CASE("session: the synth settings as the Synth Settings window sends them, and Memory Protect refusing a store")
+{
+    // Every change the client makes to its mirror reaches its observer (g2bridge mirrors it to its editors).
+    struct Applied : Client::Observer {
+        std::vector<SynthSettings> settings;
+        void applied(u8 target, const Molecule& m) override
+        {
+            if (const auto* d = std::get_if<SynthData>(&m); d && target == kSlotSynth)
+                settings.push_back(d->settings);
+        }
+        void slotReplaced(int) override {}
+        void stateReplaced() override {}
+    } applied;
+    Rig rig;
+    rig.plugIn();
+    REQUIRE(rig.client.synced());
+    rig.client.setObserver(&applied);
+
+    auto s = rig.client.state().settings;
+    s.name = "Protected";
+    s.memoryProtect = true;
+    s.midiChannels = {4, 16, 6, 7}; // slot B off
+    s.transpose = -3;
+    s.masterTune = 12;
+    rig.client.setSynthSettings(s);
+    CHECK(rig.client.state().settings == s); // the mirror at once
+    REQUIRE(applied.settings.size() == 1);
+    CHECK(applied.settings[0] == s);
+    rig.run();
+    CHECK(rig.emulator.state().settings == s);
+    // one 03 molecule in a synth bubble, as CSynth::TrySendingSynthDataSystemInfo sends it
+    const auto& sent = rig.emulator.received().back();
+    CHECK(sent.hdr == 0x2C);
+    REQUIRE(sent.molecules.size() > 1);
+    CHECK(sent.molecules[0] == id::SynthData);
+
+    // Memory Protect on: the synth answers 0D with result 4 and stores nothing
+    rig.client.storeToFlash(0, 0, 0);
+    rig.run();
+    REQUIRE(rig.events.flashResults.size() == 1);
+    CHECK(rig.events.flashResults[0].result == 4);
+    CHECK(std::string(flashResultText(rig.events.flashResults[0].result)) == "Memory protect on");
+    CHECK(rig.emulator.flash()[0].empty());
+    CHECK(rig.client.state().flash[0].empty());
+
+    // off: stored, result 2 as the OS answers, which says nothing
+    s.memoryProtect = false;
+    rig.client.setSynthSettings(s);
+    rig.client.storeToFlash(0, 0, 0);
+    rig.run(6);
+    REQUIRE(rig.events.flashResults.size() == 2);
+    CHECK(rig.events.flashResults[1].result == 2);
+    CHECK(rig.emulator.flash()[0].count({0, 0}) == 1);
+    CHECK(rig.client.state().flash[0].size() == 1);
+
+    // the original's texts for a flash command's result (CFlashData::HandleFlashCommandResult)
+    CHECK(std::string(flashResultText(0)).empty());
+    CHECK(std::string(flashResultText(1)) == "Can't load from flash");
+    CHECK(std::string(flashResultText(2)).empty());
+    CHECK(std::string(flashResultText(3)) == "Flash memory full");
+    CHECK(std::string(flashResultText(5)).empty());
+    CHECK(std::string(flashResultText(6)).empty());
 }
 
 TEST_CASE("session: no version reply, then the synth answers")

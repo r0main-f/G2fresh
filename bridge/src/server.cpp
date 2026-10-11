@@ -294,11 +294,19 @@ void BridgeServer::execute(Editor& c, Reader& r)
         const int slot = r.u8();
         const auto bank = r.u8(), prog = r.u8();
         if (!r.failed()) {
-            if (op == Op::LoadFromFlash)
+            if (op == Op::LoadFromFlash) {
                 l.loadFromFlash(slot, bank, prog);
-            else
+            } else {
+                storeOrigins_.push_back(c.id);
                 l.storeToFlash(slot, bank, prog);
+            }
         }
+        break;
+    }
+    case Op::SetSynthSettings: {
+        const auto m = r.molecule();
+        if (const auto* d = m ? std::get_if<SynthData>(&*m) : nullptr; d && !r.failed())
+            l.setSynthSettings(d->settings);
         break;
     }
     case Op::PlayNote: {
@@ -364,7 +372,8 @@ void BridgeServer::editEvents(u8 target, const Molecule& m)
     // What the other editors' listeners would hear had the edit come from
     // the synth's panel.
     if (target >= kSlots) {
-        broadcast(eventMessage(EventKind::PerformanceChanged, kSlotSynth), origin_);
+        const bool settings = std::holds_alternative<SynthData>(m);
+        broadcast(eventMessage(settings ? EventKind::SynthChanged : EventKind::PerformanceChanged, kSlotSynth), origin_);
         return;
     }
     if (std::holds_alternative<ParamChange>(m))
@@ -407,7 +416,12 @@ void BridgeServer::stateReplaced()
 
 // Client::Listener: synth-initiated news, to every editor.
 
-void BridgeServer::statusChanged(Status) { broadcast(statusMessage()); }
+void BridgeServer::statusChanged(Status s)
+{
+    if (s != Status::Connected)
+        storeOrigins_.clear(); // stores in flight are dropped with the connection
+    broadcast(statusMessage());
+}
 void BridgeServer::synced() { broadcast(statusMessage()); }
 void BridgeServer::slotChanged(int slot) { broadcast(eventMessage(EventKind::SlotChanged, slot)); }
 void BridgeServer::synthChanged() { broadcast(eventMessage(EventKind::SynthChanged, kSlotSynth)); }
@@ -451,5 +465,17 @@ void BridgeServer::midiLearned(const MidiLearn& l)
 }
 
 void BridgeServer::error(u8 code) { broadcast(eventMessage(EventKind::Error, kSlotSynth, code)); }
+
+void BridgeServer::flashResult(const FlashResult& r)
+{
+    if (storeOrigins_.empty())
+        return;
+    const auto id = storeOrigins_.front();
+    storeOrigins_.pop_front();
+    const Molecule m = r;
+    for (auto& c : clients_)
+        if (c->id == id && c->hello)
+            send(*c, eventMessage(EventKind::FlashResult, kSlotSynth, 0, &m));
+}
 
 } // namespace g2::bridge
