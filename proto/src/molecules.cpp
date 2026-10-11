@@ -273,15 +273,15 @@ void body(BitWriter& w, const VariationCopy& m) { w.bytes(std::array<u8, 2>{m.fr
 void body(BitWriter& w, const CableEdit& m)
 {
     switch (m.id) {
-    case id::CableConnect: // pad3, b1 1 (not a dump), b1 isVA, b3 color
+    case id::CableConnect: // pad3, b1 not part of a dump, b1 isVA, b3 color
         w.write(0, 3);
-        bit(w, true);
+        bit(w, !m.dump);
         bit(w, m.va);
         w.write(m.color, 3);
         break;
-    case id::CableDelete: // pad6, b1 1, b1 isVA
+    case id::CableDelete: // pad6, b1 not part of a dump, b1 isVA
         w.write(0, 6);
-        bit(w, true);
+        bit(w, !m.dump);
         bit(w, m.va);
         break;
     default: // 54: pad4, b1 isVA, b3 color
@@ -798,12 +798,12 @@ std::optional<Molecule> read(u8 mid, BitReader& r, std::span<const u8> body)
         CableEdit m{mid, true, 0, 0, 0, true, 0, 0, false};
         if (mid == id::CableConnect) {
             r.read(3);
-            r.read(1);
+            m.dump = r.read(1) == 0;
             m.va = r.read(1) != 0;
             m.color = static_cast<u8>(r.read(3));
         } else if (mid == id::CableDelete) {
             r.read(6);
-            r.read(1);
+            m.dump = r.read(1) == 0;
             m.va = r.read(1) != 0;
         } else {
             r.read(4);

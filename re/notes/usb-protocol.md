@@ -487,7 +487,7 @@ Addresses are `WriteStream`/`ReadStream` of the `CM*` class.
 | 3C | CMCompletePatchRequest 0x16220 | Q_PATCH | E→S | 2 | T | – | – | all patch sections (§8.2) |
 | 3D | CMDumpOneRequest 0x18908 | S_MIDI_DUMP | E→S | 2 | S | – | – | menu "Dump One": the synth dumps on its MIDI OUT [I] |
 | 3E | CMPerformanceModeChange 0x189d6 | S_SET_PARAM_MODE | E→S | 0 | S [I] | – | `u8 perfMode, u8 flag2(?)` | Verhue polarity contradictory |
-| 3F | CMPerformanceHeaderParam 0x16d86/0x16dfe | S_SET_MASTER_CLOCK | both | 0 | P | 3 | `u8 scope (0xFF = global), u8 param, [u8 value if scope > 3 && param < 3]`; param 0 = clock run, 1 = BPM, 2 = keyboard range [I] | |
+| 3F | CMPerformanceHeaderParam 0x16d86/0x16dfe | S_SET_MASTER_CLOCK | both | 0 | P | 3 | `u8 scope (0xFF = global), u8 param, [u8 value if scope > 3 && param < 3]`; param 0 = clock run, 1 = BPM, 2 = Global Pages (the knob floater, 0x132420; the keyboard range travels in `11`) | |
 | 40 | CMParamChange 0x15008/0x155b6 | S_SET_PARAM | both | **1** | RT | 2 | `u8 loc, u8 module, u8 param, u8 value(0..127), u8 variation` | no reply; also sent unsolicited by the synth |
 | 42 | CMCustomData 0x15d68 | S_SET_PARAM_LABEL | E→S | 0 | T | – | `u8 loc, u8 module, u8 n, n×u8` (module custom data = Verhue's "param labels") | |
 | 43 | CMMorphChange 0x150a4/0x15360 | S_SET_MORPH_RANGE | both | 0 or 1 | T or RT | 2 | `u8 loc, u8 module, u8 param, u8 morph(0..7), u8 \|range\|, u8 negative, u8 variation` | realtime while dragging |

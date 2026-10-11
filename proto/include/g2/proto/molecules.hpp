@@ -266,7 +266,7 @@ struct PerformanceMode {
     u8 perfMode = 0, flag = 0;
 };
 // 3F CMPerformanceHeaderParam: scope (0xFF = global), param, and a value when
-// scope > 3 and param < 3 (0 clock run, 1 BPM, 2 keyboard range [I]).
+// scope > 3 and param < 3 (0 clock run, 1 BPM, 2 global knob pages: CKnobFloaterContainer @00132420).
 struct PerfHeaderParam {
     u8 scope = 0, param = 0;
     std::optional<u8> value;
@@ -290,7 +290,9 @@ struct MorphChange {
 struct VariationCopy {
     u8 from = 0, to = 0;
 };
-// 50 CMCableConnect / 51 CMCableDelete / 54 CMCableRecolor.
+// 50 CMCableConnect / 51 CMCableDelete / 54 CMCableRecolor. A cable taken
+// from the cable trees goes from the child connector (farther from the
+// output) to its parent; a new one from the drag's origin to its target.
 struct CableEdit {
     u8 id = 0;
     bool va = true;
@@ -299,6 +301,9 @@ struct CableEdit {
     bool fromIsOutput = true;
     u8 toModule = 0, toConn = 0;
     bool toIsOutput = false;
+    // 50, 51: part of a module deletion, paste or replacement (the original's
+    // EPartOfDump, which clears the "not a dump" bit).
+    bool dump = false;
 };
 // 56 CMPlayNote: no velocity, no channel (§12).
 struct PlayNote {

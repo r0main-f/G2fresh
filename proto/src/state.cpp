@@ -33,10 +33,24 @@ std::vector<std::vector<u8>>* paramsOf(Patch& p, u8 loc, u8 module)
     return nullptr;
 }
 
+// The cable between the molecule's two connectors, whichever way round it
+// names them (the original sends tree links child -> parent, new cables
+// origin -> target; a patch stores them output first).
 bool sameEnds(const Cable& c, const CableEdit& e)
 {
-    return c.fromModule == e.fromModule && c.fromConn == e.fromConn && c.fromIsOutput == e.fromIsOutput
-        && c.toModule == e.toModule && c.toConn == e.toConn;
+    const bool forward = c.fromModule == e.fromModule && c.fromConn == e.fromConn && c.fromIsOutput == e.fromIsOutput
+                      && c.toModule == e.toModule && c.toConn == e.toConn && !e.toIsOutput;
+    const bool backward = c.fromModule == e.toModule && c.fromConn == e.toConn && c.fromIsOutput == e.toIsOutput
+                       && c.toModule == e.fromModule && c.toConn == e.fromConn && !e.fromIsOutput;
+    return forward || backward;
+}
+
+Cable cableOf(const CableEdit& e)
+{
+    if (e.toIsOutput && !e.fromIsOutput)
+        return Cable{static_cast<CableColor>(e.color), e.toModule, e.toConn, true, e.fromModule, e.fromConn, std::nullopt};
+    return Cable{static_cast<CableColor>(e.color), e.fromModule, e.fromConn, e.fromIsOutput, e.toModule, e.toConn,
+                 std::nullopt};
 }
 
 // A whole-section replacement through the section codec, keeping the rest.
@@ -50,6 +64,11 @@ void replaceSection(Patch& p, const file::Section& s)
 
 void mergeParamList(Patch& p, const file::ParamList& list)
 {
+    // The Mutator's variation (9) in a patch that has none yet.
+    for (const auto& pm : list.modules)
+        for (const auto& v : pm.variations)
+            if (v.variation == kAuditionVariation)
+                edit::addAuditionVariation(p);
     for (const auto& pm : list.modules) {
         auto* params = paramsOf(p, list.location, pm.index);
         if (!params)
@@ -61,6 +80,17 @@ void mergeParamList(Patch& p, const file::ParamList& list)
             for (std::size_t i = 0; i < v.values.size() && i < values.size(); ++i)
                 values[i] = v.values[i];
         }
+    }
+}
+
+// A morph map's variations replace the patch's (the Mutator sends one).
+void mergeMorphMap(Patch& p, const file::MorphMap& map)
+{
+    for (const auto& v : map.variations) {
+        if (v.variation == kAuditionVariation)
+            edit::addAuditionVariation(p);
+        if (v.variation < p.morphs.size())
+            p.morphs[v.variation].assigns = v.morphs;
     }
 }
 
@@ -114,7 +144,7 @@ void addModule(Patch& p, const ModuleNew& n)
         std::vector<u8> values;
         for (const auto& d : def->params)
             values.push_back(d.defaultValue);
-        m.params.assign(p.variationCount, values);
+        m.params.assign(edit::variationSlots(p), values);
     }
     area.modules.push_back(std::move(m));
 }
@@ -160,10 +190,15 @@ void applySection(Patch& p, const file::Section& s)
             }
         }
         return;
+    case file::kMorphMap:
+        if (const auto* l = std::get_if<file::MorphMap>(&s.payload); l && l->variations.size() < p.morphs.size())
+            mergeMorphMap(p, *l);
+        else
+            replaceSection(p, s);
+        return;
     case file::kPatchHeader:
     case file::kCtrlMap:
     case file::kKnobMap:
-    case file::kMorphMap:
     case file::kCurrentNotes:
     case file::kTextpad:
         replaceSection(p, s);
@@ -213,19 +248,31 @@ bool applyToPatch(Patch& p, const Molecule& molecule)
     return std::visit(
         Overloaded{
             [&](const ParamChange& m) {
-                if (auto* params = paramsOf(p, m.location, m.module))
+                if (auto* params = paramsOf(p, m.location, m.module)) {
                     if (m.variation < params->size() && m.param < (*params)[m.variation].size())
                         (*params)[m.variation][m.param] = m.value;
+                    // Variation 0x7F: every variation (the 10 of a slot), clamped
+                    // to the parameter's range (CPatch::HandleParamChange @000dc636
+                    // -> CModule::SetCommonParamValue @000aa1b4).
+                    if (m.variation == 0x7F)
+                        guarded([&] {
+                            for (std::size_t v = 0; v < params->size(); ++v)
+                                edit::setTargetValue(p, {static_cast<Location>(m.location), m.module, m.param},
+                                                     static_cast<u8>(v), m.value);
+                        });
+                }
                 return true;
             },
             [&](const MorphChange& m) {
+                if (m.variation == 0x7F)
+                    return true; // redrawn only (CPatch::HandleMorphChange @000dc3b8)
                 return guarded([&] {
                     // One (parameter, group) assignment; range 0 removes it (CPatch::HandleMorphChange).
                     edit::storeMorph(p, m.variation, static_cast<Location>(m.location), m.module, m.param, m.morph, m.range);
                 });
             },
             [&](const VariationSelect& m) {
-                if (m.variation < p.variationCount)
+                if (m.variation < edit::variationSlots(p))
                     p.header.activeVariation = m.variation;
                 return true;
             },
@@ -269,8 +316,20 @@ bool applyToPatch(Patch& p, const Molecule& molecule)
                 return true;
             },
             [&](const ModuleDelete& m) {
-                if (areaLocation(m.location))
-                    guarded([&] { edit::removeModule(p, static_cast<Location>(m.location), m.module); });
+                // The module and whatever still refers to it (the editor sends its
+                // cables', knobs', controllers' and morphs' removals first).
+                if (areaLocation(m.location)) {
+                    auto& area = areaOf(p, m.location);
+                    std::erase_if(area.modules, [&](const Module& x) { return x.index == m.module; });
+                    std::erase_if(area.cables, [&](const Cable& c) { return c.fromModule == m.module || c.toModule == m.module; });
+                    auto refers = [&](u8 loc, u8 module) { return loc == m.location && module == m.module; };
+                    for (auto& v : p.morphs)
+                        std::erase_if(v.assigns, [&](const MorphAssign& a) { return refers(a.location, a.module); });
+                    for (auto& k : p.knobs)
+                        if (k && refers(k->location, k->module))
+                            k.reset();
+                    std::erase_if(p.controllers, [&](const file::CtrlAssign& c) { return refers(c.location, c.module); });
+                }
                 return true;
             },
             [&](const ModuleRename& m) {
@@ -291,8 +350,7 @@ bool applyToPatch(Patch& p, const Molecule& molecule)
                 auto& area = p.area(m.va ? Location::Va : Location::Fx);
                 if (m.id == id::CableConnect) {
                     if (std::none_of(area.cables.begin(), area.cables.end(), [&](const Cable& c) { return sameEnds(c, m); }))
-                        area.cables.push_back(Cable{static_cast<CableColor>(m.color), m.fromModule, m.fromConn,
-                                                    m.fromIsOutput, m.toModule, m.toConn, std::nullopt});
+                        area.cables.push_back(cableOf(m));
                 } else if (m.id == id::CableDelete) {
                     std::erase_if(area.cables, [&](const Cable& c) { return sameEnds(c, m); });
                 } else {
@@ -424,14 +482,16 @@ bool applyToSynth(SynthState& s, const Molecule& molecule)
                 return true;
             },
             [&](const PerfHeaderParam& m) {
-                // Param 0 clock run, 1 BPM, 2 keyboard range; scope 0xFF = global [I].
+                // Param 0 clock run, 1 BPM, 2 global knob pages (the knob floater,
+                // CKnobFloaterContainer::HandleChangeRequests @00132420); scope
+                // 0xFF = global [I].
                 if (m.value && m.scope == 0xFF) {
                     if (m.param == 0)
                         s.perfHeader.masterClockRun = *m.value;
                     else if (m.param == 1)
                         s.perfHeader.masterClockBpm = *m.value;
                     else if (m.param == 2)
-                        s.perfHeader.kbdRangeEnabled = *m.value;
+                        s.perfHeader.globalPages = *m.value;
                 }
                 return true;
             },

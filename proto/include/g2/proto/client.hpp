@@ -150,7 +150,9 @@ public:
 
     // ---- Uploads ----
     void sendPatch(int slot, const Patch& patch, const std::string& name); // §8.1, then the synth releases the slot
-    void sendPerformance(const Performance& perf, const std::string& name);
+    // performanceMode: the synth's mode for it (off for a patch sent alone in
+    // a performance of its own, the original's "void" performance).
+    void sendPerformance(const Performance& perf, const std::string& name, bool performanceMode = true);
 
     // ---- Live edits (§9). Each applies to the mirror at once. ----
     // Realtime messages go out at once, like Clavia's, unless edits are still
@@ -176,6 +178,7 @@ public:
     // every field (CSynthMap::ReadStream) and answers with an ack only.
     void setSynthSettings(const SynthSettings& settings);
     // Any patch edit: applied to the slot's mirror, sent as one T bubble.
+    // Slot kSlotSynth: a performance edit, one P bubble.
     void edit(int slot, std::vector<Molecule> molecules);
     // Any request; `handler` gets the reply's molecules.
     void request(Bubble bubble, ReplyHandler handler = {});

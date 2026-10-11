@@ -680,6 +680,19 @@ void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromRep
             anySection = sections.add(d->section) || anySection;
             continue;
         }
+        if (const auto* r = std::get_if<Request>(&m); r && r->id == id::KnobMapChanged) {
+            // CPatch::HandleBarbMapChangeNotify @000d3918: the slot's knob map
+            // changed on the synth; ask for it again (63).
+            enqueueCleaner([this, slot] { return slotBubble(slot, {Request{id::KnobMapRequest}}); },
+                           [this, slot](const std::vector<Molecule>& reply) {
+                               if (listener_)
+                                   for (const auto& k : reply)
+                                       if (const auto* d = std::get_if<SectionDump>(&k); d && d->section.id == file::kKnobMap)
+                                           listener_->patchEdited(slot, k);
+                           });
+            sendNext();
+            continue;
+        }
         if (!applyToSlot(s, m)) {
             synthLevel.push_back(m);
             continue;
@@ -758,6 +771,17 @@ void Client::routeSynth(const std::vector<Molecule>& molecules, bool fromReply)
                 listener_->midiLearned(*l);
             continue;
         }
+        if (const auto* r = std::get_if<Request>(&m); r && r->id == id::GlobalKnobMapChanged) {
+            // CPerformance::HandlePerfBarbMapChangeNotify @000ffeda: the global
+            // knob map changed; ask for it again (5E).
+            enqueueCleaner([this] { return perfBubble({Request{id::GlobalKnobMapRequest}}); },
+                           [this](const auto&) {
+                               if (listener_)
+                                   listener_->performanceChanged();
+                           });
+            sendNext();
+            continue;
+        }
         if (applyToSynth(state_, m)) {
             applied(kSlotSynth, m);
             const auto mid = idOf(m);
@@ -804,8 +828,20 @@ void Client::sendPatch(int slot, const Patch& patch, const std::string& name)
     });
 }
 
-void Client::sendPerformance(const Performance& perf, const std::string& name)
+void Client::sendPerformance(const Performance& perf, const std::string& name, bool performanceMode)
 {
+    // CSynth::CleanDirtyData @0011f394: when the synth's performance mode is
+    // not the one the upload wants (off for a patch sent alone, the original's
+    // "void" performance), a 03 with only that changed goes first.
+    enqueueUser([this, performanceMode]() -> std::optional<Bubble> {
+        if (state_.settings.perfMode == performanceMode)
+            return std::nullopt;
+        auto settings = state_.settings;
+        settings.perfMode = performanceMode;
+        state_.settings.perfMode = performanceMode;
+        applied(kSlotSynth, SynthData{settings});
+        return Bubble::synth({SynthData{settings}});
+    });
     const auto bubble = performanceUpload(perf, name);
     enqueueUser([this, bubble, perf, name] {
         state_.setPerformance(perf, name);
@@ -829,6 +865,15 @@ void Client::applyEdit(int slot, const Molecule& m)
 
 void Client::editBubble(int slot, std::vector<Molecule> molecules)
 {
+    if (slot == kSlotSynth) {
+        // A performance edit (11, 29, 07, 0F, 3F, 1C...): one P bubble
+        // (CPerformance::UserBubbleOutput @0010040c), applied at once.
+        for (const auto& m : molecules)
+            if (applyToSynth(state_, m))
+                applied(kSlotSynth, m);
+        enqueueUser([this, molecules = std::move(molecules)] { return perfBubble(molecules); });
+        return;
+    }
     if (slot < 0 || slot >= kSlots)
         return;
     for (const auto& m : molecules)

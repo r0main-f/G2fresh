@@ -38,7 +38,7 @@ namespace g2::bridge {
 
 using u8 = std::uint8_t;
 
-inline constexpr std::uint16_t kProtocolVersion = 1;
+inline constexpr std::uint16_t kProtocolVersion = 2;
 inline constexpr std::uint32_t kMaxMessage = 64u << 20;
 
 enum class MessageType : u8 {
@@ -58,7 +58,7 @@ enum class Op : u8 {
     Resync = 2,
     ResyncSlot = 3,        // slot
     SendPatch = 4,         // slot, bytes .pch2, string name
-    SendPerformance = 5,   // bytes .prf2, string name
+    SendPerformance = 5,   // bytes .prf2, string name, performance mode
     SetParam = 6,          // slot, location, module, param, value, variation
     SelectParam = 7,       // slot, location, module, param
     SetMorph = 8,          // slot, location, module, param, group, i16 range, variation, dragging
@@ -73,7 +73,7 @@ enum class Op : u8 {
     LoadFromFlash = 17,    // slot, bank, prog
     StoreToFlash = 18,     // slot, bank, prog
     PlayNote = 19,         // note, on
-    Edit = 20,             // slot, bytes molecules
+    Edit = 20,             // slot (4: the performance), bytes molecules
     SetSynthSettings = 21, // molecule: SynthData
 };
 

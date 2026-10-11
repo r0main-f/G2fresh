@@ -201,9 +201,10 @@ void BridgeServer::execute(Editor& c, Reader& r)
     case Op::SendPerformance: {
         const auto bytes = r.bytes();
         const auto name = r.string();
+        const bool performanceMode = r.u8() != 0;
         if (!r.failed()) {
             try {
-                l.sendPerformance(loadPerformance(bytes), name);
+                l.sendPerformance(loadPerformance(bytes), name, performanceMode);
             } catch (const std::exception&) {
             }
         }

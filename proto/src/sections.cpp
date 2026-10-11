@@ -130,6 +130,10 @@ void PatchAssembler::reset(const Patch* from)
     if (!from)
         return;
     auto sections = from->toSections();
+    // The header as the synth has it: a file leaves out the Mutator's
+    // variation (9) and saves it focused as 0, a slot does not.
+    if (!sections.empty() && sections[0].id == file::kPatchHeader)
+        sections[0].payload = from->header;
     for (std::size_t i = 0; i < sections.size() && i < sections_.size(); ++i)
         sections_[i] = std::move(sections[i]);
 }
