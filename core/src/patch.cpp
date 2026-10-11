@@ -1,5 +1,7 @@
 #include "g2/patch.hpp"
 
+#include "g2/convert.hpp"
+
 #include <algorithm>
 #include <map>
 
@@ -235,8 +237,11 @@ Patch Patch::fromFile(const File& f)
 {
     if (f.type != FileType::Patch)
         throw FormatError("not a patch file");
-    if (f.version < 13 || f.version > kCurrentVersion)
-        throw FormatError("unsupported patch file version " + std::to_string(f.version));
+    // An old file is converted as the original converts it on load
+    // (CPatchFilePort::Load @0006cba4); it is then a version 23 patch with the
+    // v1.62 text header, and saves as one.
+    if (convert::sourceVersion(f) != kCurrentVersion)
+        return fromFile(convert::toCurrent(f));
     if (!f.unparsedTail.empty())
         throw FormatError("unexpected data at the end of the file");
     Patch p = fromSections(f.sections);
@@ -359,8 +364,8 @@ Performance Performance::fromFile(const File& f)
 {
     if (f.type != FileType::Performance)
         throw FormatError("not a performance file");
-    if (f.version < 13 || f.version > kCurrentVersion)
-        throw FormatError("unsupported performance file version " + std::to_string(f.version));
+    if (convert::sourceVersion(f) != kCurrentVersion)
+        return fromFile(convert::toCurrent(f));
     if (f.sections.size() != 1 + 4 * 18 + 1 || !f.unparsedTail.empty())
         throw FormatError("a performance has 74 sections");
     Performance perf;
@@ -436,6 +441,8 @@ Loaded load(std::span<const u8> bytes, LoadOptions options)
 {
     const File f = readChecked(bytes, options);
     Loaded out{Patch{}, f.embeddedName.value_or(std::string())};
+    if (const auto v = convert::sourceVersion(f); v != kCurrentVersion)
+        out.convertedFrom = v;
     if (f.type == FileType::Performance)
         out.content = Performance::fromFile(f);
     else

@@ -4,6 +4,11 @@
 //                                exactly like the editor, report failures and
 //                                whether saving reproduces the file
 //   g2tool diff <file>           show which sections change when re-saved
+//   g2tool convert [--saved] <in> <out>
+//                                write <in> converted to version 23 as the
+//                                original converts it on load (g2::convert);
+//                                --saved: as G2fresh saves it after loading
+#include "g2/convert.hpp"
 #include "g2/file.hpp"
 #include "g2/patch.hpp"
 
@@ -39,7 +44,8 @@ bool isG2File(const fs::path& p)
     return ext == ".pch2" || ext == ".prf2";
 }
 
-// Returns "" if the file loads, otherwise the reason.
+// Returns "" if the file loads, otherwise the reason. An old file (converted
+// on load) counts as round-tripping when saving it again reproduces the save.
 std::string check(const fs::path& path, bool& roundTrips)
 {
     roundTrips = false;
@@ -49,10 +55,13 @@ std::string check(const fs::path& path, bool& roundTrips)
     try {
         // Like the editor: the file's content decides, not its extension.
         const auto loaded = g2::load(bytes);
-        if (const auto* perf = std::get_if<g2::Performance>(&loaded.content))
-            roundTrips = g2::savePerformance(*perf) == bytes;
-        else
-            roundTrips = g2::savePatch(std::get<g2::Patch>(loaded.content)) == bytes;
+        auto save = [](const g2::Loaded& l) {
+            if (const auto* perf = std::get_if<g2::Performance>(&l.content))
+                return g2::savePerformance(*perf);
+            return g2::savePatch(std::get<g2::Patch>(l.content));
+        };
+        const auto saved = save(loaded);
+        roundTrips = loaded.convertedFrom ? save(g2::load(saved)) == saved : saved == bytes;
         return {};
     } catch (const std::exception& e) {
         return e.what();
@@ -87,12 +96,41 @@ int diff(const fs::path& path)
     return diffs ? 1 : 0;
 }
 
+int convertFile(const fs::path& in, const fs::path& out, bool saved)
+{
+    try {
+        const auto bytes = readBytes(in);
+        std::vector<std::uint8_t> result;
+        if (saved) {
+            const auto loaded = g2::load(bytes, {true});
+            if (const auto* perf = std::get_if<g2::Performance>(&loaded.content))
+                result = g2::savePerformance(*perf);
+            else
+                result = g2::savePatch(std::get<g2::Patch>(loaded.content));
+        } else {
+            result = g2::file::write(g2::convert::toCurrent(g2::file::read(bytes)));
+        }
+        std::ofstream f(out, std::ios::binary);
+        f.write(reinterpret_cast<const char*>(result.data()), static_cast<std::streamsize>(result.size()));
+        return f ? 0 : 1;
+    } catch (const std::exception& e) {
+        std::cerr << in.string() << ": " << e.what() << "\n";
+        return 1;
+    }
+}
+
 int main(int argc, char* argv[])
 {
     if (argc == 3 && std::string(argv[1]) == "diff")
         return diff(argv[2]);
+    if (argc == 4 && std::string(argv[1]) == "convert")
+        return convertFile(argv[2], argv[3], false);
+    if (argc == 5 && std::string(argv[1]) == "convert" && std::string(argv[2]) == "--saved")
+        return convertFile(argv[3], argv[4], true);
     if (argc < 3 || std::string(argv[1]) != "check") {
-        std::cerr << "usage: g2tool check <file|dir>...\n";
+        std::cerr << "usage: g2tool check <file|dir>...\n"
+                     "       g2tool diff <file>\n"
+                     "       g2tool convert [--saved] <in> <out>\n";
         return 2;
     }
     std::vector<fs::path> files;
