@@ -64,6 +64,9 @@ public:
     // A new performance: new sessions, 1F.
     void loadPerformance(const Performance& perf, const std::string& name);
     void sendLeds(u8 slot, std::span<const u8> leds);               // 39, from LED 0
+    // Any synth-initiated message: on a slot's header (with its session), or
+    // kSlotSynth's (e.g. 74, 75, a 40 for every variation).
+    void notify(u8 slot, std::vector<Molecule> molecules) { sendUnsolicited(slot, std::move(molecules)); }
     void sendMeters(u8 slot, std::span<const std::uint16_t> meters); // 3A, from entry 0
 
     // ---- Fault injection ----

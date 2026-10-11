@@ -110,7 +110,10 @@ bool disconnectJack(Patch& patch, Location loc, Endpoint jack);
 // with an output; false when nothing changes.
 bool breakJack(Patch& patch, Location loc, Endpoint jack);
 // Jack popup "Delete" (GetDeleteCableChainMolecules @000e41d6): deletes the
-// connector's serial chain, or every cable of the net from its output.
+// connector's serial chain, or every cable of the net from its output. Like
+// Color and Delete Unused Cables, and unlike the other cable edits, it does
+// not recompute the modules' rates (the original has no uprate pass there:
+// a module the chain made audio-rate stays so until the next cable edit).
 bool deleteChain(Patch& patch, Location loc, Endpoint jack);
 // Jack popup "Color" (GetRecolorCableMolecules @000e43f8): recolours the
 // connector's serial chain (the whole net from its output). Only in a net

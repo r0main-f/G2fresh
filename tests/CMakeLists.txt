@@ -28,6 +28,7 @@ add_executable(g2tests
   test_proto_messages.cpp
   test_proto_session.cpp
   test_proto_link.cpp
+  test_proto_live.cpp
   test_proto_log.cpp
   test_bridge.cpp
   test_engine.cpp

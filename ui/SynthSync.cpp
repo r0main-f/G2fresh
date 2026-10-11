@@ -195,6 +195,9 @@ void SynthSync::sendPatch(int slot)
         return;
     unbind();
     link_->sendPatch(slot, doc_.patch(), doc_.name().toStdString());
+    // The slot the document is in has the focus (CSynth::DownloadPatch
+    // @0011dc62 -> CPortManager::SetFocusedSlot; 09).
+    link_->selectSlot(slot);
     binding_ = Binding::Patch;
     slot_ = slot;
     live_[static_cast<std::size_t>(slot)] = g2::proto::LiveSlot(doc_.patch(), doc_.name().toStdString());
@@ -247,6 +250,8 @@ void SynthSync::getPatch(int slot)
     unbind();
     const auto& s = link_->state().slots[static_cast<std::size_t>(slot)];
     doc_.loadPatch(s.patch, juce::String(s.name));
+    if (link_->state().slotFocus != slot)
+        link_->selectSlot(slot); // the window shown is the focused slot (CPatch::SetTrulyFocused @000d4a18)
     binding_ = Binding::Patch;
     slot_ = slot;
     live_[static_cast<std::size_t>(slot)] = g2::proto::LiveSlot(doc_.patch(), doc_.name().toStdString());
@@ -458,17 +463,14 @@ void SynthSync::slotChanged(int slot)
 
 void SynthSync::paramChanged(int slot, const g2::proto::ParamChange& c)
 {
-    fromSynth(slot, [c](g2::Patch& p) {
-        g2::edit::setTargetValue(p, {static_cast<Location>(c.location), c.module, c.param}, c.variation, c.value);
-    });
+    // (Variation 0x7F: every variation, CPatch::HandleParamChange @000dc636.)
+    fromSynth(slot, [c](g2::Patch& p) { g2::proto::applyToPatch(p, c); });
 }
 
 void SynthSync::morphChanged(int slot, const g2::proto::MorphChange& c)
 {
     // One (parameter, group) assignment; range 0 removes it (CPatch::HandleMorphChange).
-    fromSynth(slot, [c](g2::Patch& p) {
-        g2::edit::storeMorph(p, c.variation, static_cast<Location>(c.location), c.module, c.param, c.morph, c.range);
-    });
+    fromSynth(slot, [c](g2::Patch& p) { g2::proto::applyToPatch(p, c); });
 }
 
 void SynthSync::variationChanged(int slot, g2::u8 variation)

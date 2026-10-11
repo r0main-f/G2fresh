@@ -609,7 +609,7 @@ bool deleteChain(Patch& patch, Location loc, Endpoint jack)
     for (const auto& s : branch)
         molecules.push_back({Molecule::Delete, s.node, s.parent});
     applyMolecules(tree, molecules, loc);
-    store(patch, loc, tree);
+    store(patch, loc, tree, false); // no uprate pass here in the original
     return true;
 }
 
@@ -624,7 +624,7 @@ void recolorChain(Patch& patch, Location loc, Endpoint jack, CableColor color)
     Molecules molecules;
     recolorAll(molecules, tree.completeBranch(x), color);
     applyMolecules(tree, molecules, loc);
-    store(patch, loc, tree);
+    store(patch, loc, tree, false); // no uprate pass here in the original
 }
 
 bool deleteUnusedCables(Patch& patch)
@@ -652,7 +652,7 @@ bool deleteUnusedCables(Patch& patch)
         if (molecules.empty())
             continue;
         applyMolecules(tree, molecules, loc);
-        store(patch, loc, tree);
+        store(patch, loc, tree, false); // no uprate pass here in the original
         deleted = true;
     }
     return deleted;

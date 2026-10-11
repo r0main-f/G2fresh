@@ -392,6 +392,43 @@ def patch_edits():
 
 
 # --------------------------------------------------------------------------------------------
+def live_edits():
+    """Edit bubbles as Clavia's editor sent them to a real G2X: the molecule bytes are from the USB captures in
+    g2fx's repository (data/capture/capture-009..011.pcapng, see re/notes/usb-crosscheck.md); the frames around
+    them (slot A, session 0) are rebuilt here. The 22 is a whole captured frame (G2-Edit's findings)."""
+    s = []
+    cap = "clavia-capture"
+    s.append(tx(SLOT_REQ(0), 0x00, [0x50, 0x19, 0x01, 0x40, 0x02, 0x01],
+                "A new cable: 50, flags 0x19 (not part of a dump, VA, blue), module 1 output 0 -> module 2 input 1: "
+                "the drag's origin first (capture-011)", provenance=cap))
+    s.append(tx(SLOT_REQ(0), 0x00, [0x50, 0x18, 0x04, 0x40, 0x02, 0x00, 0x2A, 0x01, 0x02, 0x01],
+                "A new cable from an audio output (red) and the rate change it causes, one bubble: 50, then 2A VA "
+                "module 2 uprate 1 (capture-011)", provenance=cap))
+    s.append(tx(SLOT_REQ(0), 0x00, [0x51, 0x03, 0x02, 0x00, 0x04, 0x40, 0x2A, 0x01, 0x02, 0x00],
+                "That cable deleted: 51, flags 0x03 (not part of a dump, VA), the child end (module 2 input 0) first, "
+                "its parent (module 4 output 0) second; then 2A back to 0 (capture-011)", provenance=cap))
+    s.append(tx(SLOT_REQ(0), 0x00, [0x51, 0x01, 0x08, 0x00, 0x05, 0x40, 0x32, 0x01, 0x08],
+                "Undo of a paste (part): a pasted cable deleted as part of a dump (flags 0x01: the not-a-dump bit "
+                "clear), then 32 VA module 8 (capture-010)", provenance=cap))
+    s.append(tx(SLOT_REQ(0), 0x00, [0x30, 0x61, 0x01, 0x05, 0x01, 0x0F, 0x00, 0x00, 0x00] + list(str16("OscA1")),
+                "A pasted module: 30 type 0x61 (OscA), VA, index 5, column 1, row 15, colour 0, uprate 0, not locked, "
+                "no modes, name (capture-009; its 52, 4D, 5B, 5A sections follow in the same bubble)", provenance=cap))
+    s.append(tx(SLOT_REQ(0), 0x01, [0x22, 0x01, 0x01, 0x07, 0x10],
+                "MIDI Learn: 22 VA module 1 parameter 7 -> CC 16, session 1 (a whole captured frame)", provenance=cap,
+                expect="00 0C 01 28 01 22 01 01 07 10 79 3D"))
+    for x in s:
+        if "expect" in x:
+            assert x["hex"] == x["expect"], (x["annotation"], x["hex"], x["expect"])
+    return {
+        **COMMON,
+        "scenario": "live_edits",
+        "description": "Edit bubbles captured from Clavia's editor on a real G2X (molecule bytes), for the order of "
+                       "a cable's ends, the dump bit and the grouping of molecules in one bubble.",
+        "steps": s,
+    }
+
+
+# --------------------------------------------------------------------------------------------
 def led_vu():
     s = []
     # 0x39: start index 0, 40 LEDs x 2 bits, LED0 in bits 1..0 of first data byte
@@ -577,6 +614,7 @@ def main():
         "init_sequence_verhue.json": verhue_init_frames(),
         "param_changes.json": param_changes(),
         "patch_edits.json": patch_edits(),
+        "live_edits.json": live_edits(),
         "led_vu.json": led_vu(),
         "session_numbers.json": sessions(),
         "midi_and_notes.json": midi_and_notes(),

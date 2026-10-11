@@ -1,0 +1,51 @@
+{
+  "spec": "re/notes/usb-protocol.md",
+  "format": "Each step: dir (host->device | device->host), endpoint (bulk_out=EP 0x03, bulk_in=EP 0x82, interrupt_in=EP 0x81, 16-byte packets), hex (exact bytes of one USB transfer), annotation. provenance: 'verhue-capture' = hex dump found in Verhue's sources (probably captured from the official editor), 'clavia-derived' = built from the Clavia v1.62 serializers, 'verhue-derived' = built from Verhue's builders, 'synthetic' = device reply invented to match the decoded layout (field values arbitrary but legal).",
+  "scenario": "live_edits",
+  "description": "Edit bubbles captured from Clavia's editor on a real G2X (molecule bytes), for the order of a cable's ends, the dump bit and the grouping of molecules in one bubble.",
+  "steps": [
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0D 01 28 00 50 19 01 40 02 01 4F 79",
+      "annotation": "A new cable: 50, flags 0x19 (not part of a dump, VA, blue), module 1 output 0 -> module 2 input 1: the drag's origin first (capture-011)",
+      "provenance": "clavia-capture"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 11 01 28 00 50 18 04 40 02 00 2A 01 02 01 EB B1",
+      "annotation": "A new cable from an audio output (red) and the rate change it causes, one bubble: 50, then 2A VA module 2 uprate 1 (capture-011)",
+      "provenance": "clavia-capture"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 11 01 28 00 51 03 02 00 04 40 2A 01 02 00 02 3E",
+      "annotation": "That cable deleted: 51, flags 0x03 (not part of a dump, VA), the child end (module 2 input 0) first, its parent (module 4 output 0) second; then 2A back to 0 (capture-011)",
+      "provenance": "clavia-capture"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 10 01 28 00 51 01 08 00 05 40 32 01 08 6C CC",
+      "annotation": "Undo of a paste (part): a pasted cable deleted as part of a dump (flags 0x01: the not-a-dump bit clear), then 32 VA module 8 (capture-010)",
+      "provenance": "clavia-capture"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 16 01 28 00 30 61 01 05 01 0F 00 00 00 4F 73 63 41 31 00 12 E6",
+      "annotation": "A pasted module: 30 type 0x61 (OscA), VA, index 5, column 1, row 15, colour 0, uprate 0, not locked, no modes, name (capture-009; its 52, 4D, 5B, 5A sections follow in the same bubble)",
+      "provenance": "clavia-capture"
+    },
+    {
+      "dir": "host->device",
+      "endpoint": "bulk_out",
+      "hex": "00 0C 01 28 01 22 01 01 07 10 79 3D",
+      "annotation": "MIDI Learn: 22 VA module 1 parameter 7 -> CC 16, session 1 (a whole captured frame)",
+      "provenance": "clavia-capture",
+      "expect": "00 0C 01 28 01 22 01 01 07 10 79 3D"
+    }
+  ]
+}
