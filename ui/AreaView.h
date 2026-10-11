@@ -34,7 +34,8 @@ public:
 
     // Selection (click; Shift-click toggles; drag a rectangle on the background).
     bool hasSelection() const { return !selection_.empty(); }
-    // A cable clicked on its cord: Delete removes it.
+    // A cable clicked on its cord: Delete removes its serial chain (as the
+    // jack popup's Delete).
     bool hasHighlightedCable() const { return highlighted_.has_value(); }
     void deleteHighlightedCable();
     const std::vector<std::uint8_t>& selection() const { return selection_; }
@@ -185,9 +186,13 @@ private:
     juce::Point<int> dragOffset_;   // module drag: mouse offset in the module
     juce::Point<int> dragPos_;      // current mouse position
     std::optional<Jack> cableFrom_;
+    bool moveDrag_ = false; // the cable drag began with a double click: it moves the jack's cables
     // The cable clicked on its cord: drawn on top, the others dimmed, its two
-    // ends ringed and labelled.
+    // ends ringed and labelled; the rest of its serial chain glows with it.
     std::optional<g2::Cable> highlighted_;
+    std::vector<g2::Cable> chain_;
+    // While a jack is held: its serial chain, light blue (CPatchBackground::CableHighLight).
+    std::vector<g2::Cable> heldChain_;
     const LiveLeds* liveLeds_ = nullptr;
     std::uint32_t ledGeneration_ = 0;
     juce::Rectangle<int> cableBounds_; // what the cables covered at the last paint

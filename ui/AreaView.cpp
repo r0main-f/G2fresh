@@ -40,6 +40,26 @@ bool sameEnds(const g2::Cable& a, const g2::Cable& b)
         && a.toModule == b.toModule && a.toConn == b.toConn;
 }
 
+bool listHas(const std::vector<g2::Cable>& list, const g2::Cable& c)
+{
+    return std::any_of(list.begin(), list.end(), [&](const g2::Cable& x) { return sameEnds(x, c); });
+}
+
+// The jack popup's colour names (resource SMNU "Cable Colors"), in
+// CableColor order: white is not one, it marks a chain without an output.
+constexpr const char* kChainColourNames[6] = {"Audio", "Control", "Logic BG", "Logic FG", "User1", "User2"};
+
+// The original's "drag copy" key, held at the drop, moves the jack's cables
+// (CCableDragDropManager::IsMoveOperationRequested): Option on a Mac, Ctrl elsewhere.
+bool moveKeyDown(const juce::ModifierKeys& mods)
+{
+#if JUCE_MAC
+    return mods.isAltDown();
+#else
+    return mods.isCtrlDown();
+#endif
+}
+
 int pixelsPerStep(int max, bool fine)
 {
     const int base = std::max(1, 200 / (max + 1));
@@ -159,6 +179,9 @@ void AreaView::changeListenerCallback(juce::ChangeBroadcaster*)
         const auto& cables = doc_.patch().area(location_).cables;
         const auto it = std::find_if(cables.begin(), cables.end(), [&](const g2::Cable& c) { return sameEnds(c, *highlighted_); });
         highlighted_ = it != cables.end() ? std::optional<g2::Cable>(*it) : std::nullopt;
+        chain_ = highlighted_ ? g2::edit::chainCables(doc_.patch(), location_,
+                                                      g2::edit::lowerEnd(doc_.patch(), location_, *highlighted_))
+                              : std::vector<g2::Cable>{};
     }
     updateTimer(); // the first or last cable starts or stops the animation
     updateSize();
@@ -571,14 +594,15 @@ void AreaView::paintCables(juce::Graphics& g)
     const bool flowing = cableAnimation();
     const auto& visible = doc_.patch().header.cablesVisible;
     juce::Rectangle<float> covered;
-    // With a highlighted cable, the others are dimmed and it is drawn last.
-    if (highlighted_)
+    // With a highlighted chain, the other cables are dimmed and it is drawn last.
+    const bool dimmed = highlighted_.has_value() || !heldChain_.empty();
+    if (dimmed)
         g.beginTransparencyLayer(0.25f);
     for (const auto& cable : doc_.patch().area(location_).cables) {
-        if (!visible[static_cast<std::size_t>(cable.color)] && !(highlighted_ && sameEnds(cable, *highlighted_)))
+        if (listHas(heldChain_, cable) || listHas(chain_, cable) || (highlighted_ && sameEnds(cable, *highlighted_)))
+            continue; // drawn on top below, even in a hidden colour
+        if (!visible[static_cast<std::size_t>(cable.color)])
             continue; // hidden colour (View > Cables)
-        if (highlighted_ && sameEnds(cable, *highlighted_))
-            continue;
         // Signals flow from the "from" end (an output, or the first input of
         // a link) to the input at the "to" end.
         const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});
@@ -591,10 +615,28 @@ void AreaView::paintCables(juce::Graphics& g)
         }
     }
     cableBounds_ = covered.getSmallestIntegerContainer();
-    if (highlighted_) {
+    if (dimmed) {
         g.endTransparencyLayer();
-        if (const auto current = highlightedCable())
-            paintHighlight(g, *current);
+        auto paintGlowing = [&](const g2::Cable& cable, juce::Colour colour) {
+            const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});
+            const auto b = jackCentre({cable.toModule, cable.toConn, false});
+            if (!a || !b)
+                return;
+            g.setColour(colour.withAlpha(0.35f));
+            g.strokePath(cablePath(*a, *b, cable.bend),
+                         juce::PathStrokeType(11.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            paintCable(g, *a, *b, colour, flowing, cable.bend);
+        };
+        // A held jack's chain turns light blue (manual p83).
+        for (const auto& cable : heldChain_)
+            paintGlowing(cable, juce::Colour(0xff8fd3ff));
+        if (heldChain_.empty()) {
+            for (const auto& cable : chain_)
+                if (!(highlighted_ && sameEnds(cable, *highlighted_)))
+                    paintGlowing(cable, ModulePainter::cableColour(cable.color));
+            if (const auto current = highlightedCable())
+                paintHighlight(g, *current);
+        }
     }
     if (drag_ == Drag::Cable && cableFrom_)
         if (const auto a = jackCentre(*cableFrom_))
@@ -674,10 +716,13 @@ void AreaView::highlightCable(std::optional<g2::Cable> cable)
     if (!cable && !highlighted_)
         return;
     highlighted_ = cable;
+    // Its serial chain: what Delete and the colours act on (as on a jack).
+    chain_ = cable ? g2::edit::chainCables(doc_.patch(), location_, g2::edit::lowerEnd(doc_.patch(), location_, *cable))
+                   : std::vector<g2::Cable>{};
     updateTimer();
     overlay_->repaint();
     if (cable)
-        status(describeCable(*cable) + "  (Delete removes it)");
+        status(describeCable(*cable) + (chain_.size() > 1 ? "  (Delete removes its chain)" : "  (Delete removes it)"));
 }
 
 void AreaView::mouseMove(const juce::MouseEvent& e)
@@ -767,18 +812,14 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
     }
     if (dragHit_.element && ModulePainter::isJack(*dragHit_.element)) {
         cableFrom_ = jackAt(e.getPosition());
-        // Alt-drag an input: pick up the cable ending there and re-patch it.
-        if (cableFrom_ && !cableFrom_->isOutput && e.mods.isAltDown()) {
-            const auto loc = location_;
-            const auto here = *cableFrom_;
-            for (const auto& c : doc_.patch().area(location_).cables)
-                if (c.toModule == here.module && c.toConn == here.conn) {
-                    cableFrom_ = Jack{c.fromModule, c.fromConn, c.fromIsOutput};
-                    const auto cable = c;
-                    doc_.perform("Disconnect", [&](g2::Patch& p) { g2::edit::disconnect(p, loc, cable); });
-                    break;
-                }
-        }
+        // A double click and hold picks up the jack's cables to move them
+        // (CPanel::HoleBeginCableMove); a plain press starts a new cable.
+        // Either way the jack's chain lights up while it is held.
+        moveDrag_ = e.getNumberOfClicks() >= 2;
+        if (cableFrom_)
+            heldChain_ = g2::edit::chainCables(doc_.patch(), location_,
+                                               {cableFrom_->module, cableFrom_->conn, cableFrom_->isOutput});
+        overlay_->repaint();
         drag_ = Drag::Cable;
         return;
     }
@@ -886,9 +927,27 @@ void AreaView::mouseDrag(const juce::MouseEvent& e)
     case Drag::Module:
     case Drag::Cable:
         overlay_->repaint();
-        if (drag_ == Drag::Cable)
-            if (const auto target = jackAt(dragPos_))
-                status(describe(hitAt(dragPos_)));
+        if (drag_ == Drag::Cable && cableFrom_) {
+            // What the drop would do (the original shows it with the cursor).
+            const auto target = jackAt(dragPos_);
+            const bool move = moveDrag_ || moveKeyDown(e.mods);
+            const auto action = g2::edit::dropAction(
+                doc_.patch(), location_, {cableFrom_->module, cableFrom_->conn, cableFrom_->isOutput},
+                target ? std::optional<g2::edit::Endpoint>({target->module, target->conn, target->isOutput}) : std::nullopt,
+                move);
+            juce::String what = target ? describe(hitAt(dragPos_)) : juce::String();
+            switch (action) {
+            case g2::edit::DropAction::Move: what += "  (moves the cables here)"; break;
+            case g2::edit::DropAction::Disconnect: what = "Release to disconnect"; break;
+            case g2::edit::DropAction::None:
+                if (target)
+                    what += move ? "  (cannot move the cables here)" : "  (cannot connect)";
+                break;
+            case g2::edit::DropAction::Connect: break;
+            }
+            if (what.isNotEmpty())
+                status(what);
+        }
         break;
     case Drag::None:
         break;
@@ -899,6 +958,12 @@ void AreaView::mouseUp(const juce::MouseEvent& e)
 {
     const Drag drag = std::exchange(drag_, Drag::None);
     doc_.endCoalescing();
+    // A held jack's chain is lit only while it is held (CPanel::HoleRelease).
+    const bool move = std::exchange(moveDrag_, false) || moveKeyDown(e.mods);
+    if (!heldChain_.empty()) {
+        heldChain_.clear();
+        overlay_->repaint();
+    }
     if (std::exchange(pushed_, false)) {
         pressMomentary(dragHit_, 0); // released, wherever the mouse is now
         return;
@@ -906,20 +971,26 @@ void AreaView::mouseUp(const juce::MouseEvent& e)
     if (e.mods.isPopupMenu())
         return;
     if (drag == Drag::Cable && cableFrom_) {
+        // CCableDragDropManager::Drop @00019514: connect, move the jack's
+        // cables (double click and hold, or the move key at the drop), or,
+        // moving onto nothing, disconnect.
         const auto from = *std::exchange(cableFrom_, std::nullopt);
-        if (const auto to = jackAt(e.getPosition()); to && !(to->module == from.module && to->conn == from.conn
-                                                              && to->isOutput == from.isOutput)) {
-            // Cables run from an output (or an input, for links) to an input.
-            auto src = from, dst = *to;
-            if (dst.isOutput)
-                std::swap(src, dst);
-            juce::String error;
-            const auto loc = location_;
+        const g2::edit::Endpoint src{from.module, from.conn, from.isOutput};
+        const auto to = jackAt(e.getPosition());
+        const bool sameJack = to && to->module == from.module && to->conn == from.conn && to->isOutput == from.isOutput;
+        const auto loc = location_;
+        juce::String error;
+        if (to && !sameJack) {
+            const g2::edit::Endpoint dst{to->module, to->conn, to->isOutput};
             touch(dst.module);
-            if (!doc_.perform("Connect", [&](g2::Patch& p) {
-                    g2::edit::connect(p, loc, {src.module, src.conn, src.isOutput}, {dst.module, dst.conn, dst.isOutput});
-                }, &error))
+            if (move) {
+                if (!doc_.perform("Move cables", [&](g2::Patch& p) { g2::edit::moveCables(p, loc, src, dst); }, &error))
+                    status("Cannot move the cables: " + error);
+            } else if (!doc_.perform("Connect", [&](g2::Patch& p) { g2::edit::connect(p, loc, src, dst); }, &error)) {
                 status("Cannot connect: " + error);
+            }
+        } else if (!to && move && g2::edit::dropAction(doc_.patch(), loc, src, std::nullopt, true) == g2::edit::DropAction::Disconnect) {
+            doc_.perform("Disconnect", [&](g2::Patch& p) { g2::edit::disconnectJack(p, loc, src); });
         }
         overlay_->repaint();
         return;
@@ -1017,8 +1088,10 @@ void AreaView::deleteHighlightedCable()
     highlightCable(std::nullopt);
     if (!cable)
         return;
+    // The cord's serial chain, as the jack popup's Delete on its lower end.
     const auto loc = location_;
-    doc_.perform("Delete cable", [&](g2::Patch& p) { g2::edit::disconnect(p, loc, *cable); });
+    const auto jack = g2::edit::lowerEnd(doc_.patch(), loc, *cable);
+    doc_.perform("Delete cables", [&](g2::Patch& p) { g2::edit::deleteChain(p, loc, jack); });
 }
 
 bool AreaView::keyPressed(const juce::KeyPress& key)
@@ -1449,27 +1522,33 @@ void AreaView::showControlMenu(const Hit& h)
     });
 }
 
+// A G2fresh addition (the original has no popup on a cord): it acts on the
+// cord's serial chain as the jack popup does on its lower end, so a chain
+// keeps one colour and white stays the mark of a chain without an output.
 void AreaView::showCableMenu(const g2::Cable& cable)
 {
     enum { kDelete = 1, kBendPoint, kColourBase = 100 };
+    const auto jack = g2::edit::lowerEnd(doc_.patch(), location_, cable);
+    const bool fed = g2::edit::hasOutput(doc_.patch(), location_, jack);
     juce::PopupMenu colours;
-    for (int c = 0; c < 7; ++c) {
-        juce::PopupMenu::Item item(cableColourName(static_cast<g2::CableColor>(c)));
+    for (int c = 0; c < 6; ++c) {
+        juce::PopupMenu::Item item(kChainColourNames[c]);
         item.itemID = kColourBase + c;
         item.colour = ModulePainter::cableColour(static_cast<g2::CableColor>(c));
         item.isTicked = static_cast<int>(cable.color) == c;
+        item.isEnabled = fed;
         colours.addItem(std::move(item));
     }
     juce::PopupMenu menu;
-    menu.addSubMenu("Cable Colour", colours);
+    menu.addSubMenu("Chain Colour", colours);
     menu.addItem(kBendPoint, cable.bend ? "Remove Bend Point" : "Add Bend Point");
-    menu.addItem(kDelete, "Delete Cable");
-    menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), cable](int r) {
+    menu.addItem(kDelete, "Delete Chain");
+    menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), cable, jack](int r) {
         if (!safe || r <= 0)
             return;
         const auto loc = safe->location_;
         if (r == kDelete)
-            safe->doc_.perform("Delete cable", [&](g2::Patch& p) { g2::edit::disconnect(p, loc, cable); });
+            safe->doc_.perform("Delete cables", [&](g2::Patch& p) { g2::edit::deleteChain(p, loc, jack); });
         else if (r == kBendPoint) {
             // Added from the menu: at the middle of the current curve.
             juce::Point<float> where;
@@ -1481,28 +1560,59 @@ void AreaView::showCableMenu(const g2::Cable& cable)
         }
         else
             safe->doc_.perform("Change cable colour", [&](g2::Patch& p) {
-                g2::edit::setCableColor(p, loc, cable, static_cast<g2::CableColor>(r - kColourBase));
+                g2::edit::recolorChain(p, loc, jack, static_cast<g2::CableColor>(r - kColourBase));
             });
     });
 }
 
+// The original's connector popup (CPanel::HoleDoContextMenu @000c006e, menu
+// resource "Connector"; manual p69-70).
 void AreaView::showJackMenu(const Jack& jack)
 {
-    std::vector<g2::Cable> cables;
-    for (const auto& c : doc_.patch().area(location_).cables)
-        if ((c.fromModule == jack.module && c.fromConn == jack.conn && c.fromIsOutput == jack.isOutput)
-            || (!jack.isOutput && c.toModule == jack.module && c.toConn == jack.conn))
-            cables.push_back(c);
+    enum { kDisconnect = 1, kBreak, kDelete, kDeleteUnused, kColourBase = 100 };
+    const g2::edit::Endpoint here{jack.module, jack.conn, jack.isOutput};
+    const auto& patch = doc_.patch();
+    const bool cabled = g2::edit::isCabled(patch, location_, here);
+    const bool fed = g2::edit::hasOutput(patch, location_, here);
+    juce::PopupMenu colours;
+    for (int c = 0; c < 6; ++c)
+        colours.addItem(kColourBase + c, kChainColourNames[c], fed);
     juce::PopupMenu menu;
-    menu.addItem(1, cables.size() == 1 ? "Disconnect" : "Disconnect all", !cables.empty());
-    menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), cables](int result) {
-        if (!safe || result != 1)
+    menu.addItem(kDisconnect, "Disconnect", cabled);
+    menu.addItem(kBreak, "Break", g2::edit::canBreak(patch, location_, here));
+    menu.addSubMenu("Color", colours, cabled);
+    menu.addItem(kDelete, "Delete", cabled);
+    menu.addItem(kDeleteUnused, "Delete Unused Cables");
+    menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), here](int r) {
+        if (!safe || r <= 0)
             return;
         const auto loc = safe->location_;
-        safe->doc_.perform("Disconnect", [&](g2::Patch& p) {
-            for (const auto& c : cables)
-                g2::edit::disconnect(p, loc, c);
-        });
+        auto& doc = safe->doc_;
+        // An action that changes nothing is no undo step (the original checks
+        // CUndoRedoPair::GetRedoSize).
+        auto changed = [](bool any) {
+            if (!any)
+                throw std::invalid_argument("nothing to change");
+        };
+        switch (r) {
+        case kDisconnect:
+            doc.perform("Disconnect", [&](g2::Patch& p) { changed(g2::edit::disconnectJack(p, loc, here)); });
+            break;
+        case kBreak:
+            doc.perform("Break", [&](g2::Patch& p) { changed(g2::edit::breakJack(p, loc, here)); });
+            break;
+        case kDelete:
+            doc.perform("Delete cables", [&](g2::Patch& p) { changed(g2::edit::deleteChain(p, loc, here)); });
+            break;
+        case kDeleteUnused:
+            if (!doc.perform("Delete unused cables", [&](g2::Patch& p) { changed(g2::edit::deleteUnusedCables(p)); }))
+                safe->status("No unused cables");
+            break;
+        default:
+            doc.perform("Change cable colour", [&](g2::Patch& p) {
+                g2::edit::recolorChain(p, loc, here, static_cast<g2::CableColor>(r - kColourBase));
+            });
+        }
     });
 }
 
