@@ -1,0 +1,29 @@
+{
+ "id": "B03",
+ "name": "B03 Output Map",
+ "file": "B03 Output Map.pch2",
+ "measure": "tone_map",
+ "emulator": {
+  "model": "g2",
+  "os_version": 162,
+  "voices": [1, 0, 0, 0],
+  "requested_voices": 1,
+  "master_clock": {"bpm": 120, "flag": 1},
+  "display": ["-:-       No Cat", "B03 Output Map  "],
+  "display_knobs_1_2": "120 BPM         ",
+  "load_va": {"cycles_a": 250, "cycles_b": 32, "cycles_percent": 18.82},
+  "load_fx": {"cycles_a": 0, "cycles_b": 0, "cycles_percent": 0.0}
+ },
+ "status": "ok",
+ "levels": "Levels are in dBFS of the G2's DAC words (1.0 = DAC full scale), Master Level full. G2fresh plays the words 8 times louder (+18.06 dB), so that a full-level signal inside the G2 (64 units) is 0 dBFS in the host.",
+ "sample_rate": 96000,
+ "facts": {
+  "outputs": {
+   "1": {"hz": 440.0024, "rms_dbfs": -21.09, "tone_dbfs": -18.08, "peak_dbfs": -18.08, "thd_db": -82.2},
+   "2": {"hz": 587.3337, "rms_dbfs": -21.09, "tone_dbfs": -18.08, "peak_dbfs": -18.08, "thd_db": -82.2},
+   "3": {"hz": 783.989, "rms_dbfs": -21.09, "tone_dbfs": -18.08, "peak_dbfs": -18.08, "thd_db": -82.2},
+   "4": {"hz": 1046.505, "rms_dbfs": -21.09, "tone_dbfs": -18.08, "peak_dbfs": -18.08, "thd_db": -82.2}
+  }
+ },
+ "summary": {"out_1_hz": 440.0024, "out_2_hz": 587.3337, "out_3_hz": 783.989, "out_4_hz": 1046.505}
+}

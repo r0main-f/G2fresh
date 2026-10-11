@@ -35,6 +35,7 @@ add_executable(g2tests
   test_engine.cpp
   test_clavia.cpp
   test_synth_settings.cpp
+  test_benchpack.cpp
 )
 target_link_libraries(g2tests PRIVATE g2bridgelib g2engine g2clavia Catch2::Catch2WithMain) # g2proto and g2core come with it
 target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/plugin/Source) # HostClock.h, AudioIo.h (plain C++)
@@ -82,6 +83,27 @@ if(Python3_FOUND)
   file(GLOB G2_CORPUS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/corpus/pch2csd/*.pch2)
   add_test(NAME reference_decoder_roundtrip
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/pch2/pch2dump.py roundtrip ${G2_CORPUS_FILES})
+endif()
+
+# The hardware bench pack (bench/hardware-pack, tools/benchpack): the committed patches are what the generator
+# writes, the printable pages are what the instructions give, and the analysis finds the faults of synthetic
+# recordings. With the emulator built and G2_FIRMWARE set (Clavia's OS update .dmg), three of its patches are also
+# played on the emulated G2 and compared with the committed predictions; skipped otherwise.
+add_test(NAME benchpack_patches_are_current
+  COMMAND g2benchpack --check ${PROJECT_SOURCE_DIR}/bench/hardware-pack)
+if(Python3_FOUND)
+  add_test(NAME benchpack_pages_are_current
+    COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/benchpack/make_html.py --check)
+  add_test(NAME benchpack_stimulus_is_current
+    COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/benchpack/make_stimulus.py --check)
+  add_test(NAME benchpack_analysis_selftest
+    COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/benchpack/selftest.py)
+  if(TARGET g2benchrender)
+    add_test(NAME benchpack_expected_matches_emulator
+      COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/benchpack/expected.py --check --only B01,B07,B13
+        --build ${CMAKE_BINARY_DIR})
+    set_tests_properties(benchpack_expected_matches_emulator PROPERTIES SKIP_RETURN_CODE 77)
+  endif()
 endif()
 
 # The real-time G2 emulator (emu/g2emu, built with -DG2_BUILD_EMU=ON). Its [firmware] case boots the user's own OS

@@ -30,6 +30,7 @@ option(G2_BUILD_EMU "Build the DSP emulation experiments (emu/, fetches Gearmula
 if(G2_BUILD_EMU)
   add_subdirectory(emu)
 endif()
+add_subdirectory(tools/benchpack)  # after emu: its renderer needs g2emu
 
 if(G2_BUILD_PLUGIN)
   include(FetchContent)

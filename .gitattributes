@@ -4,3 +4,6 @@
 # Golden test data is compared byte for byte: keep LF line endings on every OS.
 tests/golden/** text eol=lf
 tests/protocol/*.json text eol=lf
+# The bench pack's manifest is compared byte for byte with what the generator writes.
+bench/hardware-pack/manifest.json text eol=lf
+*.wav binary

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pack de test G2fresh pour ton Nord Modular G2</title>
+<style>
+@page { size: auto; margin: 11mm 12mm; }
+* { box-sizing: border-box; }
+html { font: 9.6pt/1.32 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: #111; background: #fff; }
+body { max-width: 190mm; margin: 0 auto; padding: 6mm 4mm; }
+h1 { font-size: 15pt; margin: 0 0 1.5mm; }
+h2 { font-size: 11pt; margin: 3.2mm 0 1mm; padding-top: 1mm; border-top: 0.3mm solid #999; break-after: avoid; }
+p { margin: 0 0 1.4mm; }
+ol, ul { margin: 0 0 1.4mm; padding-left: 5.5mm; }
+li { margin: 0 0 0.5mm; break-inside: avoid; }
+table { border-collapse: collapse; width: 100%; margin: 1mm 0 1.6mm; font-size: 8.8pt; break-inside: avoid; }
+th, td { border: 0.2mm solid #999; padding: 0.4mm 1.5mm; text-align: left; vertical-align: top; }
+th { background: #eee; }
+code { font: 8.8pt ui-monospace, Menlo, Consolas, monospace; background: #f1f1f1; padding: 0 0.6mm; border-radius: 0.6mm; }
+a { color: inherit; }
+@media screen and (max-width: 700px) { html { font-size: 12pt; } table { font-size: 10pt; } }
+@media print { body { padding: 0; max-width: none; } th { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+<h1>Pack de test G2fresh pour ton Nord Modular G2</h1>
+<p><em>English version: <a href="README.html">README.md</a>. Pour imprimer : README.fr.html.</em></p>
+<p>Merci pour ton aide ! G2fresh est un nouvel éditeur pour le G2, qui sait aussi jouer les patchs sans G2. Certaines choses ne se vérifient que sur un vrai. Compte une vingtaine de minutes : tu charges quelques petits patchs, tu les enregistres, tu réponds à quelques questions et tu renvoies le tout.</p>
+<p><strong>Il te faut :</strong> un G2, un G2X ou un G2 Engine ; l'éditeur de Clavia sur un ordinateur qui le fait encore tourner (pas besoin de G2fresh) ; une carte son avec deux entrées ligne (quatre, c'est mieux) et de quoi enregistrer des fichiers WAV.</p>
+<p><strong>Dans ce pack :</strong> <code>patches/</code> (B01 à B14 ; ils jouent tout seuls, sans clavier), <code>B10 Stimulus.wav</code> (un signal de test pour l'étape 3), <code>form.fr.txt</code> (tes réponses ; en anglais : <code>form.txt</code>).</p>
+<p>Rien n'est mémorisé dans ton G2 tant que tu n'appuies pas sur Store. Charger un patch remplace celui du slot (B08 remplace toute la performance) : sauvegarde d'abord ton travail en cours.</p>
+<h2>1. Installation</h2>
+<ol>
+<li>Branche les sorties OUT 1 et OUT 2 du G2 sur deux entrées ligne de ta carte son, et aussi OUT 3 et OUT 4 si tu as quatre entrées libres. Des câbles directs : pas de console, pas d'effets, pas d'égalisation.</li>
+<li>Tourne le potentiomètre <strong>Master Level</strong> du G2 à fond.</li>
+<li>Sur la carte son, utilise des entrées ligne. Si elles ont un sélecteur de niveau (+4 dBu / -10 dBV), note sa position.</li>
+<li>Baisse tes enceintes : B02 et B06 sont forts et agressifs.</li>
+<li>Charge <strong>B02 Level Steps</strong> (l'étape 2 explique comment) et regarde tes vumètres d'entrée pendant 15 secondes. Règle le gain d'entrée pour que le moment le plus fort reste sous le haut du vumètre ; en général, le minimum convient. <strong>Ensuite, ne touche plus au gain</strong>, et note sa position dans le formulaire.</li>
+<li>Règle ton enregistreur sur <strong>WAV, 24 bits, 96 kHz</strong> (48 kHz si 96 n'est pas possible). Pas de normalisation, pas de plug-in, aucun traitement.</li>
+</ol>
+<h2>2. Enregistrer les patchs</h2>
+<p>Pour charger un patch : dans l'éditeur de Clavia, choisis <strong>File &gt; Open</strong> et sélectionne le fichier (ou glisse le fichier sur un slot). L'écran du G2 affiche le nom du patch, qui se met à jouer. Tu peux aussi copier les patchs dans une banque avec l'éditeur et les charger depuis la façade du G2.</p>
+<p>Pour chaque ligne du tableau : charge le patch, attends deux secondes, enregistre pendant la durée indiquée et sauvegarde l'enregistrement sous le nom indiqué. Un fichier stéréo avec OUT 1 à gauche et OUT 2 à droite, c'est ce qu'il nous faut.</p>
+<table>
+<tr><th>Charger</th><th>Enregistrer</th><th>Sauvegarder sous</th><th>Tu dois entendre</th></tr>
+<tr><td>B01 Level Ref</td><td>30 s</td><td>B01 Level Ref.wav</td><td>un son continu</td></tr>
+<tr><td>B02 Level Steps</td><td>40 s</td><td>B02 Level Steps.wav</td><td>un son plus fort à chaque seconde, saturé à la fin</td></tr>
+<tr><td>B03 Output Map</td><td>20 s</td><td>B03 Output Map.wav</td><td>un accord : une note par sortie</td></tr>
+<tr><td>B04 Pad</td><td>30 s</td><td>B04 Pad.wav</td><td>un son à deux niveaux, puis un silence</td></tr>
+<tr><td>B05 White Noise</td><td>30 s</td><td>B05 White Noise.wav</td><td>du souffle</td></tr>
+<tr><td>B06 Bright Saw</td><td>30 s</td><td>B06 Bright Saw.wav</td><td>des notes qui grésillent, de plus en plus aiguës</td></tr>
+<tr><td>B07 Silence</td><td>15 s</td><td>B07 Silence.wav</td><td>rien</td></tr>
+<tr><td>B08 Clock 120</td><td>60 s</td><td>B08 Clock 120.wav</td><td>des clics, deux par seconde de chaque côté</td></tr>
+<tr><td>B09a Saw Filter</td><td>20 s</td><td>B09a Saw Filter.wav</td><td>une courte phrase de basse</td></tr>
+<tr><td>B09b FM Phrase</td><td>20 s</td><td>B09b FM Phrase.wav</td><td>une courte phrase au son de cloche</td></tr>
+<tr><td>B09c Drum</td><td>20 s</td><td>B09c Drum.wav</td><td>un motif de batterie</td></tr>
+<tr><td>B09d Rev Delay</td><td>30 s</td><td>B09d Rev Delay.wav</td><td>un clic avec des échos, puis un clic avec de la réverbération</td></tr>
+</table>
+<ul>
+<li><strong>B03</strong> utilise les quatre sorties. Avec quatre entrées, sauvegarde un fichier à quatre canaux, ou deux fichiers stéréo nommés <code>B03 Output Map 1-2.wav</code> et <code>B03 Output Map 3-4.wav</code>. Avec deux entrées, enregistre seulement OUT 1 et 2.</li>
+<li><strong>B08</strong> est une performance (<code>B08 Clock 120.prf2</code>) : elle s'ouvre de la même façon.</li>
+</ul>
+<h2>3. L'entrée audio (B10)</h2>
+<ol>
+<li>Charge <strong>B10 Audio In</strong>. Il envoie l'entrée IN 1 du G2 directement vers OUT 1.</li>
+<li>Branche la sortie 1 de ta carte son sur l'entrée <strong>IN 1</strong> du G2. Laisse OUT 1 du G2 sur l'entrée 1 de la carte son.</li>
+<li>Si tu peux, branche aussi la sortie 2 de ta carte son directement sur son entrée 2 (débranche OUT 2 du G2 pour ça). Ce câble nous dit combien de temps met ta carte son elle-même.</li>
+<li>Place <code>B10 Stimulus.wav</code> sur une piste qui sort sur les sorties 1 et 2, fader à 0 dB. Coupe le monitoring d'entrée, sinon ça va hurler.</li>
+<li>Enregistre les entrées 1 et 2 pendant la lecture du fichier (14 secondes). Sauvegarde sous <code>B10 Audio In.wav</code>.</li>
+</ol>
+<h2>4. Quelques points à observer</h2>
+<p>Note les réponses dans <code>form.fr.txt</code> au fur et à mesure.</p>
+<ol>
+<li>Éteins puis rallume le G2. L'écran affiche la version de l'OS pendant une seconde (Q04). Avant de charger quoi que ce soit, appuie sur <strong>Patch Settings</strong> si son voyant est éteint : le petit écran au-dessus des potentiomètres 1 et 2 affiche un tempo et, en dessous, Run ou Stop (Q15).</li>
+<li>Charge <strong>B11</strong>, <strong>B12</strong> et <strong>B13</strong> l'un après l'autre. Chacun demande 32 voix et est trop lourd pour toutes les obtenir. Avec le voyant Patch Settings allumé, l'écran au-dessus du potentiomètre 2 affiche quelque chose comme <code>03 (32)</code> : note exactement ce que tu vois (Q12 à Q14). Sur un G2 Engine, l'éditeur affiche le nombre de voix dans sa barre d'outils. Ces trois patchs restent muets tant que tu ne joues pas une touche.</li>
+<li>Modèles à clavier : charge <strong>B14 Wheels</strong>. Il tient une note. Pousse le pitch stick vers la droite : la note monte ou descend (Q16) ? Sur un G2X, tourne la G.Wheel 1 en l'éloignant de toi : elle monte ou descend (Q17) ? Tourne la G.Wheel 2 en l'éloignant de toi : une deuxième note, plus aiguë, apparaît ou disparaît (Q18) ?</li>
+<li>Appuie sur <strong>System</strong>, puis sur la touche Down jusqu'à ce que l'écran affiche <code>Memory Prot</code>, et tourne la molette sur On. Appuie sur <strong>Store</strong> une fois, une seule. Qu'affiche l'écran (Q19) ? S'il propose de mémoriser, appuie deux fois sur Patch pour sortir sans rien mémoriser. Remets ensuite Memory Protect comme il était.</li>
+</ol>
+<h2>5. Renvoyer le tout</h2>
+<p>Complète le reste de <code>form.fr.txt</code>, mets-le dans un dossier avec tes fichiers WAV, compresse le dossier (zip) et envoie-le à la personne qui t'a donné ce pack. Merci !</p>
+<h2>En option : essayer G2fresh avec ton G2</h2>
+<p><em>Il faut G2fresh v0.10.0 ou plus récent. Sous Windows, G2fresh a besoin du pilote WinUSB pour le G2 (voir le README de G2fresh).</em></p>
+<ol>
+<li>Quitte l'éditeur de Clavia : un seul programme à la fois peut parler au G2.</li>
+<li>Lance G2fresh et choisis <strong>Synth &gt; Connect to G2 (USB)</strong>. La barre d'état affiche la version du G2.</li>
+<li>Choisis <strong>Synth &gt; Get Patch from Slot &gt; A</strong>. Le patch du slot A doit apparaître.</li>
+<li>Tourne un potentiomètre dans G2fresh et écoute ; puis tourne un potentiomètre sur le G2 et regarde G2fresh suivre.</li>
+<li>Choisis <strong>Synth &gt; Send Patch to Slot &gt; B</strong>.</li>
+<li>Ouvre <strong>Synth &gt; Synth Memory (Banks)...</strong>, explore, et mémorise un patch dans un emplacement vide.</li>
+<li>Quoi qu'il se soit passé, choisis <strong>Synth &gt; Show USB Log</strong> et envoie-nous <code>usb.log</code> (et <code>usb.log.1</code> s'il existe) avec quelques mots sur ce qui a marché ou non. Le journal ne contient que le trafic USB, sans le contenu de tes patchs.</li>
+</ol>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+ "id": "B05",
+ "name": "B05 White Noise",
+ "file": "B05 White Noise.pch2",
+ "measure": "noise",
+ "emulator": {
+  "model": "g2",
+  "os_version": 162,
+  "voices": [1, 0, 0, 0],
+  "requested_voices": 1,
+  "master_clock": {"bpm": 120, "flag": 1},
+  "display": ["-:-       No Cat", "B05 White Noise "],
+  "display_knobs_1_2": "120 BPM         ",
+  "load_va": {"cycles_a": 36, "cycles_b": 0, "cycles_percent": 2.63},
+  "load_fx": {"cycles_a": 0, "cycles_b": 0, "cycles_percent": 0.0}
+ },
+ "status": "ok",
+ "levels": "Levels are in dBFS of the G2's DAC words (1.0 = DAC full scale), Master Level full. G2fresh plays the words 8 times louder (+18.06 dB), so that a full-level signal inside the G2 (64 units) is 0 dBFS in the host.",
+ "sample_rate": 96000,
+ "facts": {
+  "outputs": {
+   "1": {
+    "rms_dbfs": -25.2,
+    "peak_dbfs": -19.01,
+    "crest_db": 6.19,
+    "bands_hz": [31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000],
+    "bands_dbfs": [-60.13, -59.91, -58.81, -58.36, -57.12, -55.44, -55.13, -53.64, -52.73, -52.2, -50.87, -49.76, -48.85, -47.65, -46.88, -45.88, -44.93, -43.86, -42.8, -41.85, -40.89, -39.97, -39.12, -38.24, -37.37, -36.67, -36.12, -35.71, -35.41],
+    "dc": 4.7e-05
+   },
+   "2": {
+    "rms_dbfs": -25.2,
+    "peak_dbfs": -19.01,
+    "crest_db": 6.19,
+    "bands_hz": [31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000],
+    "bands_dbfs": [-60.13, -59.91, -58.81, -58.36, -57.12, -55.44, -55.13, -53.64, -52.73, -52.2, -50.87, -49.76, -48.85, -47.65, -46.88, -45.88, -44.93, -43.86, -42.8, -41.85, -40.89, -39.97, -39.12, -38.24, -37.37, -36.67, -36.12, -35.71, -35.41],
+    "dc": 4.7e-05
+   }
+  }
+ },
+ "summary": {"rms_dbfs": -25.2, "peak_dbfs": -19.01}
+}

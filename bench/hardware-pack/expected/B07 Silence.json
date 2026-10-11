@@ -1,0 +1,41 @@
+{
+ "id": "B07",
+ "name": "B07 Silence",
+ "file": "B07 Silence.pch2",
+ "measure": "silence",
+ "emulator": {
+  "model": "g2",
+  "os_version": 162,
+  "voices": [1, 0, 0, 0],
+  "requested_voices": 1,
+  "master_clock": {"bpm": 120, "flag": 1},
+  "display": ["-:-       No Cat", "B07 Silence     "],
+  "display_knobs_1_2": "120 BPM         ",
+  "load_va": {"cycles_a": 23, "cycles_b": 0, "cycles_percent": 1.68},
+  "load_fx": {"cycles_a": 0, "cycles_b": 0, "cycles_percent": 0.0}
+ },
+ "status": "ok",
+ "levels": "Levels are in dBFS of the G2's DAC words (1.0 = DAC full scale), Master Level full. G2fresh plays the words 8 times louder (+18.06 dB), so that a full-level signal inside the G2 (64 units) is 0 dBFS in the host.",
+ "sample_rate": 96000,
+ "facts": {
+  "outputs": {
+   "1": {
+    "rms_dbfs": null,
+    "peak_dbfs": null,
+    "crest_db": null,
+    "bands_hz": [31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000],
+    "bands_dbfs": null,
+    "dc": 0.0
+   },
+   "2": {
+    "rms_dbfs": null,
+    "peak_dbfs": null,
+    "crest_db": null,
+    "bands_hz": [31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000],
+    "bands_dbfs": null,
+    "dc": 0.0
+   }
+  }
+ },
+ "summary": {}
+}
