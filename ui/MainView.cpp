@@ -972,6 +972,29 @@ void MainView::confirmDiscard(std::function<void()> then)
                                        }));
 }
 
+void MainView::discardChanges()
+{
+    if (!doc_.isDirty())
+        return;
+    const auto f = doc_.file();
+    juce::MemoryBlock mb;
+    bool reverted = false;
+    if (f.existsAsFile() && f.loadFileAsData(mb)) {
+        try {
+            const auto* p = static_cast<const std::uint8_t*>(mb.getData());
+            doc_.loadBytes(std::vector<std::uint8_t>(p, p + mb.getSize()), true);
+            doc_.setFile(f);
+            if (const auto layout = cablelayout::fileFor(f); layout.existsAsFile())
+                doc_.applyLayoutJson(layout.loadFileAsString());
+            reverted = true;
+        } catch (const std::exception&) {
+        }
+    }
+    if (!reverted)
+        doc_.newPatch();
+    doc_.dispatchPendingMessages(); // the saved session state follows now, not after quitting
+}
+
 void MainView::newPatch()
 {
     confirmDiscard([this] { doc_.newPatch(); });

@@ -63,6 +63,9 @@ public:
     void save(bool saveAs);
     // Calls `then` once the user has saved or discarded unsaved changes.
     void confirmDiscard(std::function<void()> then);
+    // After "Discard" at quit: back to the file as saved (a new patch
+    // without one), so the next session doesn't restore the discarded edits.
+    void discardChanges();
 
     static constexpr float kMinZoom = 0.5f, kMaxZoom = 2.0f;
     float zoom() const { return zoom_; }

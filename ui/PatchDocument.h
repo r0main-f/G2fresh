@@ -121,6 +121,12 @@ public:
     // restored with edits that were never saved) stays marked edited, so
     // unsaved edits never show as saved. Without a file: not edited.
     void markSaved();
+    // A restored session that was edited and not saved.
+    void markEdited()
+    {
+        dirty_ = true;
+        sendChangeMessage();
+    }
 
 private:
     class Step;

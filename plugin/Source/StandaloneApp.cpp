@@ -100,7 +100,8 @@ public:
             return;
         }
         if (auto* view = window_ ? window_->mainView() : nullptr)
-            view->confirmDiscard([this] {
+            view->confirmDiscard([this, view] {
+                view->discardChanges();
                 if (holder_)
                     holder_->savePluginState();
                 quit();

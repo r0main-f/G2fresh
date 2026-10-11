@@ -20,6 +20,7 @@ std::vector<std::uint8_t> G2EditorProcessor::encodeState() const
     state.setProperty("version", 1, nullptr);
     state.setProperty("name", doc.name(), nullptr);
     state.setProperty("file", doc.file().getFullPathName(), nullptr);
+    state.setProperty("edited", doc.isDirty(), nullptr); // edits never saved to the file stay marked edited
     state.setProperty("data", data.toBase64Encoding(), nullptr);
     state.setProperty("layout", doc.layoutJson(), nullptr); // cable shapes
     state.setProperty("midiOut", midiOut_.deviceIdentifier(), nullptr);
@@ -499,7 +500,7 @@ void G2EditorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 bool G2EditorProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
     const auto& out = layouts.getMainOutputChannelSet();
-    // Out 3/4: off (then mixed into Out 1/2) or stereo, next to a stereo Out 1/2
+    // Out 3/4: off or stereo, next to a stereo Out 1/2
     const auto aux = layouts.outputBuses.size() > 1 ? layouts.getChannelSet(false, 1) : juce::AudioChannelSet::disabled();
     if (aux == juce::AudioChannelSet::stereo())
         return out == juce::AudioChannelSet::stereo();
@@ -614,6 +615,8 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         autoStartEmulator();
 #endif
         document_.markSaved();
+        if (static_cast<bool>(state.getProperty("edited", false)))
+            document_.markEdited();
     } catch (const std::exception& e) {
         DBG("G2fresh: could not restore the patch from the host: " << e.what());
     }
