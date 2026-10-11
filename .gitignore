@@ -13,3 +13,6 @@ __pycache__/
 
 # Downloaded third-party patch libraries (local testing only)
 corpus-external/
+
+# Claude Code worktrees
+.claude/worktrees/

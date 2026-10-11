@@ -107,6 +107,8 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
   - In the plugin, host automation during an audition edits your variation.
 - Paste drops the copy below the selection and renames default-named modules. The original places it with the mouse and keeps names.
 - Patches read from the synth are not repaired as files are, so G2fresh never sends deassignments back.
+- Files from older editor versions (12 to 22) are converted on opening exactly as the original converts them, and saving asks first, as the original does. G2fresh also says "converted from version N" in the status line when the file opens; the original says nothing until you save.
+- An unedited version-23 file keeps its own header (for example "BUILD 266") when saved again; the original writes "BUILD 320". The release velocity is written as stored; the original's writer stores the attack velocity there.
 - An unedited file saves byte for byte as it was loaded, including cable and morph lists in an order the original would have sorted. The first cable edit in an area rewrites its cable list in the original's order.
 - A loaded file with a cable loop (none is known) loses the cable closing the loop at the next cable edit; the original's cable tree would be corrupted instead.
 - A morph drag is one undo step; the original records it on release too, but sends the changes as you drag. On buttons whose maximum isn't 127, the original's morph-key toggle quirk is not reproduced.
