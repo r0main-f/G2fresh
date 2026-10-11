@@ -133,8 +133,8 @@
     {
       "dir": "host->device",
       "endpoint": "bulk_out",
-      "hex": "00 08 01 28 11 58 B2 6C",
-      "annotation": "9c. CMParameterPageFocusRequest -> 0x2D",
+      "hex": "00 08 01 28 11 28 CC FB",
+      "annotation": "9c. CMPatchNameRequest -> 0x27: a real G2's 3C reply carries the page focus (2D) but no name, so CPatch::CleanDirtyData @0xd601e asks for the name and not for the page (58) (re/notes/usb-crosscheck.md H3)",
       "provenance": "clavia-derived"
     },
     {

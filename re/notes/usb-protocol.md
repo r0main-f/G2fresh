@@ -356,10 +356,11 @@ so the following is a strict request/reply chain. Bytes are shown from frame off
 | 9 | for S = 0..3: | | |
 | 9a | `01 2C 41 35 0S` | CMSessionNumberRequest(S) | `36 0S ss` |
 | 9b | `01 28+S ss 3C` | CMCompletePatchRequest (`20` if only the header is dirty, `28` if only the name) | patch sections (§8.2) |
-| 9c | `01 28+S ss 58` | CMParameterPageFocusRequest | `2D page` |
+| 9c | `01 28+S ss 28` | CMPatchNameRequest: a real G2's `3C` reply has no `27` (usb-crosscheck H3) | `27 name` |
+| 9c' | `01 28+S ss 58` | CMParameterPageFocusRequest, only when the `3C` reply had no `2D` (a real G2's has one) | `2D page` |
 | 9d | `4B/53/4C/66/63/61/4E/4F loc` | only for parts still dirty after 9b (VA = 1 first, then FX = 0) | matching section |
-| 9e | `01 28+S ss 68` | CMCurrentNotesRequest | `69` section |
-| 9f | `01 28+S ss 6E` | CMTextpadRequest | `6F` section |
+| 9e | `01 28+S ss 68` | CMCurrentNotesRequest (the `3C` reply has no `69`) | `69` section |
+| 9f | `01 28+S ss 6E` | CMTextpadRequest (the `3C` reply has no `6F`) | `6F` section |
 | 9g | (`21 …` if the editor has a pending header change) | | |
 | 9h | `01 28+S ss 71 01`, then `… 71 00` | CMPatchLoadRequest VA, FX | `72 …` each |
 | 9i | `01 28+S ss 70` | CMFlushBlink | response |
@@ -438,7 +439,7 @@ Addresses are `WriteStream`/`ReadStream` of the `CM*` class.
 | 0A | CMFlashLoadCommand 0x1142a | S_RETREIVE | E→S | 0 | S | – | `u8 slot (0..3, 4 = perf), u8 bank, u8 prog` | load from flash; a `38`/`1F` release follows [V] |
 | 0B | CMFlashStoreCommand 0x112b8 | S_STORE | E→S | 0 | S | – | `u8 slot, u8 bank, u8 prog` | `0D` |
 | 0C | CMFlashDeleteCommand 0x1131e | S_CLEAR | E→S | 0 | S | – | `u8 type (0 patch/1 perf [I]), u8 bank, u8 prog, u8 origin` | `15` |
-| 0D | CMFlashCommandResult 0x116c4 | R_STORE | S→E | – | – | 1 | `u8 type, u8 bank, u8 prog, u8 origin, u8 result` (0 ok, 1, 2, 4, 5; other → 3); §8.3.1 | |
+| 0D | CMFlashCommandResult 0x116c4 | R_STORE | S→E | – | – | 1 | `u8 type, u8 bank, u8 prog, u8 origin, u8 result`: 0, 2 (store) and 5 (delete) ok; 1 "Can't load from flash", 4 "Memory protect on", 3 and ≥ 6 "Flash memory full" (`CFlashData::HandleFlashCommandResult` 0x11b062); §8.3.1 | |
 | 0E | CMFlashDeleteRangeCommand 0x11394 | S_CLEAR_BANK | E→S | 0 | S | – | `u8 type, u8 bank1, u8 prog1, u8 bank2, u8 prog2, u8 origin` | `12` |
 | 0F | CMKeyboardFocusDump 0x18260/0x182f2 | – | both | 0 | P | 3 | `pad4, 4×b1` keyboard enabled A..D | |
 | 10 | CMPerformanceHeaderRequest 0x16a14 | Q_PERF_SETTINGS | E→S | 2 | P | – | – | `29 name` + `11` (sect) |
@@ -615,12 +616,16 @@ from its Synth Settings dialog (§7.1.1). The OS answers `7F` and sends no `03` 
     FX for 4D/5B [I]. See pch2-format §2.
   * Over USB, `4D` carries **10 variations** ("10 Variations must be in a patch for USB", Gen2 Mess:4016) [V].
     Clavia's dump comes straight from the file writer [C]. Whether that writer emits 10 for USB is to be checked [I].
-  * The synth answers, then issues `38 S newSession` [I]. The editor takes the new session from it.
+  * The synth answers with the new session in the reply: `01 08|S 40 36 S newSession`, and no `38` (real-G2X
+    capture, usb-crosscheck M1). The editor routes the `36` to the synth level whatever the header, adopts the
+    session and does not read the slot back. The voices (`05`) and every slot's load reports (`72` VA + FX in one
+    message) follow, unsolicited.
   * Verhue: `01 28+s 53 37 00 00 00 name …` with `$53` "?" hard-coded (Gen2 Mess:3993-4020) [V].
 * **Performance**: one synth bubble, hdr `0x2C`, void session `0x42` (2 molecules):
   `37 00 00 00 <str16 perfName>` + `1A` = [`29 str16`, `11` sect, 4 × (the 18 patch sections), `5F` sect]
   (`CMCompletePerformanceDump::WriteStream` 0x17248). Verhue: `01 2C 42 37 00 00 00 …` (Gen2 Mess:3193) [V].
   If the synth's perf-mode differs, a `03` synth-data dump with perfMode toggled is sent first.
+  The reply carries the five new sessions, `36 0..3` then `36 04`, and no `1F` (capture).
 
 ### 8.2 Download (synth → editor) [C]
 * `T: 3C` → reply hdr `0x08|S`, sess = slot session; molecules = the patch sections (21, 4A, 69, 52, 4D, 65, 62, 60,
@@ -633,11 +638,11 @@ from its Synth Settings dialog (§7.1.1). The OS answers `7F` and sends no `03` 
 | operation | request | reply |
 |---|---|---|
 | list names | `S: 14 type bank prog` (repeated from the entry after the last one received while `16` ends with tag `05`) | `16 …` (§7), optionally `13 lo hi` |
-| load into slot/perf | `S: 0A slot bank prog` | response, then `38`/`1F` release → re-read |
-| store slot/perf | `S: 0B slot bank prog` | `0D` result (Verhue: + `16` with flag 0) |
-| delete | `S: 0C type bank prog origin` | `15` and/or `0D` |
+| load into slot/perf | `S: 0A slot bank prog` | the release **inside the reply**: `38 slot sess` + `0D` (patch), `1F ps` + 4 × `36` + `0D` (performance) → re-read, as for an unsolicited release (capture, usb-crosscheck H2) |
+| store slot/perf | `S: 0B slot bank prog` | `13 lo hi` + `16` (flag 0, the stored entry) + `0D … 02`; then `29` + `11` unsolicited (capture) |
+| delete | `S: 0C type bank prog origin` | `15` + `13` + `0D … 05` (capture) |
 | delete range | `S: 0E type b1 p1 b2 p2 origin` | `12` |
-| read file from flash | `S: 17 type bank prog` | `18 code …` then `19 type bank prog name size ver <size bytes>` |
+| read file from flash | `S: 17 type bank prog` | `19 type bank prog name size ver <size bytes>` alone when there is data (capture); `18 code …` otherwise |
 | write file to flash | `S: 19 type bank prog name size ver <bytes>` | `18`/`0D` |
 
 `19` raw data = the binary part of a `.pch2`/`.prf2` (version byte, type byte, sections, CRC), **9 variations** as in

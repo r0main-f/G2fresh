@@ -186,10 +186,19 @@ void Client::sendRealtime(const Bubble& b)
 void Client::sendNext()
 {
     // Stop-and-wait (§4.3): one bubble at a time; sync traffic before edits.
-    while (status_ == Status::Connected && !outstanding_ && (!cleaner_.empty() || !user_.empty())) {
-        auto& queue = !cleaner_.empty() ? cleaner_ : user_;
-        Pending p = std::move(queue.front());
-        queue.pop_front();
+    while (status_ == Status::Connected && !outstanding_) {
+        Pending p;
+        if (!cleaner_.empty()) {
+            p = std::move(cleaner_.front());
+            cleaner_.pop_front();
+        } else if (auto dirty = synced_ ? dirtyRequest() : std::nullopt) {
+            p = std::move(*dirty);
+        } else if (!user_.empty()) {
+            p = std::move(user_.front());
+            user_.pop_front();
+        } else {
+            break;
+        }
         const auto bubble = p.make();
         if (!bubble)
             continue;
@@ -279,26 +288,136 @@ void Client::enqueueSyncDone()
                    });
 }
 
-void Client::enqueueSlotSync(int slot)
+void Client::enqueueSlotSync(int slot, bool askSession)
 {
     const auto s = static_cast<u8>(slot);
-    enqueueCleaner([s] { return Bubble::synth({SessionRequest{s}}); });
+    if (askSession)
+        enqueueCleaner([s] { return Bubble::synth({SessionRequest{s}}); });
+    // CPatch::CleanDirtyData @000d601e asks only for what is still dirty. A
+    // real G2's 3C reply carries the page focus (2D) but not the name (27),
+    // the current notes (69) or the textpad (6F), so 28, 68 and 6E follow it
+    // and 58 does not (usb-crosscheck H3).
     enqueueCleaner([this, slot] { return slotBubble(slot, {Request{id::CompletePatchRequest}}); },
-                   [this, slot](const auto&) {
+                   [this, slot](const std::vector<Molecule>& reply) {
+                       auto& d = dirty_[static_cast<std::size_t>(slot)];
+                       d.name = d.page = d.notes = d.textpad = d.focus = true;
+                       for (const auto& m : reply) {
+                           const u8 mid = idOf(m);
+                           d.name = d.name && mid != id::PatchName;
+                           d.page = d.page && mid != id::PageFocus;
+                           d.notes = d.notes && mid != id::CurrentNotes;
+                           d.textpad = d.textpad && mid != id::Textpad;
+                       }
                        if (listener_)
                            listener_->slotChanged(slot);
                    });
-    enqueueCleaner([this, slot] { return slotBubble(slot, {Request{id::PageFocusRequest}}); });
-    enqueueCleaner([this, slot] { return slotBubble(slot, {Request{id::CurrentNotesRequest}}); });
-    enqueueCleaner([this, slot] { return slotBubble(slot, {Request{id::TextpadRequest}}); });
+    auto ifDirty = [this, slot](bool SlotDirty::*flag, Molecule m) {
+        enqueueCleaner([this, slot, flag, m]() -> std::optional<Bubble> {
+            auto& d = dirty_[static_cast<std::size_t>(slot)];
+            if (!(d.*flag))
+                return std::nullopt;
+            d.*flag = false;
+            return slotBubble(slot, {m});
+        });
+    };
+    ifDirty(&SlotDirty::name, Request{id::PatchNameRequest});
+    ifDirty(&SlotDirty::page, Request{id::PageFocusRequest});
+    ifDirty(&SlotDirty::notes, Request{id::CurrentNotesRequest});
+    ifDirty(&SlotDirty::textpad, Request{id::TextpadRequest});
     // The load report also opens the LED stream (§10): reset it first.
     enqueueCleaner([this, slot] {
         state_.slots[static_cast<std::size_t>(slot)].load = {};
+        dirty_[static_cast<std::size_t>(slot)].loadVa = false;
         return slotBubble(slot, {LocationRequest{id::PatchLoadRequest, 1}});
     });
-    enqueueCleaner([this, slot] { return slotBubble(slot, {LocationRequest{id::PatchLoadRequest, 0}}); });
-    enqueueCleaner([this, slot] { return slotBubble(slot, {Request{id::FlushBlink}}); });
-    enqueueCleaner([this, slot] { return slotBubble(slot, {Request{id::ParamFocusRequest}}); });
+    enqueueCleaner([this, slot] {
+        dirty_[static_cast<std::size_t>(slot)].loadFx = false;
+        return slotBubble(slot, {LocationRequest{id::PatchLoadRequest, 0}});
+    });
+    enqueueCleaner([this, slot] {
+        dirty_[static_cast<std::size_t>(slot)].flush = false;
+        return slotBubble(slot, {Request{id::FlushBlink}});
+    });
+    enqueueCleaner([this, slot] {
+        dirty_[static_cast<std::size_t>(slot)].focus = false;
+        return slotBubble(slot, {Request{id::ParamFocusRequest}});
+    });
+}
+
+void Client::enqueuePerformanceResync()
+{
+    // CSynth::HandlePerformanceRelease @0011d7ac: the performance and every
+    // slot again, without 7D 01. A real G2 sends the slots' sessions with the
+    // 1F, so the slots are read from 3C on (usb-crosscheck H2, capture-003/005).
+    synced_ = false;
+    enqueueCleaner([] { return Bubble::synth({SessionRequest{kSlotSynth}}); });
+    enqueueCleaner([this] { return perfBubble({Request{id::PerfHeaderRequest}}); },
+                   [this](const auto&) {
+                       if (listener_)
+                           listener_->performanceChanged();
+                   });
+    enqueueCleaner([this] { return perfBubble({Request{id::GlobalPageFocusRequest}}); });
+    for (int slot = 0; slot < kSlots; ++slot)
+        enqueueSlotSync(slot, !state_.slots[static_cast<std::size_t>(slot)].sessionKnown);
+    enqueueSyncDone();
+}
+
+std::optional<Client::Pending> Client::dirtyRequest()
+{
+    // Between bubbles, as the original's idle pass (CSynth::CleanDirtyData
+    // @0011f394 -> CPatch::CleanDirtyData): a slot whose modules or cables
+    // changed asks for its load again (71 VA, else 71 FX; CPatchLoad::
+    // SendLoadRequest @000ee866), every load report is followed by a 70, and
+    // a patch read anew by one 2E.
+    for (int slot = 0; slot < kSlots; ++slot) {
+        auto& d = dirty_[static_cast<std::size_t>(slot)];
+        std::optional<Molecule> m;
+        if (d.loadVa) {
+            d.loadVa = false;
+            m = LocationRequest{id::PatchLoadRequest, 1};
+        } else if (d.loadFx) {
+            d.loadFx = false;
+            m = LocationRequest{id::PatchLoadRequest, 0};
+        } else if (d.flush) {
+            d.flush = false;
+            m = Request{id::FlushBlink};
+        } else if (d.focus && state_.slots[static_cast<std::size_t>(slot)].load[0]
+                   && state_.slots[static_cast<std::size_t>(slot)].load[1]) { // after the load report's 70
+            d.focus = false;
+            m = Request{id::ParamFocusRequest};
+        }
+        if (m)
+            return Pending{[this, slot, m = *m] { return std::optional<Bubble>(slotBubble(slot, {m})); }, {}, false};
+    }
+    return std::nullopt;
+}
+
+void Client::markLoadDirty(int slot, const Molecule& m)
+{
+    // The molecules whose local handlers add or remove a module or cable from
+    // the patch load, or change its DSP code (CPatchLoad::UpdateCriticalResource
+    // @000ee488): the area's load is no longer reported.
+    if (slot < 0 || slot >= kSlots)
+        return;
+    std::optional<u8> loc;
+    if (const auto* n = std::get_if<ModuleNew>(&m))
+        loc = n->location;
+    else if (const auto* d = std::get_if<ModuleDelete>(&m))
+        loc = d->location;
+    else if (const auto* u = std::get_if<Uprate>(&m))
+        loc = u->location;
+    else if (const auto* c = std::get_if<ModeChange>(&m))
+        loc = c->location;
+    else if (const auto* e = std::get_if<CableEdit>(&m); e && e->id != id::CableRecolor)
+        loc = static_cast<u8>(e->va ? 1 : 0);
+    else if (const auto* sd = std::get_if<SectionDump>(&m); sd && sd->section.id == file::kCableList)
+        if (const auto* l = std::get_if<file::CableList>(&sd->section.payload))
+            loc = l->location;
+    auto& d = dirty_[static_cast<std::size_t>(slot)];
+    if (loc == 1)
+        d.loadVa = true;
+    else if (loc == 0)
+        d.loadFx = true;
 }
 
 void Client::enqueueFlashNames(u8 type, u8 bank, u8 prog, bool front)
@@ -534,52 +653,77 @@ void Client::handleUnsolicited(const DeviceMessage& m)
     route(slot, molecules, false);
 }
 
+// Clavia routes every molecule by its destination, not by the header of the
+// message it came in (CSynth::RouteBubble @0011f940, CMoleculeFactory::
+// GetDestination): a patch upload is answered by 36 on the slot's header, a
+// load from flash by 38 or 1F (and 0D) inside the reply to 0A, and these reach
+// the synth's handlers all the same (usb-crosscheck M1, H2).
 void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromReply)
 {
-    if (slot < kSlots) {
-        auto& s = state_.slots[slot];
-        // Sections replace the slot's (a download, or a partial refresh).
-        PatchAssembler sections;
-        bool anySection = false;
-        for (const auto& m : molecules) {
-            if (const auto* d = std::get_if<SectionDump>(&m)) {
-                if (!anySection)
-                    sections.reset(&s.patch);
-                anySection = sections.add(d->section) || anySection;
-                continue;
-            }
-            applyToSlot(s, m);
-            applied(slot, m);
-            if (fromReply || !listener_)
-                continue;
-            if (const auto* p = std::get_if<ParamChange>(&m))
-                listener_->paramChanged(slot, *p);
-            else if (const auto* v = std::get_if<VariationSelect>(&m))
-                listener_->variationChanged(slot, v->variation);
-            else if (const auto* f = std::get_if<ParamFocus>(&m))
-                listener_->paramFocused(slot, *f);
-            else if (const auto* mc = std::get_if<MorphChange>(&m))
-                listener_->morphChanged(slot, *mc);
-            else
-                listener_->patchEdited(slot, m);
-        }
-        if (anySection) {
-            try {
-                s.patch = sections.patch();
-            } catch (const std::exception&) {
-                fail(Status::Corrupted);
-                return;
-            }
-            if (observer_)
-                observer_->slotReplaced(slot);
-            if (!fromReply && listener_)
-                listener_->slotChanged(slot);
-        }
+    if (slot >= kSlots) {
+        routeSynth(molecules, fromReply);
         return;
     }
+    auto& s = state_.slots[slot];
+    std::vector<Molecule> synthLevel;
+    // Sections replace the slot's (a download, or a partial refresh).
+    PatchAssembler sections;
+    bool anySection = false;
+    for (const auto& m : molecules) {
+        if (const auto* d = std::get_if<SectionDump>(&m)) {
+            if (d->section.id == file::kPerfHeader || d->section.id == file::kGlobalKnobMap) {
+                synthLevel.push_back(m);
+                continue;
+            }
+            if (!anySection)
+                sections.reset(&s.patch);
+            anySection = sections.add(d->section) || anySection;
+            continue;
+        }
+        if (!applyToSlot(s, m)) {
+            synthLevel.push_back(m);
+            continue;
+        }
+        applied(slot, m);
+        // Every load report is followed by a 70 (CPatch::SetDspReportedLoad @000d4a74).
+        if (std::holds_alternative<PatchLoad>(m))
+            dirty_[slot].flush = true;
+        if (fromReply)
+            continue;
+        markLoadDirty(slot, m);
+        if (!listener_)
+            continue;
+        if (const auto* p = std::get_if<ParamChange>(&m))
+            listener_->paramChanged(slot, *p);
+        else if (const auto* v = std::get_if<VariationSelect>(&m))
+            listener_->variationChanged(slot, v->variation);
+        else if (const auto* f = std::get_if<ParamFocus>(&m))
+            listener_->paramFocused(slot, *f);
+        else if (const auto* mc = std::get_if<MorphChange>(&m))
+            listener_->morphChanged(slot, *mc);
+        else
+            listener_->patchEdited(slot, m);
+    }
+    if (anySection) {
+        try {
+            s.patch = sections.patch();
+        } catch (const std::exception&) {
+            fail(Status::Corrupted);
+            return;
+        }
+        if (observer_)
+            observer_->slotReplaced(slot);
+        if (!fromReply && listener_)
+            listener_->slotChanged(slot);
+    }
+    if (!synthLevel.empty())
+        routeSynth(synthLevel, fromReply);
+}
 
-    // Synth / performance level.
+void Client::routeSynth(const std::vector<Molecule>& molecules, bool fromReply)
+{
     bool synthNews = false, perfNews = false, resyncAll = false;
+    std::vector<int> released;
     for (const auto& m : molecules) {
         if (const auto* r = std::get_if<SessionNumber>(&m)) {
             applied(kSlotSynth, m);
@@ -587,9 +731,13 @@ void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromRep
                 auto& s = state_.slots[r->slot];
                 s.session = r->session & kSessionMask;
                 s.sessionKnown = true;
-                // 38: the synth replaced the patch in that slot: read it again.
-                if (r->id == id::PatchRelease && !fromReply)
-                    resyncSlot(r->slot);
+                // 38: the synth replaced the patch in that slot (a load from its
+                // memory, the panel): read it again, whether the release came
+                // in a reply or on its own (CSynth::HandleSessionPatchRelease
+                // @0011df1c). A 36 only gives the session: after an upload the
+                // synth has what the editor sent.
+                if (r->id == id::PatchRelease)
+                    released.push_back(r->slot);
             } else {
                 state_.perfSession = r->session & kSessionMask;
                 state_.perfSessionKnown = true;
@@ -600,7 +748,7 @@ void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromRep
             applied(kSlotSynth, m);
             state_.perfSession = r->session & kSessionMask;
             state_.perfSessionKnown = true;
-            resyncAll = !fromReply;
+            resyncAll = true; // CSynth::HandlePerformanceRelease @0011d7ac
             continue;
         }
         if (const auto* l = std::get_if<MidiLearn>(&m)) {
@@ -618,9 +766,11 @@ void Client::route(u8 slot, const std::vector<Molecule>& molecules, bool fromRep
         }
     }
     if (resyncAll) {
-        // 1F: a new performance; everything again, without 7D 01 (§6.3).
-        enqueueSync(false);
+        enqueuePerformanceResync();
         sendNext();
+    } else {
+        for (const int slot : released)
+            resyncSlot(slot);
     }
     if (!fromReply && listener_) {
         if (synthNews)
@@ -636,22 +786,37 @@ void Client::sendPatch(int slot, const Patch& patch, const std::string& name)
 {
     if (slot < 0 || slot >= kSlots)
         return;
-    auto& s = state_.slots[static_cast<std::size_t>(slot)];
-    s.patch = patch;
-    s.name = name;
-    if (observer_)
-        observer_->slotReplaced(slot);
     const auto bubble = patchUpload(static_cast<u8>(slot), patch, name);
-    enqueueUser([bubble] { return bubble; });
+    // The mirror takes the patch when it goes out, as the original applies a
+    // bubble when it sends it (CPatch::UserBubbleOutput @000d5e74): a read of
+    // the slot still queued before it must not undo it. Then the synth
+    // reports the load, and the editor sends 70 and, once, 2E (as after a
+    // real G2's upload; CPatch::CleanDirtyData).
+    enqueueUser([this, slot, bubble, patch, name] {
+        auto& s = state_.slots[static_cast<std::size_t>(slot)];
+        s.patch = patch;
+        s.name = name;
+        s.load = {};
+        dirty_[static_cast<std::size_t>(slot)].focus = true;
+        if (observer_)
+            observer_->slotReplaced(slot);
+        return bubble;
+    });
 }
 
 void Client::sendPerformance(const Performance& perf, const std::string& name)
 {
-    state_.setPerformance(perf, name);
-    if (observer_)
-        observer_->stateReplaced();
     const auto bubble = performanceUpload(perf, name);
-    enqueueUser([bubble] { return bubble; });
+    enqueueUser([this, bubble, perf, name] {
+        state_.setPerformance(perf, name);
+        if (observer_)
+            observer_->stateReplaced();
+        for (int slot = 0; slot < kSlots; ++slot) {
+            state_.slots[static_cast<std::size_t>(slot)].load = {};
+            dirty_[static_cast<std::size_t>(slot)].focus = true;
+        }
+        return bubble;
+    });
 }
 
 void Client::applyEdit(int slot, const Molecule& m)
@@ -668,7 +833,11 @@ void Client::editBubble(int slot, std::vector<Molecule> molecules)
         return;
     for (const auto& m : molecules)
         applyEdit(slot, m);
-    enqueueUser([this, slot, molecules = std::move(molecules)] { return slotBubble(slot, molecules); });
+    enqueueUser([this, slot, molecules = std::move(molecules)] {
+        for (const auto& m : molecules)
+            markLoadDirty(slot, m);
+        return slotBubble(slot, molecules);
+    });
 }
 
 void Client::edit(int slot, std::vector<Molecule> molecules) { editBubble(slot, std::move(molecules)); }
@@ -751,9 +920,14 @@ void Client::loadFromFlash(int slot, u8 bank, u8 prog)
 {
     if (slot < 0 || slot > kSlotSynth)
         return;
-    enqueueUser([slot, bank, prog] {
-        return Bubble::synth({FlashCommand{id::FlashLoad, static_cast<u8>(slot), bank, prog}});
-    });
+    // The answer carries the release (38, or 1F), which reads the slot or the
+    // performance again, and the result (0D), e.g. 1 "Can't load from flash".
+    enqueueUser([slot, bank, prog] { return Bubble::synth({FlashCommand{id::FlashLoad, static_cast<u8>(slot), bank, prog}}); },
+                [this](const std::vector<Molecule>& reply) {
+                    for (const auto& m : reply)
+                        if (const auto* r = std::get_if<FlashResult>(&m); r && listener_)
+                            listener_->flashResult(*r);
+                });
 }
 
 void Client::storeToFlash(int slot, u8 bank, u8 prog)

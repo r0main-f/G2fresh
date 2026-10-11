@@ -34,7 +34,7 @@ inline constexpr ProtoVector kProtoVectors[] = {
     {"init_sequence", 15, "host->device", "bulk_out", "00 09 01 2C 41 35 00 02 D0", nullptr, true, "9a. slot A: CMSessionNumberRequest (system bubble, slot in payload)"},
     {"init_sequence", 16, "device->host", "interrupt_in", "82 01 0C 41 36 00 11 A3 B6 00 00 00 00 00 00 00", nullptr, true, "embedded message -- slot A session = 0x11"},
     {"init_sequence", 17, "host->device", "bulk_out", "00 08 01 28 11 3C 9E 4E", nullptr, true, "9b. CMCompletePatchRequest (hdr 0x28 slot A, sess 0x11) -> patch sections"},
-    {"init_sequence", 18, "host->device", "bulk_out", "00 08 01 28 11 58 B2 6C", nullptr, true, "9c. CMParameterPageFocusRequest -> 0x2D"},
+    {"init_sequence", 18, "host->device", "bulk_out", "00 08 01 28 11 28 CC FB", nullptr, true, "9c. CMPatchNameRequest -> 0x27: a real G2's 3C reply carries the page focus (2D) but no name, so CPatch::CleanDirtyData @0xd601e asks for the name and not for the page (58) (re/notes/usb-crosscheck.md H3)"},
     {"init_sequence", 19, "host->device", "bulk_out", "00 08 01 28 11 68 84 3F", nullptr, true, "9e. CMCurrentNotesRequest -> 0x69 section"},
     {"init_sequence", 20, "host->device", "bulk_out", "00 08 01 28 11 6E E4 F9", nullptr, true, "9f. CMTextpadRequest -> 0x6F section"},
     {"init_sequence", 21, "host->device", "bulk_out", "00 09 01 28 11 71 01 47 C6", nullptr, true, "9h. CMPatchLoadRequest VA -> 0x72"},

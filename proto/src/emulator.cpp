@@ -30,6 +30,13 @@ const file::Section* findSection(const std::vector<file::Section>& sections, u8 
 
 } // namespace
 
+std::uint16_t Emulator::usage() const
+{
+    // Per mille of the flash in use [I]: one patch or performance counts one
+    // of 32 x 128 + 8 x 128 entries.
+    return static_cast<std::uint16_t>((flash_[0].size() + flash_[1].size()) * 1000 / (40 * 128));
+}
+
 Emulator::Emulator()
 {
     state_.settings.name = "G2 Emulator";
@@ -132,6 +139,7 @@ void Emulator::handleBubble(const HostFrame& f, std::vector<u8> bytes)
     const auto molecules = decode(bytes);
     std::vector<Molecule> reply;
     std::vector<std::vector<Molecule>> after; // unsolicited messages after the reply (hdr 4)
+    bool news = false;                        // the voices and load reports after an upload
 
     const bool upload = !molecules.empty() && std::holds_alternative<DumpDestination>(molecules.front());
     if (upload && slot < kSlots) {
@@ -146,7 +154,9 @@ void Emulator::handleBubble(const HostFrame& f, std::vector<u8> bytes)
             target.name = std::get<DumpDestination>(molecules.front()).name;
             target.session = nextSession(target.session);
             state_.perfHeader.slots[slot].patchName = target.name;
-            after.push_back({SessionNumber{id::PatchRelease, slot, target.session}});
+            // The new session in the reply (usb-crosscheck M1): no 38.
+            reply.push_back(SessionNumber{id::SessionDump, slot, target.session});
+            news = true;
         } else {
             reply.push_back(Exception{6}); // "Unfinished bubble error" [I]
         }
@@ -155,9 +165,14 @@ void Emulator::handleBubble(const HostFrame& f, std::vector<u8> bytes)
         try {
             state_.setPerformance(performanceFromSections(p.sections), p.name);
             state_.perfSession = nextSession(state_.perfSession);
-            for (auto& s : state_.slots)
+            // Every session in the reply, the slots' then the performance's; no 1F.
+            for (u8 i = 0; i < kSlots; ++i) {
+                auto& s = state_.slots[i];
                 s.session = nextSession(s.session);
-            after.push_back({PerformanceRelease{state_.perfSession}});
+                reply.push_back(SessionNumber{id::SessionDump, i, s.session});
+            }
+            reply.push_back(SessionNumber{id::SessionDump, kSlotSynth, state_.perfSession});
+            news = true;
         } catch (const std::exception&) {
             reply.push_back(Exception{5}); // "Stream execute error" [I]
         }
@@ -172,18 +187,49 @@ void Emulator::handleBubble(const HostFrame& f, std::vector<u8> bytes)
     send(static_cast<u8>(kResponse | slot), replySession(reply.size()), reply);
     for (auto& m : after)
         sendUnsolicited(kSlotSynth, std::move(m));
+    if (news)
+        sendNews();
 }
 
 std::vector<Molecule> Emulator::patchDump(u8 slot) const
 {
+    // As a real G2 answers 3C (usb-crosscheck §3): 21, the page focus, 4A x2,
+    // 52 x2, 4D x3, 65, 62, 60, 5A x2, 5B x3; no name (27), current notes (69)
+    // or textpad (6F), which the editor asks for next (28, 68, 6E).
     const auto& s = state_.slots[slot];
+    auto sections = uploadSections(s.patch);
     std::vector<Molecule> out;
-    for (auto& section : uploadSections(s.patch)) {
-        if (section.id == file::kTextpad)
-            out.push_back(NameDump{id::PatchName, s.name});
-        out.push_back(SectionDump{std::move(section)});
-    }
+    auto add = [&](u8 sid) {
+        for (const auto& section : sections)
+            if (section.id == sid)
+                out.push_back(SectionDump{section});
+    };
+    add(file::kPatchHeader);
+    out.push_back(PageFocus{id::PageFocus, s.page});
+    for (const u8 sid : {file::kModuleList, file::kCableList, file::kParamList, file::kMorphMap, file::kKnobMap,
+                         file::kCtrlMap, file::kModuleNames, file::kCustomData})
+        add(sid);
     return out;
+}
+
+void Emulator::sendNews()
+{
+    // What a real G2 sends after an upload (usb-crosscheck §3): the voices,
+    // then every slot's load report (VA and FX in one message).
+    sendUnsolicited(kSlotSynth, {Voices{state_.voices}});
+    for (u8 slot = 0; slot < kSlots; ++slot)
+        sendUnsolicited(slot, {patchLoad(slot, 1), patchLoad(slot, 0)});
+}
+
+PatchLoad Emulator::patchLoad(u8 slot, u8 isVA) const
+{
+    // The area's resources as the editor computes them (a real synth reports
+    // its own figures).
+    const auto loc = isVA ? Location::Va : Location::Fx;
+    const auto bytes = patchload::encodeReport({loc, patchload::areaTotal(state_.slots[slot].patch.area(loc))});
+    PatchLoad load{static_cast<u8>(isVA ? 1 : 0), {}};
+    std::copy(bytes.begin() + 1, bytes.end(), load.counters.begin());
+    return load;
 }
 
 std::vector<Molecule> Emulator::flashNames(u8 type, u8 bank, u8 prog) const
@@ -285,15 +331,8 @@ void Emulator::handle(u8 slot, bool sessionOk, const Molecule& molecule, std::ve
                 case id::CustomDataRequest: slotSection(file::kCustomData, m.location); break;
                 case id::CableListRequest: slotSection(file::kCableList, m.location); break;
                 case id::PatchLoadRequest:
-                    if (target) {
-                        // The area's resources as the editor computes them (a real synth
-                        // reports its own figures).
-                        const auto loc = m.location ? Location::Va : Location::Fx;
-                        const auto bytes = patchload::encodeReport({loc, patchload::areaTotal(target->patch.area(loc))});
-                        PatchLoad load{static_cast<u8>(m.location ? 1 : 0), {}};
-                        std::copy(bytes.begin() + 1, bytes.end(), load.counters.begin());
-                        reply.push_back(load);
-                    }
+                    if (target)
+                        reply.push_back(patchLoad(slot, m.location ? 1 : 0));
                     break;
                 default: break;
                 }
@@ -308,20 +347,29 @@ void Emulator::handle(u8 slot, bool sessionOk, const Molecule& molecule, std::ve
                 switch (m.id) {
                 case id::FlashLoad: {
                     const auto it = flash_[type].find({m.bank, m.prog});
-                    if (it == flash_[type].end())
+                    if (it == flash_[type].end()) {
+                        reply.push_back(FlashResult{type, m.bank, m.prog, 0, 1}); // "Can't load from flash" [I]
                         break;
+                    }
                     try {
                         if (type == 0 && m.slot < kSlots) {
                             auto& s = state_.slots[m.slot];
                             s.patch = g2::loadPatch(it->second.file, {true});
                             s.name = it->second.name;
                             s.session = nextSession(s.session);
-                            after.push_back({SessionNumber{id::PatchRelease, m.slot, s.session}});
+                            // The release comes inside the reply (usb-crosscheck H2).
+                            reply.push_back(SessionNumber{id::PatchRelease, m.slot, s.session});
                         } else if (type == 1) {
                             state_.setPerformance(g2::loadPerformance(it->second.file, {true}), it->second.name);
                             state_.perfSession = nextSession(state_.perfSession);
-                            after.push_back({PerformanceRelease{state_.perfSession}});
+                            reply.push_back(PerformanceRelease{state_.perfSession});
+                            for (u8 i = 0; i < kSlots; ++i) {
+                                auto& s = state_.slots[i];
+                                s.session = nextSession(s.session);
+                                reply.push_back(SessionNumber{id::SessionDump, i, s.session});
+                            }
                         }
+                        reply.push_back(FlashResult{type, m.bank, m.prog, 0, 0});
                     } catch (const std::exception&) {
                         reply.push_back(Exception{5});
                     }
@@ -341,8 +389,17 @@ void Emulator::handle(u8 slot, bool sessionOk, const Molecule& molecule, std::ve
                         e.name = state_.perfName;
                         e.file = savePerformance(state_.performance());
                     }
+                    // As a real G2 answers (capture-006): the flash usage, the new entry
+                    // as a name-list fragment (flag 0), the result 2 (ok); then the
+                    // performance name and header, unsolicited.
+                    FlashData entry{0, type, {{FlashItem::Kind::SetEntry, m.bank, m.prog, {}, 0},
+                                              {FlashItem::Kind::Name, 0, 0, e.name, e.category},
+                                              {FlashItem::Kind::EndOfChunk, 0, 0, {}, 0}}};
                     flash_[type][{m.bank, m.prog}] = std::move(e);
-                    reply.push_back(FlashResult{type, m.bank, m.prog, 0, 2}); // 2: the OS's answer to a store
+                    reply.push_back(FlashUsage{usage()});
+                    reply.push_back(std::move(entry));
+                    reply.push_back(FlashResult{type, m.bank, m.prog, 0, 2});
+                    after.push_back({NameDump{id::PerfName, state_.perfName}, perfHeaderSection()});
                     break;
                 }
                 case id::FlashDataRequest: {
@@ -366,8 +423,7 @@ void Emulator::handle(u8 slot, bool sessionOk, const Molecule& molecule, std::ve
                         raw.version = bytes[static_cast<std::size_t>(start) + 1];
                         raw.data = std::vector<u8>(bytes.begin() + start + 2, bytes.end());
                     }
-                    reply.push_back(FlashDumpMarker{0, t, m.bank, m.prog, {}});
-                    reply.push_back(raw);
+                    reply.push_back(raw); // 19 alone, no 18 (capture-013/014)
                     break;
                 }
                 default: break;
@@ -378,8 +434,11 @@ void Emulator::handle(u8 slot, bool sessionOk, const Molecule& molecule, std::ve
                     reply.push_back(FlashResult{m.type, m.bank, m.prog, m.origin, 4});
                     return;
                 }
+                // capture-015/016: 15, the flash usage, then the result 5 (ok).
                 flash_[m.type & 1].erase({m.bank, m.prog});
-                reply.push_back(FlashResult{m.type, m.bank, m.prog, m.origin, 0});
+                reply.push_back(FlashCommand{id::FlashDeleteDump, m.type, m.bank, m.prog});
+                reply.push_back(FlashUsage{usage()});
+                reply.push_back(FlashResult{m.type, m.bank, m.prog, m.origin, 5});
             },
             [&](const SynthData& m) { state_.settings = m.settings; },
             [&](const PerformanceMode& m) { state_.settings.perfMode = m.perfMode != 0; },
@@ -440,9 +499,14 @@ void Emulator::loadPerformance(const Performance& perf, const std::string& name)
 {
     state_.setPerformance(perf, name);
     state_.perfSession = nextSession(state_.perfSession);
-    for (auto& s : state_.slots)
+    // 1F with the slots' new sessions in one message (capture-005).
+    std::vector<Molecule> release{PerformanceRelease{state_.perfSession}};
+    for (u8 i = 0; i < kSlots; ++i) {
+        auto& s = state_.slots[i];
         s.session = nextSession(s.session);
-    sendUnsolicited(kSlotSynth, {PerformanceRelease{state_.perfSession}});
+        release.push_back(SessionNumber{id::SessionDump, i, s.session});
+    }
+    sendUnsolicited(kSlotSynth, std::move(release));
 }
 
 void Emulator::sendLeds(u8 slot, std::span<const u8> leds)

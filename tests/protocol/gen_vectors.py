@@ -221,7 +221,9 @@ def init_sequence():
     req(SYS_REQ, VOID1, [0x35, 0x00], "9a. slot A: CMSessionNumberRequest (system bubble, slot in payload)")
     reply(in_body(0x0C, VOID1, [0x36, 0x00, 0x11]), " -- slot A session = 0x11")
     req(SLOT_REQ(0), 0x11, [0x3C], "9b. CMCompletePatchRequest (hdr 0x28 slot A, sess 0x11) -> patch sections")
-    req(SLOT_REQ(0), 0x11, [0x58], "9c. CMParameterPageFocusRequest -> 0x2D")
+    req(SLOT_REQ(0), 0x11, [0x28], "9c. CMPatchNameRequest -> 0x27: a real G2's 3C reply carries the page focus "
+        "(2D) but no name, so CPatch::CleanDirtyData @0xd601e asks for the name and not for the page (58) "
+        "(re/notes/usb-crosscheck.md H3)")
     req(SLOT_REQ(0), 0x11, [0x68], "9e. CMCurrentNotesRequest -> 0x69 section")
     req(SLOT_REQ(0), 0x11, [0x6E], "9f. CMTextpadRequest -> 0x6F section")
     req(SLOT_REQ(0), 0x11, [0x71, 0x01], "9h. CMPatchLoadRequest VA -> 0x72")

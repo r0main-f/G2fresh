@@ -26,8 +26,8 @@ struct Recorder : Client::Listener {
     std::vector<int> leds;
     std::vector<u8> errors;
     std::vector<MidiLearn> learned;
-    int performanceChanges = 0;
     std::vector<FlashResult> flashResults;
+    int performanceChanges = 0;
 
     void statusChanged(Status s) override { statuses.push_back(s); }
     void synced() override { ++syncs; }
@@ -145,10 +145,12 @@ TEST_CASE("session: upload a patch to slot A and read it back byte for byte")
     rig.plugIn();
     const auto patch = corpusPatch("test_3osc.pch2");
     const u8 before = rig.emulator.state().slots[0].session;
+    const auto framesBefore = rig.emulator.received().size();
     rig.client.sendPatch(0, patch, "Three Oscs");
     rig.run();
 
-    // The synth has it, under a new session; the client re-read the slot after the release.
+    // The synth has it, under a new session, which comes in the reply (36, no
+    // 38): the client adopts it and does not read the slot back.
     const auto& synth = rig.emulator.state().slots[0];
     CHECK(synth.name == "Three Oscs");
     CHECK(saved(synth.patch) == saved(patch));
@@ -156,24 +158,43 @@ TEST_CASE("session: upload a patch to slot A and read it back byte for byte")
     CHECK(rig.client.state().slots[0].session == synth.session);
     CHECK(saved(rig.client.state().slots[0].patch) == saved(patch));
     CHECK(rig.client.state().slots[0].name == "Three Oscs");
+    std::vector<std::string> after;
+    for (auto i = framesBefore; i < rig.emulator.received().size(); ++i) {
+        const auto& f = rig.emulator.received()[i];
+        after.push_back(hexOf(std::vector<u8>{f.hdr, f.molecules.empty() ? u8{0} : f.molecules[0]}));
+    }
+    // The upload, then (after the synth's load reports) 70 and 2E for slot A
+    // and a 70 for every other slot, as the original's dirty flags ask.
+    CHECK(after == std::vector<std::string>{"28 37", "28 70", "28 2E", "29 70", "2A 70", "2B 70"});
 
-    // The download's sections are the upload's, byte for byte.
-    std::vector<u8> uploaded;
+    // The download holds the upload's sections, byte for byte, in a real G2's
+    // order: no name, current notes or textpad, which the editor asks for
+    // apart (28, 68, 6E); the page focus after the header.
+    std::vector<Molecule> uploaded;
     for (const auto& f : rig.emulator.received()) {
         const auto m = decode(f.molecules);
         if (!m.empty() && std::holds_alternative<DumpDestination>(m.front()))
-            uploaded = encode(std::span<const Molecule>(m).subspan(1));
+            uploaded.assign(m.begin() + 1, m.end());
     }
     REQUIRE_FALSE(uploaded.empty());
+    std::vector<u8> expected;
+    for (const u8 sid : {0x21, 0x4A, 0x52, 0x4D, 0x65, 0x62, 0x60, 0x5A, 0x5B})
+        for (const auto& m : uploaded)
+            if (idOf(m) == sid)
+                encode(m, expected);
     std::vector<u8> downloaded;
+    std::vector<u8> ids;
     rig.client.request(Bubble::patch(0, rig.client.state().slots[0].session, {Request{id::CompletePatchRequest}}),
                        [&](const std::vector<Molecule>& reply) {
-                           for (const auto& m : reply)
+                           for (const auto& m : reply) {
+                               ids.push_back(idOf(m));
                                if (std::holds_alternative<SectionDump>(m))
                                    encode(m, downloaded);
+                           }
                        });
     rig.run();
-    CHECK(hexOf(downloaded) == hexOf(uploaded));
+    CHECK(hexOf(ids) == "21 2D 4A 4A 52 52 4D 4D 4D 65 62 60 5A 5A 5B 5B 5B");
+    CHECK(hexOf(downloaded) == hexOf(expected));
 }
 
 TEST_CASE("session: every corpus patch survives the round trip through the synth")
@@ -398,13 +419,20 @@ TEST_CASE("session: flash name lists in chunks, load and store")
     });
     CHECK(requests > 3);
 
+    // A load: the release (38) and the result come inside the reply, and the
+    // slot is read again all the same (usb-crosscheck H2).
     rig.client.loadFromFlash(1, 2, 100);
     rig.run();
     CHECK(rig.client.state().slots[1].name == "Far Away");
     CHECK(saved(rig.client.state().slots[1].patch) == saved(corpusPatch("test_3osc.pch2")));
+    CHECK(rig.client.state().slots[1].session == rig.emulator.state().slots[1].session);
+    REQUIRE(rig.events.flashResults.size() == 1);
+    CHECK(rig.events.flashResults[0].result == 0);
 
     rig.client.storeToFlash(1, 5, 9);
     rig.run();
+    REQUIRE(rig.events.flashResults.size() == 2);
+    CHECK(rig.events.flashResults[1].result == 2); // a real G2's "stored"
     REQUIRE(rig.emulator.flash()[0].count({5, 9}));
     CHECK(rig.emulator.flash()[0][{5, 9}].name == "Far Away");
     // The client reads the name list again: the new entry shows.
@@ -673,4 +701,41 @@ TEST_CASE("session: extended-only delivery, and edits wait for the sync")
     const auto variation = hexOf(framesFor(Bubble::patch(0, rig.client.state().slots[0].session, {VariationSelect{4}}))[0]);
     CHECK(sent.back() == variation);
     CHECK(sent[sent.size() - 2] == hexOf(g2test::vectorBytes("init_sequence", 30))); // 7D 00 just before
+}
+
+TEST_CASE("session: a performance loaded from flash is read again from the release in the reply")
+{
+    Rig rig;
+    g2::Performance perf;
+    for (auto& s : perf.slots)
+        s = g2::Patch::makeDefault();
+    perf.slots[2] = corpusPatch("test_3osc.pch2");
+    perf.header.slots[2].patchName = "Oscs";
+    rig.emulator.flash()[1][{1, 4}] = {"Stored Perf", 0, g2::savePerformance(perf)};
+    rig.plugIn();
+    REQUIRE(rig.client.synced());
+    const auto framesBefore = rig.emulator.received().size();
+    rig.client.loadFromFlash(kSlotSynth, 1, 4);
+    rig.run(6);
+    CHECK(rig.client.synced());
+    CHECK(rig.client.state().perfName == "Stored Perf");
+    CHECK(rig.client.state().perfSession == rig.emulator.state().perfSession);
+    CHECK(rig.client.state().slots[2].name == "Oscs");
+    CHECK(saved(rig.client.state().slots[2].patch) == saved(perf.slots[2]));
+    // Clavia's re-read after a 1F (capture-003): 35 04, 10, 59, then the
+    // slots from 3C (the 1F brought their sessions), then 7D 00; not the
+    // whole sync again.
+    std::vector<std::string> ids;
+    for (auto i = framesBefore + 1; i < rig.emulator.received().size(); ++i) {
+        const auto& f = rig.emulator.received()[i];
+        ids.push_back(hexOf(std::vector<u8>{f.hdr, f.molecules.empty() ? u8{0} : f.molecules[0]}));
+    }
+    REQUIRE(ids.size() > 4);
+    CHECK(ids[0] == "2C 35");
+    CHECK(ids[1] == "2C 10");
+    CHECK(ids[2] == "2C 59");
+    CHECK(ids[3] == "28 3C");
+    CHECK(ids.back() == "2C 7D");
+    CHECK(std::count(ids.begin(), ids.end(), "2C 35") == 1);
+    CHECK(std::count(ids.begin(), ids.end(), "2C 14") == 0);
 }

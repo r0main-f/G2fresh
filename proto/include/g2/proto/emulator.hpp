@@ -5,11 +5,13 @@
 // numbers it owns, and produces the synth-initiated traffic of a real unit
 // (panel edits, patch releases, LEDs and meters).
 //
-// It follows the spec's [C] facts and makes the most defensible choice where
-// the spec marks [I] (see the hardware checklist in usb-protocol.md):
+// It follows the spec's [C] facts and what captures of a real G2X show
+// (re/notes/usb-crosscheck.md), and makes the most defensible choice where the
+// spec marks [I] (see the hardware checklist in usb-protocol.md):
 // - every normal bubble gets one reply message: the requested dumps, or 7F;
-// - a patch or performance upload is acknowledged, then released (38 / 1F)
-//   with a new session number;
+// - a patch or performance upload is answered with the new session numbers
+//   (36), then the voices and every slot's load report follow;
+// - a load from flash is answered with the release (38 / 1F) and its result;
 // - edits carrying a stale session number are discarded (and still acked).
 #pragma once
 
@@ -79,6 +81,9 @@ private:
     void handle(u8 slot, bool sessionOk, const Molecule& m, std::vector<Molecule>& reply,
                 std::vector<std::vector<Molecule>>& after);
     std::vector<Molecule> patchDump(u8 slot) const;
+    PatchLoad patchLoad(u8 slot, u8 isVA) const;
+    void sendNews();
+    std::uint16_t usage() const;
     std::vector<Molecule> flashNames(u8 type, u8 bank, u8 prog) const;
     u8 nextSession(u8 current) const { return static_cast<u8>((current + 1) & kSessionMask); }
 

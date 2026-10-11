@@ -67,7 +67,7 @@ TEST_CASE("messages: the Clavia sync requests (init_sequence)")
     CHECK(inScenario("init_sequence", frameOf(Bubble::performance(perf, {Request{id::SlotFocusRequest}}))));
     CHECK(inScenario("init_sequence", frameOf(Bubble::synth({SessionRequest{0}}))));
     CHECK(inScenario("init_sequence", frameOf(Bubble::patch(0, slotA, {Request{id::CompletePatchRequest}}))));
-    CHECK(inScenario("init_sequence", frameOf(Bubble::patch(0, slotA, {Request{id::PageFocusRequest}}))));
+    CHECK(inScenario("init_sequence", frameOf(Bubble::patch(0, slotA, {Request{id::PatchNameRequest}}))));
     CHECK(inScenario("init_sequence", frameOf(Bubble::patch(0, slotA, {Request{id::CurrentNotesRequest}}))));
     CHECK(inScenario("init_sequence", frameOf(Bubble::patch(0, slotA, {Request{id::TextpadRequest}}))));
     CHECK(inScenario("init_sequence", frameOf(Bubble::patch(0, slotA, {LocationRequest{id::PatchLoadRequest, 1}}))));

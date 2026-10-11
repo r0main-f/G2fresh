@@ -13,6 +13,7 @@
 #include "g2/proto/state.hpp"
 #include "g2/proto/transport.hpp"
 
+#include <array>
 #include <deque>
 #include <functional>
 #include <optional>
@@ -83,7 +84,8 @@ public:
         virtual void ledsChanged(int /*slot*/) {}
         virtual void midiLearned(const MidiLearn&) {}
         virtual void error(u8 /*exceptionCode*/) {}
-        // The synth's answer to storeToFlash (result 2 = stored; flashResultText for what went wrong).
+        // The synth's answer (0D) to storeToFlash or loadFromFlash (result 2 = stored, 0 = loaded;
+        // flashResultText for what went wrong).
         virtual void flashResult(const FlashResult&) {}
     };
 
@@ -129,7 +131,16 @@ public:
     // A request is waiting for its reply.
     bool waiting() const { return outstanding_.has_value(); }
     // Nothing queued and nothing outstanding.
-    bool idle() const { return !outstanding_ && cleaner_.empty() && user_.empty(); }
+    bool idle() const
+    {
+        if (outstanding_ || !cleaner_.empty() || !user_.empty())
+            return false;
+        if (synced_)
+            for (const auto& d : dirty_)
+                if (d.loadVa || d.loadFx || d.flush)
+                    return false;
+        return true;
+    }
 
     // Starts the handshake again after a fatal status (or while looking).
     void restart();
@@ -205,7 +216,16 @@ private:
     void enqueueCleaner(std::function<std::optional<Bubble>()> make, ReplyHandler handler = {});
     void enqueueUser(std::function<std::optional<Bubble>()> make, ReplyHandler handler = {});
     void enqueueSync(bool withLock);
-    void enqueueSlotSync(int slot);
+    // A slot read from the synth: 35 (unless the session is known), 3C, and
+    // what its reply left out.
+    void enqueueSlotSync(int slot, bool askSession = true);
+    // After a 1F: the performance and every slot again, without 7D 01.
+    void enqueuePerformanceResync();
+    void routeSynth(const std::vector<Molecule>& molecules, bool fromReply);
+    // The next request a slot's dirty flags ask for (CPatch::CleanDirtyData
+    // @000d601e), or nothing.
+    std::optional<Pending> dirtyRequest();
+    void markLoadDirty(int slot, const Molecule& m);
     void enqueueFlashNames(u8 type, u8 bank, u8 prog, bool front);
     void enqueueSyncDone();
     Bubble slotBubble(int slot, std::vector<Molecule> molecules) const;
@@ -232,6 +252,16 @@ private:
     std::uint64_t lastSend_ = 0, lastReceive_ = 0;
     std::optional<std::size_t> expectedBulk_;
     std::size_t dropped_ = 0;
+
+    // What a slot still has to ask the synth, as the original's dirty flags
+    // (CPatch::CleanDirtyData @000d601e, CPatchLoad).
+    struct SlotDirty {
+        bool name = false, page = false, notes = false, textpad = false; // left out of a 3C reply: 28, 58, 68, 6E
+        bool loadVa = false, loadFx = false; // 71: the area's load is not reported since a module or cable changed
+        bool flush = false;                  // 70 after every load report (CPatch+1)
+        bool focus = false;                  // 2E once per patch read (CPatch+8)
+    };
+    std::array<SlotDirty, kSlots> dirty_{};
 
     std::deque<Pending> cleaner_; // sync traffic
     std::deque<Pending> user_;    // the editor's edits and requests
