@@ -26,17 +26,31 @@ public:
         : juce::TextButton(def.shortName), owner_(owner), type_(def.typeId)
     {
         setTooltip(moduleTooltip(def));
-        onClick = [this] {
-            if (owner_.onAdd)
-                owner_.onAdd(type_);
-        };
+        setWantsKeyboardFocus(true);
+        setClickingTogglesState(true);
+        setRadioGroupId(1);
+        // As the original's module bar (CTabButton::Click @00126c04): a
+        // click only focuses the module; a double-click or Return inserts it.
+        onClick = [this] { grabKeyboardFocus(); };
+    }
+
+    void mouseDoubleClick(const juce::MouseEvent&) override { insert(); }
+
+    bool keyPressed(const juce::KeyPress& key) override
+    {
+        if (key == juce::KeyPress::returnKey) {
+            insert();
+            return true;
+        }
+        return juce::TextButton::keyPressed(key);
     }
 
     void mouseEnter(const juce::MouseEvent& e) override
     {
         juce::TextButton::mouseEnter(e);
         if (owner_.onStatus)
-            owner_.onStatus(getButtonText() + ": click to add it to the voice area, or drag it onto the patch");
+            owner_.onStatus(getButtonText() + ": double-click (or click, then Return) to add it below the selection, "
+                                              "or drag it onto the patch");
     }
 
     void mouseDrag(const juce::MouseEvent& e) override
@@ -50,6 +64,13 @@ public:
     }
 
 private:
+    void insert()
+    {
+        setToggleState(true, juce::dontSendNotification);
+        if (owner_.onAdd)
+            owner_.onAdd(type_);
+    }
+
     ModuleBrowser& owner_;
     std::uint8_t type_;
 };

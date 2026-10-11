@@ -97,6 +97,8 @@ private:
     void updateToolbar();
     void setStatus(const juce::String& s) { status_.setText(s, juce::dontSendNotification); }
     void loadFile(const juce::File& f, bool ignoreChecksum = false);
+    // The file name Save suggests for the document's name.
+    juce::String suggestedFileName() const;
     void setLook(Look look);
     void setAnimation(bool on);
     AreaView* areaWithSelection();

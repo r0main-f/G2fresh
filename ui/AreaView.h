@@ -55,6 +55,10 @@ public:
     std::function<void(AreaView*)> onActivated;
     // Adds a module at the first free row of the first column, or at `where`.
     void addModule(std::uint8_t type, std::optional<juce::Point<int>> where = std::nullopt);
+    // Adds a module from the module bar (double-click or Return), where the
+    // original puts it: below the selection (g2::edit::insertPosition), or at
+    // 0,0; then the selection is cleared.
+    void insertModule(std::uint8_t type);
 
     // The module last added, moved, selected or edited here, and when (for
     // zooming onto it). nullopt if none, or if it was deleted.
@@ -133,6 +137,9 @@ private:
     void repaintModules();
 
     void setValue(const Hit& h, int value, bool coalesce);
+    // Push buttons (momentary parameters): pressed while the mouse is down.
+    bool isPushButton(const Hit& h) const;
+    void pressMomentary(const Hit& h, int value);
     void clickControl(const Hit& h);
     void clickSpecial(const Hit& h, SpecialControls::Hit part);
     void showModuleMenu(std::uint8_t module);
@@ -170,6 +177,7 @@ private:
     // Bend: pulling a cable into shape.
     enum class Drag { None, Value, Range, Module, Cable, Band, Bend };
     Drag drag_ = Drag::None;
+    bool pushed_ = false; // a push button is held
     Hit dragHit_;
     int dragStartValue_ = 0;
     int dragStartRange_ = 0;

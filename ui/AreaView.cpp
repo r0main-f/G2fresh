@@ -194,7 +194,7 @@ void AreaView::setMinimumSize(int width, int height)
 
 ModuleContext AreaView::context(const g2::Module& m) const
 {
-    return {doc_.patch(), location_, m, doc_.variation(), ModulePainter::panelFor(m), currentLook()};
+    return {doc_.patch(), location_, m, doc_.focusedVariation(), ModulePainter::panelFor(m), currentLook()};
 }
 
 juce::Point<int> AreaView::gridCell(juce::Point<int> p) const
@@ -786,6 +786,13 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
         const auto* m = doc_.patch().area(location_).find(dragHit_.module);
         dragStartValue_ = m ? ModulePainter::value(context(*m), *dragHit_.element).value_or(0) : 0;
         drag_ = dragHit_.element->kind == "Knob" ? Drag::Value : Drag::None;
+        // A push button (sequencer Clr/Rnd, momentary switches): 1 while
+        // held, 0 on release, not an undo step (CPnlPushButton, CPanel::CtrlRelease).
+        if (m && isPushButton(dragHit_)) {
+            pressMomentary(dragHit_, 1);
+            pushed_ = true;
+            return;
+        }
         // A note sequencer step jumps to the note clicked (CPnlSeqSlider::OnClick),
         // then drags from there.
         if (m && SpecialControls::isSeqSlider(*dragHit_.element) && !e.mods.isAltDown()) {
@@ -794,9 +801,12 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
             setValue(dragHit_, dragStartValue_, true);
             status(describe(dragHit_));
         }
-        // Alt-drag a knob: set its morph range in the current variation.
-        if (drag_ == Drag::Value && e.mods.isAltDown() && m) {
-            const auto morph = g2::edit::morphOf(doc_.patch(), static_cast<std::uint8_t>(doc_.variation()), location_,
+        // Alt-drag a knob: set its morph range in the current variation; so
+        // does a double-click and drag, as the original's "Morph w/double
+        // click" option (on by default; CPnlControl::ClickDragOnSecondClickHandler).
+        const bool morphClick = e.getNumberOfClicks() >= 2 && knobDoubleClick() == KnobDoubleClick::Morph;
+        if (drag_ == Drag::Value && (e.mods.isAltDown() || morphClick) && m) {
+            const auto morph = g2::edit::morphOf(doc_.patch(), static_cast<std::uint8_t>(doc_.focusedVariation()), location_,
                                                  dragHit_.module, static_cast<std::uint8_t>(dragHit_.element->codeRef));
             dragStartRange_ = morph ? morph->range : 0;
             if (morph)
@@ -840,7 +850,7 @@ void AreaView::mouseDrag(const juce::MouseEvent& e)
         const auto loc = location_;
         const auto module = dragHit_.module;
         const auto param = static_cast<std::uint8_t>(dragHit_.element->codeRef);
-        const auto variation = static_cast<std::uint8_t>(doc_.variation());
+        const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
         const auto group = morphGroupForRange_;
         touch(module);
         doc_.performCoalesced("morph:" + juce::String(module) + ":" + juce::String(param), [=](g2::Patch& p) {
@@ -889,6 +899,10 @@ void AreaView::mouseUp(const juce::MouseEvent& e)
 {
     const Drag drag = std::exchange(drag_, Drag::None);
     doc_.endCoalescing();
+    if (std::exchange(pushed_, false)) {
+        pressMomentary(dragHit_, 0); // released, wherever the mouse is now
+        return;
+    }
     if (e.mods.isPopupMenu())
         return;
     if (drag == Drag::Cable && cableFrom_) {
@@ -950,7 +964,9 @@ void AreaView::mouseDoubleClick(const juce::MouseEvent& e)
         toggleBendPoint(*cable, e.position);
         return;
     }
-    if (!h.element || h.element->kind != "Knob")
+    // A knob: by default the double-click drags the morph range (mouseDown);
+    // resetting to the default value is G2fresh's opt-in.
+    if (!h.element || h.element->kind != "Knob" || knobDoubleClick() != KnobDoubleClick::Reset)
         return;
     const auto* m = doc_.patch().area(location_).find(h.module);
     const auto* def = m ? m->def() : nullptr;
@@ -971,9 +987,11 @@ void AreaView::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelD
             onZoom(w.deltaY > 0 ? 1.1f : 1.0f / 1.1f, e.getPosition());
         return;
     }
+    // The original's wheel only scrolls (CScrollViewEx::DoMouseWheel);
+    // editing a knob with it is G2fresh's opt-in.
     const auto h = hitAt(e.getPosition());
     const auto* m = doc_.patch().area(location_).find(h.module);
-    if (!m || !h.element || h.element->kind != "Knob") {
+    if (!wheelEditsKnobs() || !m || !h.element || h.element->kind != "Knob") {
         Component::mouseWheelMove(e, w); // let the viewport scroll
         return;
     }
@@ -1026,7 +1044,7 @@ void AreaView::setValue(const Hit& h, int value, bool coalesce)
     const auto loc = location_;
     const auto module = h.module;
     const auto ref = static_cast<std::uint8_t>(h.element->codeRef);
-    const auto variation = static_cast<std::uint8_t>(doc_.variation());
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
     const auto v = static_cast<std::uint8_t>(value);
     const bool isMode = h.element->kind == "PartSelector";
     auto edit = [=](g2::Patch& p) {
@@ -1041,12 +1059,32 @@ void AreaView::setValue(const Hit& h, int value, bool coalesce)
         doc_.perform("Change value", edit);
 }
 
+bool AreaView::isPushButton(const Hit& h) const
+{
+    if (!h.element || (h.element->kind != "ButtonText" && h.element->kind != "TextEdit") || h.element->codeRef < 0)
+        return false;
+    return g2::edit::isMomentary(doc_.patch(), location_, h.module, static_cast<std::uint8_t>(h.element->codeRef));
+}
+
+void AreaView::pressMomentary(const Hit& h, int value)
+{
+    touch(h.module);
+    const auto loc = location_;
+    const auto module = h.module;
+    const auto param = static_cast<std::uint8_t>(h.element->codeRef);
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    doc_.performMomentary([=](g2::Patch& p) {
+        g2::edit::setParam(p, loc, module, param, variation, static_cast<std::uint8_t>(value));
+    });
+    status(describe(h));
+}
+
 void AreaView::clickSpecial(const Hit& h, SpecialControls::Hit part)
 {
     namespace sp = g2::special;
     const auto loc = location_;
     const auto module = h.module;
-    const auto variation = static_cast<std::uint8_t>(doc_.variation());
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
     touch(module);
     using Part = SpecialControls::Part;
     switch (part.part) {
@@ -1175,6 +1213,9 @@ void AreaView::rename(std::uint8_t module)
         return;
     auto* w = new juce::AlertWindow("Rename module", "Name (up to 16 characters):", juce::MessageBoxIconType::NoIcon);
     w->addTextEditor("name", juce::String(mod->name));
+    // As the original's name dialog: keys outside the G2 set are refused (CNameDialog).
+    if (auto* editor = w->getTextEditor("name"))
+        editor->setInputRestrictions(PatchDocument::kMaxNameLength, PatchDocument::allowedNameCharacters());
     w->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
     w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
     w->enterModalState(true, juce::ModalCallbackFunction::create(
@@ -1275,7 +1316,7 @@ void AreaView::showControlMenu(const Hit& h)
         return;
     const auto module = h.module;
     const auto param = static_cast<std::uint8_t>(h.element->codeRef);
-    const auto variation = static_cast<std::uint8_t>(doc_.variation());
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
     const auto& patch = doc_.patch();
     const auto loc = location_;
     enum { kNoMorph = 1, kClearKnob, kClearCc, kLabel, kDefault, kMorphBase = 100, kKnobBase = 200, kCcBase = 400 };
@@ -1311,16 +1352,22 @@ void AreaView::showControlMenu(const Hit& h)
     knobs.addSeparator();
     knobs.addItem(kClearKnob, "No knob", knob.has_value());
 
+    // The controllers the original offers (MIDICtrl::IsValid, not
+    // pre-assigned); none for a parameter holding CC 7 or 17 or not
+    // MIDI-assignable (CControlMenu removes the item).
     juce::PopupMenu ccs;
     const auto cc = g2::edit::midiCcOf(patch, loc, module, param);
-    for (int group = 0; group < 8; ++group) {
+    const bool midiItem = g2::edit::canAssignMidiCc(patch, loc, module, param);
+    for (int group = 0; group < 8 && midiItem; ++group) {
         juce::PopupMenu groupMenu;
-        for (int n = group * 16; n < group * 16 + 16; ++n) {
+        for (int n = group * 16; n < std::min(group * 16 + 16, 120); ++n) {
+            if (!g2::edit::isValidMidiCc(static_cast<std::uint8_t>(n)) || g2::edit::isPreAssignedMidiCc(static_cast<std::uint8_t>(n)))
+                continue;
             const bool used = std::any_of(patch.controllers.begin(), patch.controllers.end(),
                                           [&](const g2::CtrlAssign& a) { return a.cc == n; });
             groupMenu.addItem(kCcBase + n, "CC " + juce::String(n) + (used && cc != n ? "  (in use)" : ""), true, cc == n);
         }
-        ccs.addSubMenu("CC " + juce::String(group * 16) + "-" + juce::String(group * 16 + 15), groupMenu);
+        ccs.addSubMenu("CC " + juce::String(group * 16) + "-" + juce::String(std::min(group * 16 + 15, 119)), groupMenu);
     }
     ccs.addSeparator();
     ccs.addItem(kClearCc, "No MIDI controller", cc.has_value());
@@ -1329,12 +1376,26 @@ void AreaView::showControlMenu(const Hit& h)
     menu.addSectionHeader(juce::String(m->name) + "  " + def->params[param].name);
     menu.addSubMenu("Morph" + (current ? " (" + juce::String(g2::edit::morphLabel(patch, current->group)) + ")" : juce::String()), morph);
     menu.addSubMenu("Assign Knob" + (knob ? " (" + juce::String(g2::edit::knobName(*knob)) + ")" : juce::String()), knobs);
-    menu.addSubMenu("MIDI Controller" + (cc ? " (CC " + juce::String(*cc) + ")" : juce::String()), ccs);
+    if (midiItem)
+        menu.addSubMenu("MIDI Controller" + (cc ? " (CC " + juce::String(*cc) + ")" : juce::String()), ccs);
     menu.addSeparator();
-    menu.addItem(kLabel, "Rename Parameter...");
+    // Only label buttons and label radio buttons have a name to change (CanChangeName).
+    const auto labels = g2::edit::paramLabels(patch, loc, module, param);
+    if (!labels.empty())
+        menu.addItem(kLabel, labels.size() > 1 ? "Rename Button..." : "Rename Button Label...");
     menu.addItem(kDefault, "Default Value");
+    // The radio button under the mouse, for its caption.
+    int button = 0;
+    if (labels.size() > 1) {
+        const auto r = ModulePainter::elementBounds(*h.element);
+        const auto local = h.local - r.getPosition();
+        const int cols = std::max(1, h.element->columns);
+        const int rows = std::max(1, (static_cast<int>(labels.size()) + cols - 1) / cols);
+        button = juce::jlimit(0, static_cast<int>(labels.size()) - 1,
+                              (local.y * rows / std::max(1, r.getHeight())) * cols + local.x * cols / std::max(1, r.getWidth()));
+    }
     menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), h, module, param, variation, loc,
-                            current](int r) {
+                            current, button](int r) {
         if (!safe || r <= 0)
             return;
         auto& doc = safe->doc_;
@@ -1365,17 +1426,24 @@ void AreaView::showControlMenu(const Hit& h)
             if (mod && mod->def())
                 safe->setValue(h, mod->def()->params[param].defaultValue, false);
         } else if (r == kLabel) {
-            auto* w = new juce::AlertWindow("Rename parameter", "Label (up to 7 characters, empty for the default):",
+            const auto captions = g2::edit::paramLabels(doc.patch(), loc, module, param);
+            if (captions.empty())
+                return;
+            // The original's "Param name" dialog: 7 characters of the G2 set.
+            auto* w = new juce::AlertWindow("Param name", "Label (up to 7 characters, empty for the panel's):",
                                             juce::MessageBoxIconType::NoIcon);
-            w->addTextEditor("label", juce::String(g2::edit::paramLabel(doc.patch(), loc, module, param)));
+            w->addTextEditor("label", PatchDocument::fromG2Bytes(
+                                          captions[static_cast<std::size_t>(juce::jlimit(0, static_cast<int>(captions.size()) - 1, button))]));
+            if (auto* editor = w->getTextEditor("label"))
+                editor->setInputRestrictions(static_cast<int>(g2::edit::kLabelLength), PatchDocument::allowedNameCharacters());
             w->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
             w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
-            w->enterModalState(true, juce::ModalCallbackFunction::create([safe, module, param, loc, w](int res) {
+            w->enterModalState(true, juce::ModalCallbackFunction::create([safe, module, param, loc, w, button](int res) {
                 if (!safe || res != 1)
                     return;
-                const auto label = w->getTextEditorContents("label").substring(0, 7).toStdString();
+                const auto label = w->getTextEditorContents("label").toStdString();
                 safe->doc_.perform("Rename parameter",
-                                   [&](g2::Patch& p) { g2::edit::setParamLabel(p, loc, module, param, label); });
+                                   [&](g2::Patch& p) { g2::edit::setParamLabel(p, loc, module, param, label, button); });
             }), true);
         }
     });
@@ -1530,6 +1598,24 @@ void AreaView::addModule(std::uint8_t type, std::optional<juce::Point<int>> wher
             g2::edit::resolveOverlaps(p, loc, added);
         }, &error)) {
         selection_ = {added};
+        touch(added);
+    } else
+        status("Cannot add module: " + error);
+}
+
+void AreaView::insertModule(std::uint8_t type)
+{
+    // CTabButton::Action: below the selection's lowest module in its
+    // rightmost column (else at 0,0), make room, clear the selection.
+    const auto loc = location_;
+    const auto [col, row] = g2::edit::insertPosition(doc_.patch(), loc, selection_);
+    std::uint8_t added = 0;
+    juce::String error;
+    if (doc_.perform("Add module", [&](g2::Patch& p) {
+            added = g2::edit::addModule(p, loc, type, col, row);
+            g2::edit::resolveOverlaps(p, loc, added);
+        }, &error)) {
+        clearSelection();
         touch(added);
     } else
         status("Cannot add module: " + error);

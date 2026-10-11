@@ -1,5 +1,7 @@
-// The module browser: one tab per category, one button per module. Click a
-// button to add the module to the voice area, or drag it onto either area.
+// The module browser: one tab per category, one button per module. As the
+// original's module bar, a click focuses a module, a double-click (or Return)
+// adds it to the area last clicked, below the selection; or drag it onto
+// either area.
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>

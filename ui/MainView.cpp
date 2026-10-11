@@ -29,6 +29,8 @@ enum MenuId {
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
     kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34,
+    // Opt-in deviations from the original editor (View menu).
+    kWheelEditsKnobs = 800, kDoubleClickMorph, kDoubleClickReset, kDoubleClickNothing, kShowLoadEstimate,
 };
 
 juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
@@ -87,8 +89,9 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     name_.setEditable(false, true, false);
     name_.setTooltip("Patch name: double-click to rename (up to 16 characters)");
     name_.onEditorShow = [this] {
+        // The G2's 16 characters, from its set (CNameDialog refuses other keys).
         if (auto* editor = name_.getCurrentTextEditor())
-            editor->setInputRestrictions(PatchDocument::kMaxNameLength);
+            editor->setInputRestrictions(PatchDocument::kMaxNameLength, PatchDocument::allowedNameCharacters());
     };
     name_.onTextChange = [this] { doc_.setName(name_.getText()); };
     slotPrefix_.setFont(theme::font());
@@ -127,8 +130,8 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     load_.setFont(theme::font());
     load_.setJustificationType(juce::Justification::centredRight);
     load_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
-    load_.setTooltip("Patch load estimated from the original editor's module tables (cycles and the fullest "
-                     "memory, per area; the voice area for one voice). The synth reports the real figures.");
+    load_.setTooltip("Patch load as the synth reports it while the patch is live on it (\"--\" until then, as in "
+                     "the original editor). View > Show Load Estimate Offline shows G2fresh's estimate instead.");
     addAndMakeVisible(load_);
     synthStatus_.setFont(theme::font());
     synthStatus_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
@@ -138,7 +141,8 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
     settings_.onLayoutChanged = [this] { resized(); };
     addAndMakeVisible(settings_);
-    browser_.onAdd = [this](std::uint8_t type) { va_.addModule(type); };
+    // Into the area last clicked, below its selection (CTabButton::Action).
+    browser_.onAdd = [this](std::uint8_t type) { activeArea().insertModule(type); };
     browser_.onStatus = [this](const juce::String& s) { setStatus(s); };
     addAndMakeVisible(browser_);
 
@@ -231,8 +235,15 @@ void MainView::setSynth(SynthSync* synth)
 
 void MainView::updateLoad()
 {
-    // What the synth reports while the patch is live on it, else the estimate.
+    // What the synth reports while the patch is live on it. Offline the
+    // original shows "--" (CTBWindow::SetupLoadMeter); G2fresh's estimate
+    // (some tables are approximate, patch-load.md section 2) is opt-in.
     const auto reported = synth_ != nullptr ? synth_->reportedLoad() : std::nullopt;
+    if (!reported && !showLoadEstimate()) {
+        load_.setText("Load   VA -- cycles, -- memory   FX -- cycles, -- memory  ", juce::dontSendNotification);
+        load_.setColour(juce::Label::textColourId, juce::Colour(0xffa8adb6));
+        return;
+    }
     const auto load = reported ? *reported : g2::patchload::compute(doc_.patch());
     auto pct = [](float f) { return juce::String(juce::roundToInt(f * 100.0f)) + "%"; };
     load_.setText(juce::String(reported ? "Load (synth)" : "Load (estimate)") + "   VA " + pct(load.vaCycles) + " cycles, "
@@ -436,6 +447,16 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kRemoveBendPoints, "Remove All Bend Points", {}, g2::edit::hasCableBends(doc_.patch())));
         m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic));
         m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation()));
+        m.addSeparator();
+        // Deliberate deviations from the original editor, off by default.
+        m.addItem(item(kWheelEditsKnobs, "Mouse Wheel Edits Knobs", {}, true, wheelEditsKnobs()));
+        juce::PopupMenu doubleClick;
+        const auto dc = knobDoubleClick();
+        doubleClick.addItem(item(kDoubleClickMorph, "Drag the Morph Range (as the original)", {}, true, dc == KnobDoubleClick::Morph));
+        doubleClick.addItem(item(kDoubleClickReset, "Reset to the Default Value", {}, true, dc == KnobDoubleClick::Reset));
+        doubleClick.addItem(item(kDoubleClickNothing, "Nothing", {}, true, dc == KnobDoubleClick::Nothing));
+        m.addSubMenu("Double-Click on a Knob", doubleClick);
+        m.addItem(item(kShowLoadEstimate, "Show Load Estimate Offline", {}, true, showLoadEstimate()));
     } else if (name == "Options") {
         if (onAudioSettings)
             m.addItem(item(kAudioSettings, "Audio/MIDI Settings..."));
@@ -464,6 +485,26 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
 
 void MainView::menuItemSelected(int id, int)
 {
+    if (id == kWheelEditsKnobs) {
+        setWheelEditsKnobs(!wheelEditsKnobs());
+        setStatus(wheelEditsKnobs() ? juce::String("The mouse wheel over a knob changes its value")
+                                    : juce::String("The mouse wheel scrolls the patch, as in the original editor"));
+        menuItemsChanged();
+        return;
+    }
+    if (id >= kDoubleClickMorph && id <= kDoubleClickNothing) {
+        setKnobDoubleClick(id == kDoubleClickMorph   ? KnobDoubleClick::Morph
+                           : id == kDoubleClickReset ? KnobDoubleClick::Reset
+                                                     : KnobDoubleClick::Nothing);
+        menuItemsChanged();
+        return;
+    }
+    if (id == kShowLoadEstimate) {
+        setShowLoadEstimate(!showLoadEstimate());
+        updateLoad();
+        menuItemsChanged();
+        return;
+    }
     if (id == kMixOut34 && emulator_ != nullptr) {
         emulator_->setMixOut34(!emulator_->mixOut34());
         setStatus(emulator_->mixOut34() ? juce::String("Out 3/4 are mixed into Out 1/2 unless the host takes the Out 3/4 output")
@@ -737,14 +778,16 @@ void MainView::changeListenerCallback(juce::ChangeBroadcaster* source)
 
 void MainView::updateToolbar()
 {
-    if (auto* b = variations_[doc_.variation()])
-        b->setToggleState(true, juce::dontSendNotification);
+    // While the Patch Mutator plays an individual in variation 9, no
+    // variation button is lit (the original focuses variation 9).
+    for (int i = 0; i < variations_.size(); ++i)
+        variations_[i]->setToggleState(i == doc_.focusedVariation(), juce::dontSendNotification);
     const auto* perf = doc_.performance();
     for (int i = 0; i < slots_.size(); ++i) {
         auto* b = slots_[i];
         b->setVisible(perf != nullptr);
         if (perf) {
-            const auto name = juce::String(perf->header.slots[static_cast<std::size_t>(i)].patchName);
+            const auto name = PatchDocument::fromG2Bytes(perf->header.slots[static_cast<std::size_t>(i)].patchName);
             b->setTooltip("Slot " + b->getButtonText() + (name.isNotEmpty() ? ": " + name : juce::String()));
         }
         b->setToggleState(i == doc_.slot(), juce::dontSendNotification);
@@ -969,6 +1012,10 @@ void MainView::loadFile(const juce::File& f, bool ignoreChecksum)
         userSettings().setValue("recentFiles", recent_.toString());
         setStatus("Opened " + f.getFileName() + (ignoreChecksum ? " (checksum ignored)" : ""));
         updateToolbar();
+        // The original repairs what it cannot load as it is, and says so.
+        if (const auto report = doc_.loadReport(); report.isNotEmpty())
+            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, f.getFileName(),
+                                                   report.substring(0, 1).toUpperCase() + report.substring(1) + ".", {}, this);
     } catch (const g2::ChecksumError&) {
         juce::AlertWindow::showOkCancelBox(
             juce::MessageBoxIconType::WarningIcon, "Checksum error",
@@ -983,6 +1030,14 @@ void MainView::loadFile(const juce::File& f, bool ignoreChecksum)
         juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Cannot open patch",
                                                f.getFileName() + ": " + e.what(), {}, this);
     }
+}
+
+juce::String MainView::suggestedFileName() const
+{
+    // Utils::MakeFileNameFromPatchName: the name with characters a file name
+    // can't take as spaces.
+    const auto name = juce::String(g2::edit::fileNameForPatch(doc_.name().toStdString())).trim();
+    return name.isEmpty() ? juce::String("No name") : name;
 }
 
 void MainView::save(bool saveAs)
@@ -1028,7 +1083,7 @@ void MainView::save(bool saveAs)
                                                     : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
     const auto suggested = doc_.isPerformance() && doc_.file() != juce::File()
                                ? doc_.file()
-                               : folder.getChildFile(juce::File::createLegalFileName(doc_.name()) + ext);
+                               : folder.getChildFile(suggestedFileName() + ext);
     chooser_ = std::make_unique<juce::FileChooser>(doc_.isPerformance() ? "Save the G2 performance" : "Save the G2 patch",
                                                    suggested, "*" + ext);
     chooser_->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles

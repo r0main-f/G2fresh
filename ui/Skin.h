@@ -49,6 +49,24 @@ juce::PropertiesFile& userSettings();
 bool cableAnimation();
 void setCableAnimation(bool on);
 
+// Deliberate deviations from the original editor, off by default (stored in
+// the user's settings; the View menu changes them).
+// The mouse wheel over a knob edits its value (original: the wheel only
+// scrolls the view, CScrollViewEx::DoMouseWheel).
+bool wheelEditsKnobs();
+void setWheelEditsKnobs(bool on);
+// What a double-click on a knob or slider does. The original's "Morph
+// w/double click" option (on by default, manual p108;
+// CPnlControl::ClickDragOnSecondClickHandler): double-click and drag sets
+// the morph range. Reset (to the default value) is G2fresh's addition.
+enum class KnobDoubleClick { Morph, Reset, Nothing };
+KnobDoubleClick knobDoubleClick();
+void setKnobDoubleClick(KnobDoubleClick action);
+// Offline, the load meter shows G2fresh's estimate instead of "--" (the
+// original shows "--" until the synth reports, CTBWindow::SetupLoadMeter).
+bool showLoadEstimate();
+void setShowLoadEstimate(bool on);
+
 struct PanelDef {
     int resId = 0;
     juce::String name;

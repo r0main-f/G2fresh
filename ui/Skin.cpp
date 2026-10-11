@@ -218,4 +218,37 @@ void setCableAnimation(bool on)
     sessionAnimation = on;
 }
 
+bool wheelEditsKnobs()
+{
+    return userSettings().getBoolValue("wheelEditsKnobs", false);
+}
+
+void setWheelEditsKnobs(bool on)
+{
+    userSettings().setValue("wheelEditsKnobs", on);
+}
+
+KnobDoubleClick knobDoubleClick()
+{
+    const auto v = userSettings().getValue("knobDoubleClick", "morph");
+    return v == "reset" ? KnobDoubleClick::Reset : v == "nothing" ? KnobDoubleClick::Nothing : KnobDoubleClick::Morph;
+}
+
+void setKnobDoubleClick(KnobDoubleClick action)
+{
+    userSettings().setValue("knobDoubleClick", action == KnobDoubleClick::Reset     ? "reset"
+                                               : action == KnobDoubleClick::Nothing ? "nothing"
+                                                                                    : "morph");
+}
+
+bool showLoadEstimate()
+{
+    return userSettings().getBoolValue("showLoadEstimate", false);
+}
+
+void setShowLoadEstimate(bool on)
+{
+    userSettings().setValue("showLoadEstimate", on);
+}
+
 } // namespace g2ui
