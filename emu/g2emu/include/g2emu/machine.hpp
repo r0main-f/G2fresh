@@ -131,7 +131,7 @@ public:
     void panelAnalog(PanelAnalog control, float value);
     // A key of the keyboard (0 = the lowest; 37 keys on the G2, 61 on the G2X): its two contacts close (or open)
     // the time apart that the OS turns into `velocity` (1-127, approximate). Notes play only with the OS's
-    // MIDI Local On (System menu); an erased flash starts with Local Off.
+    // MIDI Local On (System menu); a new G2 starts with it On (the OS's default).
     void panelKey(int key, bool down, int velocity = 100);
     // A sustain pedal (normally open, plugged in at the first call): down closes its contact.
     void panelSustainPedal(bool down);
@@ -150,6 +150,16 @@ public:
     // the OS programs or erases the flash: storing a patch, a setting).
     std::vector<std::uint8_t> flashSnapshot() const;
     std::uint64_t flashChanges() const;
+
+    // ---- memory: the flash and the EEPROM (system settings, the flash's layout version), what a G2 keeps ----
+    // Both as one image to keep between sessions: the flash, then the EEPROM's EepromSize bytes. loadMemory() before
+    // the first run(); an image of the flash alone (an older G2fresh's) leaves the EEPROM new (0xFF): the OS keeps the
+    // flash's patches and takes its built-in system settings. Snapshot and changes (flash changes plus EEPROM bytes
+    // written) from any thread.
+    static constexpr std::size_t EepromSize = 2048;
+    void loadMemory(std::span<const std::uint8_t> image);
+    std::vector<std::uint8_t> memorySnapshot() const;
+    std::uint64_t memoryChanges() const;
 
     Stats stats() const;
     int dspThreads() const;  // Options::threads as resolved (any thread)

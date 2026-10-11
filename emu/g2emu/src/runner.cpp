@@ -24,8 +24,7 @@ Runner::Runner(const Firmware& firmware, Options options)
     ring_.assign(capacity_ * 4, 0.0f);
     if(!options_.flash.empty())
     {
-        auto& flash = machine_->flash();
-        std::copy_n(options_.flash.begin(), std::min(flash.size(), options_.flash.size()), flash.begin());
+        machine_->loadMemory(options_.flash);
         options_.flash = {};
     }
     thread_ = std::make_unique<Thread>(Thread{BigStackThread([this] { loop(); })});

@@ -28,6 +28,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <fstream>
 #include <algorithm>
@@ -367,6 +368,78 @@ TEST_CASE("Flash: CFI says AMD command set, programs and erases with unlock bypa
     f.write(0, 2, 0x90);
     f.write(0, 2, 0x00);
     CHECK(f.programs() == 2);
+}
+
+TEST_CASE("EEPROM: the OS's bit-banged I2C on the parallel port writes a page and reads it back", "[g2emu]")
+{
+    // As the OS drives it [C 0x30053208, 0x3005338E, 0x30053528]: SCL on PADAT bit 14, SDA on bit 8, open drain
+    // (PADDR bit 8 set: low; clear: released, read back)
+    Sim sim([] { return std::uint64_t(0); });
+    std::uint16_t paddr = 0, padat = 0;
+    auto put = [&] {
+        sim.write(0x244, 2, paddr);
+        sim.write(0x248, 2, padat);
+    };
+    auto scl = [&](bool high) {
+        padat = std::uint16_t(high ? padat | 0x4000 : padat & ~0x4000);
+        put();
+    };
+    auto sda = [&](bool high) {
+        if(high) paddr = std::uint16_t(paddr & ~0x100);
+        else
+        {
+            padat = std::uint16_t(padat & ~0x100);
+            paddr = std::uint16_t(paddr | 0x100);
+        }
+        put();
+    };
+    auto line = [&] { return (sim.read(0x248, 2) & 0x100) != 0; };
+    auto start = [&] { sda(true); scl(true); sda(false); scl(false); };
+    auto stop = [&] { sda(false); scl(true); sda(true); };
+    auto out = [&](std::uint8_t b) {
+        for(int i = 7; i >= 0; --i) { sda((b >> i) & 1); scl(true); scl(false); }
+        sda(true);
+        scl(true);
+        const bool ack = !line();
+        scl(false);
+        return ack;
+    };
+    auto in = [&](bool ack) {
+        sda(true);
+        std::uint8_t b = 0;
+        for(int i = 0; i < 8; ++i) { scl(true); b = std::uint8_t(b << 1 | (line() ? 1 : 0)); scl(false); }
+        sda(!ack);
+        scl(true);
+        scl(false);
+        sda(true);
+        return b;
+    };
+    auto read = [&](std::uint16_t addr, int n) {
+        std::string s;
+        start();
+        CHECK(out(std::uint8_t(0xA0 | (addr >> 7 & 0x0E))));
+        CHECK(out(std::uint8_t(addr)));
+        start();
+        CHECK(out(std::uint8_t(0xA1 | (addr >> 7 & 0x0E))));
+        for(int i = 0; i < n; ++i) s += char(in(i + 1 < n));
+        stop();
+        return s;
+    };
+    scl(false);
+    CHECK(read(0x123, 3) == "\xFF\xFF\xFF");  // a new chip
+    start();
+    CHECK(out(0xA2));  // block 1
+    CHECK(out(0x23));
+    for(char c : std::string("ABC")) CHECK(out(std::uint8_t(c)));
+    stop();
+    CHECK(read(0x123, 3) == "ABC");
+    CHECK(read(0x122, 5) == "\xFF" "ABC\xFF");  // sequential reads go on
+    const auto image = sim.eeprom().snapshot();
+    CHECK(std::string(image.begin() + 0x123, image.begin() + 0x126) == "ABC");
+    CHECK(sim.eeprom().changes() == 3);
+    start();
+    CHECK_FALSE(out(0x90));  // another device: no acknowledge
+    stop();
 }
 
 TEST_CASE("ISP1181: OUT packets raise their endpoint's interrupt, IN buffers reach the host", "[g2emu]")
@@ -1098,7 +1171,7 @@ TEST_CASE("The user's G2 OS drives the emulated front panel", "[g2emu][firmware]
     CHECK(m.stats().exceptions == 0);
 }
 
-TEST_CASE("The user's G2 OS: MIDI Local switched on over USB (synth settings), then the panel's keys play",
+TEST_CASE("The user's G2 OS: MIDI Local switched off and on over USB (synth settings), then the panel's keys play",
           "[g2emu][firmware]")
 {
     Firmware fw;
@@ -1127,23 +1200,39 @@ TEST_CASE("The user's G2 OS: MIDI Local switched on over USB (synth settings), t
     };
     while(!client.synced() && m.seconds() < 4) step();
     REQUIRE(client.synced());
-    CHECK_FALSE(client.state().settings.localOn);  // an erased flash: Local Off
+    CHECK(client.state().settings.localOn);  // a new G2: the OS's own default, Local On
 
-    client.sendPerformance(g2::Performance::playing(keyboardSine(), "Local"), "Local");
-    auto settings = client.state().settings;
-    settings.localOn = true;
-    client.setSynthSettings(settings);
-    while(!client.idle() && m.seconds() < 6) step();
-    REQUIRE(client.idle());
-    run(0.3);
-
-    // the OS's own System menu says so too
     auto press = [&](PanelButton b) {
         m.panelButton(b, true);
         run(0.03);
         m.panelButton(b, false);
         run(0.05);
     };
+    auto output = [&](double seconds) {
+        std::vector<float> out;
+        m.run(std::uint32_t(Machine::FrameRate * seconds), &out);
+        return out;
+    };
+    auto setLocal = [&](bool on) {
+        auto settings = client.state().settings;
+        settings.localOn = on;
+        client.setSynthSettings(settings);
+        while(!client.idle() && m.seconds() < 8) step();
+        REQUIRE(client.idle());
+        run(0.3);
+    };
+    // Off: the keys go out as MIDI only, the G2 stays silent
+    client.sendPerformance(g2::Performance::playing(keyboardSine(), "Local"), "Local");
+    setLocal(false);
+    m.panelKey(21, true, 100);
+    run(0.1);
+    const auto silent = output(0.1);
+    m.panelKey(21, false);
+    run(0.2);
+    CHECK(std::all_of(silent.begin(), silent.end(), [](float s) { return std::fabs(s) < 1e-4f; }));
+
+    // On again, as the OS's own System menu shows it
+    setLocal(true);
     press(PanelButton::System);
     press(PanelButton::NavDown);
     INFO(m.panel().displays[0].text(0) << " / " << m.panel().displays[0].text(1));
@@ -1358,6 +1447,11 @@ TEST_CASE("The user's G2 OS follows an external MIDI clock (its Master Clock dis
     Machine m(fw, o);
     m.run(Machine::FrameRate * 3);  // boot; the assignable displays show the patch settings, Master Clock first
     const auto before = m.panel().displays[1].text(0) + "|" + m.panel().displays[1].text(1);
+    // A new G2's master clock runs at power-on (120 BPM, Run): a MIDI Stop first, so that the clock alone is seen
+    // not to start it
+    const std::uint8_t start[1] = {0xFA}, stop[1] = {0xFC};
+    m.midiInAt(stop, m.frame());
+    m.run(Machine::FrameRate / 10);
     // MIDI clock at 100 BPM: a tick every 2400 frames (96 kHz)
     const std::uint8_t tick[1] = {0xF8};
     const int quarters = std::getenv("G2TEST_QUARTERS") ? std::atoi(std::getenv("G2TEST_QUARTERS")) : 8;
@@ -1371,7 +1465,6 @@ TEST_CASE("The user's G2 OS follows an external MIDI clock (its Master Clock dis
     CHECK(after.find("Ext 100") != std::string::npos);
     CHECK(after.find("Stop") != std::string::npos);
     // Start, then the clock goes on: the master clock runs; Stop stops it
-    const std::uint8_t start[1] = {0xFA}, stop[1] = {0xFC};
     m.midiInAt(start, m.frame());
     for(int i = 0; i < 24 * 2; ++i)
     {
@@ -1389,4 +1482,252 @@ TEST_CASE("The user's G2 OS follows an external MIDI clock (its Master Clock dis
     INFO("after Start: '" << running << "', after Stop: '" << stopped << "'");
     CHECK(running.find("Run") != std::string::npos);
     CHECK(stopped.find("Stop") != std::string::npos);
+}
+
+TEST_CASE("The user's G2 OS: a new emulated G2 gets a factory G2's system settings, a used one keeps its own",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // A G2 and our client, as the plugin has them; booted from `flash` (null: erased)
+    struct Synth {
+        Machine m;
+        MachineTransport transport{m};
+        g2::proto::ManualClock clock;
+        g2::proto::Client client{transport, clock};
+        explicit Synth(const Firmware& fw, const std::vector<std::uint8_t>* flash = nullptr) : m(fw)
+        {
+            if(flash) m.loadMemory(*flash);
+            m.run(Machine::FrameRate * 2);
+            m.plugUsb();
+            while(!client.synced() && m.seconds() < 4) step();
+        }
+        void step()
+        {
+            m.run(Machine::FrameRate / 1000);
+            clock.set(std::uint64_t(m.seconds() * 1000));
+            client.tick();
+        }
+        void run(double s)
+        {
+            const double end = m.seconds() + s;
+            while(m.seconds() < end) step();
+        }
+        bool settle()
+        {
+            const double end = m.seconds() + 4;
+            while(!client.idle() && m.seconds() < end) step();
+            run(0.3);
+            return client.idle();
+        }
+        void press(PanelButton b)
+        {
+            m.panelButton(b, true);
+            run(0.03);
+            m.panelButton(b, false);
+            run(0.05);
+        }
+        // The OS's System menu as it shows it, title -> value (trimmed), down to Synth Name, its last page
+        std::map<std::string, std::string> systemMenu()
+        {
+            auto trim = [](std::string s) {
+                s.erase(0, s.find_first_not_of(' '));
+                s.erase(s.find_last_not_of(' ') + 1);
+                return s;
+            };
+            std::map<std::string, std::string> pages;
+            press(PanelButton::System);
+            for(int i = 0; i < 20; ++i)
+            {
+                const auto d = m.panel().displays[0];
+                const auto title = trim(d.text(0).substr(0, d.text(0).find('|')));
+                pages[title] = trim(d.text(1));
+                if(title == "Synth Name") break;
+                press(PanelButton::NavDown);
+            }
+            press(PanelButton::System);
+            return pages;
+        }
+        void midi(std::initializer_list<std::uint8_t> bytes)
+        {
+            const std::vector<std::uint8_t> b(bytes);
+            m.midiIn(b);
+            run(0.1);
+        }
+        // output 1's level (RMS) over a fifth of a second
+        double level()
+        {
+            std::vector<float> out;
+            m.run(Machine::FrameRate / 5, &out);
+            double sum = 0;
+            const std::size_t n = std::max<std::size_t>(1, out.size() / 4);
+            for(std::size_t f = 0; f < out.size() / 4; ++f) sum += double(out[f * 4]) * out[f * 4];
+            return std::sqrt(sum / double(n));
+        }
+        bool stored(std::uint8_t bank, std::uint8_t prog) const
+        {
+            for(const auto& n : client.state().flash[0])
+                if(n.bank == bank && n.prog == prog) return true;
+            return false;
+        }
+    };
+
+    // A new G2 (a new EEPROM, an erased flash): the OS formats the flash and takes its own built-in settings
+    CHECK(newMemory({}));
+    std::vector<std::uint8_t> saved;
+    {
+        Synth g2(fw);
+        REQUIRE(g2.client.synced());
+        const auto own = g2.client.state().settings;
+        CHECK(own.name == "ModularG2");
+        CHECK(own.localOn);
+        CHECK(own.controllerMode == 3);
+        CHECK(own.programChangeMode == 3);
+        CHECK(own.midiChannels == std::array<std::uint8_t, 4>{0, 1, 2, 3});
+        CHECK(own.globalChannel == 15);  // 16
+        CHECK_FALSE(own.memoryProtect);
+        CHECK(newMemory(g2.m.memorySnapshot()) == false);  // the OS wrote its EEPROM at power-on
+
+        // slot B plays a sine on the keyboard, slots A, C and D are empty; all four active
+        g2::Performance perf;
+        for(auto& p : perf.slots) p = g2::Patch::makeDefault();
+        perf.slots[1] = keyboardSine();
+        for(int i = 0; i < 4; ++i)
+        {
+            perf.header.slots[std::size_t(i)].enabled = true;
+            perf.header.slots[std::size_t(i)].keyboard = i == 1;
+        }
+        g2.client.sendPerformance(perf, "Factory");
+        REQUIRE(g2.settle());
+        // the OS's Global channel 16 plays as the keyboard does
+        g2.midi({0x9F, 69, 100});
+        const double global16 = g2.level();
+        g2.midi({0x8F, 69, 0});
+        g2.run(0.3);
+        CHECK(global16 > 0.01);
+
+        // What the plugin sends a new G2, and the OS's System menu then
+        g2.client.setSynthSettings(factorySettings(own));
+        REQUIRE(g2.settle());
+        const auto menu = g2.systemMenu();
+        std::string pages;
+        for(const auto& [title, value] : menu) pages += title + ": '" + value + "'; ";
+        INFO(pages);
+        CHECK(menu.at("MIDI Glob Ch") == "Off");
+        CHECK(menu.at("Memory Prot") == "On");
+        // and the OS's own, as the manual's pictures show them [M p.30-31]
+        CHECK(menu.at("MIDI Slot Ch") == "1   2   3   4");
+        CHECK(menu.at("MIDI Local") == "On");
+        CHECK(menu.at("MIDI Prg Chng") == "Send & Receive");
+        CHECK(menu.at("MIDI Ctrl") == "Send & Receive");
+        CHECK(menu.at("MIDI Clk Send") == "Off");
+        CHECK(menu.at("Sust Ped Pol") == "Open");
+        CHECK(menu.at("Ctrl Ped Gain") == "x1.00");
+        CHECK(menu.at("Master Tune") == "0 semi   0 cent");
+        CHECK(menu.at("Synth Name") == "ModularG2");
+        // or not (the pictures: SysEx ID 16, Clk Recv Off)
+        CHECK(menu.at("MIDI SysEx Id") == "All");
+        CHECK(menu.at("MIDI Clk Recv") == "On");
+
+        // Global Off: channel 16 plays nothing. The slots answer on their own channels: channel 2 plays slot B's
+        // sine, channel 1 the empty slot A
+        g2.midi({0x9F, 69, 100});
+        const double off16 = g2.level();
+        g2.midi({0x8F, 69, 0});
+        g2.run(0.3);
+        g2.midi({0x91, 69, 100});
+        const double b = g2.level();
+        g2.midi({0x81, 69, 0});
+        g2.run(0.3);
+        g2.midi({0x90, 69, 100});
+        const double a = g2.level();
+        g2.midi({0x80, 69, 0});
+        g2.run(0.3);
+        INFO("channel 16 with Global 16: " << global16 << ", with Global Off: " << off16 << "; channel 2: " << b
+                                           << ", channel 1: " << a);
+        CHECK(off16 < global16 / 100);
+        CHECK(b > 0.01);
+        CHECK(a < b / 100);
+
+        // MIDI Ctrl received: CC7 (patch volume) on slot B's channel turns it down
+        g2.midi({0x91, 69, 100});
+        const double loud = g2.level();
+        g2.midi({0xB1, 7, 0});
+        const double quiet = g2.level();
+        g2.midi({0xB1, 7, 127});
+        const double back = g2.level();
+        g2.midi({0x81, 69, 0});
+        g2.run(0.3);
+        INFO("CC7 127 -> 0 -> 127: " << loud << " -> " << quiet << " -> " << back);
+        CHECK(quiet < loud / 4);
+        CHECK(back > loud / 2);
+
+        // Memory Protect On: the OS refuses to store
+        g2.client.storeToFlash(1, 0, 0);
+        REQUIRE(g2.settle());
+        CHECK_FALSE(g2.stored(0, 0));
+        // Switched off (the user's choice), it stores: slot B's sine in 1:1, the empty slot A in 1:2. Slot A loaded
+        // from 1:2, a Program Change 1 on channel 1 loads 1:1 into it (a slot never loaded from the memory ignores
+        // Program Changes)
+        auto open = g2.client.state().settings;
+        open.memoryProtect = false;
+        g2.client.setSynthSettings(open);
+        g2.client.storeToFlash(1, 0, 0);
+        g2.client.storeToFlash(0, 0, 1);
+        REQUIRE(g2.settle());
+        CHECK(g2.stored(0, 0));
+        CHECK(g2.stored(0, 1));
+        g2.client.loadFromFlash(0, 0, 1);
+        REQUIRE(g2.settle());
+        g2.midi({0x90, 69, 100});
+        const double before = g2.level();
+        g2.midi({0x80, 69, 0});
+        g2.midi({0xC0, 0});
+        g2.run(1.0);
+        g2.midi({0x90, 69, 100});
+        const double after = g2.level();
+        g2.midi({0x80, 69, 0});
+        INFO("channel 1 before Program Change 1: " << before << ", after: " << after);
+        CHECK(before < 0.001);
+        CHECK(after > 0.01);
+
+        // the user's own settings, then the memory as the plugin keeps it
+        auto mine = g2.client.state().settings;
+        mine.midiChannels = {4, 5, 6, 7};
+        mine.localOn = false;
+        mine.name = "Mine";
+        g2.client.setSynthSettings(mine);
+        REQUIRE(g2.settle());
+        saved = g2.m.memorySnapshot();
+    }
+
+    // A G2 in use: not new, so the plugin sends nothing; the OS keeps the user's settings and patches
+    CHECK_FALSE(newMemory(saved));
+    Synth again(fw, &saved);
+    REQUIRE(again.client.synced());
+    const auto s = again.client.state().settings;
+    CHECK(s.name == "Mine");
+    CHECK(s.midiChannels == std::array<std::uint8_t, 4>{4, 5, 6, 7});
+    CHECK_FALSE(s.localOn);
+    CHECK_FALSE(s.memoryProtect);
+    CHECK(s.globalChannel == 16);
+    CHECK(again.stored(0, 0));
+    CHECK(again.stored(0, 1));
+
+    // An image of the flash alone (as G2fresh kept it before it had the EEPROM): the OS keeps its patches and takes
+    // its own settings, as with a new EEPROM; the plugin treats it as new
+    saved.resize(saved.size() - Machine::EepromSize);
+    CHECK(newMemory(saved));
+    Synth old(fw, &saved);
+    REQUIRE(old.client.synced());
+    CHECK(old.client.state().settings.name == "ModularG2");
+    CHECK(old.client.state().settings.globalChannel == 15);
+    CHECK(old.stored(0, 0));
 }

@@ -9,9 +9,10 @@
 // channels, and Out 3/4 on the next two when the host gives four (the plugin's
 // second output bus). Without them Out 3/4 are not heard, as on a G2 whose
 // headphones carry Out 1/2 only, unless setMixOut34() mixes them in. The track's MIDI goes to the G2's MIDI IN,
-// sample-accurate (a fixed latency, Runner::latencyFrames). The flash (the
-// synth's banks) comes from the caller: the plugin keeps it in the host's
-// project, the stand-alone app in a file.
+// sample-accurate (a fixed latency, Runner::latencyFrames). The "flash" (the
+// G2's memory: its flash with the banks, then its EEPROM with the system
+// settings, Machine::memorySnapshot) comes from the caller: the plugin keeps it
+// in the host's project, the stand-alone app in a file.
 //
 // Threads: made, prepared and destroyed on the message thread while the audio
 // thread does not use it (the processor swaps it in under its callback lock);
@@ -34,16 +35,16 @@
 
 class EmulatedSoundEngine final : public SoundEngine {
 public:
-    // Powers the machine on with `flash` (empty: erased) in its flash chip;
-    // `saveTo`: where the destructor saves a changed flash (none: nowhere).
+    // Powers the machine on with the memory `flash` (empty: a new G2);
+    // `saveTo`: where the destructor saves a changed memory (none: nowhere).
     // Throws std::exception when the emulator cannot start.
     EmulatedSoundEngine(const g2emu::Firmware& firmware, std::vector<std::uint8_t> flash, juce::File saveTo);
     // Stops the machine (and saves its flash to `saveTo`).
     ~EmulatedSoundEngine() override;
 
-    // The flash while the machine runs (any thread): how many times the OS changed it, and a copy.
-    std::uint64_t flashChanges() const { return runner_->machine().flashChanges(); }
-    std::vector<std::uint8_t> flashSnapshot() const { return runner_->machine().flashSnapshot(); }
+    // The memory while the machine runs (any thread): how many times the OS changed it, and a copy.
+    std::uint64_t flashChanges() const { return runner_->machine().memoryChanges(); }
+    std::vector<std::uint8_t> flashSnapshot() const { return runner_->machine().memorySnapshot(); }
     // 96 kHz frames the audio thread asked for that the machine had not produced yet (heard as dropouts).
     std::uint64_t framesMissing() const { return runner_->stats().framesMissing; }
     // For diagnostics: the runner's speed while running, its longest chunk, the DSP threads in use.

@@ -15,6 +15,43 @@
 namespace g2emu {
 
 // ---------------------------------------------------------------------------------------------------------------
+// The board's EEPROM, U36, 2k x 8 (service manual): a 24C16-style I2C memory the OS bit-bangs on the parallel port,
+// SCL on PADAT bit 14 (always driven), SDA on bit 8, open drain (PADDR bit 8 set: driven low; clear: released, read)
+// [C 0x30053208 byte out, 0x3005338E byte in, 0x30053528 start and address]. Device byte 0xA0 | block << 1, then the
+// low address byte; reads run on sequentially, writes within a 16-byte page. At power-on the OS reads all 2048 bytes
+// into RAM (0x30268474, [C 0x30053768]) and writes back the 16-byte blocks it changed. It holds the system settings
+// [C 0x30023A30] and a checksummed word at 0x0C the OS checks before it decides to format the flash [C 0x30036CD8,
+// 0x3001B674]. A new chip reads 0xFF: the OS keeps its built-in settings. Without this model every read gave 0x00:
+// all settings 0 (Local, Ctrl, Prg Chng Off, every slot on channel 1), and the flash formatted at every power-on.
+// Writes take no time (no busy period).
+class Eeprom {
+public:
+    static constexpr std::size_t Size = 2048;
+    Eeprom() { mem_.fill(0xFF); }
+    // The lines as the master leaves them (SDA: false = driven low); returns SDA as the bus has it.
+    bool lines(bool scl, bool sdaMaster);
+    bool sda(bool sdaMaster) const { return sdaMaster && !slaveLow_; }
+    // Another thread's copy, and how many bytes were written so far; load() before the machine runs.
+    std::vector<std::uint8_t> snapshot() const;
+    void load(const std::uint8_t* data, std::size_t n);
+    std::uint64_t changes() const { return changes_.load(std::memory_order_acquire); }
+
+private:
+    enum class Mode { Idle, Device, Word, Write, Read };
+    void start();
+    void rising(bool sda);
+    void falling();
+    std::array<std::uint8_t, Size> mem_;
+    mutable std::atomic_flag busy_ = ATOMIC_FLAG_INIT;  // a byte written vs another thread's snapshot
+    std::atomic<std::uint64_t> changes_{0};
+    Mode mode_ = Mode::Idle;
+    bool scl_ = true, sda_ = true, slaveLow_ = false, ackPhase_ = false, masterAck_ = false, readStart_ = false;
+    int bit_ = 0;
+    std::uint8_t shift_ = 0, out_ = 0, block_ = 0;
+    std::uint16_t addr_ = 0;
+};
+
+// ---------------------------------------------------------------------------------------------------------------
 // MCF5407 SIM and the modules at MBAR = 0x10000000 (offsets per the MCF5307/5407 user's manuals).
 class Sim {
 public:
@@ -47,6 +84,9 @@ public:
     void midiInAt(const std::uint8_t* data, std::size_t n, std::uint64_t notBefore);
     std::vector<std::uint8_t> takeMidiOut();
     std::uint64_t midiOverruns() const { return uartOverruns_; }
+    // The EEPROM on the parallel port.
+    Eeprom& eeprom() { return eeprom_; }
+    const Eeprom& eeprom() const { return eeprom_; }
 
     static constexpr std::uint32_t BusHz = 54000000;
 
@@ -106,6 +146,8 @@ private:
     std::array<std::uint8_t, 7> panelAdc_{0x80, 0xFF, 0x80, 0x80, 0x80, 0x80, 0x80};
     unsigned i2cReads_ = 0;
     std::uint16_t gpioInMask_ = 0, gpioIn_ = 0;
+    Eeprom eeprom_;
+    void eepromLines();  // after a write to PADDR or PADAT
 };
 
 // ---------------------------------------------------------------------------------------------------------------

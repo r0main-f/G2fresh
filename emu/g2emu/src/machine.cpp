@@ -1100,6 +1100,26 @@ std::vector<std::uint8_t>& Machine::flash() { return impl_->flashChip.data(); }
 std::vector<std::uint8_t> Machine::flashSnapshot() const { return impl_->flashChip.snapshot(); }
 std::uint64_t Machine::flashChanges() const { return impl_->flashChip.changes(); }
 
+void Machine::loadMemory(std::span<const std::uint8_t> image)
+{
+    auto& flash = impl_->flashChip.data();
+    const auto n = std::min(flash.size(), image.size());
+    std::copy_n(image.begin(), n, flash.begin());
+    if(image.size() > flash.size()) impl_->sim.eeprom().load(image.data() + flash.size(), image.size() - flash.size());
+}
+
+static_assert(Machine::EepromSize == Eeprom::Size);
+
+std::vector<std::uint8_t> Machine::memorySnapshot() const
+{
+    auto image = impl_->flashChip.snapshot();
+    const auto eeprom = impl_->sim.eeprom().snapshot();
+    image.insert(image.end(), eeprom.begin(), eeprom.end());
+    return image;
+}
+
+std::uint64_t Machine::memoryChanges() const { return impl_->flashChip.changes() + impl_->sim.eeprom().changes(); }
+
 PanelState Machine::panel() const
 {
     std::lock_guard lock(impl_->panelMutex);

@@ -99,7 +99,7 @@ private:
     std::unique_ptr<SoundEngine> emulated_;
     bool emulatedSent_ = false; // the document went to the emulated G2 once it was up
     bool emulatedLocal_ = false; // its system settings applied once it was up (applySynthSettings)
-    bool emulatedFresh_ = false; // it started from an erased memory: a factory G2's settings apply
+    bool emulatedFresh_ = false; // it started from an erased memory and has not got a factory G2's settings yet
     // In the state: whether the emulated G2 runs (it starts again with the project), and its flash (gzip): each
     // plugin instance keeps its own synth memory in the host's project.
     bool emulatorWanted_ = true;

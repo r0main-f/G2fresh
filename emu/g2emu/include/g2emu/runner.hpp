@@ -25,7 +25,8 @@ public:
         Machine::Options machine = defaultMachineOptions();
         double bufferMs = 20;      // audio kept ready ahead of the reader
         std::uint32_t chunkFrames = 96;  // frames the machine runs at a time (1 ms)
-        std::vector<std::uint8_t> flash;  // the flash's content at power-on (empty: as the machine starts it)
+        // the memory at power-on, flash then EEPROM (Machine::loadMemory; empty: as the machine starts it)
+        std::vector<std::uint8_t> flash;
         static Machine::Options defaultMachineOptions()
         {
             Machine::Options o;
@@ -52,7 +53,7 @@ public:
     std::size_t available() const;
 
     // Stops the machine's thread (for good). Then machine() may be used from the caller's thread, e.g. to save
-    // machine().flash(). The destructor stops it too.
+    // machine().memorySnapshot(). The destructor stops it too.
     void stop();
     // The most frames one read() takes (a host's block, in 96 kHz frames): the machine then keeps that much more
     // ready, so that after the reader's largest take bufferMs are still left. Part of latencyFrames(). Any thread.
