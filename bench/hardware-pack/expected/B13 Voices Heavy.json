@@ -1,0 +1,20 @@
+{
+ "id": "B13",
+ "name": "B13 Voices Heavy",
+ "file": "B13 Voices Heavy.pch2",
+ "measure": "voices",
+ "emulator": {
+  "model": "g2",
+  "os_version": 162,
+  "voices": [3, 0, 0, 0],
+  "requested_voices": 32,
+  "master_clock": {"bpm": 120, "flag": 1},
+  "display": ["-:-       No Cat", "B13 Voices Heavy"],
+  "display_knobs_1_2": "120 BPM  03 (32)",
+  "load_va": {"cycles_a": 943, "cycles_b": 544, "cycles_percent": 78.7},
+  "load_fx": {"cycles_a": 429, "cycles_b": 0, "cycles_percent": 31.29}
+ },
+ "status": "ok",
+ "facts": {"requested_voices": 32, "voices": 3, "display_knobs_1_2": "120 BPM  03 (32)"},
+ "note": "The emulated G2 has four DSPs (a G2 without the expansion board), whatever model it says it is."
+}

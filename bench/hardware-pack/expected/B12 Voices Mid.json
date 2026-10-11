@@ -1,0 +1,20 @@
+{
+ "id": "B12",
+ "name": "B12 Voices Mid",
+ "file": "B12 Voices Mid.pch2",
+ "measure": "voices",
+ "emulator": {
+  "model": "g2",
+  "os_version": 162,
+  "voices": [12, 0, 0, 0],
+  "requested_voices": 32,
+  "master_clock": {"bpm": 120, "flag": 1},
+  "display": ["-:-       No Cat", "B12 Voices Mid  "],
+  "display_knobs_1_2": "120 BPM  12 (32)",
+  "load_va": {"cycles_a": 368, "cycles_b": 204, "cycles_percent": 30.56},
+  "load_fx": {"cycles_a": 0, "cycles_b": 0, "cycles_percent": 0.0}
+ },
+ "status": "ok",
+ "facts": {"requested_voices": 32, "voices": 12, "display_knobs_1_2": "120 BPM  12 (32)"},
+ "note": "The emulated G2 has four DSPs (a G2 without the expansion board), whatever model it says it is."
+}

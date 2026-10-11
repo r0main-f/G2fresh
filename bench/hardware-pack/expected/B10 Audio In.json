@@ -1,0 +1,26 @@
+{
+ "id": "B10",
+ "name": "B10 Audio In",
+ "file": "B10 Audio In.pch2",
+ "measure": "input",
+ "status": "pending",
+ "reason": "the emulated G2 has no audio inputs yet",
+ "to_measure": ["gain from In 1 to Out 1 at 1 kHz (2-In Pad 0 dB, 2-Out Pad 0 dB)", "delay from In 1 to Out 1", "polarity", "the input level where the gain starts to drop"],
+ "stimulus": {
+  "rate": 48000,
+  "tone_hz": 1000.0,
+  "bursts": {
+   "times": [1.0, 1.5, 2.0],
+   "seconds": 0.02,
+   "dbfs": -6.0
+  },
+  "steady": {"start": 3.0, "seconds": 3.0, "dbfs": -20.0},
+  "steps": {
+   "start": 6.5,
+   "seconds": 1.0,
+   "gap": 0.2,
+   "dbfs": [-40.0, -30.0, -20.0, -12.0, -6.0, -1.0]
+  },
+  "total": 14.0
+ }
+}

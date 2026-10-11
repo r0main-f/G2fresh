@@ -1,0 +1,43 @@
+{
+ "id": "B08",
+ "name": "B08 Clock 120",
+ "file": "B08 Clock 120.prf2",
+ "measure": "clicks",
+ "emulator": {
+  "model": "g2",
+  "os_version": 162,
+  "voices": [1, 0, 0, 0],
+  "requested_voices": 1,
+  "master_clock": {"bpm": 120, "flag": 1},
+  "display": ["-:-       No Cat", "B08 Clock 120   "],
+  "display_knobs_1_2": "120 BPM         ",
+  "load_va": {"cycles_a": 23, "cycles_b": 204, "cycles_percent": 5.4},
+  "load_fx": {"cycles_a": 0, "cycles_b": 0, "cycles_percent": 0.0}
+ },
+ "status": "ok",
+ "levels": "Levels are in dBFS of the G2's DAC words (1.0 = DAC full scale), Master Level full. G2fresh plays the words 8 times louder (+18.06 dB), so that a full-level signal inside the G2 (64 units) is 0 dBFS in the host.",
+ "sample_rate": 96000,
+ "facts": {
+  "outputs": {
+   "1": {
+    "clicks": 120,
+    "period_s": 0.4999999,
+    "bpm": 120.0,
+    "jitter_ms": 0.0611,
+    "first_s": 0.00087,
+    "polarity": 1,
+    "peak_dbfs": -18.08
+   },
+   "2": {
+    "clicks": 120,
+    "period_s": 0.5007526,
+    "bpm": 119.8196,
+    "jitter_ms": 0.0117,
+    "first_s": 0.00164,
+    "polarity": 1,
+    "peak_dbfs": -18.08
+   }
+  }
+ },
+ "summary": {"master_clock_bpm": 120.0, "own_clock_bpm": 119.8196, "click_polarity": 1}
+}

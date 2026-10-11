@@ -1,0 +1,26 @@
+{
+ "id": "B14",
+ "name": "B14 Wheels",
+ "file": "B14 Wheels.pch2",
+ "measure": "controls",
+ "status": "ok",
+ "emulator": {
+  "model": "g2x",
+  "os_version": 162,
+  "voices": [1, 0, 0, 0],
+  "requested_voices": 1,
+  "master_clock": {"bpm": 120, "flag": 1},
+  "display": ["-:-       No Cat", "B14 Wheels      "],
+  "display_knobs_1_2": "120 BPM         ",
+  "load_va": {"cycles_a": 131, "cycles_b": 16, "cycles_percent": 9.85},
+  "load_fx": {"cycles_a": 0, "cycles_b": 0, "cycles_percent": 0.0}
+ },
+ "facts": {
+  "rest": {"low_tone_hz": 440.0024, "second_tone_dbfs": -133.1},
+  "pitch_stick_high": {"low_tone_hz": 587.3337, "second_tone_dbfs": -177.4},
+  "pitch_stick_low": {"low_tone_hz": 329.6242, "second_tone_dbfs": -177.0},
+  "g_wheel_1_high": {"low_tone_hz": 879.9992, "second_tone_dbfs": -168.9},
+  "g_wheel_2_high": {"low_tone_hz": 440.0024, "second_tone_dbfs": -24.1}
+ },
+ "note": "High = the top of the control's range as the OS reads it. Which physical direction that is on a G2 is the question."
+}

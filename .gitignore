@@ -20,3 +20,6 @@ corpus-external/
 
 # Other G2 editors cloned for bench testing (see re/notes/references.md), never committed
 references/
+
+# The emulated G2's renders of the hardware bench pack (tools/benchpack/expected.py): the output of Clavia's OS
+bench/hardware-pack/expected/renders/

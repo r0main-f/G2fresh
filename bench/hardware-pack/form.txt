@@ -1,0 +1,83 @@
+G2fresh hardware test pack: your answers
+=========================================
+
+Type your answer after each "Answer:". Leave a line empty if you don't know or
+it does not apply. Send this file back with your recordings.
+(Version française : form.fr.txt. Fill in one of the two, not both.)
+
+
+ABOUT YOUR G2
+
+Q01. Your name (so that we know whose G2 this is)
+Answer:
+
+Q02. Which G2 is it: G2 (37 keys), G2X (61 keys) or G2 Engine (rack)?
+Answer:
+
+Q03. Does it have the expansion board? (yes / no / don't know; a G2X has it built in)
+Answer:
+
+Q04. The OS version the display shows for a second when you switch the G2 on
+     (G2 Engine: the version Clavia's editor shows)
+Answer:
+
+
+ABOUT YOUR RECORDING
+
+Q05. Your audio interface (make and model)
+Answer:
+
+Q06. Which inputs you used, and their level setting if they have one
+     (for example: line inputs 1-4, switch on +4 dBu)
+Answer:
+
+Q07. Where the input gain knobs were for the whole session (for example: fully down)
+Answer:
+
+Q08. If you know it: the interface's maximum input level at that setting,
+     from its manual (for example: +18 dBu at 0 dBFS). No idea is fine.
+Answer:
+
+Q09. Sample rate and bit depth of the files (for example: 96 kHz, 24 bit)
+Answer:
+
+Q10. Which G2 outputs you recorded (Out 1-4, or Out 1-2 only)
+Answer:
+
+Q11. Was the G2's Master Level knob fully up the whole time? (yes / no)
+Answer:
+
+
+WHAT YOU SAW (part 4 of the instructions)
+
+Q12. B11 Voices Light: the voice count on the display, exactly as shown (for example: 16 (32))
+Answer:
+
+Q13. B12 Voices Mid: the voice count on the display
+Answer:
+
+Q14. B13 Voices Heavy: the voice count on the display
+Answer:
+
+Q15. Right after switching on, before loading anything: the tempo on the display
+     above knobs 1-2, and the word under it (for example: 120 BPM, Run)
+Answer:
+
+Q16. B14 Wheels, keyboard models: you push the pitch stick to the right.
+     Does the note go up or down?
+Answer:
+
+Q17. B14 Wheels, G2X only: you roll G.Wheel 1 away from you (towards the back of the G2).
+     Does the note go up or down?
+Answer:
+
+Q18. B14 Wheels, G2X only: you roll G.Wheel 2 away from you.
+     Does a second, higher note come in, or fade out?
+Answer:
+
+Q19. With Memory Protect on, you press Store once. What does the display say?
+     Does the G2 let you go on and store?
+Answer:
+
+Q20. Anything odd, anything you did differently, anything else we should know
+Answer:

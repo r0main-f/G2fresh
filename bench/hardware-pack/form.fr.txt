@@ -1,0 +1,84 @@
+Pack de test G2fresh : tes réponses
+====================================
+
+Écris ta réponse après chaque « Réponse : ». Laisse la ligne vide si tu ne sais
+pas ou si la question ne te concerne pas. Renvoie ce fichier avec tes
+enregistrements.
+(English version: form.txt. Remplis l'un des deux, pas les deux.)
+
+
+TON G2
+
+Q01. Ton nom (pour savoir de quel G2 il s'agit)
+Réponse :
+
+Q02. Quel G2 : G2 (37 touches), G2X (61 touches) ou G2 Engine (rack) ?
+Réponse :
+
+Q03. A-t-il la carte d'extension ? (oui / non / je ne sais pas ; un G2X l'a d'origine)
+Réponse :
+
+Q04. La version d'OS que l'écran affiche pendant une seconde à l'allumage
+     (G2 Engine : la version qu'affiche l'éditeur de Clavia)
+Réponse :
+
+
+TON ENREGISTREMENT
+
+Q05. Ta carte son (marque et modèle)
+Réponse :
+
+Q06. Les entrées utilisées, et leur réglage de niveau s'il y en a un
+     (par exemple : entrées ligne 1-4, sélecteur sur +4 dBu)
+Réponse :
+
+Q07. La position des potentiomètres de gain d'entrée pendant toute la séance (par exemple : au minimum)
+Réponse :
+
+Q08. Si tu le connais : le niveau d'entrée maximal de la carte son avec ce réglage,
+     d'après sa notice (par exemple : +18 dBu à 0 dBFS). Aucune idée, c'est très bien aussi.
+Réponse :
+
+Q09. Fréquence d'échantillonnage et résolution des fichiers (par exemple : 96 kHz, 24 bits)
+Réponse :
+
+Q10. Les sorties du G2 enregistrées (Out 1-4, ou seulement Out 1-2)
+Réponse :
+
+Q11. Le potentiomètre Master Level du G2 est-il resté à fond tout le temps ? (oui / non)
+Réponse :
+
+
+CE QUE TU AS VU (partie 4 des instructions)
+
+Q12. B11 Voices Light : le nombre de voix à l'écran, tel qu'affiché (par exemple : 16 (32))
+Réponse :
+
+Q13. B12 Voices Mid : le nombre de voix à l'écran
+Réponse :
+
+Q14. B13 Voices Heavy : le nombre de voix à l'écran
+Réponse :
+
+Q15. Juste après l'allumage, avant de charger quoi que ce soit : le tempo sur l'écran
+     au-dessus des potentiomètres 1-2, et le mot en dessous (par exemple : 120 BPM, Run)
+Réponse :
+
+Q16. B14 Wheels, modèles à clavier : tu pousses le pitch stick vers la droite.
+     La note monte ou descend ?
+Réponse :
+
+Q17. B14 Wheels, G2X seulement : tu tournes la G.Wheel 1 en l'éloignant de toi (vers l'arrière du G2).
+     La note monte ou descend ?
+Réponse :
+
+Q18. B14 Wheels, G2X seulement : tu tournes la G.Wheel 2 en l'éloignant de toi.
+     Une deuxième note, plus aiguë, apparaît ou disparaît ?
+Réponse :
+
+Q19. Avec Memory Protect activé, tu appuies une fois sur Store. Qu'affiche l'écran ?
+     Le G2 te laisse-t-il continuer et mémoriser ?
+Réponse :
+
+Q20. Quoi que ce soit de bizarre, ce que tu as fait autrement, tout ce qu'on devrait savoir
+Réponse :
