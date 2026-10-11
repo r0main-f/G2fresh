@@ -1,5 +1,6 @@
 #include "PatchSettingsBar.h"
 
+#include "AssignMenus.h"
 #include "ModulePainter.h"
 #include "Skin.h"
 #include "Theme.h"
@@ -29,6 +30,8 @@ public:
     std::function<juce::String(int)> text; // text of any value
     std::function<void(int value, bool coalesce)> set;
     std::function<void()> onRename;        // optional: double-click the name
+    std::function<void()> onPress;         // optional: any click, before the control acts
+    std::function<void()> onPopup;         // optional: the right-click menu
     std::function<void(const juce::String&)> status;
     std::function<juce::Colour()> colour;  // optional knob colour
 
@@ -114,6 +117,13 @@ public:
 
     void mouseDown(const juce::MouseEvent& e) override
     {
+        if (onPress)
+            onPress();
+        if (e.mods.isPopupMenu()) {
+            if (onPopup)
+                onPopup();
+            return;
+        }
         startValue_ = get();
         if (kind == Kind::Bar && e.y >= kBarTop)
             setFromBar(e.x, true);
@@ -121,6 +131,8 @@ public:
 
     void mouseDrag(const juce::MouseEvent& e) override
     {
+        if (e.mods.isPopupMenu())
+            return;
         if (kind == Kind::Bar) {
             if (e.getMouseDownY() >= kBarTop)
                 setFromBar(e.x, true);
@@ -139,7 +151,7 @@ public:
 
     void mouseUp(const juce::MouseEvent& e) override
     {
-        if (kind == Kind::Knob || kind == Kind::Bar || e.getDistanceFromDragStart() > 4)
+        if (e.mods.isPopupMenu() || kind == Kind::Knob || kind == Kind::Bar || e.getDistanceFromDragStart() > 4)
             return;
         if (kind == Kind::Toggle) {
             set(get() ? 0 : 1, false);
@@ -326,29 +338,29 @@ PatchSettingsBar::PatchSettingsBar(PatchDocument& doc) : doc_(doc)
 
     // Morph groups: one card per group, a value bar named after the group
     // (double-click the name to rename) and its source (Knob or a controller).
+    // A click on a card focuses its group (CMorphContainer::Click @00123a84):
+    // the one Morph Assign and the morph drag work on; the focused dial is
+    // red, the others blue (CPnlMorphKnob::UpdateGraphics), unless the
+    // eight-colour view is on. A right-click on the bar opens the morph
+    // dial's popup (CMorphControlMenu).
     auto& morph = groups_.emplace_back(Group{"Morph", {}});
+    auto dialColour = [this](int i) {
+        return [this, i] {
+            return morphGroupColours() ? ModulePainter::morphColour(i)
+                                       : ModulePainter::morphColour(doc_.focusedMorphGroup() == i ? 0 : 2);
+        };
+    };
     for (int i = 0; i < 8; ++i) {
         auto& bar = setting(morph, Setting::Morph, static_cast<std::uint8_t>(i), Control::Kind::Bar, {});
-        bar.colour = [i] { return ModulePainter::morphColour(i); };
-        bar.onRename = [this, i] {
-            auto* w = new juce::AlertWindow("Rename morph group", "Name (up to 7 characters):", juce::MessageBoxIconType::NoIcon);
-            w->addTextEditor("name", juce::String(edit::morphLabel(doc_.patch(), i)));
-            // 7 characters of the G2 set, as the original's name dialog (CPnlMorphKnob::DoChangeName).
-            if (auto* editor = w->getTextEditor("name"))
-                editor->setInputRestrictions(static_cast<int>(edit::kLabelLength), PatchDocument::allowedNameCharacters());
-            w->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
-            w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
-            w->enterModalState(true, juce::ModalCallbackFunction::create([this, i, w](int r) {
-                if (r != 1)
-                    return;
-                const auto label = w->getTextEditorContents("name").toStdString();
-                doc_.perform("Rename morph group", [=](g2::Patch& p) { edit::setMorphLabel(p, i, label); });
-            }), true);
-        };
+        bar.colour = dialColour(i);
+        bar.onRename = [this, i] { renameMorphGroup(i); };
+        bar.onPress = [this, i] { doc_.setFocusedMorphGroup(i); };
+        bar.onPopup = [this, i] { showMorphDialMenu(i); };
     }
     for (int i = 0; i < 8; ++i) {
         auto& source = setting(morph, Setting::Morph, static_cast<std::uint8_t>(8 + i), Control::Kind::Cycle, {});
-        source.colour = [i] { return ModulePainter::morphColour(i); };
+        source.colour = dialColour(i);
+        source.onPress = [this, i] { doc_.setFocusedMorphGroup(i); };
     }
 
     // Starts collapsed; expanding lasts for the session.
@@ -365,6 +377,85 @@ PatchSettingsBar::PatchSettingsBar(PatchDocument& doc) : doc_(doc)
 PatchSettingsBar::~PatchSettingsBar()
 {
     doc_.removeChangeListener(this);
+}
+
+void PatchSettingsBar::repaintAll()
+{
+    repaint();
+    for (auto* c : controls_)
+        c->repaint();
+}
+
+void PatchSettingsBar::renameMorphGroup(int group)
+{
+    auto* w = new juce::AlertWindow("Rename morph group", "Name (up to 7 characters):", juce::MessageBoxIconType::NoIcon);
+    w->addTextEditor("name", juce::String(edit::morphLabel(doc_.patch(), group)));
+    // 7 characters of the G2 set, as the original's name dialog (CPnlMorphKnob::DoChangeName).
+    if (auto* editor = w->getTextEditor("name"))
+        editor->setInputRestrictions(static_cast<int>(edit::kLabelLength), PatchDocument::allowedNameCharacters());
+    w->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
+    w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    w->enterModalState(true, juce::ModalCallbackFunction::create([this, group, w](int r) {
+        if (r != 1)
+            return;
+        const auto label = w->getTextEditorContents("name").toStdString();
+        doc_.perform("Rename morph group", [=](g2::Patch& p) { edit::setMorphLabel(p, group, label); });
+    }), true);
+}
+
+void PatchSettingsBar::showMorphDialMenu(int group)
+{
+    // CMorphControlMenu @00124a04: Clear Group and Copy To ▸ Group 1-8 (its
+    // own disabled) above the parameter popup's items, without Morph assign.
+    // Both act on the current variation (CMorphControlMenu::HandleMenuSelection
+    // @0012523c). The performance's Global Assign is not offered (G2fresh
+    // has no global knobs yet).
+    namespace am = assignmenus;
+    enum { kClearGroup = 10, kCopyBase = 20, kDefault = 30, kName = 31 };
+    const auto& patch = doc_.patch();
+    constexpr auto loc = g2::Location::Settings;
+    constexpr auto module = static_cast<std::uint8_t>(Setting::Morph);
+    const auto param = static_cast<std::uint8_t>(group);
+    juce::PopupMenu copy;
+    for (int g = 0; g < g2::kMorphGroups; ++g)
+        copy.addItem(kCopyBase + g, "Group " + juce::String(g + 1), g != group);
+    const auto knob = edit::knobOf(patch, loc, module, param);
+    const auto cc = edit::midiCcOf(patch, loc, module, param);
+    const auto ccs = am::ccMenu(patch, loc, module, param);
+
+    juce::PopupMenu menu;
+    menu.addSectionHeader("Morph " + juce::String(group + 1) + "  " + juce::String(edit::morphLabel(patch, group)));
+    menu.addItem(kClearGroup, "Clear Group");
+    menu.addSubMenu("Copy To", copy);
+    menu.addSeparator();
+    menu.addItem(kDefault, "Default Value");
+    menu.addItem(kName, "Edit Name...");
+    menu.addSubMenu("Assign Knob" + (knob ? " (" + juce::String(edit::knobName(*knob)) + ")" : juce::String()),
+                    am::knobMenu(patch, loc, module, param));
+    if (ccs.getNumItems() > 0)
+        menu.addSubMenu("MIDI Controller" + (cc ? " (CC " + juce::String(*cc) + ")" : juce::String()), ccs);
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    menu.showMenuAsync({}, [safe = juce::Component::SafePointer<PatchSettingsBar>(this), group, variation, param](int r) {
+        if (!safe || r <= 0)
+            return;
+        auto& doc = safe->doc_;
+        const auto g = static_cast<std::uint8_t>(group);
+        if (r == kClearGroup) {
+            doc.perform("Clear morph group", [&](g2::Patch& p) { edit::clearMorphGroup(p, variation, g); });
+        } else if (r >= kCopyBase && r < kCopyBase + g2::kMorphGroups) {
+            const auto to = static_cast<std::uint8_t>(r - kCopyBase);
+            doc.perform("Copy morph group", [&](g2::Patch& p) { edit::copyMorphGroup(p, variation, g, to); });
+        } else if (r == kDefault) {
+            if (const auto* def = edit::settingDef(Setting::Morph))
+                doc.perform("Default morph value", [&](g2::Patch& p) {
+                    edit::setSetting(p, Setting::Morph, param, variation, def->params[param].defaultValue);
+                });
+        } else if (r == kName) {
+            safe->renameMorphGroup(group);
+        } else if (am::isAssignItem(r)) {
+            am::apply(doc, r, loc, module, param);
+        }
+    });
 }
 
 void PatchSettingsBar::changeListenerCallback(juce::ChangeBroadcaster*)
@@ -454,6 +545,14 @@ void PatchSettingsBar::paint(juce::Graphics& g)
         g.setColour(kDim);
         g.drawText(group.title, frame.withHeight(static_cast<float>(kCaptionHeight)).translated(7.0f, 2.0f).toNearestInt(),
                    juce::Justification::centredLeft, false);
+    }
+    // The white frame around the focused morph group (manual p92).
+    const auto& morph = groups_.back();
+    const auto focused = static_cast<std::size_t>(doc_.focusedMorphGroup());
+    if (morph.controls.size() >= 16) {
+        const auto card = morph.controls[focused]->getBounds().getUnion(morph.controls[8 + focused]->getBounds());
+        g.setColour(juce::Colours::white);
+        g.drawRoundedRectangle(card.expanded(2).toFloat(), 4.0f, 1.5f);
     }
 }
 

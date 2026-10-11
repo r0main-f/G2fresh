@@ -30,6 +30,8 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
+    // Repaints the bar and every control (after a display setting changes).
+    void repaintAll();
 
     // One knob, menu or toggle bound to a value of the document.
     class Control;
@@ -41,6 +43,9 @@ private:
     };
 
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
+    void renameMorphGroup(int group);
+    // The popup of a toolbar morph dial (CMorphControlMenu).
+    void showMorphDialMenu(int group);
     Control& add(Group& group, std::unique_ptr<Control> c);
 
     juce::String summary() const;

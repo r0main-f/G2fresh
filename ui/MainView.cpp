@@ -31,6 +31,7 @@ enum MenuId {
     kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34,
     // Opt-in deviations from the original editor (View menu).
     kWheelEditsKnobs = 800, kDoubleClickMorph, kDoubleClickReset, kDoubleClickNothing, kShowLoadEstimate,
+    kMorphGroupColours,
 };
 
 juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
@@ -456,6 +457,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         doubleClick.addItem(item(kDoubleClickReset, "Reset to the Default Value", {}, true, dc == KnobDoubleClick::Reset));
         doubleClick.addItem(item(kDoubleClickNothing, "Nothing", {}, true, dc == KnobDoubleClick::Nothing));
         m.addSubMenu("Double-Click on a Knob", doubleClick);
+        m.addItem(item(kMorphGroupColours, "Morph Groups in Eight Colours", {}, true, morphGroupColours()));
         m.addItem(item(kShowLoadEstimate, "Show Load Estimate Offline", {}, true, showLoadEstimate()));
     } else if (name == "Options") {
         if (onAudioSettings)
@@ -496,6 +498,17 @@ void MainView::menuItemSelected(int id, int)
         setKnobDoubleClick(id == kDoubleClickMorph   ? KnobDoubleClick::Morph
                            : id == kDoubleClickReset ? KnobDoubleClick::Reset
                                                      : KnobDoubleClick::Nothing);
+        menuItemsChanged();
+        return;
+    }
+    if (id == kMorphGroupColours) {
+        setMorphGroupColours(!morphGroupColours());
+        setStatus(morphGroupColours()
+                      ? juce::String("Morphed parameters show their group's colour")
+                      : juce::String("Morphed parameters show the focused group, red, and other groups, blue, as in the original editor"));
+        for (auto* a : {&va_, &fx_})
+            a->settingsChanged();
+        settings_.repaintAll();
         menuItemsChanged();
         return;
     }
