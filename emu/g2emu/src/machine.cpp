@@ -147,7 +147,7 @@ struct Machine::Impl final : coldfire::Bus {
     struct UsbHostState {
         bool plugged = false, arrived = false, setupSent = false;
         std::uint64_t plugFrame = 0;
-        std::vector<std::uint8_t> announce, bulk;
+        std::vector<std::uint8_t> bulk;
         std::size_t expect = 0;
         std::deque<std::vector<std::uint8_t>> ints;
     } host;
@@ -836,14 +836,18 @@ struct Machine::Impl final : coldfire::Bus {
                 std::vector<std::uint8_t> d;
                 if(!usb.pollBulkIn(d)) break;
                 usbIrqChanged();
-                const bool shortPacket = !d.empty() && d.size() < 64;
+                // a transfer ends on a short packet, a zero-length one included, as libusb completes it. The OS
+                // usually sends one or more zero-length packets before a message's data, as a real G2 does (two
+                // before most messages in USB captures of a G2X): each is an empty transfer, after which the
+                // client's transport reads again (re/notes/usb-crosscheck.md H1)
+                const bool shortPacket = d.size() < 64;
                 host.bulk.insert(host.bulk.end(), d.begin(), d.end());
                 if(host.bulk.size() >= host.expect || shortPacket)
                 {
-                    delivered.push_back({false, host.announce});
+                    const bool empty = host.bulk.empty();
                     delivered.push_back({true, std::move(host.bulk)});
                     host.bulk.clear();
-                    host.expect = 0;
+                    if(!empty) host.expect = 0;
                 }
                 continue;
             }
@@ -851,12 +855,8 @@ struct Machine::Impl final : coldfire::Bus {
             auto p = std::move(host.ints.front());
             host.ints.pop_front();
             if(p.size() >= 3 && (p[0] & 3) == 1)
-            {
-                host.announce = p;
                 host.expect = std::size_t(p[1]) << 8 | p[2];
-            }
-            else
-                delivered.push_back({false, std::move(p)});
+            delivered.push_back({false, std::move(p)});
         }
         std::deque<std::vector<std::uint8_t>> frames;
         {

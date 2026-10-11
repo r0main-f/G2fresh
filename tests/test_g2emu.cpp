@@ -840,6 +840,9 @@ TEST_CASE("The user's G2 OS: boots, syncs with our client, plays a MIDI note", "
     while(!client.synced() && m.seconds() < 4) step();
     REQUIRE(client.synced());
     CHECK(client.state().version.firmware == 162);  // OS 1.62
+    // the OS sends zero-length packets before its messages, as a real G2 does: the transport read those empty
+    // transfers again (taken as the message, they would have lost the version reply)
+    CHECK(transport.emptyReads() > 0);
 
     g2::Performance perf;
     for(auto& p : perf.slots) p = g2::Patch::makeDefault();
