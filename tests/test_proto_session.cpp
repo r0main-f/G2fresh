@@ -426,13 +426,12 @@ TEST_CASE("session: flash name lists in chunks, load and store")
     CHECK(rig.client.state().slots[1].name == "Far Away");
     CHECK(saved(rig.client.state().slots[1].patch) == saved(corpusPatch("test_3osc.pch2")));
     CHECK(rig.client.state().slots[1].session == rig.emulator.state().slots[1].session);
-    REQUIRE(rig.events.flashResults.size() == 1);
-    CHECK(rig.events.flashResults[0].result == 0);
+    CHECK(rig.events.flashResults.empty()); // a load's result is not shown
 
     rig.client.storeToFlash(1, 5, 9);
     rig.run();
-    REQUIRE(rig.events.flashResults.size() == 2);
-    CHECK(rig.events.flashResults[1].result == 2); // a real G2's "stored"
+    REQUIRE(rig.events.flashResults.size() == 1);
+    CHECK(rig.events.flashResults[0].result == 2); // a real G2's "stored"
     REQUIRE(rig.emulator.flash()[0].count({5, 9}));
     CHECK(rig.emulator.flash()[0][{5, 9}].name == "Far Away");
     // The client reads the name list again: the new entry shows.
@@ -503,7 +502,7 @@ TEST_CASE("session: the synth settings as the Synth Settings window sends them, 
     CHECK(std::string(flashResultText(2)).empty());
     CHECK(std::string(flashResultText(3)) == "Flash memory full");
     CHECK(std::string(flashResultText(5)).empty());
-    CHECK(std::string(flashResultText(6)).empty());
+    CHECK(std::string(flashResultText(6)) == "Flash memory full"); // read as 3 (ReadStream 0x116c4)
 }
 
 TEST_CASE("session: no version reply, then the synth answers")

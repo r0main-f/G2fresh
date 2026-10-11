@@ -84,8 +84,7 @@ public:
         virtual void ledsChanged(int /*slot*/) {}
         virtual void midiLearned(const MidiLearn&) {}
         virtual void error(u8 /*exceptionCode*/) {}
-        // The synth's answer (0D) to storeToFlash or loadFromFlash (result 2 = stored, 0 = loaded;
-        // flashResultText for what went wrong).
+        // The synth's answer to storeToFlash (result 2 = stored; flashResultText for what went wrong).
         virtual void flashResult(const FlashResult&) {}
     };
 

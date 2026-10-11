@@ -654,7 +654,8 @@ Origin: 0 = bank-list window (`CFlashData`), 1 = file transfer (`CFlashDumper`).
 * The OS answers a store with `13` (usage), `16` (the new name) and `0D … 02`. With **Memory Protect on** it answers
   `0D type bank prog origin 04` alone, in the reply to the `0B` (and to a `0C` delete), and stores nothing.
 * Origin 0, `CFlashData::HandleFlashCommandResult` 0x11b062: results 0, 2 and 5 are done; 1 "Can't load from
-  flash", 3 "Flash memory full", 4 "Memory protect on"; any other says nothing. The bank list (`CFlashListView::
+  flash", 3 "Flash memory full", 4 "Memory protect on" (a wire value other than 0, 1, 2, 4 and 5 is read as 3,
+  `CMFlashCommandResult::ReadStream` 0x116c4). The bank list (`CFlashListView::
   Idle` 0x6e44, after a store or a delete from its pop-up menu) and Save In Synth (`CDialogSaveInSynth::Idle`
   0x3dc80) then show the alert `[WARN][Flash Problem]<text>[OK]`: a warning titled "Flash Problem" with one OK
   button. A load's result is not shown (the list does not wait for it).

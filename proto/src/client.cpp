@@ -51,12 +51,14 @@ const char* exceptionText(u8 code)
 
 const char* flashResultText(u8 result)
 {
-    // CFlashData::HandleFlashCommandResult 0x11b062: 0, 2 and 5 are done; others say nothing.
+    // CFlashData::HandleFlashCommandResult 0x11b062: 0, 2 and 5 are done. Any
+    // value the molecule does not know is read as 3 (CMFlashCommandResult::
+    // ReadStream 0x116c4).
     switch (result) {
+    case 0: case 2: case 5: return "";
     case 1: return "Can't load from flash";
-    case 3: return "Flash memory full";
     case 4: return "Memory protect on";
-    default: return "";
+    default: return "Flash memory full";
     }
 }
 
@@ -966,13 +968,10 @@ void Client::loadFromFlash(int slot, u8 bank, u8 prog)
     if (slot < 0 || slot > kSlotSynth)
         return;
     // The answer carries the release (38, or 1F), which reads the slot or the
-    // performance again, and the result (0D), e.g. 1 "Can't load from flash".
-    enqueueUser([slot, bank, prog] { return Bubble::synth({FlashCommand{id::FlashLoad, static_cast<u8>(slot), bank, prog}}); },
-                [this](const std::vector<Molecule>& reply) {
-                    for (const auto& m : reply)
-                        if (const auto* r = std::get_if<FlashResult>(&m); r && listener_)
-                            listener_->flashResult(*r);
-                });
+    // performance again, and a result (0D) the original does not show.
+    enqueueUser([slot, bank, prog] {
+        return Bubble::synth({FlashCommand{id::FlashLoad, static_cast<u8>(slot), bank, prog}});
+    });
 }
 
 void Client::storeToFlash(int slot, u8 bank, u8 prog)

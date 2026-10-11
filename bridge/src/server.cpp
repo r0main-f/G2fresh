@@ -296,11 +296,12 @@ void BridgeServer::execute(Editor& c, Reader& r)
         const int slot = r.u8();
         const auto bank = r.u8(), prog = r.u8();
         if (!r.failed()) {
-            storeOrigins_.push_back(c.id); // each is answered with a result (0D), for that editor
-            if (op == Op::LoadFromFlash)
+            if (op == Op::LoadFromFlash) {
                 l.loadFromFlash(slot, bank, prog);
-            else
+            } else {
+                storeOrigins_.push_back(c.id);
                 l.storeToFlash(slot, bank, prog);
+            }
         }
         break;
     }
