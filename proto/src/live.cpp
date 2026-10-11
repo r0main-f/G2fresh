@@ -127,6 +127,15 @@ std::vector<Molecule> toMolecules(const std::vector<live::Op>& ops)
 
 LiveSlot::LiveSlot(Patch synth, std::string name) : synth_(std::move(synth)), name_(std::move(name)) {}
 
+LiveSlot LiveSlot::uploaded(const Patch& patch, std::string name)
+{
+    try {
+        return LiveSlot(Patch::fromSections(patch.toSections()), std::move(name));
+    } catch (const std::exception&) {
+        return LiveSlot(patch, std::move(name));
+    }
+}
+
 void LiveSlot::apply(const Molecule& m)
 {
     applyToPatch(synth_, m);

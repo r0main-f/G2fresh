@@ -161,7 +161,8 @@ public:
     // the edits in the order they were made.
     void setParam(int slot, Location loc, u8 module, u8 param, u8 value, u8 variation); // realtime 40
     void selectParam(int slot, Location loc, u8 module, u8 param);                    // realtime 2F
-    // Realtime while `dragging`, a normal (acknowledged) 43 on release.
+    // Realtime while `dragging` (what the original's panels always send, §9.2);
+    // else a normal (acknowledged) 43.
     void setMorph(int slot, Location loc, u8 module, u8 param, u8 group, int range, u8 variation, bool dragging);
     void selectVariation(int slot, u8 variation);
     void copyVariation(int slot, u8 from, u8 to);

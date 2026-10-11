@@ -200,7 +200,7 @@ void SynthSync::sendPatch(int slot)
     link_->selectSlot(slot);
     binding_ = Binding::Patch;
     slot_ = slot;
-    live_[static_cast<std::size_t>(slot)] = g2::proto::LiveSlot(doc_.patch(), doc_.name().toStdString());
+    live_[static_cast<std::size_t>(slot)] = g2::proto::LiveSlot::uploaded(doc_.patch(), doc_.name().toStdString());
     ledMap_ = g2ui::ledMap(doc_.patch());
     sendChangeMessage();
 }
@@ -217,7 +217,7 @@ void SynthSync::sendPatchAlone()
                            false);
     binding_ = Binding::Patch;
     slot_ = 0;
-    live_[0] = g2::proto::LiveSlot(doc_.patch(), doc_.name().toStdString());
+    live_[0] = g2::proto::LiveSlot::uploaded(doc_.patch(), doc_.name().toStdString());
     ledMap_ = g2ui::ledMap(doc_.patch());
     sendChangeMessage();
 }
@@ -226,7 +226,7 @@ void SynthSync::bindPerformance()
 {
     binding_ = Binding::Performance;
     for (int s = 0; s < 4; ++s)
-        live_[static_cast<std::size_t>(s)] = g2::proto::LiveSlot(doc_.slotPatch(s), nameFor(s));
+        live_[static_cast<std::size_t>(s)] = g2::proto::LiveSlot::uploaded(doc_.slotPatch(s), nameFor(s));
     sentPerf_ = doc_.performance()->header;
     sentPerfName_ = doc_.performanceName().toStdString();
     sentFocus_ = doc_.slot();
@@ -342,7 +342,7 @@ void SynthSync::push(int docSlot, const g2::live::Edit* edit, bool undo)
         // Modules or cables changed without the original's messages (none of
         // the editor's own edits does that): the whole patch again.
         link_->sendPatch(slot, now, name);
-        live = g2::proto::LiveSlot(now, name);
+        live = g2::proto::LiveSlot::uploaded(now, name);
         return;
     }
     send(slot, out);

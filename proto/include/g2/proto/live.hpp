@@ -45,6 +45,10 @@ public:
 
     LiveSlot() = default;
     LiveSlot(Patch synth, std::string name);
+    // The slot after `patch` was uploaded to it: an upload carries a patch as a
+    // file does, without the Mutator's variation (9), which then follows with
+    // the next change if the editor is on it.
+    static LiveSlot uploaded(const Patch& patch, std::string name);
 
     const Patch& synth() const { return synth_; }
     Patch& synth() { return synth_; } // a change made on the synth

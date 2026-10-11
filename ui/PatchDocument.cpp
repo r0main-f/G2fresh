@@ -82,16 +82,18 @@ bool PatchDocument::perform(const juce::String& name, const std::function<void(g
     g2::Patch next = patch();
     // The edit works on a copy: whatever it throws leaves the document as it
     // was. It records what a synth gets.
-    g2::live::Recorder recorder;
+    g2::live::Edit recorded;
     try {
+        g2::live::Recorder recorder;
         edit(next);
+        recorded = recorder.edit();
     } catch (const std::exception& e) {
         if (error)
             *error = e.what();
         return false;
     }
     undo_.beginNewTransaction(name);
-    auto* step = new Step(*this, slot_, patch(), std::move(next), recorder.edit());
+    auto* step = new Step(*this, slot_, patch(), std::move(next), std::move(recorded));
     if (!undo_.perform(step, name))
         return false;
     lastStep_ = step;
@@ -107,15 +109,17 @@ bool PatchDocument::performCoalesced(const juce::String& key, const std::functio
     }
     // Extend the last step: keep its "before", replace its "after".
     g2::Patch next = patch();
-    g2::live::Recorder recorder;
+    g2::live::Edit recorded;
     try {
+        g2::live::Recorder recorder;
         edit(next);
+        recorded = recorder.edit();
     } catch (const std::exception&) {
         return false;
     }
     lastStep_->setAfter(next);
-    lastStep_->addEdit(recorder.edit());
-    replace(slot_, next, &recorder.edit());
+    lastStep_->addEdit(recorded);
+    replace(slot_, next, &recorded);
     return true;
 }
 

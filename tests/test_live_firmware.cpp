@@ -216,6 +216,7 @@ std::string difference(const std::string& a, const std::string& b)
 // The editor's side: a document with undo, sending each edit as SynthSync does.
 struct Editor
 {
+    explicit Editor(Rig& rig) : g2(rig) {}
     Rig& g2;
     int slot = 0;
     g2::Patch doc;

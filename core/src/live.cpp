@@ -82,8 +82,10 @@ void Edit::moveTail(std::size_t from, std::size_t to)
 
 void Edit::append(const Edit& other)
 {
+    if (other.entries_.empty())
+        return;
+    realtime = entries_.empty() ? other.realtime : realtime && other.realtime;
     entries_.insert(entries_.end(), other.entries_.begin(), other.entries_.end());
-    realtime = realtime && other.realtime;
 }
 
 Recorder::Recorder() : previous_(gCurrent)
