@@ -1351,8 +1351,9 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
 * The DSP clock still counts instructions, not cycles (§3.7.7).
 * Stubs: the I2C ADC (the boot's calibration takes about 1 s against a constant 0x80), the analogue inputs
   (silence), the expansion board's DSPs. The panel is modelled since (§3.10).
-* The flash is erased at power-on unless the caller loads an image (`Machine::flash()`, `g2emurun --flash`); with
-  one, the OS does not format it again; the boot still takes about 1.6 s (the calibration).
+* The flash is erased at power-on unless the caller loads an image (`Machine::loadMemory`, `g2emurun --flash`: the
+  flash, then the EEPROM, §3.10.5); with one, the OS does not format it again; the boot still takes about 1.6 s (the
+  calibration).
 * Not deterministic with threads; deterministic and slower without.
 * macOS hardened runtime: the JIT needs `MAP_JIT` (a host application with the `allow-jit` entitlement); Gearmulator's
   plugins have the same requirement. **Check which DAWs allow it.**
@@ -1729,9 +1730,26 @@ verified on the OS's sound.
 
 ### 3.10.5 What the emulator does differently, and what is unknown
 
-* **MIDI Local is Off with an erased flash.** Variation buttons, KB Hold, octave shift and the keyboard then only
-  go out as MIDI (and the OS sent nothing on MIDI OUT in our runs, so they seem to do nothing). The firmware test sets
-  Local On through the System menu; a UI should keep the flash (`Machine::flash()`) so the setting persists.
+* **The EEPROM (U36) holds the system settings** (2026-10-11). It was not modelled before: the OS's bit-banged reads
+  (PADAT bit 14 SCL, bit 8 SDA, open drain via PADDR [C 0x30053208, 0x3005338E, 0x30053528]) got 0x00 for all 2048
+  bytes, so every setting read 0 (MIDI Local, Ctrl and Prg Chng Off, slots and Global channel 1, no name, Memory
+  Protect Off), and the flash was formatted at every power-on: stored patches and settings never survived a restart,
+  although the plugin kept the flash. `Eeprom` (hw.hpp) models a 24C16 (device byte 0xA0 | block << 1, 16-byte
+  pages, no write time); `Machine::loadMemory`/`memorySnapshot` keep it after the flash.
+  * The OS reads it at power-on into RAM at 0x30268474 [C 0x30053768] and writes back the 16-byte blocks it changed
+    (0x30053BA8). The settings object (pointer at 0x302A7C6C, 0x2E bytes) is built by 0x30023B92 with the OS's own
+    defaults, then loaded from the EEPROM [measured: at 245 ms it holds the defaults, at 1.5 s the EEPROM's values].
+  * **A new (0xFF) EEPROM keeps the built-in defaults** [measured, tests/test_g2emu.cpp]: name "ModularG2", Patch
+    mode, slots A-D on channels 1-4, Global channel 16, SysEx ID All, MIDI Local On, Prg Chng and Ctrl Send & Receive,
+    Send Arp on, Clk Send Off, Clk Recv On, Master Tune 0, octave shift off, Sust Ped Pol Open, Ctrl Ped Gain x1.00,
+    Memory Protect Off; the master clock runs at 120 BPM after power-on. They match the manual's System menu pictures
+    [M p.30-31] except SysEx ID (picture: 16), Clk Recv (picture: Off), Memory Prot (picture: Off; text: On at the
+    factory [M p.39, p.49]) and the Global channel (picture: 16; text: Off at the factory [M p.126]).
+  * A new EEPROM with a used flash (an image G2fresh kept before) keeps the flash's patches.
+  * No factory reset was found: the flash format at power-on (0x3001B674, "INIT FLASH") checks a checksummed word at
+    EEPROM 0x0C and reads no panel key. Not excluded: a key combination elsewhere in the boot.
+  * The plugin gives a new emulated G2 the manual's two factory values once (Global Off, Memory Protect On:
+    `g2emu::factorySettings`), through the Synth Settings message as Clavia's editor sends it.
 * Not modelled: the LCD controller's timing and busy flag (unused), its 4-bit mode and font ROM (a UI draws A00),
   contact bounce, the encoders' detent feel. Rings and LEDs are latched at their strobes: a UI sees exactly what the
   OS last wrote.

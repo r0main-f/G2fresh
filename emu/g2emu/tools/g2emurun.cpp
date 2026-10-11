@@ -538,11 +538,12 @@ int main(int argc, char** argv)
     std::fprintf(stderr, "firmware: OS %d.%02d, CODE %zu bytes at %08x\n", fw.version / 100, fw.version % 100,
                  fw.code()->data.size(), fw.code()->address);
     g2emu::Machine m(fw, opt);
-    // --flash FILE: the synth's flash (patches, settings) from a previous run, saved again at the end
+    // --flash FILE: the synth's memory (the flash's patches, the EEPROM's settings: Machine::loadMemory) from a previous
+    // run, saved again at the end
     if(!flashPath.empty() && std::filesystem::exists(flashPath))
     {
         const auto img = readFile(flashPath);
-        if(img.size() == m.flash().size()) std::copy(img.begin(), img.end(), m.flash().begin());
+        m.loadMemory(img);
         std::fprintf(stderr, "flash: loaded %s\n", flashPath.c_str());
     }
 
@@ -752,8 +753,9 @@ int main(int argc, char** argv)
     if(!wav.empty()) writeWav(wav, wavData, 4, int(g2emu::Machine::FrameRate));
     if(!flashPath.empty())
     {
+        const auto img = m.memorySnapshot();
         std::ofstream f(flashPath, std::ios::binary);
-        f.write(reinterpret_cast<const char*>(m.flash().data()), std::streamsize(m.flash().size()));
+        f.write(reinterpret_cast<const char*>(img.data()), std::streamsize(img.size()));
     }
     if(!json.empty())
     {

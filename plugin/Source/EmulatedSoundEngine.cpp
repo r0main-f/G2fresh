@@ -66,7 +66,7 @@ EmulatedSoundEngine::~EmulatedSoundEngine()
 {
     runner_->stop();
     --running_;
-    const auto& flash = runner_->machine().flash();
+    const auto flash = runner_->machine().memorySnapshot();
     if (saveTo_ == juce::File() || flash == savedFlash_)
         return;
     saveTo_.getParentDirectory().createDirectory();

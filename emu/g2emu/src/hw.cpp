@@ -205,6 +205,153 @@ void Sim::writeUart(Uart& u, std::uint32_t off, std::uint8_t v)
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// The EEPROM on the parallel port
+
+void Sim::eepromLines()
+{
+    const bool scl = r_[0x248] & 0x40;                          // PADAT bit 14
+    const bool sdaMaster = (r_[0x244] & 1) ? (r_[0x248] & 1) : true;  // PADDR bit 8 set: PADAT bit 8 drives
+    eeprom_.lines(scl, sdaMaster);
+}
+
+bool Eeprom::lines(bool scl, bool sdaMaster)
+{
+    const bool sda = sdaMaster && !slaveLow_;
+    if(scl && scl_ && sda != sda_)
+    {
+        if(!sda) start();  // SDA falls while SCL is high
+        else
+        {
+            mode_ = Mode::Idle;  // stop
+            slaveLow_ = false;
+        }
+    }
+    else if(scl && !scl_) rising(sda);
+    else if(!scl && scl_) falling();
+    scl_ = scl;
+    sda_ = sdaMaster && !slaveLow_;
+    return sda_;
+}
+
+void Eeprom::start()
+{
+    mode_ = Mode::Device;
+    bit_ = 0;
+    shift_ = 0;
+    ackPhase_ = false;
+    slaveLow_ = false;
+}
+
+void Eeprom::rising(bool sda)
+{
+    if(mode_ == Mode::Read)
+    {
+        if(ackPhase_) masterAck_ = !sda;
+    }
+    else if(mode_ != Mode::Idle && !ackPhase_ && bit_ < 8)
+    {
+        shift_ = std::uint8_t(shift_ << 1 | (sda ? 1 : 0));
+        ++bit_;
+    }
+}
+
+void Eeprom::falling()
+{
+    auto next = [this] {  // the next byte out, its first bit on SDA
+        out_ = mem_[addr_];
+        slaveLow_ = !(out_ & 0x80);
+        bit_ = 1;
+    };
+    if(mode_ == Mode::Idle) return;
+    if(mode_ == Mode::Read)
+    {
+        if(ackPhase_)
+        {
+            ackPhase_ = false;
+            if(readStart_)  // our acknowledge of the device byte: the first byte, from the current address
+            {
+                readStart_ = false;
+                next();
+            }
+            else if(masterAck_)
+            {
+                addr_ = std::uint16_t((addr_ + 1) & (Size - 1));
+                next();
+            }
+            else
+            {
+                slaveLow_ = false;  // the master's last byte: it stops next
+                mode_ = Mode::Idle;
+            }
+        }
+        else if(bit_ < 8) slaveLow_ = !(out_ & (0x80 >> bit_++));
+        else
+        {
+            slaveLow_ = false;  // the master acknowledges
+            ackPhase_ = true;
+        }
+        return;
+    }
+    if(ackPhase_)  // the acknowledge's clock is over
+    {
+        ackPhase_ = false;
+        slaveLow_ = false;
+        bit_ = 0;
+        shift_ = 0;
+        return;
+    }
+    if(bit_ < 8) return;
+    bool ack = true;
+    switch(mode_)
+    {
+    case Mode::Device:
+        if((shift_ & 0xF0) != 0xA0) ack = false;
+        else if(shift_ & 1)
+        {
+            mode_ = Mode::Read;  // reads go on from the current address
+            readStart_ = true;
+        }
+        else
+        {
+            block_ = std::uint8_t((shift_ >> 1) & 7);
+            mode_ = Mode::Word;
+        }
+        break;
+    case Mode::Word:
+        addr_ = std::uint16_t(block_ << 8 | shift_);
+        mode_ = Mode::Write;
+        break;
+    case Mode::Write:
+        while(busy_.test_and_set(std::memory_order_acquire)) {}
+        mem_[addr_] = shift_;
+        busy_.clear(std::memory_order_release);
+        changes_.fetch_add(1, std::memory_order_acq_rel);
+        addr_ = std::uint16_t((addr_ & ~15u) | ((addr_ + 1) & 15u));  // within the 16-byte page
+        break;
+    default: break;
+    }
+    if(!ack)
+    {
+        mode_ = Mode::Idle;
+        return;
+    }
+    slaveLow_ = true;  // acknowledged during the next clock
+    ackPhase_ = true;
+}
+
+std::vector<std::uint8_t> Eeprom::snapshot() const
+{
+    while(busy_.test_and_set(std::memory_order_acquire)) {}
+    std::vector<std::uint8_t> copy(mem_.begin(), mem_.end());
+    busy_.clear(std::memory_order_release);
+    return copy;
+}
+
+void Eeprom::load(const std::uint8_t* data, std::size_t n)
+{
+    std::copy_n(data, std::min(n, Size), mem_.begin());
+}
+
 // I2C (IADR 0x280, IFDR 0x284, I2CR 0x288, I2SR 0x28C, I2DR 0x290)
 
 std::uint8_t Sim::readI2c(std::uint32_t off)
@@ -276,6 +423,8 @@ std::uint32_t Sim::read(std::uint32_t off, int size)
             const int sh = o == 0x248 ? 8 : 0;
             const auto mask = std::uint8_t(gpioInMask_ >> sh);
             b = std::uint8_t((b & ~mask) | (std::uint8_t(gpioIn_ >> sh) & mask));
+            if(o == 0x248 && !(r_[0x244] & 1))  // SDA released: the line as the EEPROM leaves it
+                b = std::uint8_t((b & ~1u) | (eeprom_.sda(true) ? 1u : 0u));
         }
         if(o >= IPR && o < IPR + 4)
         {
@@ -305,6 +454,7 @@ void Sim::write(std::uint32_t off, int size, std::uint32_t value)
                 writeUart(uart_[i], o - UartBase[i], b);
         if(o >= 0x280 && o < 0x2A0) writeI2c(o, b);
     }
+    if(off < 0x24A && off + std::uint32_t(size) > 0x244) eepromLines();  // PADDR, PADAT
     // timers: whole registers
     for(int i = 0; i < 2; ++i)
     {

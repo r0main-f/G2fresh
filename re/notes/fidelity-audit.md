@@ -22,6 +22,10 @@ carry Out 1/2 only).
 5. Emulated G2X has a G2's polyphony: the expansion board's 4 DSPs are stubs (measured: 3 voices where 32 are asked). (A)
 6. The emulated G2 starts from an erased memory, not a factory G2: MIDI Ctrl off (CC7 and assigned CCs ignored), all
    slots on channel 1, program change off, memory protect off, no factory patches. (A)
+   **Closed 2026-10-11, except the factory patches:** the zeros came from the unmodelled EEPROM, which also made the
+   OS format the flash at every power-on. With it modelled, a new G2 has the OS's own defaults (Local On, slots 1-4,
+   Ctrl and Prg Chng Send & Receive), and the plugin sets the manual's Global Off and Memory Protect On once
+   (g2-hardware-and-emulation.md §3.10.5). The rows below that cite "Erased flash" values predate this.
 7. MIDI CC assignment allows any CC (bank select, mod wheel, sustain, 7, 17...), silently replacing fixed mappings. (B)
 8. Module placement and overlap resolution differ (groups split, unrelated modules moved, Fx-In in the voice area). (B)
 9. Sequencer Clr/Rnd buttons latch at 1 (and are saved) instead of acting momentarily. (B)

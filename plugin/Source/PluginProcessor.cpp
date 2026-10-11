@@ -109,11 +109,12 @@ void G2EditorProcessor::applySynthSettings()
         return;
     auto settings = link->state().settings;
     bool change = false;
-    // A G2 leaves the factory with MIDI Local On (the manual's System menu); an erased flash boots with it Off, and
-    // the panel's keys would then only go out as MIDI. So on a fresh (erased) memory only: a memory in use keeps
-    // what its user set.
-    if (emulatedFresh_ && !settings.localOn) {
-        settings.localOn = true;
+    // A new emulated G2 starts with the OS's own system settings. It gets those a G2 leaves the factory with once,
+    // sent as Clavia's editor sends them (g2emu::factorySettings: Global channel Off, Memory Protect On); the OS
+    // stores them in its EEPROM. A memory in use keeps what its user set.
+    if (emulatedFresh_) {
+        emulatedFresh_ = false;
+        settings = g2emu::factorySettings(settings);
         change = true;
     }
     // Following the host's tempo (opt-in) needs the G2 to follow an external clock.
@@ -214,7 +215,10 @@ void G2EditorProcessor::timerCallback()
         synth_.restartLink();
         return;
     }
-    // The OS changed the flash (a stored patch, a setting): into the state once it is quiet for a second.
+    // The OS changed the flash (a stored patch, a setting): into the state once it is quiet for a second. Not before a
+    // new G2 got its factory settings: until then the project keeps the empty memory, so that they still apply.
+    if (emulatedFresh_)
+        return;
     const auto changes = static_cast<EmulatedSoundEngine&>(*emulated_).flashChanges();
     if (changes == flashSeen_) {
         flashQuiet_ = 0;
@@ -259,7 +263,7 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
         // The stand-alone app keeps its flash in a file; a plugin instance in the host's project.
         const auto saveTo = wrapperType == wrapperType_Standalone ? EmulatedSoundEngine::defaultFlashFile() : juce::File();
         auto flash = startingFlash();
-        emulatedFresh_ = std::all_of(flash.begin(), flash.end(), [](std::uint8_t b) { return b == 0xff; }); // empty too
+        emulatedFresh_ = g2emu::newMemory(flash);
         engine = std::make_unique<EmulatedSoundEngine>(fw, std::move(flash), saveTo);
     } catch (const std::exception& e) {
         return juce::String("the emulated G2 cannot start: ") + e.what();
