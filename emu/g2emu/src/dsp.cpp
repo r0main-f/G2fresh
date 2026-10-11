@@ -5,6 +5,8 @@
 #include "dsp56kEmu/jitconfig.h"
 #include "dsp56kEmu/jittrampoline.h"
 
+#include "asmjit/core/jitallocator.h"
+
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
@@ -21,6 +23,20 @@ struct ClockAccess : EsxiClock {
     static std::uint64_t lastClock(const EsxiClock& c) { return (c.*(&ClockAccess::getLastClock))(); }
 };
 } // namespace
+
+bool Dsp::canGenerateCode()
+{
+    // as the library's JitRuntime gets the memory for its code
+    static const bool can = [] {
+        asmjit::JitAllocator allocator;
+        void* rx = nullptr;
+        void* rw = nullptr;
+        if(allocator.alloc(&rx, &rw, 64) != asmjit::kErrorOk) return false;
+        allocator.release(rx);
+        return true;
+    }();
+    return can;
+}
 
 Dsp::Dsp(int index, Options options) : index_(index), options_(options)
 {

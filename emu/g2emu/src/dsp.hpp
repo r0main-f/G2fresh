@@ -80,6 +80,11 @@ public:
         dsp56k::TWord first = 0x222, last = 0x22A, counter = 0x43, limit = 3;
     };
 
+    // Whether this process may generate code at run time, as the library's JIT does (for the DSPs' interrupts too
+    // when they run on the interpreter). Not in a macOS program signed with the hardened runtime and neither the
+    // allow-jit nor the allow-unsigned-executable-memory entitlement; a plugin lives by its host's entitlements.
+    static bool canGenerateCode();
+
     Dsp(int index, Options options);
     ~Dsp();
     Dsp(const Dsp&) = delete;

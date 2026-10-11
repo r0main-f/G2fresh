@@ -304,6 +304,15 @@ struct Machine::Impl final : coldfire::Bus {
         panelHw.setModel(opt.model == PanelModel::G2X ? 3 : opt.model == PanelModel::G2Engine ? 2 : 0);
         sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
         load(fw);
+        // Without this the library's JIT leaves its entry points null and the first DSP step jumps to address 0: in a
+        // plugin that takes the host down with it.
+        if(!Dsp::canGenerateCode())
+            throw std::runtime_error("this program may not generate code at run time, which the emulated DSPs need"
+#ifdef __APPLE__
+                                     " (macOS: the app, or the plugin's host, is signed with the hardened runtime and"
+                                     " without the allow-jit or allow-unsigned-executable-memory entitlement)"
+#endif
+            );
         Dsp::Options dopt;
         dopt.jit = opt.jit;
         dopt.idleSkip = opt.idleSkip;
