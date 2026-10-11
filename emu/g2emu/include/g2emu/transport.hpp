@@ -35,14 +35,21 @@ public:
         Machine::UsbIn in;
         while(machine_.usbTake(in))
         {
-            if(in.bulk) sink_->bulkIn(in.data);
+            // an empty bulk-IN transfer is not the message: read again, as g2::usb::LibusbTransport does (the
+            // machine's host goes on polling)
+            if(in.bulk && in.data.empty()) ++emptyReads_;
+            else if(in.bulk) sink_->bulkIn(in.data);
             else sink_->interruptPacket(in.data);
         }
     }
 
+    // Empty bulk-IN transfers read again so far.
+    std::size_t emptyReads() const { return emptyReads_; }
+
 private:
     Machine& machine_;
     bool announced_ = false;
+    std::size_t emptyReads_ = 0;
 };
 
 // A memory image (Machine::loadMemory) the OS starts a new G2 from: no EEPROM content (none yet, or an image from

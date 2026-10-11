@@ -101,7 +101,9 @@ public:
     bool usbArrived() const;
     // One bulk-OUT transfer (a protocol frame).
     void usbSend(std::span<const std::uint8_t> frame);
-    // Device -> host traffic, oldest first: interrupt packets (bulk = false) and the bulk-IN transfers they announce.
+    // Device -> host traffic, oldest first: interrupt packets (bulk = false) and the bulk-IN transfers they announce,
+    // as libusb completes them: usually one or more empty transfers (zero-length packets, as a real G2 sends them)
+    // before the one with the data.
     struct UsbIn {
         bool bulk = false;
         std::vector<std::uint8_t> data;

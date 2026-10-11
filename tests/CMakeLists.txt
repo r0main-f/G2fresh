@@ -49,6 +49,16 @@ target_compile_definitions(g2tests PRIVATE G2_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE
 include(Catch)
 catch_discover_tests(g2tests)
 
+# The libusb transport as it is, on a scripted libusb (fake_libusb.cpp) instead of the real one: no hardware needed.
+if(TARGET g2usb)
+  add_executable(g2usbtests test_usb_transport.cpp fake_libusb.cpp ${PROJECT_SOURCE_DIR}/usb/src/libusb_transport.cpp)
+  target_include_directories(g2usbtests PRIVATE ${PROJECT_SOURCE_DIR}/usb/include)
+  target_include_directories(g2usbtests SYSTEM PRIVATE $<TARGET_PROPERTY:usb-1.0,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_link_libraries(g2usbtests PRIVATE g2proto Catch2::Catch2WithMain)
+  target_compile_definitions(g2usbtests PRIVATE G2_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus")
+  catch_discover_tests(g2usbtests)
+endif()
+
 # Checks that need Python: the generated module database is in sync with
 # data/*.json, and the reference decoder round-trips the corpus.
 find_package(Python3 COMPONENTS Interpreter)
