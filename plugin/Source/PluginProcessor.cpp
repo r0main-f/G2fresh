@@ -276,6 +276,10 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
     refreshState();
     return {};
 }
+#else
+// Without the emulator: no emulated G2 to keep or set up.
+void G2EditorProcessor::timerCallback() {}
+void G2EditorProcessor::applySynthSettings() {}
 #endif
 
 #if G2FRESH_EMULATOR
@@ -287,6 +291,7 @@ void G2EditorProcessor::emulatorMidi(std::span<const std::uint8_t> bytes)
 }
 #endif
 
+#if G2FRESH_EMULATOR
 namespace {
 
 // The Live view's panel (ui/G2Panel.h) <-> the emulated panel (g2emu/panel.hpp).
@@ -434,6 +439,7 @@ bool G2EditorProcessor::panelKey(int midiNote, bool down, float velocity)
     static_cast<EmulatedSoundEngine&>(*emulated_).machine().panelKey(key, down, std::clamp(static_cast<int>(std::lround(velocity * 127)), 1, 127));
     return true;
 }
+#endif
 
 void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
