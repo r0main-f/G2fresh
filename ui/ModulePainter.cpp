@@ -122,6 +122,17 @@ void drawButtonBox(juce::Graphics& g, juce::Rectangle<int> r, bool on, bool high
     }
 }
 
+// A morphed button's face takes the group colour, as the original's rotating
+// buttons do (CPnlRotateButtonABC::UpdateGraphics: kBtnFaceGroup1 or 3).
+void drawMorphFace(juce::Graphics& g, juce::Rectangle<float> r, const MorphLook& morph, bool on, float radius)
+{
+    if (morph.colourGroup < 0)
+        return;
+    const auto face = ModulePainter::morphColour(morph.colourGroup);
+    g.setColour(on ? face.darker(0.45f) : face);
+    g.fillRoundedRectangle(r, radius);
+}
+
 void drawLabel(juce::Graphics& g, juce::Rectangle<int> r, const juce::String& text, juce::Colour colour)
 {
     g.setColour(colour);
@@ -495,6 +506,8 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
     if (e.kind == "ButtonText" || e.kind == "TextEdit") {
         const bool on = v.value_or(0) != 0;
         drawButtonBox(g, r, on, highlighted);
+        if (e.kind == "ButtonText")
+            drawMorphFace(g, r.reduced(1).toFloat(), morphLook(c, e.codeRef), on, 0.0f);
         if (e.image.isValid())
             g.drawImageAt(e.image, r.getCentreX() - e.image.getWidth() / 2, r.getCentreY() - e.image.getHeight() / 2);
         else
@@ -503,6 +516,8 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
     }
     if (e.kind == "ButtonFlat" || e.kind == "LevelShift") {
         drawButtonBox(g, r, false, highlighted);
+        if (e.kind == "ButtonFlat")
+            drawMorphFace(g, r.reduced(1).toFloat(), morphLook(c, e.codeRef), false, 0.0f);
         const int val = v.value_or(0);
         if (e.image.isValid() && e.imageCount > 0) {
             const int fh = e.image.getHeight();
@@ -824,6 +839,8 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
     if (e.kind == "ButtonText" || e.kind == "TextEdit") {
         const bool on = v.value_or(0) != 0;
         roundedButton(g, r, on, highlighted);
+        if (e.kind == "ButtonText")
+            drawMorphFace(g, r.reduced(1.0f), morphLook(c, e.codeRef), on, 2.5f);
         if (e.image.isValid()) {
             drawGlyph(g, e.image, 0, e.image.getWidth(), r.getCentre(), on ? juce::Colours::white : kInk);
         } else {
@@ -833,6 +850,8 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
     }
     if (e.kind == "ButtonFlat" || e.kind == "LevelShift") {
         roundedButton(g, r, false, highlighted);
+        if (e.kind == "ButtonFlat")
+            drawMorphFace(g, r.reduced(1.0f), morphLook(c, e.codeRef), false, 2.5f);
         const int val = v.value_or(0);
         if (e.image.isValid() && e.imageCount > 0)
             drawGlyph(g, e.image, juce::jlimit(0, e.imageCount - 1, val), e.imageWidth, r.getCentre(), kInk);

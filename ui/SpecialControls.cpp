@@ -338,6 +338,69 @@ void SpecialControls::paint(juce::Graphics& g, const ModuleContext& c, const Pan
     }
 }
 
+namespace {
+
+// CSeqSliderGUI::Draw @0007fd86 for a morphed step, in the Classic look: the
+// key strip of bitmap 0xD01 (the step is in the focused group) or 0xD03
+// (only in other groups) instead of 874, with the rows of the focused
+// group's range taken from 0xD02, as the original copies them (including
+// its source offsets when the step is outside the window). False if the
+// bitmaps are missing.
+bool paintClassicMorphed(juce::Graphics& g, juce::Rectangle<int> r, const sp::NoteSeqWindow& w, int value,
+                         const MorphLook& morph)
+{
+    const auto strip = Skin::get().smtb(morph.colourGroup == 0 ? 0xD01 : 0xD03);
+    const auto band = Skin::get().smtb(0xD02);
+    if (!strip.isValid() || !band.isValid())
+        return false;
+    const int sx = w.bitmapX(), res = w.pixels;
+    auto blit = [&](const juce::Image& img, int dstY, int srcY, int h) {
+        if (h > 0)
+            g.drawImage(img, r.getX(), r.getY() + dstY, 11, h, sx, srcY, 11, h);
+    };
+    juce::Graphics::ScopedSaveState state(g);
+    g.reduceClipRegion(r);
+    // The range from the step's note to where the focused group takes it
+    // (CSeqSliderGUI::SetMorphStartValue / SetMorphEndValue clip to 0..127).
+    const int end = juce::jlimit(0, 127, value + morph.range.value_or(0));
+    const int markerTop = w.markerTop(value), markerBottom = markerTop + res;
+    int bandTop, bandBottom;
+    if (value < end) {
+        bandTop = std::max(0, markerTop - (end - value) * res);
+        bandBottom = markerTop;
+    } else {
+        bandTop = markerBottom;
+        bandBottom = markerBottom - (end - value) * res;
+    }
+    if (w.below(value)) {
+        blit(strip, 0, 0, 70);
+        if (bandTop < 70)
+            blit(band, bandTop, 0, 70);
+        blit(strip, 70, 82, 5);
+        return true;
+    }
+    if (w.above(value)) {
+        blit(strip, 0, 75, 5);
+        if (bandBottom <= 5) {
+            blit(strip, 5, 5, 75);
+        } else {
+            blit(band, 5, 5, bandTop);
+            blit(band, bandTop, 0, 75);
+        }
+        return true;
+    }
+    const int belowMarker = (value - w.low) * res;
+    blit(strip, 0, 0, bandTop);
+    blit(band, bandTop, bandTop, markerTop - bandTop);
+    blit(band, markerBottom, markerBottom, bandBottom - markerBottom);
+    blit(strip, bandBottom, bandBottom, belowMarker - (bandBottom - markerBottom));
+    g.setColour(juce::Colours::black);
+    g.fillRect(r.getX(), r.getY() + markerTop, 11, res);
+    return true;
+}
+
+} // namespace
+
 void SpecialControls::paintSeqSlider(juce::Graphics& g, const ModuleContext& c, const PanelElement& e,
                                      bool highlighted)
 {
@@ -351,6 +414,13 @@ void SpecialControls::paintSeqSlider(juce::Graphics& g, const ModuleContext& c, 
     const auto morph = ModulePainter::morphLook(c, e.codeRef);
 
     if (c.look == Look::Classic) {
+        if (morph.colourGroup >= 0 && !morphGroupColours() && paintClassicMorphed(g, r, w, value, morph)) {
+            if (highlighted) {
+                g.setColour(juce::Colours::red);
+                g.drawRect(r);
+            }
+            return;
+        }
         // CSeqSliderGUI::Draw: bitmap 874's column for the zoom (key stripes,
         // arrows below row 75) and a black marker on the value.
         const auto strip = Skin::get().jpeg(874);

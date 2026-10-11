@@ -83,8 +83,8 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - The Live view keeps the G2X's layout but not its look. A mouse can hold only one button, so Option-click latches a button, a click on Shift holds it until the next button, and Shift on the computer keyboard holds Shift during a click.
 
 **Editor: what it shows**
-- G2fresh's own look: colours, the animated cables, the sequencer's morph band in the Classic look (the original's bitmaps are not bundled), an amber load threshold, the settings bar (its morph dials are focused by a click on their card), the drum preset menu, the white cable colour.
-- Morphed buttons, and sliders in the Classic look, show no morph colour or range (the original colours them).
+- G2fresh's own look: colours, the animated cables, an amber load threshold, the settings bar (its morph dials are focused by a click on their card), the drum preset menu, the white cable colour.
+- Morphed sliders in the Classic look and morphed increment/decrement buttons show no morph colour (the original colours them).
 - The morph dial's pop-up has no Global Assign (no global knobs yet).
 - Additions with no original equivalent: zoom, cable highlight and Delete, cable bend points (saved next to the patch, never in it), USB log redaction, MIDI output forwarding.
 

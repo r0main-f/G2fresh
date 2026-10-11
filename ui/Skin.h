@@ -94,6 +94,8 @@ public:
     juce::Image tintedFace(int resId, juce::Colour colour) const;
     // A small JPEG sprite; invalid if missing.
     juce::Image jpeg(int resId) const;
+    // An SMTB bitmap (the note sequencer's morph strips); invalid if missing.
+    juce::Image smtb(int resId) const;
 
 private:
     Skin();

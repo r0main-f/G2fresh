@@ -176,6 +176,8 @@ juce::Image Skin::sprite(int resId, int frameWidth) const
 }
 juce::Image Skin::jpeg(int resId) const { return load(juce::String(resId) + ".jpg"); }
 
+juce::Image Skin::smtb(int resId) const { return load(juce::String(resId) + ".png"); }
+
 juce::PropertiesFile& userSettings()
 {
     static juce::PropertiesFile file([] {
