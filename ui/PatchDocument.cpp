@@ -160,6 +160,7 @@ void PatchDocument::loadPatch(const g2::Patch& patch, const juce::String& name)
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch_.header.activeVariation));
     dirty_ = false;
     loadReport_.clear();
+    convertedFrom_ = 0;
     sendChangeMessage();
 }
 
@@ -172,6 +173,7 @@ void PatchDocument::loadPerformance(const g2::Performance& perf)
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch().header.activeVariation));
     dirty_ = false;
     loadReport_.clear();
+    convertedFrom_ = 0;
     sendChangeMessage();
 }
 
@@ -233,6 +235,14 @@ void PatchDocument::markSaved()
             const auto bytes = saveBytes();
             differs = !file_.loadFileAsData(onDisk) || onDisk.getSize() != bytes.size()
                    || std::memcmp(onDisk.getData(), bytes.data(), bytes.size()) != 0;
+            // An old file not saved since it was converted: the document is
+            // what the file converts to.
+            if (differs && convertedFrom_ != 0 && onDisk.getSize() > 0) {
+                const auto* p = static_cast<const std::uint8_t*>(onDisk.getData());
+                const auto converted = g2::load(std::vector<std::uint8_t>(p, p + onDisk.getSize()), {true});
+                const auto* perf = std::get_if<g2::Performance>(&converted.content);
+                differs = (perf ? g2::savePerformance(*perf) : g2::savePatch(std::get<g2::Patch>(converted.content))) != bytes;
+            }
         } catch (const std::exception&) {
             differs = true;
         }
@@ -272,6 +282,7 @@ void PatchDocument::newPatch()
     name_ = "New patch";
     dirty_ = false;
     loadReport_.clear();
+    convertedFrom_ = 0;
     sendChangeMessage();
 }
 
@@ -292,6 +303,7 @@ void PatchDocument::newPerformance()
     variation_ = 0;
     file_ = juce::File();
     dirty_ = false;
+    convertedFrom_ = 0;
     sendChangeMessage();
 }
 
@@ -309,6 +321,7 @@ void PatchDocument::loadBytes(const std::vector<std::uint8_t>& bytes, bool ignor
     auto loaded = g2::load(bytes, {ignoreChecksum});
     resetHistory();
     embeddedNameFiltered_ = false;
+    convertedFrom_ = loaded.convertedFrom;
     if (auto* perf = std::get_if<g2::Performance>(&loaded.content)) {
         perf_ = std::move(*perf);
         slot_ = juce::jlimit(0, 3, static_cast<int>(perf_->header.focusedSlot));

@@ -1046,7 +1046,14 @@ void MainView::loadFile(const juce::File& f, bool ignoreChecksum)
             doc_.applyLayoutJson(layout.loadFileAsString());
         recent_.addFile(f);
         userSettings().setValue("recentFiles", recent_.toString());
-        setStatus("Opened " + f.getFileName() + (ignoreChecksum ? " (checksum ignored)" : ""));
+        // The original converts an old file silently (it asks only when it is
+        // saved); G2fresh also says so here.
+        juce::StringArray notes;
+        if (doc_.convertedFrom() != 0)
+            notes.add("converted from version " + juce::String(doc_.convertedFrom()));
+        if (ignoreChecksum)
+            notes.add("checksum ignored");
+        setStatus("Opened " + f.getFileName() + (notes.isEmpty() ? juce::String() : " (" + notes.joinIntoString(", ") + ")"));
         updateToolbar();
         // The original repairs what it cannot load as it is, and says so.
         if (const auto report = doc_.loadReport(); report.isNotEmpty())
@@ -1076,42 +1083,67 @@ juce::String MainView::suggestedFileName() const
     return name.isEmpty() ? juce::String("No name") : name;
 }
 
+void MainView::saveTo(const juce::File& f)
+{
+    // A patch converted from an old version when it was opened: the original
+    // asks first, whichever way it is saved (CPatch::SaveToFile @000da3f4 ->
+    // CFilePortUtils::ConvertAlert @000308c4, "[WARN][Convert File]File will
+    // be converted to new format.[Cancel][OK]"). Cancel saves nothing; OK
+    // saves in the current format, and the question is not asked again.
+    if (doc_.conversionPending()) {
+        juce::AlertWindow::showOkCancelBox(
+            juce::MessageBoxIconType::WarningIcon, "Convert File", "File will be converted to new format.", "OK",
+            "Cancel", this,
+            juce::ModalCallbackFunction::create([safe = juce::Component::SafePointer<MainView>(this), f](int r) {
+                if (safe == nullptr || r != 1)
+                    return;
+                safe->doc_.conversionDone();
+                safe->writeFile(f);
+            }));
+        return;
+    }
+    writeFile(f);
+}
+
+void MainView::writeFile(const juce::File& f)
+{
+    std::vector<std::uint8_t> bytes;
+    try {
+        bytes = doc_.saveBytes();
+    } catch (const std::exception& e) {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Cannot save patch", e.what(), {},
+                                               this);
+        return;
+    }
+    if (f.replaceWithData(bytes.data(), bytes.size())) {
+        // Cable shapes go to the layout file beside the patch; without
+        // bent cables an old layout file is removed.
+        const auto layout = cablelayout::fileFor(f);
+        if (const auto json = doc_.layoutJson(); json.isNotEmpty())
+            layout.replaceWithText(json);
+        else if (layout.existsAsFile())
+            layout.deleteFile();
+        const auto name = doc_.name();
+        doc_.setFile(f);
+        if (doc_.isPerformance())
+            doc_.setName(name);
+        doc_.conversionDone(); // the file is in the current format now
+        doc_.markSaved();
+        recent_.addFile(f);
+        userSettings().setValue("recentFiles", recent_.toString());
+        setStatus("Saved " + f.getFileName());
+    } else {
+        setStatus("Cannot write " + f.getFullPathName());
+    }
+}
+
 void MainView::save(bool saveAs)
 {
-    auto write = [this](const juce::File& f) {
-        std::vector<std::uint8_t> bytes;
-        try {
-            bytes = doc_.saveBytes();
-        } catch (const std::exception& e) {
-            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Cannot save patch",
-                                                   e.what(), {}, this);
-            return;
-        }
-        if (f.replaceWithData(bytes.data(), bytes.size())) {
-            // Cable shapes go to the layout file beside the patch; without
-            // bent cables an old layout file is removed.
-            const auto layout = cablelayout::fileFor(f);
-            if (const auto json = doc_.layoutJson(); json.isNotEmpty())
-                layout.replaceWithText(json);
-            else if (layout.existsAsFile())
-                layout.deleteFile();
-            const auto name = doc_.name();
-            doc_.setFile(f);
-            if (doc_.isPerformance())
-                doc_.setName(name);
-            doc_.markSaved();
-            recent_.addFile(f);
-            userSettings().setValue("recentFiles", recent_.toString());
-            setStatus("Saved " + f.getFileName());
-        } else {
-            setStatus("Cannot write " + f.getFullPathName());
-        }
-    };
     // A patch saved under a new name goes to a new file.
     const bool renamed = !doc_.isPerformance() && doc_.file() != juce::File()
                          && doc_.file().getFileNameWithoutExtension() != doc_.name();
     if (!saveAs && !renamed && doc_.file() != juce::File()) {
-        write(doc_.file());
+        saveTo(doc_.file());
         return;
     }
     const auto ext = doc_.fileExtension();
@@ -1124,11 +1156,11 @@ void MainView::save(bool saveAs)
                                                    suggested, "*" + ext);
     chooser_->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
                               | juce::FileBrowserComponent::warnAboutOverwriting,
-                          [write, ext](const juce::FileChooser& fc) {
+                          [this, ext](const juce::FileChooser& fc) {
                               auto f = fc.getResult();
                               if (f == juce::File())
                                   return;
-                              write(f.hasFileExtension(ext) ? f : f.withFileExtension(ext));
+                              saveTo(f.hasFileExtension(ext) ? f : f.withFileExtension(ext));
                           });
 }
 

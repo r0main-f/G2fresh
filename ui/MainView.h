@@ -100,6 +100,10 @@ private:
     void updateToolbar();
     void setStatus(const juce::String& s) { status_.setText(s, juce::dontSendNotification); }
     void loadFile(const juce::File& f, bool ignoreChecksum = false);
+    // Saves the document to `f`, asking first if it was converted from an old
+    // version (see saveTo in MainView.cpp); writeFile writes it.
+    void saveTo(const juce::File& f);
+    void writeFile(const juce::File& f);
     // The file name Save suggests for the document's name.
     juce::String suggestedFileName() const;
     void setLook(Look look);
