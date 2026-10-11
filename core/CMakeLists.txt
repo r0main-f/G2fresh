@@ -13,6 +13,7 @@ add_library(g2core STATIC
   src/uprate.cpp
   src/crc.cpp
   src/edit.cpp
+  src/cables.cpp
   src/param_text.cpp
   src/graphs.cpp
 )

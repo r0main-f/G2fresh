@@ -277,8 +277,14 @@ TEST_CASE("cable bend points are editor-only")
     CHECK(savePatch(p) == original);     // nothing reaches the .pch2
 
     // Copy/paste and colour changes keep the bend; removing it restores the curve.
-    edit::setCableColor(p, Location::Va, cable, CableColor::White);
-    CHECK(p.va.cables.front().bend);
+    edit::recolorChain(p, Location::Va, edit::lowerEnd(p, Location::Va, cable), CableColor::Green);
+    const auto recoloured = std::find_if(p.va.cables.begin(), p.va.cables.end(), [&](const Cable& c) {
+        return c.fromModule == cable.fromModule && c.fromConn == cable.fromConn && c.toModule == cable.toModule
+            && c.toConn == cable.toConn;
+    });
+    REQUIRE(recoloured != p.va.cables.end());
+    CHECK(recoloured->color == CableColor::Green);
+    CHECK(recoloured->bend);
     edit::clearCableBends(p);
     CHECK_FALSE(edit::hasCableBends(p));
     CHECK_THROWS_AS(edit::setCableBend(p, Location::Fx, Cable{CableColor::Red, 99, 0, true, 98, 0, std::nullopt},
