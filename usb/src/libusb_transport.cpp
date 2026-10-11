@@ -416,11 +416,9 @@ std::string LibusbTransport::lastError() const
 
 bool LibusbTransport::send(std::span<const std::uint8_t> frame)
 {
-    if (frame.size() > kMaxSendFrame) {
-        impl_->setError("not sent: a message of " + std::to_string(frame.size()) + " bytes, above the "
-                        + std::to_string(kMaxSendFrame) + " a G2 takes safely (one of about 34 KB hangs it)");
-        return false;
-    }
+    if (frame.size() > kMaxSendFrame)
+        impl_->setError("sending a message of " + std::to_string(frame.size()) + " bytes, above "
+                        + std::to_string(kMaxSendFrame) + ": a G2 was seen to hang on one of about 34 KB");
     const std::lock_guard lock(impl_->deviceMutex);
     if (!impl_->handle)
         return false;

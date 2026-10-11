@@ -103,7 +103,6 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - Unsaved changes: G2fresh asks "Discard changes?" before New, Open, Get Patch and Quit. The original never asks and drops unsaved patches.
 - The stand-alone app restores the last session at startup (the original starts empty). Edits never saved to a file stay marked edited; "Discard" at Quit returns to the file as saved, or to a new patch.
 - Also kept as safety checks: a confirmation before overwriting a stored patch, "Open anyway" for a file with a bad checksum, messages at the module limit, no automatic download on connecting.
-- USB messages above 32 768 bytes are not sent, because a G2 hangs on one of about 34 KB until it is switched off and on. This never affects a patch, but it does affect some large performances. The original sends up to 64 KB.
 - Structural edits (adding, removing, or cabling modules) resend the whole patch to the synth. The original sends each change.
   - During a Patch Mutator audition, such an edit makes the synth play the saved variation while the editor stays on the audition.
   - The audition's variation 9 is sent as one message per parameter, not as one dump.

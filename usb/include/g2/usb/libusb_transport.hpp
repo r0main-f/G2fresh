@@ -22,7 +22,7 @@
 // - a bulk-OUT write may take 5 s (CUSBManager::TxData 0x1088c6).
 // Not in Clavia: a read whose length differs from the announced one is noted
 // in lastError(), and after two in a row the G2 is reported out of step; a
-// frame above kMaxSendFrame is not sent (see there).
+// frame above kMaxSendFrame is noted there (see kMaxSendFrame).
 //
 // Platform notes:
 // - Windows: libusb needs the WinUSB driver bound to the G2 (install it once
@@ -51,13 +51,13 @@ namespace g2::usb {
 inline constexpr std::uint16_t kVendorId = 0x0FFC;
 inline constexpr std::uint16_t kProductId = 0x0002;
 
-// The largest bulk-OUT frame sent; a larger one is refused. A deliberate
-// deviation, for safety: Clavia sends any frame up to 0xFFFF bytes, but a G2
-// fails on a message of about 34 KB (one ~30 440 bytes went through) with a
-// 7E 3 and stops answering until it is switched off and on, and Clavia's
-// editor fails on the same file (re/notes/usb-crosscheck.md M4, measured by
-// another editor's author on hardware). Patches stay far below (the largest of
-// 4 500 patches: 19 359 bytes); some performances do not.
+// Above this size a bulk-OUT frame is still sent, as Clavia sends any frame up
+// to 0xFFFF bytes, but noted in lastError() (the USB log): one report from
+// hardware has a G2 failing on a message of about 34 KB (one of ~30 440 bytes
+// went through) and answering nothing until switched off and on, with Clavia's
+// editor failing on the same file (re/notes/usb-crosscheck.md M4). The evidence
+// is one file, and 44 of 1 097 user performances are larger, so G2fresh does
+// as the original. Patches stay far below (the largest of 4 500: 19 359 bytes).
 inline constexpr std::size_t kMaxSendFrame = 32768;
 
 // Clavia's timings; tests shorten them.
@@ -81,7 +81,7 @@ public:
     // a read did not match its announcement, a frame was too large to send.
     std::string lastError() const;
 
-    // Refuses a frame above kMaxSendFrame (false, nothing sent, lastError()).
+    // A frame above kMaxSendFrame is sent and noted in lastError().
     bool send(std::span<const std::uint8_t> frame) override;
     void poll() override;
 

@@ -214,7 +214,7 @@ TEST_CASE("usb: a read of another length than announced is passed on and noted (
     CHECK(c.sink.count("removed") == 0);
 }
 
-TEST_CASE("usb: bulk-OUT writes wait up to 5 s; a frame above 32 KB is refused (M3, M4)", "[usb]")
+TEST_CASE("usb: bulk-OUT writes wait up to 5 s; a frame above 32 KB is sent and noted (M3, M4)", "[usb]")
 {
     CHECK(LibusbTimeouts{}.sendMs == 5000);
     CHECK(LibusbTimeouts{}.readMs == 1000);
@@ -228,8 +228,8 @@ TEST_CASE("usb: bulk-OUT writes wait up to 5 s; a frame above 32 KB is refused (
     CHECK(s.sendTimeout == 5000);
     CHECK(c.transport.lastError().empty());
 
-    CHECK_FALSE(c.transport.send(message(g2::usb::kMaxSendFrame + 1)));
-    CHECK(fakeusb::stats().sent.size() == 1);
+    CHECK(c.transport.send(message(g2::usb::kMaxSendFrame + 1)));
+    CHECK(fakeusb::stats().sent.size() == 2);
     CHECK(c.transport.lastError().find("32769 bytes") != std::string::npos);
 }
 
