@@ -17,7 +17,7 @@ Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a 
 | `proto/` | `libg2proto`: the USB protocol (framing, molecules, the client's handshake / sync / edits) and a virtual G2 for tests (`emulator.hpp`); spec in `re/notes/usb-protocol.md` |
 | `usb/` | `libg2usb`: the USB connection through libusb (`LibusbTransport`); libusb is built from source |
 | `bridge/` | `g2bridge`, the process that owns the G2's USB connection and serves every editor over a local socket, and `BridgeLink`, an editor's link to it |
-| `assets/clavia/` | Original module layouts and graphics, bundled into the app (Clavia's property, see NOTICE) |
+| `assets/clavia/` | The original's module panel layouts (positions, sizes, captions; no pixels, see NOTICE) |
 | `data/` | Module and parameter database (JSON), compiled into the core by `tools/moduledb/gen_cpp.py` |
 | `plugin/` | JUCE target: stand-alone app, VST3, AU |
 | `emu/` | Emulation, built with `-DG2_BUILD_EMU=ON`: `g2emu`, the whole G2 in C++ running the user's own firmware (`re/notes/g2-hardware-and-emulation.md` §3.9), and the DSP experiments |
@@ -43,6 +43,10 @@ G2fresh can make the G2's sound itself, in the stand-alone app and in the plugin
 - The audio inputs and the expansion ports are not emulated; the pedals are not connected (the control pedal reads 0, the sustain pedal is up). Checked in the emulator (as the G2 OS reads them): the lowest key plays C1, the pitch stick bends up to the right, the mod wheel's vibrato grows upwards. Not verified: the global wheels' direction and the key velocity curve (approximated).
 - In a DAW on macOS, the emulator generates code at run time; a host that forbids it cannot run it (not seen so far).
 - G2fresh is not affiliated with Clavia. The G2 OS is Clavia DMI AB's copyright: download it yourself from Nord's website and do not share the file; G2fresh never includes or distributes it.
+
+## The Classic look
+
+G2fresh draws modules in its own Modern look. **View > Classic Look** draws them as the original editor does, with the original's module faces, knobs, buttons and icons. Those graphics are Clavia's, so G2fresh does not include them: it reads them from the same free download as the Emulated G2, the **Nord Modular G2 OS v1.62 update for the Mac** (`.dmg`), which holds the original editor too. If you already chose the `.dmg` for the Emulated G2, the Classic look uses it; otherwise G2fresh asks for it the first time (the `.dmg`, or the "Nord Modular G2 Editor" app in it). The graphics are extracted once, in about a second, into a `ClassicSkin` folder next to G2fresh's settings (`~/Library/Application Support/G2fresh` on macOS), and extracted again if the file changes. If the file is missing or moved, G2fresh says so in the status line and stays in the Modern look; everything works in either look.
 
 ## Connecting a G2
 
@@ -84,6 +88,7 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 
 **Editor: what it shows**
 - G2fresh's own look: colours, an amber load threshold, the settings bar (its morph dials are focused by a click on their card), the drum preset menu.
+- The Classic look needs your copy of Clavia's download (see "The Classic look"); the original has its graphics built in. Without it, G2fresh shows its Modern look only.
 - Animated cables: on by default (a choice made for G2fresh; the original's cables don't move). View > Animate Cables turns them off, and the choice is kept.
 - While a jack is held, its chain is highlighted as in the original, and the other cables are dimmed. What a drop will do is shown in the status line, not by the original's cursor shapes.
 - Morphed sliders in the Classic look and morphed increment/decrement buttons show no morph colour (the original colours them).
@@ -134,7 +139,7 @@ cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 
 ## Reverse-engineering setup
 
-You need your own copy of the original editor: the "Nord Modular G2 OS v1.62 Update" DMG from nordkeyboards.com. The binary, the Ghidra database and the decompiled output stay in the gitignored `original/`, `re/ghidra-db/` and `re/out/` directories. Only the module layouts and graphics the UI needs are committed, in `assets/clavia/` (see NOTICE); `tools/assets/build_assets.py` regenerates them.
+You need your own copy of the original editor: the "Nord Modular G2 OS v1.62 Update" DMG from nordkeyboards.com. The binary, the Ghidra database and the decompiled output stay in the gitignored `original/`, `re/ghidra-db/` and `re/out/` directories. Only the module panel layouts are committed, without their pixels, in `assets/clavia/panels.json` (see NOTICE); `tools/assets/build_assets.py` regenerates it from the editor's `.rsrc`, and `build_assets.py --check` (run by ctest) fails if any pixel or image comes back. The Classic look's graphics are read from the user's download at run time (`clavia/`); `G2_CLAVIA_DMG=<the .dmg> ctest` also checks them, pixel for pixel, against `tests/clavia_skin_fingerprints.txt`, and `G2_LOOK=classic G2_CLAVIA_DMG=<the .dmg> g2render ...` renders with them.
 
 ```sh
 lipo "Nord Modular G2 Editor.app/Contents/MacOS/Nord Modular G2 Editor" -thin i386 -output original/mac/G2Editor_i386

@@ -136,6 +136,9 @@ private:
     void updateSynthStatus();
     // Connects to the emulated G2, from the G2 OS chosen before (or asks where it is).
     void startEmulator(bool chooseFirmware);
+    // Asks where the user's copy of Clavia's download is (the Emulated G2's G2 OS
+    // and the Classic look's graphics both come from it).
+    void chooseClaviaDownload(const juce::String& title, std::function<void(const juce::File&)> chosen);
     // Edit (the patch's modules and cables) or Live (the emulated G2's panel and keyboard).
     void setLiveMode(bool live);
     bool liveMode_ = false;

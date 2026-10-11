@@ -39,6 +39,7 @@ target_link_libraries(G2Editor
   PRIVATE
     g2bridgelib # with g2proto and g2core
     G2SkinData
+    g2clavia # the Classic look, from the user's download
     juce::juce_audio_utils
   PUBLIC
     juce::juce_recommended_config_flags

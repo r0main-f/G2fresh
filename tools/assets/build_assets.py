@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
-"""Builds the bundled Clavia skin (assets/clavia/) from the original editor's
-resource file, so the app looks like the original out of the box.
+"""Builds the module panel layouts (assets/clavia/panels.json) from the original
+editor's resource file, without any of its pixels.
 
     build_assets.py <Nord Modular G2 Editor.rsrc>
+    build_assets.py --check        # panels.json holds no pixels, assets/ no images
 
-Outputs (committed):
-    assets/clavia/panels.json      module panel layouts (PANL), compact JSON
-    assets/clavia/cbmp/<id>.png    module faces and control sprites (CBMP)
-    assets/clavia/jpeg/<id>.jpg    small UI sprites (LEDs, cable swatches, ...)
-    assets/clavia/smtb/<id>.png    the note sequencer's morph strips (SMTB, BMP)
+Output (committed): assets/clavia/panels.json, the PANL resources as compact
+JSON: per module its elements' kinds, positions, sizes, captions and codes. The
+pixels in them are left out: a Bitmap element's "Data" and the "Image" icon
+strip of the ButtonText, ButtonFlat, ButtonRadio and PartSelector elements
+(colon-separated "rrggbb" values).
+
+No image of Clavia's is in the repository or the build. The Classic look takes
+the bitmaps (CBMP, JPEG, SMTB) and those inline images from the user's own copy
+of the download at run time (clavia/, ui/Skin.cpp), as the Emulated G2 takes
+the G2 OS from it.
 """
 import json
 import os
@@ -17,56 +23,57 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(ROOT, "tools", "rsrc"))
-from bmp2png import bmp_to_rgb, write_png  # noqa: E402
 from panl import parse_panl  # noqa: E402
 from rsrc import parse  # noqa: E402
 
-OUT = os.path.join(ROOT, "assets", "clavia")
-# Control sprites used by the module renderer, besides the module faces.
-CBMP_SPRITES = [199, 200, 201, 202, 203, 204, 205, 531, 532]
-JPEG_SPRITES = [115, 116, 117, 118, 212, 213, 214, 215, 216, 217, 240, 241, 242, 243, 244, 245,
-                246, 247, 248, 250, 251, 268, 269, 272, 273, 874, 877]
-# CSeqSliderGUI::Draw's strips for a morphed step: 0xD01 (focused group),
-# 0xD02 (the range) and 0xD03 (another group).
-SMTB_SPRITES = [0xD01, 0xD02, 0xD03]
+OUT = os.path.join(ROOT, "assets", "clavia", "panels.json")
+PIXEL_FIELDS = ("Data", "Image")
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".icns", ".ico", ".pict")
+
+
+def strip_pixels(node: dict) -> dict:
+    for key in PIXEL_FIELDS:
+        node.pop(key, None)
+    for child in node.get("children", []):
+        strip_pixels(child)
+    return node
+
+
+def pixel_fields(node: dict) -> int:
+    return sum(key in node for key in PIXEL_FIELDS) + sum(pixel_fields(c) for c in node.get("children", []))
+
+
+def check() -> int:
+    with open(OUT, encoding="utf-8") as f:
+        panels = json.load(f)
+    problems = []
+    if n := sum(pixel_fields(p) for p in panels):
+        problems.append(f"{OUT}: {n} pixel fields ({', '.join(PIXEL_FIELDS)})")
+    for d, _, files in os.walk(os.path.join(ROOT, "assets")):
+        problems += [os.path.join(d, f) for f in files if f.lower().endswith(IMAGE_EXTENSIONS)]
+    for p in problems:
+        print("Clavia pixels in the repository:", p)
+    return 1 if problems else 0
 
 
 def main(argv):
+    if len(argv) == 2 and argv[1] == "--check":
+        return check()
     if len(argv) != 2:
         print(__doc__)
         return 2
     with open(argv[1], "rb") as f:
         resources = parse(f.read())
-    with open(os.path.join(ROOT, "data", "modules.json")) as f:
-        faces = {m["faceResId"] for m in json.load(f)["modules"] if m.get("faceResId")}
-
-    os.makedirs(os.path.join(OUT, "cbmp"), exist_ok=True)
-    os.makedirs(os.path.join(OUT, "jpeg"), exist_ok=True)
-    os.makedirs(os.path.join(OUT, "smtb"), exist_ok=True)
     panels = []
-    counts = {"panels": 0, "cbmp": 0, "jpeg": 0, "smtb": 0}
     for r in resources:
         if r.type == "PANL":
-            p = parse_panl(r.data.decode("mac_roman"))
+            p = strip_pixels(parse_panl(r.data.decode("mac_roman")))
             p["resId"] = r.id
             panels.append(p)
-            counts["panels"] += 1
-        elif r.type == "CBMP" and (r.id in faces or r.id in CBMP_SPRITES):
-            w, h, rgb = bmp_to_rgb(r.data)
-            write_png(os.path.join(OUT, "cbmp", f"{r.id}.png"), w, h, rgb)
-            counts["cbmp"] += 1
-        elif r.type == "SMTB" and r.id in SMTB_SPRITES:
-            w, h, rgb = bmp_to_rgb(r.data)
-            write_png(os.path.join(OUT, "smtb", f"{r.id}.png"), w, h, rgb)
-            counts["smtb"] += 1
-        elif r.type == "JPEG" and r.id in JPEG_SPRITES:
-            with open(os.path.join(OUT, "jpeg", f"{r.id}.jpg"), "wb") as f:
-                f.write(r.data)
-            counts["jpeg"] += 1
     panels.sort(key=lambda p: p["resId"])
-    with open(os.path.join(OUT, "panels.json"), "w") as f:
+    with open(OUT, "w", encoding="utf-8") as f:
         json.dump(panels, f, separators=(",", ":"), ensure_ascii=False)
-    print(counts)
+    print(f"{len(panels)} panels -> {OUT}")
     return 0
 
 

@@ -2,7 +2,9 @@
 original/
 re/ghidra-db/
 re/out/
-skins/classic/
+# Clavia's pixels: the Classic look reads them from the user's download at run time
+assets/clavia/*
+!assets/clavia/panels.json
 build/
 build-*/
 .DS_Store

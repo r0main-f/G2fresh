@@ -14,11 +14,17 @@ version.
 Nord Modular, Nord and Clavia are trademarks of Clavia DMI AB. This project is
 not affiliated with or endorsed by Clavia DMI AB.
 
-The module panel layouts and graphics in assets/clavia/ were extracted from
-Clavia's Nord Modular G2 Editor v1.62 (a free download from nordkeyboards.com)
-with tools/assets/build_assets.py. They remain the property of Clavia DMI AB
-and are included only so that owners of the instrument get the original
-editor's look. They are not covered by this project's license.
+No image, graphic or other asset of Clavia's is included in this repository or
+in G2fresh's builds and releases. The optional Classic look is built on the
+user's computer, at run time, from the user's own copy of Clavia's free
+download "Nord Modular G2 OS v1.62 Update.dmg" (nordkeyboards.com), the same
+file the Emulated G2 takes the G2 OS from: G2fresh reads the original editor's
+graphics in it and keeps them in a cache in the user's settings folder. Those
+graphics remain the property of Clavia DMI AB.
+
+assets/clavia/panels.json holds the positions, sizes, kinds and captions of the
+elements of each module panel, as read from Clavia's Nord Modular G2 Editor
+v1.62 with tools/assets/build_assets.py, without any of their pixels.
 
 This program uses JUCE (https://juce.com), licensed under the GNU Affero
 General Public License version 3, and the Steinberg VST3 SDK (MIT License).
@@ -30,6 +36,6 @@ ColdFire CPU core of Gearmulator (https://github.com/dsp56300/gearmulator), both
 licensed under the GNU General Public License version 3 and fetched at build
 time. No Clavia firmware is included: the emulator runs the user's own copy of
 the G2 OS.
-Where the system has no zlib (Windows), the emulator's .dmg reader uses the
-inflate code of zlib 1.3.1 by Jean-loup Gailly and Mark Adler (zlib licence),
-fetched at build time.
+Where the system has no zlib (Windows), the .dmg reader (clavia/, used by the
+emulator and the Classic look) uses the inflate code of zlib 1.3.1 by Jean-loup
+Gailly and Mark Adler (zlib licence), fetched at build time.
