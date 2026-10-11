@@ -319,16 +319,16 @@ double probabilityForRange(double r)
 
 void Settings::setProbability(double p)
 {
-    probability = p;
+    probability = std::clamp(p, 0.0, 1.0);
     if (link)
-        range = rangeForProbability(p);
+        range = rangeForProbability(probability);
 }
 
 void Settings::setRange(double r)
 {
-    range = r;
+    range = std::clamp(r, 0.0, kMaxRange);
     if (link)
-        probability = probabilityForRange(r);
+        probability = probabilityForRange(range);
 }
 
 void Settings::setLink(bool on)
@@ -720,6 +720,17 @@ bool Mutator::interpolate(Box motherBox, Box fatherBox)
     for (int i = 0; i < kChildren; ++i)
         kids[i] = interpolated(*mother, *father, (i + 1.0) / 7.0);
     setChildren(std::move(kids), 2);
+    return true;
+}
+
+bool Mutator::audition(Patch& patch, Box b)
+{
+    const auto ind = get(b);
+    if (!ind)
+        return false;
+    edit::addAuditionVariation(patch);
+    apply(patch, static_cast<u8>(kAuditionVariation), *ind);
+    focus = b;
     return true;
 }
 

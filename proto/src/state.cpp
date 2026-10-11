@@ -256,10 +256,11 @@ bool applyToPatch(Patch& p, const Molecule& molecule)
             },
             [&](const CtrlAssign& m) {
                 return guarded([&] {
-                    edit::assignMidiCc(p, static_cast<u8>(m.cc & 0x7F), static_cast<Location>(m.location), m.module, m.param);
+                    // What the synth has, without the editor's rules.
+                    edit::storeMidiCc(p, static_cast<u8>(m.cc & 0x7F), static_cast<Location>(m.location), m.module, m.param);
                 });
             },
-            [&](const CtrlDeassign& m) { return guarded([&] { edit::clearMidiCc(p, static_cast<u8>(m.cc & 0x7F)); }); },
+            [&](const CtrlDeassign& m) { return guarded([&] { edit::eraseMidiCc(p, static_cast<u8>(m.cc & 0x7F)); }); },
             [&](const ModuleNew& m) {
                 addModule(p, m);
                 return true;

@@ -260,8 +260,10 @@ u8 replaceModule(Patch& patch, Location loc, u8 index, u8 newType)
         std::vector<u8> values;
         for (const auto& p : newDef->params)
             values.push_back(p.defaultValue);
-        m.params.assign(patch.variationCount, values);
+        m.params.assign(edit::variationSlots(patch), values);
     }
+    // A new module's label controls write their panel captions.
+    m.customData = edit::defaultLabelData(newType);
     // Values follow the mapping when both parameters have the same range.
     for (std::size_t p = 0; p < map.params.size(); ++p) {
         const u8 q = map.params[p];

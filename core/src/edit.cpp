@@ -44,6 +44,72 @@ bool refersTo(u8 location, u8 module, Location loc, u8 index)
 
 } // namespace
 
+// ---- Names ------------------------------------------------------------------------
+
+bool isModularChar(char c)
+{
+    return c != '\0' && kModularChars.find(c) != std::string_view::npos;
+}
+
+std::string modularName(std::string_view text, std::size_t maxLength)
+{
+    std::string out;
+    for (std::size_t i = 0; i < text.size() && out.size() < maxLength;) {
+        const auto c = static_cast<unsigned char>(text[i]);
+        if (c < 0x80) {
+            out.push_back(isModularChar(static_cast<char>(c)) ? static_cast<char>(c) : ' ');
+            ++i;
+            continue;
+        }
+        // A UTF-8 sequence counts as one character; a stray byte as one.
+        std::size_t n = c >= 0xF0 && c < 0xF8 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 1;
+        if (n > 1) {
+            bool valid = i + n <= text.size();
+            for (std::size_t k = 1; valid && k < n; ++k)
+                valid = (static_cast<unsigned char>(text[i + k]) & 0xC0) == 0x80;
+            if (!valid)
+                n = 1;
+        }
+        out.push_back(' ');
+        i += n;
+    }
+    return out;
+}
+
+std::string modularBytes(std::string_view bytes)
+{
+    std::string out(bytes);
+    for (char& c : out)
+        if (!isModularChar(c))
+            c = ' ';
+    return out;
+}
+
+std::string fileNameForPatch(std::string_view name)
+{
+    static constexpr std::string_view kFileChars =
+        " !#$%&'()+,-.0123456789;=@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{}";
+    std::string out = modularName(name, name.size());
+    for (char& c : out)
+        if (kFileChars.find(c) == std::string_view::npos)
+            c = ' ';
+    return out;
+}
+
+bool filterLoadedNames(Patch& patch)
+{
+    bool changed = false;
+    for (auto* area : {&patch.va, &patch.fx})
+        for (auto& m : area->modules) {
+            auto filtered = modularBytes(m.name);
+            if (filtered != m.name) {
+                m.name = std::move(filtered);
+                changed = true;
+            }
+        }
+    return changed;
+}
+
 u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
 {
     Area& area = areaFor(patch, loc);
@@ -84,11 +150,14 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
         std::vector<u8> values;
         for (const auto& p : def->params)
             values.push_back(p.defaultValue);
-        m.params.assign(patch.variationCount, values);
+        m.params.assign(variationSlots(patch), values);
     }
     // The note sequencer's view (zoom, octave offset), as the original stores it.
     if (type == special::kSeqNoteType)
         m.customData = special::noteSeqCustomData({});
+    // Label controls write their captions (CPanel::GetCustomData).
+    if (auto labels = defaultLabelData(type))
+        m.customData = std::move(labels);
     area.modules.push_back(std::move(m));
     uprate::update(patch, loc);
     return index;
@@ -176,9 +245,10 @@ u8 freeRow(const Patch& patch, Location loc, u8 col)
 
 void renameModule(Patch& patch, Location loc, u8 index, const std::string& name)
 {
-    if (name.size() > 16 || name.find('\0') != std::string::npos)
+    const std::string filtered = modularName(name, kNameLength + 1);
+    if (filtered.size() > kNameLength)
         throw std::invalid_argument("module names have at most 16 characters");
-    moduleAt(patch, loc, index).name = name;
+    moduleAt(patch, loc, index).name = filtered;
 }
 
 CableColor cableColor(const Patch& patch, Location loc, Endpoint from)
@@ -244,6 +314,15 @@ void setParam(Patch& patch, Location loc, u8 module, u8 param, u8 variation, u8 
         throw std::invalid_argument("no such parameter");
     const auto& p = def->params[param];
     m.params[variation][param] = std::clamp(value, p.min, p.max);
+}
+
+bool isMomentary(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    if (loc == Location::Settings)
+        return false;
+    const Module* m = patch.area(loc).find(module);
+    const auto* def = m ? m->def() : nullptr;
+    return def && param < def->params.size() && def->params[param].momentary;
 }
 
 void setMode(Patch& patch, Location loc, u8 module, u8 mode, u8 value)
@@ -453,9 +532,10 @@ std::string morphLabel(const Patch& patch, int group)
     return def && group >= 0 && group < 8 ? def->params[static_cast<std::size_t>(group)].name : std::string();
 }
 
-void setMorphLabel(Patch& patch, int group, const std::string& label)
+void setMorphLabel(Patch& patch, int group, const std::string& text)
 {
-    if (group < 0 || group > 7 || label.size() > 7 || label.find('\0') != std::string::npos)
+    const std::string label = modularName(text, kLabelLength + 1);
+    if (group < 0 || group > 7 || label.size() > kLabelLength)
         throw std::invalid_argument("morph labels have at most 7 characters");
     auto* bytes = morphLabels(patch);
     if (!bytes) {
@@ -498,37 +578,6 @@ void checkParam(const Patch& patch, Location loc, u8 module, u8 param)
     const Module* m = patch.area(loc).find(module);
     if (!m || !m->def() || param >= m->def()->params.size())
         throw std::invalid_argument("no such parameter");
-}
-
-// Custom-data records of a module: [kind, len, payload] with kind 1 =
-// parameter label: payload [param, 7 label bytes, ...].
-std::vector<u8>* customOf(Patch& patch, Location loc, u8 module)
-{
-    if (loc == Location::Settings) {
-        for (auto& m : patch.settingsCustomData)
-            if (m.index == module)
-                return &m.bytes;
-        patch.settingsCustomData.push_back({module, {}});
-        return &patch.settingsCustomData.back().bytes;
-    }
-    Module* m = patch.area(loc).find(module);
-    if (!m)
-        throw std::invalid_argument("no module with this index");
-    if (!m->customData)
-        m->customData.emplace();
-    return &*m->customData;
-}
-
-const std::vector<u8>* customOf(const Patch& patch, Location loc, u8 module)
-{
-    if (loc == Location::Settings) {
-        for (const auto& m : patch.settingsCustomData)
-            if (m.index == module)
-                return &m.bytes;
-        return nullptr;
-    }
-    const Module* m = patch.area(loc).find(module);
-    return m && m->customData ? &*m->customData : nullptr;
 }
 
 } // namespace
@@ -605,63 +654,232 @@ std::optional<u8> midiCcOf(const Patch& patch, Location loc, u8 module, u8 param
     return std::nullopt;
 }
 
-void assignMidiCc(Patch& patch, u8 cc, Location loc, u8 module, u8 param)
+namespace {
+// MIDICtrl::IsValid's table (_gNonValid) and MIDICtrl::IsPreAssigned's (_gPreAssigned).
+constexpr std::array<u8, 9> kNonValidCcs{0, 1, 11, 18, 32, 64, 70, 96, 97};
+constexpr std::array<u8, 2> kPreAssignedCcs{7, 17};
+
+bool paramExists(const Patch& patch, Location loc, u8 module, u8 param)
 {
-    checkParam(patch, loc, module, param);
-    if (cc > 127)
-        throw std::invalid_argument("MIDI controllers are 0..127");
+    try {
+        checkParam(patch, loc, module, param);
+        return true;
+    } catch (const std::invalid_argument&) {
+        return false;
+    }
+}
+} // namespace
+
+bool isValidMidiCc(u8 cc)
+{
+    return cc < 120 && std::find(kNonValidCcs.begin(), kNonValidCcs.end(), cc) == kNonValidCcs.end();
+}
+
+bool isPreAssignedMidiCc(u8 cc)
+{
+    return std::find(kPreAssignedCcs.begin(), kPreAssignedCcs.end(), cc) != kPreAssignedCcs.end();
+}
+
+bool canAssignMidiCc(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    if (!paramExists(patch, loc, module, param))
+        return false;
+    if (const auto cc = midiCcOf(patch, loc, module, param); cc && isPreAssignedMidiCc(*cc))
+        return false;
+    if (loc == Location::Settings)
+        return true; // every patch setting is MIDI-assignable
+    const auto* def = patch.area(loc).find(module)->def();
+    return def->params[param].midiAssignable;
+}
+
+void storeMidiCc(Patch& patch, u8 cc, Location loc, u8 module, u8 param)
+{
     std::erase_if(patch.controllers, [&](const CtrlAssign& c) {
         return c.cc == cc || sameTarget(c.location, c.module, c.param, loc, module, param);
     });
     patch.controllers.push_back({cc, static_cast<u8>(loc), module, param});
 }
 
-void clearMidiCc(Patch& patch, u8 cc)
+void eraseMidiCc(Patch& patch, u8 cc)
 {
     std::erase_if(patch.controllers, [&](const CtrlAssign& c) { return c.cc == cc; });
 }
 
-std::string paramLabel(const Patch& patch, Location loc, u8 module, u8 param)
-{
-    const auto* bytes = customOf(patch, loc, module);
-    if (!bytes)
-        return {};
-    for (std::size_t i = 0; i + 2 <= bytes->size(); i += 2u + (*bytes)[i + 1]) {
-        const u8 kind = (*bytes)[i], len = (*bytes)[i + 1];
-        if (i + 2 + len > bytes->size())
-            break;
-        if (kind == 1 && len >= 1 && (*bytes)[i + 2] == param) {
-            std::string s(bytes->begin() + static_cast<std::ptrdiff_t>(i + 3),
-                          bytes->begin() + static_cast<std::ptrdiff_t>(i + 3 + std::min<std::size_t>(7, len - 1u)));
-            return s.substr(0, s.find('\0'));
-        }
-    }
-    return {};
-}
-
-void setParamLabel(Patch& patch, Location loc, u8 module, u8 param, const std::string& label)
+void assignMidiCc(Patch& patch, u8 cc, Location loc, u8 module, u8 param)
 {
     checkParam(patch, loc, module, param);
-    if (label.size() > 7 || label.find('\0') != std::string::npos)
-        throw std::invalid_argument("labels have at most 7 characters");
-    auto* bytes = customOf(patch, loc, module);
-    std::size_t at = bytes->size();
-    for (std::size_t i = 0; i + 2 <= bytes->size(); i += 2u + (*bytes)[i + 1])
-        if ((*bytes)[i] == 1 && (*bytes)[i + 1] >= 1 && i + 2 < bytes->size() && (*bytes)[i + 2] == param) {
-            at = i;
-            bytes->erase(bytes->begin() + static_cast<std::ptrdiff_t>(i),
-                         bytes->begin() + static_cast<std::ptrdiff_t>(i + 2 + (*bytes)[i + 1]));
-            break;
-        }
-    if (!label.empty()) {
-        std::string padded = label;
-        padded.resize(7, '\0');
-        std::vector<u8> record{1, 8, param};
-        record.insert(record.end(), padded.begin(), padded.end());
-        bytes->insert(bytes->begin() + static_cast<std::ptrdiff_t>(std::min(at, bytes->size())), record.begin(), record.end());
+    if (!isValidMidiCc(cc))
+        throw std::invalid_argument("this MIDI controller cannot be assigned");
+    if (isPreAssignedMidiCc(cc))
+        throw std::invalid_argument("CC 7 and CC 17 are reserved for the patch volume and octave shift");
+    if (!canAssignMidiCc(patch, loc, module, param))
+        throw std::invalid_argument("this parameter cannot take a MIDI controller");
+    storeMidiCc(patch, cc, loc, module, param);
+}
+
+void clearMidiCc(Patch& patch, u8 cc)
+{
+    if (isPreAssignedMidiCc(cc))
+        throw std::invalid_argument("CC 7 and CC 17 are reserved for the patch volume and octave shift");
+    eraseMidiCc(patch, cc);
+}
+
+bool repairMidiCcs(Patch& patch)
+{
+    // CMap::RemoveDuplicateItems, then the parameter and CC checks.
+    const std::size_t before = patch.controllers.size();
+    std::vector<CtrlAssign> kept;
+    for (const auto& c : patch.controllers) {
+        const bool duplicate = std::any_of(kept.begin(), kept.end(), [&](const CtrlAssign& k) {
+            return k.cc == c.cc || (k.location == c.location && k.module == c.module && k.param == c.param);
+        });
+        if (duplicate || c.location > 2 || !paramExists(patch, static_cast<Location>(c.location), c.module, c.param))
+            continue;
+        if (!isValidMidiCc(c.cc) && !isPreAssignedMidiCc(c.cc))
+            continue;
+        kept.push_back(c);
     }
-    if (loc != Location::Settings && bytes->empty())
-        patch.area(loc).find(module)->customData.reset();
+    patch.controllers = std::move(kept);
+    return patch.controllers.size() != before;
+}
+
+namespace {
+
+// The captions of a label control from the panel's comma-separated defaults.
+std::vector<std::string> defaultCaptions(const db::LabelDef& l)
+{
+    std::vector<std::string> out;
+    std::string_view rest = l.defaults;
+    while (out.size() < l.buttons) {
+        const auto comma = rest.find(',');
+        out.emplace_back(rest.substr(0, comma));
+        rest = comma == std::string_view::npos ? std::string_view() : rest.substr(comma + 1);
+    }
+    return out;
+}
+
+// The [kind 1, len, param, ...] record of a parameter in custom data, or nullopt.
+std::optional<std::pair<std::size_t, std::size_t>> labelRecord(const std::vector<u8>& bytes, u8 param)
+{
+    for (std::size_t i = 0; i + 2 <= bytes.size(); i += 2u + bytes[i + 1]) {
+        const u8 kind = bytes[i], len = bytes[i + 1];
+        if (i + 2 + len > bytes.size())
+            break;
+        if (kind == 1 && len >= 1 && bytes[i + 2] == param)
+            return std::pair{i, std::size_t{len}};
+    }
+    return std::nullopt;
+}
+
+std::string fixedString(const std::vector<u8>& bytes, std::size_t at, std::size_t length)
+{
+    std::string s;
+    for (std::size_t i = at; i < at + length && i < bytes.size() && bytes[i] != 0; ++i)
+        s.push_back(static_cast<char>(bytes[i]));
+    return s;
+}
+
+// CPnlLabelButton / CPnlLabelRadioButton::GetCustomData for every label
+// control of the module, in panel order.
+std::vector<u8> labelData(const db::ModuleDef& def, const std::vector<std::vector<std::string>>& captions)
+{
+    std::vector<u8> out;
+    for (std::size_t c = 0; c < def.labels.size(); ++c) {
+        const auto& l = def.labels[c];
+        out.push_back(1);
+        out.push_back(static_cast<u8>(l.buttons * kLabelLength + 1));
+        out.push_back(l.param);
+        for (std::size_t b = 0; b < l.buttons; ++b) {
+            std::string text = b < captions[c].size() ? captions[c][b] : std::string();
+            text.resize(kLabelLength, '\0');
+            out.insert(out.end(), text.begin(), text.end());
+        }
+    }
+    return out;
+}
+
+} // namespace
+
+const db::LabelDef* labelControl(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    if (loc == Location::Settings)
+        return nullptr;
+    const Module* m = patch.area(loc).find(module);
+    const auto* def = m ? m->def() : nullptr;
+    if (!def)
+        return nullptr;
+    for (const auto& l : def->labels)
+        if (l.param == param)
+            return &l;
+    return nullptr;
+}
+
+bool canRenameParam(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    if (loc == Location::Settings) // the morph knobs (CPnlMorphKnob)
+        return module == static_cast<u8>(Setting::Morph) && param < kMorphGroups;
+    return labelControl(patch, loc, module, param) != nullptr;
+}
+
+std::vector<std::string> paramLabels(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    if (loc == Location::Settings)
+        return canRenameParam(patch, loc, module, param) ? std::vector<std::string>{morphLabel(patch, param)}
+                                                         : std::vector<std::string>{};
+    const auto* l = labelControl(patch, loc, module, param);
+    if (!l)
+        return {};
+    auto captions = defaultCaptions(*l);
+    const Module* m = patch.area(loc).find(module);
+    if (m->customData)
+        if (const auto rec = labelRecord(*m->customData, param))
+            for (std::size_t b = 0; b < captions.size() && 1 + (b + 1) * kLabelLength <= rec->second; ++b)
+                captions[b] = fixedString(*m->customData, rec->first + 3 + b * kLabelLength, kLabelLength);
+    return captions;
+}
+
+std::string paramLabel(const Patch& patch, Location loc, u8 module, u8 param)
+{
+    const auto labels = paramLabels(patch, loc, module, param);
+    return labels.empty() ? std::string() : labels.front();
+}
+
+void setParamLabel(Patch& patch, Location loc, u8 module, u8 param, const std::string& text, int button)
+{
+    checkParam(patch, loc, module, param);
+    if (!canRenameParam(patch, loc, module, param))
+        throw std::invalid_argument("this parameter has no label to rename");
+    if (loc == Location::Settings) {
+        setMorphLabel(patch, param, text);
+        return;
+    }
+    const std::string label = modularName(text, kLabelLength + 1);
+    if (label.size() > kLabelLength)
+        throw std::invalid_argument("labels have at most 7 characters");
+    const auto* l = labelControl(patch, loc, module, param);
+    if (button < 0 || button >= l->buttons)
+        throw std::invalid_argument("no such button");
+    Module& m = moduleAt(patch, loc, module);
+    const auto& def = *m.def();
+    std::vector<std::vector<std::string>> captions;
+    for (const auto& other : def.labels)
+        captions.push_back(paramLabels(patch, loc, module, other.param));
+    for (std::size_t c = 0; c < def.labels.size(); ++c)
+        if (def.labels[c].param == param)
+            captions[c][static_cast<std::size_t>(button)] =
+                label.empty() ? defaultCaptions(def.labels[c])[static_cast<std::size_t>(button)] : label;
+    m.customData = labelData(def, captions);
+}
+
+std::optional<std::vector<u8>> defaultLabelData(u8 moduleType)
+{
+    const auto* def = db::find(moduleType);
+    if (!def || def->labels.empty())
+        return std::nullopt;
+    std::vector<std::vector<std::string>> captions;
+    for (const auto& l : def->labels)
+        captions.push_back(defaultCaptions(l));
+    return labelData(*def, captions);
 }
 
 void setModuleColor(Patch& patch, Location loc, u8 module, u8 color)
@@ -728,6 +946,57 @@ void copyVariation(Patch& patch, u8 from, u8 to)
         patch.morphs[to].assigns = patch.morphs[from].assigns;
 }
 
+std::size_t variationSlots(const Patch& patch)
+{
+    return std::max<std::size_t>(patch.variationCount, patch.morphs.size());
+}
+
+bool hasAuditionVariation(const Patch& patch)
+{
+    return patch.morphs.size() > static_cast<std::size_t>(kAuditionVariation);
+}
+
+void addAuditionVariation(Patch& patch)
+{
+    if (hasAuditionVariation(patch))
+        return;
+    constexpr auto slots = static_cast<std::size_t>(kAuditionVariation) + 1;
+    auto extend = [](std::vector<std::vector<u8>>& params) {
+        if (params.empty())
+            return;
+        const auto init = params.size() > 8 ? params[8] : params.back();
+        params.resize(slots, init);
+    };
+    for (auto* area : {&patch.va, &patch.fx})
+        for (auto& m : area->modules)
+            extend(m.params);
+    for (auto& m : patch.settings)
+        extend(m.params);
+    while (patch.morphs.size() < slots) {
+        MorphVariation v{std::vector<u8>(kMorphGroups, 0), {}};
+        if (patch.morphs.size() > 8)
+            v.assigns = patch.morphs[8].assigns;
+        patch.morphs.push_back(std::move(v));
+    }
+}
+
+std::pair<u8, u8> insertPosition(const Patch& patch, Location loc, const std::vector<u8>& selection)
+{
+    // The rightmost column with a selected module; in it, the bottom of the
+    // lowest selected one (row + height).
+    int col = 0, row = 0;
+    for (const auto& m : patch.area(loc).modules) {
+        if (std::find(selection.begin(), selection.end(), m.index) == selection.end())
+            continue;
+        const int bottom = m.row + heightOf(m);
+        if (m.col > col || (m.col == col && bottom > row)) {
+            col = m.col;
+            row = bottom;
+        }
+    }
+    return {static_cast<u8>(std::min(col, 127)), static_cast<u8>(std::min(row, 127))};
+}
+
 // ---- Clipboard -----------------------------------------------------------------
 
 Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& indices)
@@ -776,7 +1045,7 @@ std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, 
         m.row = static_cast<u8>(std::min(127, row + src.row));
         // Keep the variation count of the patch.
         if (!m.params.empty())
-            m.params.resize(patch.variationCount, m.params.front());
+            m.params.resize(variationSlots(patch), m.params.front());
         // A default-style name gets the next free number ("OscB1" -> "OscB2").
         if (const auto* def = m.def(); def && m.name.rfind(def->shortName, 0) == 0) {
             int number = 1;

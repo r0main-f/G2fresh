@@ -40,12 +40,14 @@ std::vector<std::vector<u8>> valuesOf(const ParamModule& m)
     return out;
 }
 
-ParamModule paramModule(u8 index, const std::vector<std::vector<u8>>& params)
+// The variations a file holds: the patch's variation count (the audition
+// variation, edit::addAuditionVariation, is never written).
+ParamModule paramModule(u8 index, const std::vector<std::vector<u8>>& params, std::size_t variations)
 {
     ParamModule m;
     m.index = index;
     m.paramCount = static_cast<u8>(params.empty() ? 0 : params.front().size());
-    for (std::size_t v = 0; v < params.size(); ++v)
+    for (std::size_t v = 0; v < params.size() && v < variations; ++v)
         m.variations.push_back({static_cast<u8>(v), params[v]});
     return m;
 }
@@ -265,10 +267,10 @@ std::vector<Section> Patch::toSections() const
     auto paramList = [this](const Area& a) {
         ParamList l;
         l.location = static_cast<u8>(a.location);
-        l.modules = inFileOrder<ParamModule>(a.modules, a.paramOrder, [](const Module& m) -> std::optional<ParamModule> {
+        l.modules = inFileOrder<ParamModule>(a.modules, a.paramOrder, [this](const Module& m) -> std::optional<ParamModule> {
             if (m.params.empty())
                 return std::nullopt;
-            return paramModule(m.index, m.params);
+            return paramModule(m.index, m.params, variationCount);
         });
         l.variationCount = l.modules.empty() ? a.emptyParamListVariations : variationCount;
         return l;
@@ -299,13 +301,13 @@ std::vector<Section> Patch::toSections() const
     std::sort(sortedSettings.begin(), sortedSettings.end(),
               [](const SettingsModule& a, const SettingsModule& b) { return a.index < b.index; });
     for (const auto& m : sortedSettings)
-        settingsList.modules.push_back(paramModule(m.index, m.params));
+        settingsList.modules.push_back(paramModule(m.index, m.params, variationCount));
     settingsList.variationCount = settingsList.modules.empty() ? 0 : variationCount;
 
     MorphMap morph;
     morph.morphCount = morphCount;
     morph.keyboardAssign = keyboardMorphAssign;
-    for (std::size_t v = 0; v < morphs.size(); ++v)
+    for (std::size_t v = 0; v < morphs.size() && v < static_cast<std::size_t>(kAuditionVariation); ++v)
         morph.variations.push_back({static_cast<u8>(v), morphs[v].legacyDials, morphs[v].assigns});
 
     CustomData settingsCustom{static_cast<u8>(Location::Settings), settingsCustomData};
@@ -313,7 +315,12 @@ std::vector<Section> Patch::toSections() const
               [](const CustomModule& a, const CustomModule& b) { return a.index < b.index; });
 
     std::vector<Section> s;
-    s.push_back(section(kPatchHeader, header));
+    // CPatch::PatchToFile: the focused variation if the file has it, else 0
+    // (the Mutator's audition variation is not saved).
+    file::PatchHeader fileHeader = header;
+    if (fileHeader.activeVariation >= variationCount)
+        fileHeader.activeVariation = 0;
+    s.push_back(section(kPatchHeader, fileHeader));
     s.push_back(section(kModuleList, moduleList(va)));
     s.push_back(section(kModuleList, moduleList(fx)));
     s.push_back(section(kCurrentNotes, currentNotes));

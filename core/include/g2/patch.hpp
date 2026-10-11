@@ -28,6 +28,7 @@ enum class CableColor : u8 { Red, Blue, Yellow, Orange, Green, Purple, White };
 
 inline constexpr int kUserVariations = 8;   // variations 1..8 (0..7)
 inline constexpr int kFileVariations = 9;   // plus the "init" variation (8)
+inline constexpr int kAuditionVariation = 9; // the Patch Mutator's, never in files (edit::addAuditionVariation)
 inline constexpr int kKnobCount = 120;
 inline constexpr int kMorphGroups = 8;
 

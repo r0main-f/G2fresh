@@ -78,7 +78,7 @@ std::optional<Group> groupOf(u8 moduleType, u8 paramClass);
 inline constexpr double kDefaultProbability = 0.3721; // 0x3fd7d07c84b5dcc6
 inline constexpr double kDefaultRange = 0.189;        // 0x3fc83126e978d4fe
 inline constexpr double kDefaultCrossover = 0.15;
-inline constexpr double kMaxRange = 0.5;
+inline constexpr double kMaxRange = 0.5; // the dialog's Range knob: 0-50 % (CSmallKnob(..., 0x32))
 
 // The "Link" relation between mutation probability and range.
 double rangeForProbability(double probability); // clamped to [0, 0.5]
@@ -92,7 +92,8 @@ struct Settings {
     u8 unlocked = 0xFE; // bit set: group may change (OscFreq quick-locked by default)
     u8 solo = 0;        // non-zero: only these groups change, ungrouped params don't
 
-    // As the dialog's knobs: with link on, the other value follows.
+    // As the dialog's knobs (probability 0..1, range 0..kMaxRange, clamped):
+    // with link on, the other value follows.
     void setProbability(double p);
     void setRange(double r);
     void setLink(bool on);
@@ -218,6 +219,12 @@ public:
     bool cross(Box mother, Box father);
     // Six interpolations at 1/7 .. 6/7 (Interpolate; shift-drag).
     bool interpolate(Box mother, Box father);
+    // Click on a box (CDialogMutaBackground::Click → GetFocusIndividMolecules
+    // @00142ef8): plays the individual in the audition variation (9, added to
+    // the patch if needed, edit::addAuditionVariation) and focuses it; the
+    // user variations 1-8 are not touched. The caller makes variation 9 the
+    // patch's active one. Returns false for an empty box.
+    bool audition(Patch& patch, Box b);
     // Drag: copy (a Variation target writes the patch); gene bank to gene bank moves.
     void copy(Patch& patch, Box from, Box to);
     void move(Patch& patch, Box from, Box to);

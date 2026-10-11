@@ -447,3 +447,58 @@ TEST_CASE("mutate: Mutator boxes behave as in the dialog")
     mu.sync(p);
     CHECK(mu.population[4]->va.size() == p.va.modules.size());
 }
+
+TEST_CASE("mutate: auditioning plays a box in the hidden variation 9, not in 1-8")
+{
+    Patch p = onePatch();
+    const Patch before = p;
+    Mutator mu(p, 1);
+    mu.randomize(p, 0);
+    CHECK_FALSE(mu.audition(p, Box{BoxKind::GeneBank, 3})); // an empty box plays nothing
+    CHECK_FALSE(edit::hasAuditionVariation(p));
+
+    REQUIRE(mu.audition(p, Box{BoxKind::Population, 2}));
+    CHECK(mu.focus == Box{BoxKind::Population, 2});
+    REQUIRE(edit::hasAuditionVariation(p));
+    for (const auto& m : p.va.modules) {
+        REQUIRE(m.params.size() == static_cast<std::size_t>(kAuditionVariation) + 1);
+        CHECK(m.params[kAuditionVariation] == mu.population[2]->quantized(Location::Va, m.index));
+        const auto* old = before.va.find(m.index);
+        for (int v = 0; v < kFileVariations; ++v) // the user's variations (and init) are untouched
+            CHECK(m.params[static_cast<std::size_t>(v)] == old->params[static_cast<std::size_t>(v)]);
+    }
+    for (int v = 0; v < kFileVariations; ++v)
+        CHECK(p.morphs[static_cast<std::size_t>(v)].assigns.size() == before.morphs[static_cast<std::size_t>(v)].assigns.size());
+
+    // The audition variation is never saved: the file is the one before, and
+    // a focused variation 9 is written as 0 (CPatch::PatchToFile).
+    p.header.activeVariation = static_cast<u8>(kAuditionVariation);
+    Patch saved = before;
+    saved.header.activeVariation = 0;
+    CHECK(savePatch(p) == savePatch(saved));
+
+    // New modules get the audition variation too; storing into a user
+    // variation is a copy to a variation box.
+    const u8 added = edit::addModule(p, Location::Va, kOscB, 5, 0);
+    CHECK(p.va.find(added)->params.size() == static_cast<std::size_t>(kAuditionVariation) + 1);
+    mu.copy(p, Box{BoxKind::Population, 2}, Box{BoxKind::Variation, 4});
+    const auto& first = p.va.modules[0];
+    CHECK(first.params[4] == first.params[kAuditionVariation]);
+}
+
+TEST_CASE("mutate: the Range knob goes from 0 to 50 %")
+{
+    Settings s;
+    s.setLink(false);
+    s.setRange(1.0);
+    CHECK(s.range == kMaxRange);
+    s.setRange(-0.2);
+    CHECK(s.range == 0.0);
+    s.setRange(0.25);
+    CHECK(s.range == 0.25);
+    s.setProbability(2.0);
+    CHECK(s.probability == 1.0);
+    s.setLink(true);
+    s.setProbability(0.0); // the link curve gives at most 0.5 too
+    CHECK(s.range <= kMaxRange);
+}

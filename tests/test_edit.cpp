@@ -5,6 +5,8 @@
 #include "g2/special.hpp"
 #include "test_support.hpp"
 
+#include <set>
+
 using namespace g2;
 
 namespace {
@@ -177,9 +179,9 @@ TEST_CASE("morph, knob and MIDI assignments")
     edit::assignMidiCc(p, 21, Location::Va, osc, 2); // a CC drives one parameter
     CHECK_FALSE(edit::midiCcOf(p, Location::Va, osc, 1));
 
-    edit::setParamLabel(p, Location::Va, osc, 0, "Pitch");
-    CHECK(edit::paramLabel(p, Location::Va, osc, 0) == "Pitch");
-    edit::setParamLabel(p, Location::Va, osc, 0, "");
+    // An oscillator's knobs have no label to rename (CanChangeName).
+    CHECK_FALSE(edit::canRenameParam(p, Location::Va, osc, 0));
+    CHECK_THROWS_AS(edit::setParamLabel(p, Location::Va, osc, 0, "Pitch"), std::invalid_argument);
     CHECK(edit::paramLabel(p, Location::Va, osc, 0).empty());
     CHECK_FALSE(p.va.find(osc)->customData.has_value());
 
@@ -305,4 +307,210 @@ TEST_CASE("knob targets read and write module parameters and patch settings")
     CHECK(edit::targetMax(p, wheel) == 127);
     CHECK(edit::targetName(p, wheel) == "Morph " + edit::morphLabel(p, 0));
     CHECK_FALSE(edit::targetValue(p, {Location::Va, 99, 0}, 0));
+}
+
+// ---- Batch 1 of the editor fixes (re/notes/fidelity-audit.md, Part B) -------------------
+
+TEST_CASE("push buttons: the momentary parameters of the original")
+{
+    // Param spec +0x0F: the 12 PANL push buttons (sequencer Clr/Rnd, the
+    // momentary switches) and RndClkA's Dice.
+    std::set<std::pair<int, std::string>> momentary;
+    for (const auto& def : db::modules())
+        for (const auto& prm : def.params)
+            if (prm.momentary)
+                momentary.emplace(def.typeId, prm.name);
+    const std::set<std::pair<int, std::string>> expected{
+        {36, "Switch"},  {121, "Random"}, {121, "Clear"}, {145, "Random"}, {145, "Clear"},
+        {146, "Random"}, {146, "Clear"},  {154, "Random"}, {154, "Clear"}, {186, "Switch"},
+        {187, "Switch"}, {188, "State"},  {204, "Dice"}};
+    CHECK(momentary == expected);
+
+    Patch p = Patch::makeDefault();
+    const u8 seq = edit::addModule(p, Location::Va, 145, 0, 0); // SeqVal
+    const u8 osc = edit::addModule(p, Location::Va, kOscB, 1, 0);
+    const auto& seqDef = *p.va.find(seq)->def();
+    for (u8 i = 0; i < seqDef.params.size(); ++i)
+        CHECK(edit::isMomentary(p, Location::Va, seq, i) == (std::string(seqDef.params[i].name) == "Random"
+                                                             || std::string(seqDef.params[i].name) == "Clear"));
+    CHECK_FALSE(edit::isMomentary(p, Location::Va, osc, 0));
+    CHECK_FALSE(edit::isMomentary(p, Location::Settings, 1, 0));
+}
+
+TEST_CASE("MIDI controllers: the original's valid and pre-assigned CCs")
+{
+    for (int cc = 0; cc < 128; ++cc) {
+        const bool invalid = cc >= 120 || cc == 0 || cc == 1 || cc == 11 || cc == 18 || cc == 32 || cc == 64
+                          || cc == 70 || cc == 96 || cc == 97;
+        CHECK(edit::isValidMidiCc(static_cast<u8>(cc)) == !invalid);
+        CHECK(edit::isPreAssignedMidiCc(static_cast<u8>(cc)) == (cc == 7 || cc == 17));
+    }
+
+    Patch p = Patch::makeDefault();
+    const u8 osc = edit::addModule(p, Location::Va, kOscB, 0, 0);
+    for (u8 cc : {0, 1, 11, 64, 70, 120, 127})
+        CHECK_THROWS_AS(edit::assignMidiCc(p, cc, Location::Va, osc, 1), std::invalid_argument);
+    // CC 7 and 17 belong to the patch volume and octave shift: no other
+    // parameter takes them, and those two have no MIDI item.
+    CHECK_THROWS_AS(edit::assignMidiCc(p, 7, Location::Va, osc, 1), std::invalid_argument);
+    CHECK_THROWS_AS(edit::assignMidiCc(p, 17, Location::Va, osc, 1), std::invalid_argument);
+    CHECK(edit::midiCcOf(p, Location::Settings, 2, 0) == 7);
+    CHECK(edit::midiCcOf(p, Location::Settings, 7, 0) == 17);
+    CHECK_FALSE(edit::canAssignMidiCc(p, Location::Settings, 2, 0));
+    CHECK_FALSE(edit::canAssignMidiCc(p, Location::Settings, 7, 0));
+    CHECK_THROWS_AS(edit::assignMidiCc(p, 21, Location::Settings, 2, 0), std::invalid_argument);
+    CHECK_THROWS_AS(edit::clearMidiCc(p, 7), std::invalid_argument);
+    CHECK(edit::canAssignMidiCc(p, Location::Settings, 2, 1)); // the mute button can
+    edit::assignMidiCc(p, 119, Location::Va, osc, 1);
+    CHECK(edit::midiCcOf(p, Location::Va, osc, 1) == 119);
+
+    // The 5 parameters that are not MIDI-assignable (param spec +0x10).
+    int notAssignable = 0;
+    for (const auto& def : db::modules())
+        for (const auto& prm : def.params)
+            notAssignable += prm.midiAssignable ? 0 : 1;
+    CHECK(notAssignable == 5);
+    const u8 send = edit::addModule(p, Location::Va, 141, 2, 0); // CtrlSend
+    CHECK_FALSE(edit::canAssignMidiCc(p, Location::Va, send, 0));
+    CHECK_THROWS_AS(edit::assignMidiCc(p, 21, Location::Va, send, 0), std::invalid_argument);
+    CHECK(edit::canAssignMidiCc(p, Location::Va, send, 2)); // its channel
+
+    // A mirror of the synth stores whatever the synth has.
+    edit::storeMidiCc(p, 120, Location::Va, osc, 2);
+    CHECK(edit::midiCcOf(p, Location::Va, osc, 2) == 120);
+}
+
+TEST_CASE("MIDI controllers: loading repairs the map as CCtrlMap::ValidateAndRepairMap")
+{
+    Patch p = Patch::makeDefault();
+    const u8 osc = edit::addModule(p, Location::Va, kOscB, 0, 0);
+    CHECK_FALSE(edit::repairMidiCcs(p)); // the defaults (7, 17) are fine
+    p.controllers.push_back({21, 1, osc, 1});
+    p.controllers.push_back({21, 1, osc, 2});  // duplicate CC
+    p.controllers.push_back({64, 1, osc, 3});  // sustain: not valid
+    p.controllers.push_back({30, 1, 99, 0});   // no such module
+    p.controllers.push_back({31, 1, osc, 1});  // duplicate parameter
+    p.controllers.push_back({40, 1, osc, 4});
+    CHECK(edit::repairMidiCcs(p));
+    std::vector<int> ccs;
+    for (const auto& c : p.controllers)
+        ccs.push_back(c.cc);
+    CHECK(ccs == std::vector<int>{7, 17, 21, 40});
+    CHECK_FALSE(edit::repairMidiCcs(p));
+}
+
+TEST_CASE("names: the G2 character set")
+{
+    const std::string set = " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-!\"#$%&'()*+,./:;<=>?@[\\]^_`{|}";
+    for (int c = 0; c < 256; ++c)
+        CHECK(edit::isModularChar(static_cast<char>(c)) == (c != 0 && set.find(static_cast<char>(c)) != std::string::npos));
+    CHECK_FALSE(edit::isModularChar('~'));
+
+    // Typed text: one space per character outside the set, then 16 characters.
+    CHECK(edit::modularName("Caf\xc3\xa9 Bass~") == "Caf  Bass ");
+    CHECK(edit::modularName("\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9"
+                            "\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9")
+          == std::string(16, ' '));
+    CHECK(edit::modularName("Lead\xe9 1") == "Lead  1"); // a Latin-1 byte counts as one character
+    CHECK(edit::modularName("Strings 12345678901", 16) == "Strings 12345678");
+    CHECK(edit::modularBytes("Pad\xe9\x01") == "Pad  ");
+    CHECK(edit::fileNameForPatch("A/B:C*D?\"E<F>|") == "A B C D  E F  ");
+
+    // An accented name can no longer make a performance unsaveable.
+    Performance perf;
+    for (auto& slot : perf.slots)
+        slot = Patch::makeDefault();
+    perf.header.slots[0].patchName = edit::modularName("\xc3\xa9t\xc3\xa9 \xc3\xa0 la plage du lac");
+    CHECK(perf.header.slots[0].patchName.size() == 16);
+    CHECK_NOTHROW(savePerformance(perf));
+
+    Patch p = Patch::makeDefault();
+    const u8 osc = edit::addModule(p, Location::Va, kOscB, 0, 0);
+    edit::renameModule(p, Location::Va, osc, "Ba\xc3\x9f~");
+    CHECK(p.va.find(osc)->name == "Ba  ");
+    CHECK_THROWS_AS(edit::renameModule(p, Location::Va, osc, "Seventeen chars!!"), std::invalid_argument);
+    edit::setMorphLabel(p, 2, "M\xc3\xbc");
+    CHECK(edit::morphLabel(p, 2) == "M ");
+    p.va.find(osc)->name = "Osc\xe9";
+    CHECK(edit::filterLoadedNames(p));
+    CHECK(p.va.find(osc)->name == "Osc ");
+    CHECK_FALSE(edit::filterLoadedNames(p));
+}
+
+TEST_CASE("labels: only label controls, written as the original's records")
+{
+    Patch p = Patch::makeDefault();
+    // New modules with label controls carry their captions, as the original writes them.
+    const u8 sw = edit::addModule(p, Location::Va, 90, 0, 0);    // Sw1-2: a radio, 2 buttons
+    const u8 mix = edit::addModule(p, Location::Va, 123, 1, 0);  // Mix4-1C: 4 label buttons
+    const u8 osc = edit::addModule(p, Location::Va, kOscB, 2, 0);
+    auto record = [](u8 param, std::initializer_list<const char*> captions) {
+        std::vector<u8> r{1, static_cast<u8>(captions.size() * 7 + 1), param};
+        for (const char* c : captions) {
+            std::string s = c;
+            s.resize(7, '\0');
+            r.insert(r.end(), s.begin(), s.end());
+        }
+        return r;
+    };
+    REQUIRE(p.va.find(sw)->customData);
+    CHECK(*p.va.find(sw)->customData == record(0, {"Out 1", "Out 2"}));
+    std::vector<u8> mixData;
+    for (u8 i = 0; i < 4; ++i) {
+        const std::string ch = "Ch " + std::to_string(i + 1);
+        const auto r = record(static_cast<u8>(4 + i), {ch.c_str()});
+        mixData.insert(mixData.end(), r.begin(), r.end());
+    }
+    CHECK(*p.va.find(mix)->customData == mixData);
+    CHECK_FALSE(p.va.find(osc)->customData);
+
+    CHECK(edit::canRenameParam(p, Location::Va, sw, 0));
+    CHECK(edit::canRenameParam(p, Location::Va, mix, 6));
+    CHECK_FALSE(edit::canRenameParam(p, Location::Va, mix, 0)); // a level knob
+    CHECK(edit::canRenameParam(p, Location::Settings, 1, 3));    // a morph knob
+    CHECK_FALSE(edit::canRenameParam(p, Location::Settings, 1, 8));
+    CHECK(edit::paramLabels(p, Location::Va, sw, 0) == std::vector<std::string>{"Out 1", "Out 2"});
+
+    // Radio buttons: [1, n*7+1, param, n x 7 chars] (CPnlLabelRadioButton::GetCustomData).
+    edit::setParamLabel(p, Location::Va, sw, 0, "Dry", 0);
+    edit::setParamLabel(p, Location::Va, sw, 0, "W\xc3\xa9t", 1);
+    CHECK(*p.va.find(sw)->customData == record(0, {"Dry", "W t"}));
+    CHECK(edit::paramLabels(p, Location::Va, sw, 0) == std::vector<std::string>{"Dry", "W t"});
+    CHECK_THROWS_AS(edit::setParamLabel(p, Location::Va, sw, 0, "x", 2), std::invalid_argument);
+
+    // Label buttons: every control's record, in panel order, [1, 8, param, 7 chars].
+    edit::setParamLabel(p, Location::Va, mix, 6, "Snare");
+    mixData.clear();
+    for (u8 i = 0; i < 4; ++i) {
+        const std::string ch = i == 2 ? "Snare" : "Ch " + std::to_string(i + 1);
+        const auto r = record(static_cast<u8>(4 + i), {ch.c_str()});
+        mixData.insert(mixData.end(), r.begin(), r.end());
+    }
+    CHECK(*p.va.find(mix)->customData == mixData);
+    CHECK(edit::paramLabel(p, Location::Va, mix, 6) == "Snare");
+    edit::setParamLabel(p, Location::Va, mix, 6, ""); // back to the panel's caption
+    CHECK(edit::paramLabel(p, Location::Va, mix, 6) == "Ch 3");
+
+    // Morph knobs rename the morph group.
+    edit::setParamLabel(p, Location::Settings, 1, 3, "Bright");
+    CHECK(edit::morphLabel(p, 3) == "Bright");
+
+    const auto bytes = savePatch(p);
+    const Patch again = loadPatch(bytes);
+    CHECK(edit::paramLabels(again, Location::Va, sw, 0) == std::vector<std::string>{"Dry", "W t"});
+    CHECK(savePatch(again) == bytes);
+}
+
+TEST_CASE("module bar: where an inserted module goes (CTabButton::Action)")
+{
+    Patch p = Patch::makeDefault();
+    CHECK(edit::insertPosition(p, Location::Va, {}) == std::pair<u8, u8>{0, 0});
+    const u8 a = edit::addModule(p, Location::Va, kOscB, 0, 2);  // 5 rows high
+    const u8 b = edit::addModule(p, Location::Va, kOscB, 1, 0);
+    const u8 c = edit::addModule(p, Location::Va, kOscB, 1, 10);
+    const int h = p.va.find(a)->def()->height;
+    CHECK(edit::insertPosition(p, Location::Va, {a}) == std::pair<u8, u8>{0, static_cast<u8>(2 + h)});
+    // The rightmost selected column, below the lowest selected module there.
+    CHECK(edit::insertPosition(p, Location::Va, {a, b, c}) == std::pair<u8, u8>{1, static_cast<u8>(10 + h)});
+    CHECK(edit::insertPosition(p, Location::Va, {b, a}) == std::pair<u8, u8>{1, static_cast<u8>(h)});
 }
