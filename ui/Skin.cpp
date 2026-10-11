@@ -241,6 +241,16 @@ void setKnobDoubleClick(KnobDoubleClick action)
                                                                                     : "morph");
 }
 
+bool morphGroupColours()
+{
+    return userSettings().getBoolValue("morphGroupColours", false);
+}
+
+void setMorphGroupColours(bool on)
+{
+    userSettings().setValue("morphGroupColours", on);
+}
+
 bool showLoadEstimate()
 {
     return userSettings().getBoolValue("showLoadEstimate", false);

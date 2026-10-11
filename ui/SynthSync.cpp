@@ -53,13 +53,15 @@ bool sameStructure(const g2::Patch& a, const g2::Patch& b)
     return true;
 }
 
-using MorphKey = std::tuple<u8, u8, u8>; // location, module, param
+// A morph assignment is one (parameter, group): a parameter can be in several
+// groups, and each goes to the synth on its own (43 carries the group).
+using MorphKey = std::tuple<u8, u8, u8, u8>; // location, module, param, group
 std::map<MorphKey, g2::file::MorphAssign> morphsOf(const g2::Patch& p, std::size_t variation)
 {
     std::map<MorphKey, g2::file::MorphAssign> out;
     if (variation < p.morphs.size())
         for (const auto& a : p.morphs[variation].assigns)
-            out[{a.location, a.module, a.param}] = a;
+            out.try_emplace({a.location, a.module, a.param, a.morph}, a); // the first of repeats, as the original reads them
     return out;
 }
 
@@ -389,7 +391,7 @@ void SynthSync::push(int docSlot)
                                                 static_cast<u8>(v));
                                 old.params[v][i] = m.params[v][i];
                             }
-        // Morph assignments, per variation (range 0 removes one).
+        // Morph assignments, per variation and group (range 0 removes one).
         for (std::size_t v = 0; v < variations; ++v) {
             const auto was = morphsOf(probe, v);
             const auto is = morphsOf(now, v);
@@ -397,15 +399,16 @@ void SynthSync::push(int docSlot)
                 if (!is.count(key)) {
                     link_->setMorph(slot, static_cast<Location>(a.location), a.module, a.param, a.morph, 0,
                                     static_cast<u8>(v), false);
-                    g2::edit::clearMorph(probe, static_cast<u8>(v), static_cast<Location>(a.location), a.module, a.param);
+                    g2::edit::clearMorph(probe, static_cast<u8>(v), static_cast<Location>(a.location), a.module, a.param,
+                                         a.morph);
                 }
             for (const auto& [key, a] : is) {
                 const auto it = was.find(key);
-                if (it == was.end() || it->second.morph != a.morph || it->second.range != a.range) {
+                if (it == was.end() || it->second.range != a.range) {
                     link_->setMorph(slot, static_cast<Location>(a.location), a.module, a.param, a.morph, a.range,
                                     static_cast<u8>(v), false);
-                    g2::edit::setMorph(probe, static_cast<u8>(v), static_cast<Location>(a.location), a.module, a.param,
-                                       a.morph, a.range);
+                    g2::edit::storeMorph(probe, static_cast<u8>(v), static_cast<Location>(a.location), a.module, a.param,
+                                         a.morph, a.range);
                 }
             }
         }
@@ -540,12 +543,9 @@ void SynthSync::paramChanged(int slot, const g2::proto::ParamChange& c)
 
 void SynthSync::morphChanged(int slot, const g2::proto::MorphChange& c)
 {
+    // One (parameter, group) assignment; range 0 removes it (CPatch::HandleMorphChange).
     fromSynth(slot, [c](g2::Patch& p) {
-        const auto loc = static_cast<Location>(c.location);
-        if (c.range == 0)
-            g2::edit::clearMorph(p, c.variation, loc, c.module, c.param);
-        else
-            g2::edit::setMorph(p, c.variation, loc, c.module, c.param, c.morph, static_cast<std::int8_t>(c.range));
+        g2::edit::storeMorph(p, c.variation, static_cast<Location>(c.location), c.module, c.param, c.morph, c.range);
     });
 }
 

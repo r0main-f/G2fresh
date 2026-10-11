@@ -220,11 +220,8 @@ bool applyToPatch(Patch& p, const Molecule& molecule)
             },
             [&](const MorphChange& m) {
                 return guarded([&] {
-                    const auto loc = static_cast<Location>(m.location);
-                    if (m.range == 0)
-                        edit::clearMorph(p, m.variation, loc, m.module, m.param);
-                    else
-                        edit::setMorph(p, m.variation, loc, m.module, m.param, m.morph, static_cast<std::int8_t>(m.range));
+                    // One (parameter, group) assignment; range 0 removes it (CPatch::HandleMorphChange).
+                    edit::storeMorph(p, m.variation, static_cast<Location>(m.location), m.module, m.param, m.morph, m.range);
                 });
             },
             [&](const VariationSelect& m) {

@@ -151,30 +151,19 @@ void modernArrows(juce::Graphics& g, juce::Rectangle<float> r, bool leftRight, b
     chevron(g, b.getCentre(), 2.2f, leftRight ? -pi * 0.5f : 0.0f);
 }
 
-// The morph assignment of a parameter in the current variation, if any.
-const g2::MorphAssign* morphOf(const ModuleContext& c, int param)
-{
-    if (c.variation < 0 || static_cast<std::size_t>(c.variation) >= c.patch.morphs.size())
-        return nullptr;
-    for (const auto& a : c.patch.morphs[static_cast<std::size_t>(c.variation)].assigns)
-        if (a.location == static_cast<std::uint8_t>(c.location) && a.module == c.module.index && a.param == param)
-            return &a;
-    return nullptr;
-}
-
 // A step's morph range: a translucent band in the morph group's colour from
 // the step's note to the note the morph takes it to (value + range, as for
 // knobs), clipped to the visible window, with a line on the target note, or
 // an arrow at the edge when the target is outside the window.
 void paintMorphBand(juce::Graphics& g, juce::Rectangle<float> r, const sp::NoteSeqWindow& w, int value,
-                    const g2::MorphAssign& morph)
+                    const MorphLook& morph)
 {
-    if (morph.range == 0)
+    if (!morph.range || *morph.range == 0 || morph.colourGroup < 0)
         return;
-    const int target = juce::jlimit(0, 127, value + morph.range);
+    const int target = juce::jlimit(0, 127, value + *morph.range);
     const int visibleLow = std::max(w.low, 0);
     const int lo = std::min(value, target), hi = std::max(value, target);
-    const auto colour = ModulePainter::morphColour(morph.morph);
+    const auto colour = ModulePainter::morphColour(morph.colourGroup);
     if (hi >= visibleLow && lo <= w.high) {
         const float top = r.getY() + static_cast<float>(w.markerTop(std::min(hi, w.high)));
         const float bottom = r.getY() + static_cast<float>(w.markerTop(std::max(lo, visibleLow)) + w.pixels);
@@ -357,7 +346,9 @@ void SpecialControls::paintSeqSlider(juce::Graphics& g, const ModuleContext& c, 
     const auto* p = paramsOf(c);
     const int value = p && e.codeRef >= 0 && static_cast<std::size_t>(e.codeRef) < p->size()
         ? (*p)[static_cast<std::size_t>(e.codeRef)] : 0;
-    const auto* morph = morphOf(c, e.codeRef);
+    // The focused group's range (CSeqSliderGUI::Draw: bitmaps 0xD01/0xD02 in
+    // the focused group, 0xD03 for another group).
+    const auto morph = ModulePainter::morphLook(c, e.codeRef);
 
     if (c.look == Look::Classic) {
         // CSeqSliderGUI::Draw: bitmap 874's column for the zoom (key stripes,
@@ -375,8 +366,7 @@ void SpecialControls::paintSeqSlider(juce::Graphics& g, const ModuleContext& c, 
                 g.drawImage(strip, r.getX(), r.getY(), 11, kSliderHeight, sx, 0, 11, kSliderHeight);
             }
         }
-        if (morph)
-            paintMorphBand(g, r.toFloat(), w, value, *morph);
+        paintMorphBand(g, r.toFloat(), w, value, morph);
         if (!w.below(value) && !w.above(value)) {
             g.setColour(juce::Colours::black);
             g.fillRect(r.getX(), r.getY() + w.markerTop(value), 11, w.pixels);
@@ -412,9 +402,9 @@ void SpecialControls::paintSeqSlider(juce::Graphics& g, const ModuleContext& c, 
 
     // Morph assignment: its range as a band, and the bar in the group's colour.
     juce::Colour bar = kAccent;
-    if (morph) {
-        paintMorphBand(g, rf, w, value, *morph);
-        bar = ModulePainter::morphColour(morph->morph).darker(0.15f);
+    if (morph.colourGroup >= 0) {
+        paintMorphBand(g, rf, w, value, morph);
+        bar = ModulePainter::morphColour(morph.colourGroup).darker(0.15f);
     }
     g.setColour(bar);
     if (w.below(value) || w.above(value)) {

@@ -1,5 +1,6 @@
 #include "AreaView.h"
 
+#include "AssignMenus.h"
 #include "ModuleBrowser.h"
 #include "SpecialControls.h"
 
@@ -7,6 +8,8 @@
 #include "g2/param_text.hpp"
 #include "g2/replace.hpp"
 #include "g2/special.hpp"
+
+#include <cmath>
 
 namespace g2ui {
 namespace {
@@ -194,7 +197,8 @@ void AreaView::setMinimumSize(int width, int height)
 
 ModuleContext AreaView::context(const g2::Module& m) const
 {
-    return {doc_.patch(), location_, m, doc_.focusedVariation(), ModulePainter::panelFor(m), currentLook()};
+    return {doc_.patch(), location_, m, doc_.focusedVariation(), ModulePainter::panelFor(m), currentLook(),
+            doc_.focusedMorphGroup()};
 }
 
 juce::Point<int> AreaView::gridCell(juce::Point<int> p) const
@@ -801,16 +805,25 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
             setValue(dragHit_, dragStartValue_, true);
             status(describe(dragHit_));
         }
-        // Alt-drag a knob: set its morph range in the current variation; so
-        // does a double-click and drag, as the original's "Morph w/double
-        // click" option (on by default; CPnlControl::ClickDragOnSecondClickHandler).
+        // Alt-drag a knob: set its morph range in the focused morph group of
+        // the current variation; so does a double-click and drag, as the
+        // original's "Morph w/double click" option (on by default;
+        // CPnlControl::ClickDragOnSecondClickHandler). A parameter that cannot
+        // be morphed takes no morph drag (CPanel::CtrlAutoAssignMorph).
         const bool morphClick = e.getNumberOfClicks() >= 2 && knobDoubleClick() == KnobDoubleClick::Morph;
         if (drag_ == Drag::Value && (e.mods.isAltDown() || morphClick) && m) {
-            const auto morph = g2::edit::morphOf(doc_.patch(), static_cast<std::uint8_t>(doc_.focusedVariation()), location_,
-                                                 dragHit_.module, static_cast<std::uint8_t>(dragHit_.element->codeRef));
-            dragStartRange_ = morph ? morph->range : 0;
-            if (morph)
-                morphGroupForRange_ = morph->group;
+            const auto param = static_cast<std::uint8_t>(dragHit_.element->codeRef);
+            if (!g2::edit::isMorphable(doc_.patch(), location_, dragHit_.module, param)) {
+                status("This parameter cannot be morphed");
+                drag_ = Drag::None;
+                return;
+            }
+            dragStartRange_ = g2::edit::morphRange(doc_.patch(), static_cast<std::uint8_t>(doc_.focusedVariation()), location_,
+                                                   dragHit_.module, param,
+                                                   static_cast<std::uint8_t>(doc_.focusedMorphGroup()))
+                                  .value_or(0);
+            rangeDragDistance_ = 0;
+            rangeDragLastY_ = e.y;
             drag_ = Drag::Range;
         }
         return;
@@ -846,21 +859,50 @@ void AreaView::mouseDrag(const juce::MouseEvent& e)
         break;
     }
     case Drag::Range: {
-        const int range = juce::jlimit(-127, 127, dragStartRange_ + (e.getMouseDownY() - e.y));
+        const auto* m = doc_.patch().area(location_).find(dragHit_.module);
+        if (!m)
+            return;
+        const auto c = context(*m);
+        const int max = std::max(1, ModulePainter::maxValue(c, *dragHit_.element));
+        const int value = ModulePainter::value(c, *dragHit_.element).value_or(0);
+        // CPnlControl::ClickDragIdleHandler @000c8d74 (lock mode 2): 256
+        // pixels sweep the full range from the range at the click; value +
+        // range stays within [0, max], and at either end the distance is
+        // pulled back so that the drag turns at once.
+        rangeDragDistance_ += rangeDragLastY_ - e.y;
+        rangeDragLastY_ = e.y;
+        const float scaled = static_cast<float>(rangeDragDistance_ * max) * 0.00390625f;
+        int range = static_cast<short>(static_cast<int>(static_cast<float>(dragStartRange_) + scaled + 0.5f));
+        if (value + range < 0) {
+            range = -value;
+            rangeDragDistance_ = static_cast<int>(
+                std::floor(static_cast<float>(value + dragStartRange_) * -256.0f / static_cast<float>(max)) - 1.0f);
+        }
+        if (value + range > max) {
+            range = max - value;
+            rangeDragDistance_ = static_cast<int>(
+                std::ceil(static_cast<float>(max - (value + dragStartRange_)) * 256.0f / static_cast<float>(max)) + 1.0f);
+        }
         const auto loc = location_;
         const auto module = dragHit_.module;
         const auto param = static_cast<std::uint8_t>(dragHit_.element->codeRef);
         const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
-        const auto group = morphGroupForRange_;
+        const auto group = static_cast<std::uint8_t>(doc_.focusedMorphGroup());
+        if (range == g2::edit::morphRange(doc_.patch(), variation, loc, module, param, group).value_or(0))
+            break;
+        const auto name = juce::String(g2::edit::morphLabel(doc_.patch(), group));
+        // A 26th parameter takes no morph (CPanel::CtrlRequestMorphChange).
+        if (!g2::edit::canMorph(doc_.patch(), variation, loc, module, param)) {
+            status("Morph " + name + ": this variation already morphs " + juce::String(g2::edit::kMaxMorphedParams)
+                   + " parameters");
+            break;
+        }
         touch(module);
         doc_.performCoalesced("morph:" + juce::String(module) + ":" + juce::String(param), [=](g2::Patch& p) {
-            if (range == 0)
-                g2::edit::clearMorph(p, variation, loc, module, param);
-            else
-                g2::edit::setMorph(p, variation, loc, module, param, group, static_cast<std::int8_t>(range));
+            g2::edit::setMorph(p, variation, loc, module, param, group, range); // range 0 leaves the group
         });
-        status("Morph " + juce::String(g2::edit::morphLabel(doc_.patch(), group)) + " range: "
-               + juce::String(juce::roundToInt(range * 100.0 / 127.0)) + "%");
+        status("Morph " + name + " range: " + (range > 0 ? "+" : "") + juce::String(range) + " ("
+               + juce::String(juce::roundToInt(range * 100.0 / max)) + "%)");
         break;
     }
     case Drag::Bend: {
@@ -1319,64 +1361,29 @@ void AreaView::showControlMenu(const Hit& h)
     const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
     const auto& patch = doc_.patch();
     const auto loc = location_;
-    enum { kNoMorph = 1, kClearKnob, kClearCc, kLabel, kDefault, kMorphBase = 100, kKnobBase = 200, kCcBase = 400 };
+    namespace am = assignmenus;
+    enum { kMorphAssign = 1, kLabel = 4, kDefault = 5 };
 
-    juce::PopupMenu morph;
-    const auto current = g2::edit::morphOf(patch, variation, loc, module, param);
-    morph.addItem(kNoMorph, "None", true, !current);
-    for (int g = 0; g < g2::kMorphGroups; ++g) {
-        juce::PopupMenu::Item item(juce::String(g + 1) + ": " + juce::String(g2::edit::morphLabel(patch, g)));
-        item.itemID = kMorphBase + g;
-        item.colour = ModulePainter::morphColour(g);
-        item.isTicked = current && current->group == g;
-        morph.addItem(std::move(item));
-    }
+    // Morph assign: in the focused group of the current variation, checked
+    // when the parameter is in it; offered for morphable parameters, and
+    // only to those already morphed once the variation has 25
+    // (CControlMenu::InitMenus @0008fcbe).
+    const auto group = static_cast<std::uint8_t>(doc_.focusedMorphGroup());
+    const bool morphed = g2::edit::morphRange(patch, variation, loc, module, param, group).has_value();
+    const bool morphable = g2::edit::isMorphable(patch, loc, module, param);
 
-    juce::PopupMenu knobs;
     const auto knob = g2::edit::knobOf(patch, loc, module, param);
-    for (int page = 0; page < 5; ++page) {
-        juce::PopupMenu pageMenu;
-        for (int sub = 0; sub < 3; ++sub) {
-            juce::PopupMenu subMenu;
-            for (int k = 0; k < g2::edit::kKnobsPerPage; ++k) {
-                const int index = (page * 3 + sub) * g2::edit::kKnobsPerPage + k;
-                juce::String text = "Knob " + juce::String(k + 1);
-                if (const auto& a = patch.knobs[static_cast<std::size_t>(index)]; a && index != knob.value_or(-1))
-                    text << "  (in use)";
-                subMenu.addItem(kKnobBase + index, text, true, knob == index);
-            }
-            pageMenu.addSubMenu(juce::String::charToString(static_cast<juce::juce_wchar>('A' + sub)), subMenu);
-        }
-        knobs.addSubMenu("Page " + juce::String(page + 1), pageMenu);
-    }
-    knobs.addSeparator();
-    knobs.addItem(kClearKnob, "No knob", knob.has_value());
-
-    // The controllers the original offers (MIDICtrl::IsValid, not
-    // pre-assigned); none for a parameter holding CC 7 or 17 or not
-    // MIDI-assignable (CControlMenu removes the item).
-    juce::PopupMenu ccs;
     const auto cc = g2::edit::midiCcOf(patch, loc, module, param);
-    const bool midiItem = g2::edit::canAssignMidiCc(patch, loc, module, param);
-    for (int group = 0; group < 8 && midiItem; ++group) {
-        juce::PopupMenu groupMenu;
-        for (int n = group * 16; n < std::min(group * 16 + 16, 120); ++n) {
-            if (!g2::edit::isValidMidiCc(static_cast<std::uint8_t>(n)) || g2::edit::isPreAssignedMidiCc(static_cast<std::uint8_t>(n)))
-                continue;
-            const bool used = std::any_of(patch.controllers.begin(), patch.controllers.end(),
-                                          [&](const g2::CtrlAssign& a) { return a.cc == n; });
-            groupMenu.addItem(kCcBase + n, "CC " + juce::String(n) + (used && cc != n ? "  (in use)" : ""), true, cc == n);
-        }
-        ccs.addSubMenu("CC " + juce::String(group * 16) + "-" + juce::String(std::min(group * 16 + 15, 119)), groupMenu);
-    }
-    ccs.addSeparator();
-    ccs.addItem(kClearCc, "No MIDI controller", cc.has_value());
+    const auto ccs = am::ccMenu(patch, loc, module, param);
 
     juce::PopupMenu menu;
     menu.addSectionHeader(juce::String(m->name) + "  " + def->params[param].name);
-    menu.addSubMenu("Morph" + (current ? " (" + juce::String(g2::edit::morphLabel(patch, current->group)) + ")" : juce::String()), morph);
-    menu.addSubMenu("Assign Knob" + (knob ? " (" + juce::String(g2::edit::knobName(*knob)) + ")" : juce::String()), knobs);
-    if (midiItem)
+    if (morphable)
+        menu.addItem(kMorphAssign, "Morph Assign (" + juce::String(g2::edit::morphLabel(patch, group)) + ")",
+                     morphed || g2::edit::canMorph(patch, variation, loc, module, param), morphed);
+    menu.addSubMenu("Assign Knob" + (knob ? " (" + juce::String(g2::edit::knobName(*knob)) + ")" : juce::String()),
+                    am::knobMenu(patch, loc, module, param));
+    if (ccs.getNumItems() > 0)
         menu.addSubMenu("MIDI Controller" + (cc ? " (CC " + juce::String(*cc) + ")" : juce::String()), ccs);
     menu.addSeparator();
     // Only label buttons and label radio buttons have a name to change (CanChangeName).
@@ -1394,33 +1401,17 @@ void AreaView::showControlMenu(const Hit& h)
         button = juce::jlimit(0, static_cast<int>(labels.size()) - 1,
                               (local.y * rows / std::max(1, r.getHeight())) * cols + local.x * cols / std::max(1, r.getWidth()));
     }
-    menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), h, module, param, variation, loc,
-                            current, button](int r) {
+    menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), h, module, param, variation, loc, group,
+                            button](int r) {
         if (!safe || r <= 0)
             return;
         auto& doc = safe->doc_;
-        if (r == kNoMorph) {
-            doc.perform("Remove morph", [&](g2::Patch& p) { g2::edit::clearMorph(p, variation, loc, module, param); });
-        } else if (r >= kMorphBase && r < kMorphBase + g2::kMorphGroups) {
-            const auto group = static_cast<std::uint8_t>(r - kMorphBase);
-            const auto range = static_cast<std::int8_t>(current ? current->range : 32);
-            safe->morphGroupForRange_ = group;
-            doc.perform("Assign morph", [&](g2::Patch& p) { g2::edit::setMorph(p, variation, loc, module, param, group, range); });
-        } else if (r >= kKnobBase && r < kKnobBase + g2::kKnobCount) {
-            doc.perform("Assign knob", [&](g2::Patch& p) { g2::edit::assignKnob(p, r - kKnobBase, loc, module, param); });
-        } else if (r == kClearKnob) {
-            doc.perform("Remove knob", [&](g2::Patch& p) {
-                if (const auto k = g2::edit::knobOf(p, loc, module, param))
-                    g2::edit::clearKnob(p, *k);
-            });
-        } else if (r >= kCcBase && r < kCcBase + 128) {
-            const auto n = static_cast<std::uint8_t>(r - kCcBase);
-            doc.perform("Assign MIDI controller", [&](g2::Patch& p) { g2::edit::assignMidiCc(p, n, loc, module, param); });
-        } else if (r == kClearCc) {
-            doc.perform("Remove MIDI controller", [&](g2::Patch& p) {
-                if (const auto c = g2::edit::midiCcOf(p, loc, module, param))
-                    g2::edit::clearMidiCc(p, *c);
-            });
+        if (r == kMorphAssign) {
+            // Joining the group sets the value to 0 and the range to +max;
+            // leaving it removes that group only (CControlMenu::HandleMenuSelection).
+            doc.perform("Morph assign", [&](g2::Patch& p) { g2::edit::toggleMorphAssign(p, variation, loc, module, param, group); });
+        } else if (am::isAssignItem(r)) {
+            am::apply(doc, r, loc, module, param);
         } else if (r == kDefault) {
             const auto* mod = doc.patch().area(loc).find(module);
             if (mod && mod->def())

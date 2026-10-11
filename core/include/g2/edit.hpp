@@ -98,17 +98,66 @@ const char* categoryName(u8 category);
 
 // ---- Morphs, knob and MIDI assignments, labels -----------------------------
 
-// The morph assignment of a parameter in a variation: group 0..7 and signed
-// range -128..127 (fraction of the parameter's full range), or nullopt.
+// Morph assignments are keyed by (location, module, parameter, group), as
+// the original's morph map (CMorphMapData_11, CMorphSpec::operator<
+// @00064754): a parameter can be in several groups of a variation, each with
+// its own range (manual p91). The range is signed, in parameter units: the
+// morph takes the value to value + range, shown clipped to [0, max]
+// (CModule::GetMorphAbsValue @000aa276). A range of 0 is no assignment (the
+// original's morph change with range 0 removes it, CPatch::HandleMorphChange).
 struct Morph {
     u8 group = 0;
     std::int8_t range = 0;
 };
-std::optional<Morph> morphOf(const Patch& patch, u8 variation, Location loc, u8 module, u8 param);
-// Assigns (or re-assigns) a parameter to a morph group with a range in one
-// variation; a parameter belongs to at most one group per variation.
-void setMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group, std::int8_t range);
-void clearMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param);
+// Every group a parameter is in, in group order.
+std::vector<Morph> morphsOf(const Patch& patch, u8 variation, Location loc, u8 module, u8 param);
+// The parameter's range in one group, or nullopt when it is not in it.
+std::optional<std::int8_t> morphRange(const Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group);
+// The parameter definition's flag (CBuildModule::IsParamMorphable @000a9f4c,
+// db::ParamDef::morphable): the editor morphs no other parameter.
+bool isMorphable(const Patch& patch, Location loc, u8 module, u8 param);
+// At most 25 parameters per variation take morphs, whatever the number of
+// groups each is in (manual p91; GetNumberOfMorphedParams @00069246 counts
+// parameters, not assignments).
+inline constexpr int kMaxMorphedParams = 25;
+int morphedParamCount(const Patch& patch, u8 variation);
+// Whether the editor lets a parameter take a morph in a variation: it is
+// morphable, and already morphed there or fewer than 25 parameters are
+// (CControlMenu::InitMenus @0008fcbe, CPanel::CtrlRequestMorphChange @000c19b2).
+bool canMorph(const Patch& patch, u8 variation, Location loc, u8 module, u8 param);
+// The range a morph drag can give: value + range within [0, max] for the
+// parameter's value in the variation (CPnlControl::ClickDragIdleHandler
+// @000c8d74, CPnlKnobABC::CircularIdleHandler @000cbcf8).
+std::int8_t clampMorphRange(const Patch& patch, u8 variation, Location loc, u8 module, u8 param, int range);
+// Sets a parameter's range in one group of a variation, adding the
+// assignment if needed (CPanel::CtrlRequestMorphChange); the range is clamped
+// by clampMorphRange, and 0 removes the assignment. Throws for a parameter
+// canMorph refuses. Other groups are unchanged.
+void setMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group, int range);
+// Removes a parameter from one group (CMorphMap::GetDeassignMorphMolecules @000f1d58).
+void clearMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group);
+// The parameter popup's "Morph assign" (CControlMenu::HandleMenuSelection
+// @0008f5c6), for the focused group: a parameter not in it joins it with
+// value 0 and range +max; one in it leaves it. Returns whether the parameter
+// is now in the group. Throws for a parameter canMorph refuses.
+bool toggleMorphAssign(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group);
+// The morph dial's popup (CMorphControlMenu::HandleMenuSelection @0012523c),
+// in one variation. Clear Group: every parameter leaves `group`. Copy To:
+// every parameter of `from` joins `to` with the same range (replacing its
+// range there); `from` keeps them.
+void clearMorphGroup(Patch& patch, u8 variation, u8 group);
+void copyMorphGroup(Patch& patch, u8 variation, u8 from, u8 to);
+// The same as setMorph without the editor's rules (morphable flag, limit,
+// clamp), for mirrors of what a synth has (CPatch::HandleMorphChange): range
+// 0 removes. Throws only for a parameter the patch does not have.
+void storeMorph(Patch& patch, u8 variation, Location loc, u8 module, u8 param, u8 group, int range);
+// What the original does to a morph map it loads (file or synth): a repeated
+// (parameter, group) entry is skipped, the first kept
+// (CMorphMapData_11::ReadStream @00069326), and assignments to parameters
+// the patch does not have are dropped (CMorphMap::ValidateAndRepairMap
+// @000f1c7c, reported as "Morph assignment problem"). Returns whether
+// anything of the second kind was dropped.
+bool repairMorphs(Patch& patch);
 
 // The 120 assignable knobs: 5 pages x 3 sub-pages (A-C) x 8 knobs.
 inline constexpr int kKnobsPerPage = 8;
@@ -201,6 +250,9 @@ std::pair<u8, u8> insertPosition(const Patch& patch, Location loc, const std::ve
 
 // Modules copied with the cables between them, their morph assignments (all
 // variations), labels and names. Positions are relative to the group's top-left.
+// Pasting adds the morphs while the variation has room: each pasted
+// assignment counts one, and none is added once the count passes 25
+// (CPatchData::GetNewModulesMolecules @000eba8e).
 struct Clipboard {
     Location from = Location::Va;
     std::vector<Module> modules;

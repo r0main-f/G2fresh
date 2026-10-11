@@ -24,6 +24,19 @@ struct ModuleContext {
     int variation = 0;
     const PanelDef* panel = nullptr; // nullptr: draw a plain box
     Look look = Look::Modern;
+    int morphGroup = 0; // the focused morph group (PatchDocument::focusedMorphGroup)
+};
+
+// How a parameter's morphs show: the group whose colour (and knob sprite
+// frame) it takes, or -1 when it has none, and the range drawn, if any. The
+// original shows the focused group (manual p92): the parameter is red (group
+// 1's colour) with that group's range when it is in it, blue (group 3's) with
+// no range when it is only in other groups (CPanel::CtrlGetMorphGroup
+// @000c1e5c returns kGrp1 or kGrp3). The opt-in morphGroupColours(): the
+// focused group's colour and range if it is in it, else its lowest group's.
+struct MorphLook {
+    int colourGroup = -1;
+    std::optional<int> range;
 };
 
 class ModulePainter {
@@ -48,6 +61,7 @@ public:
 
     // The 8 morph-group colours, as in the original editor's knob sprites.
     static juce::Colour morphColour(int group);
+    static MorphLook morphLook(const ModuleContext& c, int param);
 
     // The 25 module colours of the original (Color::kModuleBackColorNN,
     // CPanel::MapPanelColorToRBGColor @0xbda68); 0 is the default grey.

@@ -93,7 +93,8 @@ TEST_CASE("replace: OscA -> OscB in a corpus patch")
     edit::setParam(p, Location::Va, 1, 4, 0, 5);   // Wave (0..5, OscB's is 0..4)
     edit::setParam(p, Location::Va, 1, 6, 0, 2);   // Tune Md
     edit::setMorph(p, 0, Location::Va, 1, 0, 2, -40);
-    edit::setMorph(p, 1, Location::Va, 1, 6, 1, 3);
+    edit::storeMorph(p, 1, Location::Va, 1, 6, 1, 3);
+    edit::storeMorph(p, 1, Location::Va, 1, 6, 4, -2); // a second group of the same parameter
     edit::assignKnob(p, 5, Location::Va, 1, 1);
     edit::assignMidiCc(p, 20, Location::Va, 1, 2);
     p = loadPatch(savePatch(p));
@@ -126,9 +127,9 @@ TEST_CASE("replace: OscA -> OscB in a corpus patch")
         CHECK((c.fromModule != 1 && c.toModule != 1));
 
     // Assignments.
-    CHECK(edit::morphOf(p, 0, Location::Va, n, 0)->group == 2);
-    CHECK(edit::morphOf(p, 0, Location::Va, n, 0)->range == -40);
-    CHECK(edit::morphOf(p, 1, Location::Va, n, 4)->group == 1); // Tune Md moved to index 4
+    CHECK(edit::morphRange(p, 0, Location::Va, n, 0, 2) == std::int8_t{-40});
+    CHECK(edit::morphRange(p, 1, Location::Va, n, 4, 1) == std::int8_t{3}); // Tune Md moved to index 4
+    CHECK(edit::morphRange(p, 1, Location::Va, n, 4, 4) == std::int8_t{-2}); // with both its groups
     CHECK(edit::knobOf(p, Location::Va, n, 1) == 5);
     CHECK(edit::midiCcOf(p, Location::Va, n, 2) == u8{20});
 

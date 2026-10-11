@@ -252,9 +252,7 @@ TEST_CASE("session: variations, morphs, knobs, controllers and module edits stay
     CHECK(synth.knobs[7].has_value());
     CHECK(synth.va.find(module)->name == "Renamed");
     CHECK(synth.va.find(module)->col == 2);
-    const auto morph = g2::edit::morphOf(synth, 3, Location::Va, module, 0);
-    REQUIRE(morph);
-    CHECK(morph->range == -25);
+    CHECK(g2::edit::morphRange(synth, 3, Location::Va, module, 0, 2) == std::int8_t{-25});
     CHECK(g2::edit::midiCcOf(synth, Location::Va, module, 0) == u8{21});
     // The mirror matches, section for section.
     const auto mine = rig.client.state().slots[1].patch.toSections();

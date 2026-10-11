@@ -62,6 +62,13 @@ void setWheelEditsKnobs(bool on);
 enum class KnobDoubleClick { Morph, Reset, Nothing };
 KnobDoubleClick knobDoubleClick();
 void setKnobDoubleClick(KnobDoubleClick action);
+// Morphed parameters and the toolbar morph dials in the eight group colours,
+// a parameter showing the range of the focused group if it is in it, else of
+// its lowest group. The original shows the focused group only: red when the
+// parameter is in it (with its range), blue when it is in another group
+// (manual p92; CPanel::CtrlGetMorphGroup @000c1e5c, CPnlMorphKnob::UpdateGraphics).
+bool morphGroupColours();
+void setMorphGroupColours(bool on);
 // Offline, the load meter shows G2fresh's estimate instead of "--" (the
 // original shows "--" until the synth reports, CTBWindow::SetupLoadMeter).
 bool showLoadEstimate();
