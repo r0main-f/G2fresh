@@ -129,8 +129,13 @@ public:
             for (auto* c : row.all())
                 addAndMakeVisible(c);
         }
+        // The performance's name (CDialogPerformance: sent as 29 on its own).
+        perfNameLabel_.setText("Name", juce::dontSendNotification);
+        perfName_.setText(doc.performanceName(), false);
+        perfName_.setInputRestrictions(PatchDocument::kMaxNameLength, PatchDocument::allowedNameCharacters());
+        perfName_.onTextChange = [this] { doc_.setPerformanceName(perfName_.getText()); };
         bpmLabel_.setText("Master clock (BPM)", juce::dontSendNotification);
-        bpm_.setRange(24, 240, 1);
+        bpm_.setRange(30, 240, 1); // CDialogPerformance::SetClockRate @0003964c clamps 30-240
         bpm_.setSliderStyle(juce::Slider::IncDecButtons);
         bpm_.setValue(perf->header.masterClockBpm, juce::dontSendNotification);
         bpm_.onValueChange = [this] {
@@ -151,9 +156,10 @@ public:
             if (auto* w = findParentComponentOfClass<juce::DialogWindow>())
                 w->exitModalState(0);
         };
-        for (auto* c : std::initializer_list<juce::Component*>{&bpmLabel_, &bpm_, &run_, &ranges_, &close_})
+        for (auto* c : std::initializer_list<juce::Component*>{&perfNameLabel_, &perfName_, &bpmLabel_, &bpm_, &run_,
+                                                               &ranges_, &close_})
             addAndMakeVisible(c);
-        setSize(820, 330);
+        setSize(820, 370);
     }
 
     void resized() override
@@ -170,6 +176,10 @@ public:
                 all[c]->setBounds(line.removeFromLeft(widths[c]).reduced(c == 0 ? 0 : 3, 0));
         }
         r.removeFromTop(16);
+        auto nameLine = r.removeFromTop(30);
+        perfNameLabel_.setBounds(nameLine.removeFromLeft(150));
+        perfName_.setBounds(nameLine.removeFromLeft(220));
+        r.removeFromTop(8);
         auto line = r.removeFromTop(30);
         bpmLabel_.setBounds(line.removeFromLeft(150));
         bpm_.setBounds(line.removeFromLeft(120));
@@ -201,7 +211,8 @@ private:
     PatchDocument& doc_;
     juce::OwnedArray<juce::Label> labels_;
     std::array<Row, 4> rows_;
-    juce::Label bpmLabel_;
+    juce::Label perfNameLabel_, bpmLabel_;
+    juce::TextEditor perfName_;
     juce::Slider bpm_;
     juce::ToggleButton run_{"Master clock running"}, ranges_{"Keyboard ranges enabled"};
     juce::TextButton close_{"Close"};

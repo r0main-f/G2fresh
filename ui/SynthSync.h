@@ -4,13 +4,13 @@
 //
 // Once a patch is sent to (or read from) a slot, or a performance to (or from)
 // the synth, the document is bound: every edit goes to the synth as the
-// original editor sends it (parameter, mode, morph, knob, controller and
-// variation changes as single messages; anything else, e.g. modules or cables,
-// by sending the slot's patch again), and what changes on the synth (panel
-// knobs, variations, another editor's edits) comes into the document, outside
-// the undo history. DAW automation changes the document, so it reaches the
-// synth too. Owned by the plugin processor, so the connection outlives the
-// editor window.
+// original editor sends it (g2/proto/live.hpp: the molecules each edit
+// records, undo and redo included, then single messages for the rest; the
+// patch name, the performance's settings, name and slot focus), and what
+// changes on the synth (panel knobs, variations, another editor's edits, the
+// slot focus) comes into the document, outside the undo history. DAW
+// automation changes the document, so it reaches the synth too. Owned by the
+// plugin processor, so the connection outlives the editor window.
 #pragma once
 
 #include "LiveLeds.h"
@@ -18,6 +18,7 @@
 
 #include "g2/patch_load.hpp"
 #include "g2/proto/link.hpp"
+#include "g2/proto/live.hpp"
 
 #include <juce_events/juce_events.h>
 
@@ -32,6 +33,7 @@ class SynthSync : public juce::ChangeBroadcaster,
                   public LiveLeds,
                   private juce::Timer,
                   private juce::ChangeListener,
+                  private PatchDocument::EditListener,
                   private g2::proto::SynthLink::Listener {
 public:
     explicit SynthSync(PatchDocument& doc);
@@ -101,6 +103,10 @@ public:
     // The patch load the synth reports for the slot shown, while bound.
     std::optional<g2::patchload::Load> reportedLoad() const;
 
+    // An alert the original shows when the synth reports an exception (7E):
+    // title and text. Set by the editor window.
+    std::function<void(const juce::String& title, const juce::String& text)> onAlert;
+
 private:
     enum class Binding { None, Patch, Performance };
 
@@ -110,8 +116,16 @@ private:
     // Document slot <-> synth slot for the current binding (-1 if not bound).
     int synthSlotFor(int docSlot) const;
     int docSlotFor(int synthSlot) const;
-    // Sends what changed in a document slot since the synth last got it.
-    void push(int docSlot);
+    // Sends what changed in a document slot since the synth last got it,
+    // `edit` (what the step recorded, or its undo) first.
+    void push(int docSlot, const g2::live::Edit* edit = nullptr, bool undo = false);
+    void send(int synthSlot, const std::vector<g2::proto::Outgoing>& out);
+    // The performance's settings, name and slot focus (P bubbles).
+    void pushPerformance();
+    std::string nameFor(int docSlot) const;
+    void bindPerformance();
+    // PatchDocument::EditListener
+    void patchEdited(int slot, const g2::live::Edit* edit, bool undo) override;
     // Applies a change made on the synth to the document and to what we
     // know the synth has, so it is not sent back.
     void fromSynth(int synthSlot, const std::function<void(g2::Patch&)>& change);
@@ -129,6 +143,7 @@ private:
     void flashNamesChanged(g2::u8 type) override;
     void flashResult(const g2::proto::FlashResult&) override;
     void performanceChanged() override;
+    void error(g2::u8 code) override;
     // The virtual G2 makes its LEDs and meters move, so they can be seen.
     void animateVirtualLeds();
 
@@ -139,7 +154,11 @@ private:
     Binding binding_ = Binding::None;
     int slot_ = 0; // Binding::Patch: the synth slot
     // What the synth has, per synth slot, as the document last sent or got it.
-    std::array<std::optional<g2::Patch>, 4> sent_;
+    std::array<std::optional<g2::proto::LiveSlot>, 4> live_;
+    // The performance as the synth has it (Binding::Performance).
+    g2::file::PerfHeader sentPerf_;
+    std::string sentPerfName_;
+    int sentFocus_ = -1;
     LedMap ledMap_; // of the document slot shown
     std::uint32_t ledGeneration_ = 0;
     double lastVirtualLeds_ = 0.0;

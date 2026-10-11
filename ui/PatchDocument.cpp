@@ -9,22 +9,33 @@ namespace g2ui {
 
 // An undo step holds the edited patch before and after the edit (and, in a
 // performance, its slot): patches are small, and snapshots can't get out of
-// sync with the model.
+// sync with the model. It also holds what the edit recorded (the original's
+// molecules and their inverses), which a synth gets on undo and redo.
 class PatchDocument::Step : public juce::UndoableAction {
 public:
-    Step(PatchDocument& doc, int slot, g2::Patch before, g2::Patch after)
-        : doc_(doc), slot_(slot), before_(std::move(before)), after_(std::move(after)) {}
+    Step(PatchDocument& doc, int slot, g2::Patch before, g2::Patch after, g2::live::Edit edit)
+        : doc_(doc), slot_(slot), before_(std::move(before)), after_(std::move(after)), edit_(std::move(edit)) {}
 
-    bool perform() override { doc_.replace(slot_, after_); return true; }
-    bool undo() override { doc_.replace(slot_, before_); return true; }
+    bool perform() override
+    {
+        doc_.replace(slot_, after_, &edit_, false);
+        return true;
+    }
+    bool undo() override
+    {
+        doc_.replace(slot_, before_, &edit_, true);
+        return true;
+    }
     int getSizeInUnits() override { return 1; }
 
     void setAfter(g2::Patch after) { after_ = std::move(after); }
+    void addEdit(const g2::live::Edit& more) { edit_.append(more); }
 
 private:
     PatchDocument& doc_;
     int slot_;
     g2::Patch before_, after_;
+    g2::live::Edit edit_;
 };
 
 PatchDocument::PatchDocument()
@@ -32,7 +43,7 @@ PatchDocument::PatchDocument()
 {
 }
 
-void PatchDocument::replace(int slot, const g2::Patch& p)
+void PatchDocument::replace(int slot, const g2::Patch& p, const g2::live::Edit* edit, bool undo)
 {
     if (perf_) {
         perf_->slots[static_cast<std::size_t>(slot)] = p;
@@ -41,6 +52,7 @@ void PatchDocument::replace(int slot, const g2::Patch& p)
         patch_ = p;
     }
     dirty_ = true;
+    edited(slot, edit, undo);
     sendChangeMessage();
 }
 
@@ -68,7 +80,9 @@ bool PatchDocument::perform(const juce::String& name, const std::function<void(g
 {
     endCoalescing();
     g2::Patch next = patch();
-    // The edit works on a copy: whatever it throws leaves the document as it was.
+    // The edit works on a copy: whatever it throws leaves the document as it
+    // was. It records what a synth gets.
+    g2::live::Recorder recorder;
     try {
         edit(next);
     } catch (const std::exception& e) {
@@ -77,7 +91,7 @@ bool PatchDocument::perform(const juce::String& name, const std::function<void(g
         return false;
     }
     undo_.beginNewTransaction(name);
-    auto* step = new Step(*this, slot_, patch(), std::move(next));
+    auto* step = new Step(*this, slot_, patch(), std::move(next), recorder.edit());
     if (!undo_.perform(step, name))
         return false;
     lastStep_ = step;
@@ -93,13 +107,15 @@ bool PatchDocument::performCoalesced(const juce::String& key, const std::functio
     }
     // Extend the last step: keep its "before", replace its "after".
     g2::Patch next = patch();
+    g2::live::Recorder recorder;
     try {
         edit(next);
     } catch (const std::exception&) {
         return false;
     }
     lastStep_->setAfter(next);
-    replace(slot_, next);
+    lastStep_->addEdit(recorder.edit());
+    replace(slot_, next, &recorder.edit());
     return true;
 }
 
@@ -145,6 +161,7 @@ bool PatchDocument::performLiveOnSlot(int slot, const std::function<void(g2::Pat
     }
     perf_->slots[static_cast<std::size_t>(slot)] = std::move(next);
     dirty_ = true;
+    edited(slot);
     sendChangeMessage();
     return true;
 }
@@ -164,10 +181,11 @@ void PatchDocument::loadPatch(const g2::Patch& patch, const juce::String& name)
     sendChangeMessage();
 }
 
-void PatchDocument::loadPerformance(const g2::Performance& perf)
+void PatchDocument::loadPerformance(const g2::Performance& perf, const juce::String& name)
 {
     resetHistory();
     perf_ = perf;
+    perfName_ = juce::String(g2::edit::modularName(name.toStdString()));
     slot_ = juce::jlimit(0, 3, static_cast<int>(perf_->header.focusedSlot));
     file_ = juce::File();
     variation_ = juce::jlimit(0, g2::kUserVariations - 1, static_cast<int>(patch().header.activeVariation));
@@ -198,6 +216,7 @@ void PatchDocument::setVariation(int v)
     // The selected variation is saved with the patch, like in the original editor.
     auto& header = perf_ ? perf_->slots[static_cast<std::size_t>(slot_)].header : patch_.header;
     header.activeVariation = static_cast<std::uint8_t>(variation_);
+    edited(slot_);
     sendChangeMessage();
 }
 
@@ -221,8 +240,23 @@ int PatchDocument::focusedVariation() const
 void PatchDocument::setFile(const juce::File& f)
 {
     file_ = f;
-    if (!perf_ && f != juce::File())
-        name_ = juce::String(g2::edit::modularName(f.getFileNameWithoutExtension().toStdString()));
+    if (f != juce::File()) {
+        // As the original names a patch or performance after its file
+        // (Utils::MakePatchNameFromFileName).
+        const auto name = juce::String(g2::edit::modularName(f.getFileNameWithoutExtension().toStdString()));
+        (perf_ ? perfName_ : name_) = name;
+    }
+    edited(slot_);
+    sendChangeMessage();
+}
+
+void PatchDocument::setPerformanceName(const juce::String& name)
+{
+    const auto trimmed = juce::String(g2::edit::modularName(name.trim().toStdString())).trim();
+    if (trimmed.isEmpty() || trimmed == perfName_)
+        return;
+    perfName_ = trimmed;
+    dirty_ = true;
     sendChangeMessage();
 }
 
@@ -268,6 +302,7 @@ void PatchDocument::setName(const juce::String& name)
     else
         name_ = trimmed;
     dirty_ = true;
+    edited(slot_);
     sendChangeMessage();
 }
 
@@ -299,6 +334,7 @@ void PatchDocument::newPerformance()
         slot.midiChannel = static_cast<std::uint8_t>(i);
     }
     perf_ = std::move(perf);
+    perfName_ = "Performance";
     slot_ = 0;
     variation_ = 0;
     file_ = juce::File();

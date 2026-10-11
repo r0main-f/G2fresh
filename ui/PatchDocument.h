@@ -4,6 +4,7 @@
 #pragma once
 
 #include "g2/edit.hpp"
+#include "g2/live.hpp"
 #include "g2/patch.hpp"
 
 #include <juce_data_structures/juce_data_structures.h>
@@ -17,6 +18,18 @@ namespace g2ui {
 class PatchDocument : public juce::ChangeBroadcaster {
 public:
     PatchDocument();
+
+    // Told of every change of a slot's patch at once, in order (change
+    // messages come later and coalesce): what a synth needs to send each edit
+    // as the original does. `edit` is what an undoable step recorded (the
+    // original's molecules, g2/live.hpp) and `undo` whether the step is being
+    // undone; nullptr for other changes.
+    class EditListener {
+    public:
+        virtual ~EditListener() = default;
+        virtual void patchEdited(int slot, const g2::live::Edit* edit, bool undo) = 0;
+    };
+    void setEditListener(EditListener* l) { editListener_ = l; }
 
     // The patch being edited: the whole patch, or the selected slot of a
     // performance.
@@ -78,8 +91,12 @@ public:
     // A new performance: four empty patches in slots A-D.
     void newPerformance();
     // Changes the performance's header (slot settings, master clock, ...).
-    // Not part of the undo history.
+    // Not part of the undo history (the original has none for it).
     void editPerformance(const std::function<void(g2::file::PerfHeader&)>& edit);
+    // The performance's name (a .prf2 has none: from the file name, or the
+    // synth's), at most 16 G2 characters.
+    juce::String performanceName() const { return perfName_; }
+    void setPerformanceName(const juce::String& name);
     // Loads a patch or performance, whichever the bytes contain. Throws
     // g2::ChecksumError (unless ignoreChecksum) or g2::FormatError.
     void loadBytes(const std::vector<std::uint8_t>& bytes, bool ignoreChecksum = false);
@@ -87,7 +104,7 @@ public:
     // Replace the document with a patch or performance received from the
     // synth (no file; clears the undo history).
     void loadPatch(const g2::Patch& patch, const juce::String& name);
-    void loadPerformance(const g2::Performance& perf);
+    void loadPerformance(const g2::Performance& perf, const juce::String& name = "Performance");
     juce::String fileExtension() const { return perf_ ? ".prf2" : ".pch2"; }
     // The cable shapes of every patch (see CableLayout.h), or "" if none.
     juce::String layoutJson() const;
@@ -149,7 +166,12 @@ public:
 
 private:
     class Step;
-    void replace(int slot, const g2::Patch& p);
+    void replace(int slot, const g2::Patch& p, const g2::live::Edit* edit = nullptr, bool undo = false);
+    void edited(int slot, const g2::live::Edit* edit = nullptr, bool undo = false)
+    {
+        if (editListener_)
+            editListener_->patchEdited(slot, edit, undo);
+    }
     void resetHistory();
     // The original's load-time repairs (CCtrlMap::ValidateAndRepairMap,
     // CModule::SetName) on the loaded patch(es); fills loadReport_.
@@ -165,6 +187,8 @@ private:
     int morphGroup_ = 0;
     juce::File file_;
     juce::String name_ = "New patch"; // patch name (performances use slot names)
+    juce::String perfName_ = "Performance";
+    EditListener* editListener_ = nullptr;
     bool dirty_ = false;
     juce::String loadReport_;
     bool embeddedNameFiltered_ = false;

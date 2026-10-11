@@ -1416,8 +1416,8 @@ void AreaView::showModuleMenu(std::uint8_t module)
             const bool lock = first && !first->locked;
             self.doc_.perform(lock ? "Lock modules" : "Unlock modules", [&](g2::Patch& p) {
                 for (auto index : targets)
-                    if (auto* mod = p.area(loc).find(index))
-                        mod->locked = lock;
+                    if (p.area(loc).find(index))
+                        g2::edit::setLocked(p, loc, index, lock);
             });
         } else if (result == kRename) {
             self.rename(module);
@@ -1705,8 +1705,7 @@ void AreaView::addModule(std::uint8_t type, std::optional<juce::Point<int>> wher
     std::uint8_t added = 0;
     juce::String error;
     if (doc_.perform("Add module", [&](g2::Patch& p) {
-            added = g2::edit::addModule(p, loc, type, static_cast<std::uint8_t>(cell.x), static_cast<std::uint8_t>(cell.y));
-            g2::edit::resolveOverlaps(p, loc, added);
+            added = g2::edit::dropModule(p, loc, type, static_cast<std::uint8_t>(cell.x), static_cast<std::uint8_t>(cell.y));
         }, &error)) {
         selection_ = {added};
         touch(added);

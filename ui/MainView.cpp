@@ -221,6 +221,7 @@ MainView::~MainView()
     if (synth_ != nullptr) {
         synth_->removeChangeListener(this);
         synth_->onFlashProblem = nullptr;
+        synth_->onAlert = nullptr;
     }
 }
 
@@ -230,11 +231,18 @@ void MainView::setSynth(SynthSync* synth)
     if (synth_ != nullptr) {
         synth_->removeChangeListener(this);
         synth_->onFlashProblem = nullptr;
+        synth_->onAlert = nullptr;
     }
     synth_ = synth;
     if (synth_ != nullptr) {
         synth_->addChangeListener(this);
         synth_->onFlashProblem = [this](const juce::String& text) { showFlashProblem(text); };
+        // The original's alert when the synth reports an exception (7E).
+        synth_->onAlert = [safe = juce::Component::SafePointer<MainView>(this)](const juce::String& title,
+                                                                                  const juce::String& text) {
+            if (safe)
+                juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, title, text, "OK", safe);
+        };
     }
     synthStatus_.setVisible(synth_ != nullptr);
     va_.setLiveLeds(synth_);

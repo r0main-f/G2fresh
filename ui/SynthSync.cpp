@@ -35,73 +35,27 @@ juce::File findBridge()
     return {};
 }
 
-// Modules (index and type) and cables of both areas: what cannot change by
-// single messages.
-bool sameStructure(const g2::Patch& a, const g2::Patch& b)
+std::uint64_t nowMs()
 {
-    for (const auto loc : {Location::Va, Location::Fx}) {
-        const auto& x = a.area(loc);
-        const auto& y = b.area(loc);
-        if (x.modules.size() != y.modules.size() || !(x.cables == y.cables))
-            return false;
-        for (const auto& m : x.modules) {
-            const auto* other = y.find(m.index);
-            if (!other || other->type != m.type)
-                return false;
-        }
-    }
-    return true;
+    return static_cast<std::uint64_t>(juce::Time::getMillisecondCounterHiRes());
 }
 
-// A morph assignment is one (parameter, group): a parameter can be in several
-// groups, and each goes to the synth on its own (43 carries the group).
-using MorphKey = std::tuple<u8, u8, u8, u8>; // location, module, param, group
-std::map<MorphKey, g2::file::MorphAssign> morphsOf(const g2::Patch& p, std::size_t variation)
+// The performance header as a 11 carries it, without what other messages
+// set: the slots' patch names (27 to each slot) and the focused slot (09).
+g2::file::PerfHeader settingsOf(g2::file::PerfHeader h)
 {
-    std::map<MorphKey, g2::file::MorphAssign> out;
-    if (variation < p.morphs.size())
-        for (const auto& a : p.morphs[variation].assigns)
-            out.try_emplace({a.location, a.module, a.param, a.morph}, a); // the first of repeats, as the original reads them
-    return out;
+    for (auto& slot : h.slots)
+        slot.patchName.clear();
+    h.focusedSlot = 0;
+    return h;
 }
 
-// The Patch Mutator's audition variation (9), which files leave out: whether
-// `now`'s is what `before` has (true when `now` has none).
-bool sameAudition(const g2::Patch& before, const g2::Patch& now)
+bool sameSettings(const g2::file::PerfHeader& a, const g2::file::PerfHeader& b)
 {
-    if (!g2::edit::hasAuditionVariation(now))
-        return true;
-    if (!g2::edit::hasAuditionVariation(before))
-        return false;
-    constexpr auto v = static_cast<std::size_t>(g2::kAuditionVariation);
-    for (const auto loc : {Location::Va, Location::Fx})
-        for (const auto& m : now.area(loc).modules) {
-            const auto* o = before.area(loc).find(m.index);
-            if (!o || (v < m.params.size()) != (v < o->params.size()) || (v < m.params.size() && m.params[v] != o->params[v]))
-                return false;
-        }
-    for (const auto& m : now.settings)
-        for (const auto& o : before.settings)
-            if (o.index == m.index && v < m.params.size() && (v >= o.params.size() || m.params[v] != o.params[v]))
-                return false;
-    const auto a = morphsOf(before, v), b = morphsOf(now, v);
-    if (a.size() != b.size())
-        return false;
-    for (const auto& [key, m] : b) {
-        const auto it = a.find(key);
-        if (it == a.end() || it->second.morph != m.morph || it->second.range != m.range)
-            return false;
-    }
-    return true;
-}
-
-bool equalFiles(const g2::Patch& a, const g2::Patch& b)
-{
-    try {
-        return g2::savePatch(a) == g2::savePatch(b);
-    } catch (const std::exception&) {
-        return false;
-    }
+    auto bytes = [](const g2::file::PerfHeader& h) {
+        return g2::file::encodeSection(g2::file::Section{g2::file::kPerfHeader, settingsOf(h), 0, {}});
+    };
+    return bytes(a) == bytes(b);
 }
 
 } // namespace
@@ -109,11 +63,13 @@ bool equalFiles(const g2::Patch& a, const g2::Patch& b)
 SynthSync::SynthSync(PatchDocument& doc) : doc_(doc)
 {
     doc_.addChangeListener(this);
+    doc_.setEditListener(this);
 }
 
 SynthSync::~SynthSync()
 {
     stopTimer();
+    doc_.setEditListener(nullptr);
     doc_.removeChangeListener(this);
     if (link_)
         link_->setListener(nullptr);
@@ -241,7 +197,7 @@ void SynthSync::sendPatch(int slot)
     link_->sendPatch(slot, doc_.patch(), doc_.name().toStdString());
     binding_ = Binding::Patch;
     slot_ = slot;
-    sent_[static_cast<std::size_t>(slot)] = doc_.patch();
+    live_[static_cast<std::size_t>(slot)] = g2::proto::LiveSlot(doc_.patch(), doc_.name().toStdString());
     ledMap_ = g2ui::ledMap(doc_.patch());
     sendChangeMessage();
 }
@@ -251,12 +207,27 @@ void SynthSync::sendPatchAlone()
     if (!ready() || doc_.isPerformance())
         return;
     unbind();
-    link_->sendPerformance(g2::Performance::playing(doc_.patch(), doc_.name().toStdString()), doc_.name().toStdString());
+    // The original's download of a patch to a synth without a performance
+    // (CreateDownloadPerformanceFromPatch @000fe478): a "void" performance,
+    // played in patch mode.
+    link_->sendPerformance(g2::Performance::playing(doc_.patch(), doc_.name().toStdString()), doc_.name().toStdString(),
+                           false);
     binding_ = Binding::Patch;
     slot_ = 0;
-    sent_[0] = doc_.patch();
+    live_[0] = g2::proto::LiveSlot(doc_.patch(), doc_.name().toStdString());
     ledMap_ = g2ui::ledMap(doc_.patch());
     sendChangeMessage();
+}
+
+void SynthSync::bindPerformance()
+{
+    binding_ = Binding::Performance;
+    for (int s = 0; s < 4; ++s)
+        live_[static_cast<std::size_t>(s)] = g2::proto::LiveSlot(doc_.slotPatch(s), nameFor(s));
+    sentPerf_ = doc_.performance()->header;
+    sentPerfName_ = doc_.performanceName().toStdString();
+    sentFocus_ = doc_.slot();
+    ledMap_ = g2ui::ledMap(doc_.patch());
 }
 
 void SynthSync::sendPerformance()
@@ -264,12 +235,8 @@ void SynthSync::sendPerformance()
     if (!ready() || !doc_.isPerformance())
         return;
     unbind();
-    const auto name = doc_.file() != juce::File() ? doc_.file().getFileNameWithoutExtension() : juce::String("Performance");
-    link_->sendPerformance(*doc_.performance(), name.toStdString());
-    binding_ = Binding::Performance;
-    for (int s = 0; s < 4; ++s)
-        sent_[static_cast<std::size_t>(s)] = doc_.slotPatch(s);
-    ledMap_ = g2ui::ledMap(doc_.patch());
+    link_->sendPerformance(*doc_.performance(), doc_.performanceName().toStdString());
+    bindPerformance();
     sendChangeMessage();
 }
 
@@ -282,7 +249,7 @@ void SynthSync::getPatch(int slot)
     doc_.loadPatch(s.patch, juce::String(s.name));
     binding_ = Binding::Patch;
     slot_ = slot;
-    sent_[static_cast<std::size_t>(slot)] = doc_.patch();
+    live_[static_cast<std::size_t>(slot)] = g2::proto::LiveSlot(doc_.patch(), doc_.name().toStdString());
     sendChangeMessage();
 }
 
@@ -291,10 +258,8 @@ void SynthSync::getPerformance()
     if (!ready())
         return;
     unbind();
-    doc_.loadPerformance(link_->state().performance());
-    binding_ = Binding::Performance;
-    for (int s = 0; s < 4; ++s)
-        sent_[static_cast<std::size_t>(s)] = doc_.slotPatch(s);
+    doc_.loadPerformance(link_->state().performance(), juce::String(link_->state().perfName));
+    bindPerformance();
     sendChangeMessage();
 }
 
@@ -303,12 +268,19 @@ void SynthSync::unbind()
     if (binding_ == Binding::None)
         return;
     binding_ = Binding::None;
-    for (auto& s : sent_)
+    for (auto& s : live_)
         s.reset();
     sendChangeMessage();
 }
 
 // ---- Editor -> synth ----------------------------------------------------------
+
+std::string SynthSync::nameFor(int docSlot) const
+{
+    if (const auto* perf = doc_.performance())
+        return perf->header.slots[static_cast<std::size_t>(juce::jlimit(0, 3, docSlot))].patchName;
+    return doc_.name().toStdString();
+}
 
 void SynthSync::changeListenerCallback(juce::ChangeBroadcaster*)
 {
@@ -321,143 +293,85 @@ void SynthSync::changeListenerCallback(juce::ChangeBroadcaster*)
         unbind();
         return;
     }
+    // Edits arrive one by one through patchEdited(); this catches anything else.
     for (int s = 0; s < (doc_.isPerformance() ? 4 : 1); ++s)
         push(s);
+    pushPerformance();
 }
 
-void SynthSync::push(int docSlot)
+void SynthSync::patchEdited(int slot, const g2::live::Edit* edit, bool undo)
+{
+    if (!bound() || !ready() || (binding_ == Binding::Patch) == doc_.isPerformance())
+        return;
+    push(slot, edit, undo);
+}
+
+void SynthSync::send(int synthSlot, const std::vector<g2::proto::Outgoing>& out)
+{
+    using namespace g2::proto;
+    for (const auto& o : out) {
+        if (!o.realtime) {
+            link_->edit(synthSlot, o.molecules);
+            continue;
+        }
+        for (const auto& m : o.molecules) {
+            if (const auto* p = std::get_if<ParamChange>(&m))
+                link_->setParam(synthSlot, static_cast<Location>(p->location), p->module, p->param, p->value, p->variation);
+            else if (const auto* mc = std::get_if<MorphChange>(&m))
+                link_->setMorph(synthSlot, static_cast<Location>(mc->location), mc->module, mc->param, mc->morph, mc->range,
+                                mc->variation, true);
+        }
+    }
+}
+
+void SynthSync::push(int docSlot, const g2::live::Edit* edit, bool undo)
 {
     const int slot = synthSlotFor(docSlot);
-    if (slot < 0 || !sent_[static_cast<std::size_t>(slot)])
+    if (slot < 0 || !live_[static_cast<std::size_t>(slot)])
         return;
-    auto& before = *sent_[static_cast<std::size_t>(slot)];
+    auto& live = *live_[static_cast<std::size_t>(slot)];
     const auto& now = doc_.slotPatch(docSlot);
-    // (A file leaves out the audition variation, and saves a focused
-    // variation 9 as 0: compare those apart.)
-    if (equalFiles(before, now) && sameAudition(before, now) && before.header.activeVariation == now.header.activeVariation)
-        return;
-    auto sendAll = [&] {
-        link_->sendPatch(slot, now, doc_.isPerformance() ? link_->state().slots[static_cast<std::size_t>(slot)].name
-                                                          : doc_.name().toStdString());
-        before = now;
-    };
-    if (!sameStructure(before, now)) {
-        sendAll();
+    const auto name = nameFor(docSlot);
+    const auto out = live.update(now, name, edit, undo, nowMs());
+    if (live.needsUpload()) {
+        // Modules or cables changed without the original's messages (none of
+        // the editor's own edits does that): the whole patch again.
+        link_->sendPatch(slot, now, name);
+        live = g2::proto::LiveSlot(now, name);
         return;
     }
+    send(slot, out);
+}
 
-    // Single messages for what the original editor sends that way, applied to
-    // a copy of what the synth has; anything they do not cover sends it all.
-    g2::Patch probe = before;
-    // The Mutator's audition variation (9): the synth has one, which files
-    // and uploads leave out (zeros); send all of it the first time.
-    if (g2::edit::hasAuditionVariation(now) && !g2::edit::hasAuditionVariation(probe)) {
-        g2::edit::addAuditionVariation(probe);
-        constexpr auto v = static_cast<std::size_t>(g2::kAuditionVariation);
-        for (const auto loc : {Location::Va, Location::Fx})
-            for (auto& m : probe.area(loc).modules)
-                if (v < m.params.size())
-                    std::fill(m.params[v].begin(), m.params[v].end(), u8{0xFF});
-        for (auto& m : probe.settings)
-            if (v < m.params.size())
-                std::fill(m.params[v].begin(), m.params[v].end(), u8{0xFF});
-        probe.morphs[v].assigns.clear();
-    }
-    try {
-        const auto variations = std::min(g2::edit::variationSlots(now), g2::edit::variationSlots(probe));
-        for (const auto loc : {Location::Va, Location::Fx})
-            for (const auto& m : now.area(loc).modules) {
-                auto* old = probe.area(loc).find(m.index);
-                for (std::size_t v = 0; v < variations && v < m.params.size() && v < old->params.size(); ++v)
-                    for (std::size_t i = 0; i < m.params[v].size() && i < old->params[v].size(); ++i)
-                        if (m.params[v][i] != old->params[v][i]) {
-                            link_->setParam(slot, loc, m.index, static_cast<u8>(i), m.params[v][i], static_cast<u8>(v));
-                            old->params[v][i] = m.params[v][i];
-                        }
-                for (std::size_t i = 0; i < m.modes.size() && i < old->modes.size(); ++i)
-                    if (m.modes[i] != old->modes[i]) {
-                        link_->setMode(slot, loc, m.index, static_cast<u8>(i), m.modes[i]);
-                        old->modes[i] = m.modes[i];
-                    }
-            }
-        // Patch settings (morph dials, glide, vibrato...): parameters of location 2.
-        for (const auto& m : now.settings)
-            for (auto& old : probe.settings)
-                if (old.index == m.index)
-                    for (std::size_t v = 0; v < variations && v < m.params.size() && v < old.params.size(); ++v)
-                        for (std::size_t i = 0; i < m.params[v].size() && i < old.params[v].size(); ++i)
-                            if (m.params[v][i] != old.params[v][i]) {
-                                link_->setParam(slot, Location::Settings, m.index, static_cast<u8>(i), m.params[v][i],
-                                                static_cast<u8>(v));
-                                old.params[v][i] = m.params[v][i];
-                            }
-        // Morph assignments, per variation and group (range 0 removes one).
-        for (std::size_t v = 0; v < variations; ++v) {
-            const auto was = morphsOf(probe, v);
-            const auto is = morphsOf(now, v);
-            for (const auto& [key, a] : was)
-                if (!is.count(key)) {
-                    link_->setMorph(slot, static_cast<Location>(a.location), a.module, a.param, a.morph, 0,
-                                    static_cast<u8>(v), false);
-                    g2::edit::clearMorph(probe, static_cast<u8>(v), static_cast<Location>(a.location), a.module, a.param,
-                                         a.morph);
-                }
-            for (const auto& [key, a] : is) {
-                const auto it = was.find(key);
-                if (it == was.end() || it->second.range != a.range) {
-                    link_->setMorph(slot, static_cast<Location>(a.location), a.module, a.param, a.morph, a.range,
-                                    static_cast<u8>(v), false);
-                    g2::edit::storeMorph(probe, static_cast<u8>(v), static_cast<Location>(a.location), a.module, a.param,
-                                         a.morph, a.range);
-                }
-            }
-        }
-        // Knobs and MIDI controllers.
-        for (int k = 0; k < g2::kKnobCount; ++k) {
-            const auto& a = now.knobs[static_cast<std::size_t>(k)];
-            const auto& b = probe.knobs[static_cast<std::size_t>(k)];
-            const bool same = a.has_value() == b.has_value()
-                && (!a || (a->location == b->location && a->module == b->module && a->param == b->param));
-            if (same)
-                continue;
-            if (a) {
-                link_->assignKnob(slot, k, static_cast<Location>(a->location), a->module, a->param);
-                g2::edit::assignKnob(probe, k, static_cast<Location>(a->location), a->module, a->param);
-            } else {
-                link_->deassignKnob(slot, k);
-                g2::edit::clearKnob(probe, k);
-            }
-        }
-        std::map<u8, g2::file::CtrlAssign> wasCc, isCc;
-        for (const auto& c : probe.controllers)
-            wasCc[c.cc] = c;
-        for (const auto& c : now.controllers)
-            isCc[c.cc] = c;
-        for (const auto& [cc, c] : wasCc)
-            if (!isCc.count(cc)) {
-                link_->deassignMidiCc(slot, cc);
-                g2::edit::eraseMidiCc(probe, cc);
-            }
-        for (const auto& [cc, c] : isCc) {
-            const auto it = wasCc.find(cc);
-            if (it == wasCc.end() || it->second.location != c.location || it->second.module != c.module
-                || it->second.param != c.param) {
-                link_->assignMidiCc(slot, cc, static_cast<Location>(c.location), c.module, c.param);
-                g2::edit::storeMidiCc(probe, cc, static_cast<Location>(c.location), c.module, c.param);
-            }
-        }
-        if (now.header.activeVariation != probe.header.activeVariation) {
-            link_->selectVariation(slot, now.header.activeVariation);
-            probe.header.activeVariation = now.header.activeVariation;
-        }
-    } catch (const std::exception&) {
-        sendAll();
+void SynthSync::pushPerformance()
+{
+    const auto* perf = doc_.performance();
+    if (binding_ != Binding::Performance || perf == nullptr)
         return;
+    // CDialogPerformance::TrySendData @00039b36: the name (29) if it changed,
+    // then the whole header (11) unless only the name did. P bubbles, no undo.
+    const auto name = doc_.performanceName().toStdString();
+    std::vector<g2::proto::Molecule> molecules;
+    if (name != sentPerfName_) {
+        sentPerfName_ = name;
+        link_->edit(g2::proto::kSlotSynth, {g2::proto::NameDump{g2::proto::id::PerfName, name}});
     }
-    if (equalFiles(probe, now) && sameAudition(probe, now))
-        before = now;
-    else
-        sendAll(); // names, colours, labels, notes...: the original sends those as edits we do not have yet
+    if (!sameSettings(perf->header, sentPerf_)) {
+        auto header = perf->header;
+        // The synth's own slot names stay (27 renames a slot's patch).
+        for (int s = 0; s < 4; ++s)
+            header.slots[static_cast<std::size_t>(s)].patchName = sentPerf_.slots[static_cast<std::size_t>(s)].patchName;
+        sentPerf_ = header;
+        link_->edit(g2::proto::kSlotSynth, {g2::proto::SectionDump{g2::file::Section{g2::file::kPerfHeader, header, 0, {}}}});
+    }
+    // The slot shown is the synth's focused slot (09; the original's slot
+    // buttons, CPerformance::CleanDirtyData @00100e5a).
+    if (doc_.slot() != sentFocus_) {
+        sentFocus_ = doc_.slot();
+        link_->selectSlot(sentFocus_);
+    }
+    for (int s = 0; s < 4; ++s)
+        sentPerf_.slots[static_cast<std::size_t>(s)].patchName = perf->header.slots[static_cast<std::size_t>(s)].patchName;
 }
 
 // ---- Synth -> editor ----------------------------------------------------------
@@ -465,10 +379,10 @@ void SynthSync::push(int docSlot)
 void SynthSync::fromSynth(int synthSlot, const std::function<void(g2::Patch&)>& change)
 {
     const int docSlot = docSlotFor(synthSlot);
-    if (docSlot < 0 || !sent_[static_cast<std::size_t>(synthSlot)])
+    if (docSlot < 0 || !live_[static_cast<std::size_t>(synthSlot)])
         return;
     try {
-        change(*sent_[static_cast<std::size_t>(synthSlot)]);
+        change(live_[static_cast<std::size_t>(synthSlot)]->synth());
     } catch (const std::exception&) {
     }
     doc_.performLiveOnSlot(docSlot, change);
@@ -489,7 +403,8 @@ void SynthSync::slotReplacedOnSynth(int synthSlot)
                 if (o.bend && o.fromModule == c.fromModule && o.fromConn == c.fromConn
                     && o.fromIsOutput == c.fromIsOutput && o.toModule == c.toModule && o.toConn == c.toConn)
                     c.bend = o.bend;
-    sent_[static_cast<std::size_t>(synthSlot)] = fresh;
+    live_[static_cast<std::size_t>(synthSlot)] =
+        g2::proto::LiveSlot(fresh, link_->state().slots[static_cast<std::size_t>(synthSlot)].name);
     doc_.performLiveOnSlot(docSlot, [&](g2::Patch& p) { p = fresh; });
 }
 
@@ -499,6 +414,13 @@ void SynthSync::timerCallback()
         return;
     animateVirtualLeds();
     link_->tick();
+    // A change of the voice count goes out 600 ms after the last one.
+    if (ready() && bound())
+        for (int docSlot = 0; docSlot < (doc_.isPerformance() ? 4 : 1); ++docSlot) {
+            const int slot = synthSlotFor(docSlot);
+            if (slot >= 0 && live_[static_cast<std::size_t>(slot)] && live_[static_cast<std::size_t>(slot)]->headerPending())
+                send(slot, live_[static_cast<std::size_t>(slot)]->tick(doc_.slotPatch(docSlot), nowMs()));
+        }
     if (ready() != wasReady_) {
         wasReady_ = ready();
         if (!wasReady_)
@@ -585,7 +507,24 @@ void SynthSync::flashResult(const g2::proto::FlashResult& r)
 
 void SynthSync::performanceChanged()
 {
+    // The synth focused another slot (09 from its panel): the original opens
+    // and shows that slot's patch (CPerformance @00100582).
+    if (ready() && binding_ == Binding::Performance && doc_.isPerformance()) {
+        const int focus = link_->state().slotFocus;
+        if (focus < 4 && focus != sentFocus_) {
+            sentFocus_ = focus;
+            doc_.setSlot(focus);
+        }
+    }
     sendChangeMessage();
+}
+
+void SynthSync::error(g2::u8 code)
+{
+    // The synth answered 7E: the original drops the connection and says why
+    // (status 11 "Synth Exception", XMHostMidi's text).
+    if (onAlert)
+        onAlert(g2::proto::statusText(g2::proto::Status::SynthException), g2::proto::exceptionText(code));
 }
 
 void SynthSync::ledsChanged(int slot)

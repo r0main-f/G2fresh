@@ -104,7 +104,13 @@ public:
             auto* copy = rowCopy_.add(new juce::TextButton("To variations"));
             copy->setTooltip("Copy this row's 8 slots to variations 1-8");
             copy->onClick = [this, row] {
-                doc_.perform("Copy gene bank to variations", [&](g2::Patch& p) { mutator_.copyRowToVariations(p, row); });
+                doc_.perform("Copy gene bank to variations", [&](g2::Patch& p) {
+                    const g2::Patch before = p;
+                    mutator_.copyRowToVariations(p, row);
+                    // CDialogMutaBackground @0013f7b2: each variation's dump, no 6A.
+                    for (std::uint8_t v = 0; v < g2::kUserVariations; ++v)
+                        g2::live::recordVariationDump(before, p, v);
+                });
                 refresh();
             };
             auto* clear = rowClear_.add(new juce::TextButton("Clear"));
@@ -269,8 +275,15 @@ private:
         if (!mutator_.hasData(box))
             return;
         doc_.perform("Audition mutation", [&](g2::Patch& p) {
-            if (mutator_.audition(p, box))
-                p.header.activeVariation = static_cast<std::uint8_t>(g2::kAuditionVariation);
+            const g2::Patch before = p;
+            if (mutator_.audition(p, box)) {
+                // CMutaSynthData::GetFocusIndividMolecules @00142ef8: the
+                // individual in variation 9 (4D x3, 65), then 6A 9.
+                constexpr auto v = static_cast<std::uint8_t>(g2::kAuditionVariation);
+                p.header.activeVariation = v;
+                g2::live::recordVariationDump(before, p, v);
+                g2::live::record(g2::live::VariationSelect{v}, g2::live::VariationSelect{before.header.activeVariation});
+            }
         });
         status("Playing it in the Mutator's variation (right-click > Copy to Variation keeps it; "
                "click a variation button to go back)");
@@ -314,7 +327,17 @@ private:
                 self.mutator_.clear(box);
             else if (r >= kToVariation) {
                 const mut::Box target{mut::BoxKind::Variation, r - kToVariation};
-                self.doc_.perform("Copy to variation", [&](g2::Patch& p) { self.mutator_.copy(p, box, target); });
+                // GetCopyIndividMolecules @00144528: the variation's dump, then 6A
+                // (the original then shows that variation).
+                const auto v = static_cast<std::uint8_t>(target.index);
+                self.doc_.perform("Copy to variation", [&](g2::Patch& p) {
+                    const g2::Patch before = p;
+                    self.mutator_.copy(p, box, target);
+                    p.header.activeVariation = v;
+                    g2::live::recordVariationDump(before, p, v);
+                    g2::live::record(g2::live::VariationSelect{v}, g2::live::VariationSelect{before.header.activeVariation});
+                });
+                self.doc_.setVariation(v);
             }
             self.refresh();
         });
