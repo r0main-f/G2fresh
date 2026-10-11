@@ -43,13 +43,15 @@ void Runner::stop()
 
 std::size_t Runner::available() const
 {
-    return std::size_t(written_.load(std::memory_order_acquire) - read_.load(std::memory_order_relaxed));
+    const auto w = written_.load(std::memory_order_acquire), r = read_.load(std::memory_order_relaxed);
+    return w > r ? std::size_t(w - r) : 0;  // the reader may be ahead after a gap
 }
 
 std::size_t Runner::read(float* out, std::size_t frames)
 {
     const auto r = read_.load(std::memory_order_relaxed);
-    const auto n = std::min<std::size_t>(frames, std::size_t(written_.load(std::memory_order_acquire) - r));
+    const auto w = written_.load(std::memory_order_acquire);
+    const auto n = std::min<std::size_t>(frames, w > r ? std::size_t(w - r) : 0);
     for(std::size_t i = 0; i < n; ++i)
         std::memcpy(out + 4 * i, &ring_[((r + i) % capacity_) * 4], 4 * sizeof(float));
     if(n < frames)
@@ -57,7 +59,11 @@ std::size_t Runner::read(float* out, std::size_t frames)
         std::memset(out + 4 * n, 0, (frames - n) * 4 * sizeof(float));
         missing_.fetch_add(frames - n, std::memory_order_relaxed);
     }
-    read_.store(r + n, std::memory_order_release);
+    // The ring's timeline is the reader's: frames the machine had not made in time are skipped (heard as a gap) and
+    // dropped when they come, so that the frames after the gap, and the MIDI scheduled against them (midiInAt), keep
+    // their place in the reader's time. (Counting only the frames read would shift everything after a gap, and a
+    // MIDI clock would then reach the G2 too fast.)
+    read_.store(r + frames, std::memory_order_release);
     consumed_.fetch_add(1, std::memory_order_release);
     consumed_.notify_one();  // the machine's thread, if it waits for room (a wake-up, no lock)
     return n;
@@ -91,12 +97,17 @@ void Runner::loop()
         chunk.clear();
         machine_->run(options_.chunkFrames, &chunk);
         const std::size_t frames = chunk.size() / 4;
-        const auto w = written_.load(std::memory_order_relaxed);
-        for(std::size_t i = 0; i < frames; ++i)
-            std::memcpy(&ring_[((w + i) % capacity_) * 4], &chunk[4 * i], 4 * sizeof(float));
-        written_.store(w + frames, std::memory_order_release);  // room: it only runs below the target level
+        auto w = written_.load(std::memory_order_relaxed);
+        // frames the reader has gone past (it read silence there): dropped, the timeline stays the reader's
+        const auto r = read_.load(std::memory_order_acquire);
+        const std::size_t skip = w < r ? std::min<std::size_t>(frames, std::size_t(r - w)) : 0;
+        w += skip;
+        for(std::size_t i = skip; i < frames; ++i)
+            std::memcpy(&ring_[((w + i - skip) % capacity_) * 4], &chunk[4 * i], 4 * sizeof(float));
+        w += frames - skip;
+        written_.store(w, std::memory_order_release);  // room: it only runs below the target level
         // ring frame i was made at machine frame i + offset (the DACs' pipeline is constant)
-        frameOffset_.store(std::int64_t(machine_->frame()) - std::int64_t(w + frames), std::memory_order_release);
+        frameOffset_.store(std::int64_t(machine_->frame()) - std::int64_t(w), std::memory_order_release);
         busyFrames += frames;
         const double chunkWall = std::chrono::duration<double>(Clock::now() - chunkStart).count();
         busyWall += chunkWall;
