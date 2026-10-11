@@ -10,18 +10,38 @@
 // (macOS, Linux) and from scanning once a second elsewhere (Windows). Incoming
 // traffic is queued and delivered only from poll(), on the client's thread.
 //
+// As Clavia's editor does (re/notes/usb-crosscheck.md H1, M2, M3):
+// - the device is reset when it is opened (CMacUsbHandle::OpenDevice 0x107e9c),
+//   except on Windows (see below);
+// - a bulk-IN read that comes back empty, fails, or times out after 1 s, is
+//   read again: a G2 sends one or two zero-length packets before most messages.
+//   The first non-empty read is the message. After 5 s without one the G2 is
+//   given up as Clavia destroys its port (CUSBManager::RxData 0x108994 /
+//   0x108a7e): it is reported removed and not opened again until it comes
+//   back (unplugged or switched off and on);
+// - a bulk-OUT write may take 5 s (CUSBManager::TxData 0x1088c6).
+// Not in Clavia: a read whose length differs from the announced one is noted
+// in lastError(), and after two in a row the G2 is reported out of step; a
+// frame above kMaxSendFrame is not sent (see there).
+//
 // Platform notes:
 // - Windows: libusb needs the WinUSB driver bound to the G2 (install it once
 //   with Zadig, choosing "WinUSB" for the "Nord Modular G2" device). Clavia's
-//   own driver cannot be used through libusb.
+//   own driver cannot be used through libusb. WinUSB cannot reset a device:
+//   there is no reset at open.
 // - Linux: the user needs access to the device (a udev rule granting it, e.g.
 //   SUBSYSTEM=="usb", ATTRS{idVendor}=="0ffc", ATTRS{idProduct}=="0002", MODE="0666").
+// - macOS: libusb resets a device by re-enumerating it, waiting for it to come
+//   back (up to 10 s). Since macOS 10.11 the ResetDevice Clavia calls does
+//   nothing (libusb, darwin_usb.c), so this goes further than the original
+//   does there today; another editor relies on it with a real G2 (G2-Edit).
 // - Only one process can claim the G2: the g2bridge process owns it and serves
 //   every editor.
 #pragma once
 
 #include "g2/proto/transport.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <span>
 #include <string>
@@ -31,19 +51,37 @@ namespace g2::usb {
 inline constexpr std::uint16_t kVendorId = 0x0FFC;
 inline constexpr std::uint16_t kProductId = 0x0002;
 
+// The largest bulk-OUT frame sent; a larger one is refused. A deliberate
+// deviation, for safety: Clavia sends any frame up to 0xFFFF bytes, but a G2
+// fails on a message of about 34 KB (one ~30 440 bytes went through) with a
+// 7E 3 and stops answering until it is switched off and on, and Clavia's
+// editor fails on the same file (re/notes/usb-crosscheck.md M4, measured by
+// another editor's author on hardware). Patches stay far below (the largest of
+// 4 500 patches: 19 359 bytes); some performances do not.
+inline constexpr std::size_t kMaxSendFrame = 32768;
+
+// Clavia's timings; tests shorten them.
+struct LibusbTimeouts {
+    unsigned sendMs = 5000;      // one bulk-OUT write
+    unsigned readMs = 1000;      // one bulk-IN read
+    unsigned readTotalMs = 5000; // all the reads of one message
+};
+
 class LibusbTransport final : public proto::Transport {
 public:
-    LibusbTransport();
+    explicit LibusbTransport(LibusbTimeouts timeouts = {});
     ~LibusbTransport() override;
     LibusbTransport(const LibusbTransport&) = delete;
     LibusbTransport& operator=(const LibusbTransport&) = delete;
 
     // libusb started (false: no USB at all; the transport stays silent).
     bool available() const;
-    // Why the G2 could not be opened last time ("" when fine), e.g. an access
-    // or driver problem, for the user.
+    // What went wrong last ("" when fine), for the user and the USB log: the G2
+    // could not be opened (an access or driver problem), it stopped answering,
+    // a read did not match its announcement, a frame was too large to send.
     std::string lastError() const;
 
+    // Refuses a frame above kMaxSendFrame (false, nothing sent, lastError()).
     bool send(std::span<const std::uint8_t> frame) override;
     void poll() override;
 

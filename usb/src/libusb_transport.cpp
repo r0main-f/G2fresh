@@ -9,6 +9,7 @@
 #include <chrono>
 #include <deque>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -16,8 +17,10 @@ namespace g2::usb {
 
 namespace {
 
-constexpr unsigned kSendTimeoutMs = 2000;
 constexpr auto kScanInterval = std::chrono::seconds(1);
+// Reads in a row whose length differs from the announced one before the G2 is
+// said to be out of step.
+constexpr int kMismatchesOutOfStep = 2;
 
 } // namespace
 
@@ -28,6 +31,9 @@ struct LibusbTransport::Impl {
         std::vector<std::uint8_t> data;
     };
 
+    explicit Impl(LibusbTimeouts t) : timeouts(t) {}
+
+    const LibusbTimeouts timeouts;
     libusb_context* ctx = nullptr;
     std::thread io;
     std::atomic<bool> running{false};
@@ -44,11 +50,17 @@ struct LibusbTransport::Impl {
     libusb_transfer* bulk = nullptr;
     std::vector<std::uint8_t> interruptBuffer, bulkBuffer;
     bool interruptActive = false, bulkActive = false;
-    bool announced = false; // Arrived was queued for the open device
-    bool closing = false;   // no resubmissions while cancelling
+    bool announced = false;     // Arrived was queued for the open device
+    bool closing = false;       // no resubmissions while cancelling
+    std::size_t bulkLength = 0; // of the message being read
+    std::chrono::steady_clock::time_point bulkDeadline{};
+    int mismatches = 0; // reads in a row not of the announced length
     bool hotplug = false;
     libusb_hotplug_callback_handle hotplugHandle{};
     std::atomic<bool> arrivedHint{false}, goneHint{false};
+    // Given up on, as Clavia destroys its port: not opened again until it has
+    // left (unplugged, switched off).
+    std::atomic<bool> waitForReplug{false};
     std::chrono::steady_clock::time_point nextScan{};
 
     std::mutex queueMutex;
@@ -71,7 +83,10 @@ struct LibusbTransport::Impl {
     void tryOpen();
     void closeDevice();
     void submitInterrupt();
-    void submitBulk(std::size_t length);
+    void startBulk(std::size_t length);
+    void readBulk();
+    void received(std::vector<std::uint8_t> data);
+    void giveUp(std::string why);
 
     static void LIBUSB_CALL onInterrupt(libusb_transfer* t);
     static void LIBUSB_CALL onBulk(libusb_transfer* t);
@@ -112,6 +127,11 @@ void LibusbTransport::Impl::tryOpen()
         if (libusb_get_device_descriptor(list[i], &d) == 0 && d.idVendor == kVendorId && d.idProduct == kProductId)
             found = list[i];
     }
+    if (waitForReplug && found) {
+        libusb_free_device_list(list, 1);
+        return;
+    }
+    waitForReplug = false;
     libusb_device_handle* h = nullptr;
     int r = found ? libusb_open(found, &h) : LIBUSB_ERROR_NO_DEVICE;
     if (r != 0) {
@@ -119,6 +139,22 @@ void LibusbTransport::Impl::tryOpen()
         setError(found ? std::string("cannot open the G2: ") + libusb_strerror(r) : std::string());
         return;
     }
+
+    // Reset it first, as Clavia does (ResetDevice in CMacUsbHandle::OpenDevice
+    // 0x107e9c, which gives the device up if that fails): it clears what a
+    // previous session left half-done. It does not cure a G2 that hangs: only
+    // switching it off and on does. Not on Windows: WinUSB cannot reset a
+    // device, libusb resets its pipes instead, and another editor saw every
+    // send fail after that on a real G2 (G2-Edit, usbComms.c.md §75).
+#if !defined(_WIN32)
+    r = libusb_reset_device(h);
+    if (r != 0 && r != LIBUSB_ERROR_NOT_SUPPORTED) {
+        libusb_free_device_list(list, 1);
+        libusb_close(h); // NOT_FOUND: it came back as another device, for the next scan
+        setError(std::string("cannot reset the G2: ") + libusb_strerror(r));
+        return;
+    }
+#endif
 
     // The first configuration and interface 0, endpoints by type and direction.
     libusb_set_auto_detach_kernel_driver(h, 1); // unsupported on macOS and Windows: ignored
@@ -160,6 +196,7 @@ void LibusbTransport::Impl::tryOpen()
     setError({});
     interrupt = libusb_alloc_transfer(0);
     bulk = libusb_alloc_transfer(0);
+    mismatches = 0;
     goneHint = false;
     announced = true;
     push(Kind::Arrived);
@@ -211,17 +248,49 @@ void LibusbTransport::Impl::submitInterrupt()
         goneHint = true;
 }
 
-void LibusbTransport::Impl::submitBulk(std::size_t length)
+void LibusbTransport::Impl::startBulk(std::size_t length)
+{
+    bulkLength = length;
+    bulkDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeouts.readTotalMs);
+    readBulk();
+}
+
+void LibusbTransport::Impl::readBulk()
 {
     if (!handle || !bulk || closing)
         return;
-    bulkBuffer.assign(std::max<std::size_t>(length, 1), 0);
+    bulkBuffer.assign(std::max<std::size_t>(bulkLength, 1), 0);
     libusb_fill_bulk_transfer(bulk, handle, bulkIn, bulkBuffer.data(), static_cast<int>(bulkBuffer.size()), &Impl::onBulk,
-                              this, 0);
+                              this, timeouts.readMs);
     if (libusb_submit_transfer(bulk) == 0)
         bulkActive = true;
     else
         goneHint = true;
+}
+
+void LibusbTransport::Impl::received(std::vector<std::uint8_t> data)
+{
+    // Not in Clavia, which takes the read as the announced length: a read of
+    // another length is the sign of a G2 out of step with its host (one message
+    // behind until it is switched off and on, as another editor saw).
+    if (data.size() != bulkLength) {
+        ++mismatches;
+        auto e = "bulk-IN read of " + std::to_string(data.size()) + " bytes for a message announced as "
+                 + std::to_string(bulkLength);
+        if (mismatches >= kMismatchesOutOfStep)
+            e += " (" + std::to_string(mismatches) + " in a row: the G2 seems out of step, switch it off and on)";
+        setError(std::move(e));
+    } else {
+        mismatches = 0;
+    }
+    push(Kind::Bulk, std::move(data));
+}
+
+void LibusbTransport::Impl::giveUp(std::string why)
+{
+    setError(std::move(why) + "; switch the G2 off and on, or unplug it, to connect again");
+    waitForReplug = true;
+    goneHint = true; // closed by run(), reported removed
 }
 
 void LIBUSB_CALL LibusbTransport::Impl::onInterrupt(libusb_transfer* t)
@@ -236,7 +305,7 @@ void LIBUSB_CALL LibusbTransport::Impl::onInterrupt(libusb_transfer* t)
         self.push(Kind::Interrupt, std::move(packet));
         // An extended message: its bulk-IN transfer comes before the next packet.
         if (i.kind == proto::Interrupt::Kind::Extended && i.length > 0)
-            self.submitBulk(i.length);
+            self.startBulk(i.length);
         else
             self.submitInterrupt();
         return;
@@ -258,13 +327,33 @@ void LIBUSB_CALL LibusbTransport::Impl::onBulk(libusb_transfer* t)
     self.bulkActive = false;
     switch (t->status) {
     case LIBUSB_TRANSFER_COMPLETED:
-        self.push(Kind::Bulk, std::vector<std::uint8_t>(t->buffer, t->buffer + t->actual_length));
-        self.submitInterrupt();
+        if (t->actual_length > 0) {
+            self.received(std::vector<std::uint8_t>(t->buffer, t->buffer + t->actual_length));
+            self.submitInterrupt();
+            return;
+        }
+        [[fallthrough]];
+    case LIBUSB_TRANSFER_TIMED_OUT:
+    case LIBUSB_TRANSFER_ERROR:
+        // Read again until the deadline. Clavia counts a read that returns
+        // nothing, does not complete within its timeout (what came is dropped)
+        // or fails with kIOReturnNotResponding or 0xE0004006 (an ERROR here)
+        // as an empty one. A G2 sends one or two zero-length packets before
+        // most messages.
+        if (std::chrono::steady_clock::now() < self.bulkDeadline)
+            self.readBulk();
+        else
+            self.giveUp("the G2 announced a message and sent nothing for " + std::to_string(self.timeouts.readTotalMs)
+                        + " ms");
         return;
     case LIBUSB_TRANSFER_CANCELLED:
         return;
-    default:
+    case LIBUSB_TRANSFER_NO_DEVICE:
         self.goneHint = true;
+        return;
+    default: // STALL, OVERFLOW: like any other error, Clavia's XUSBError
+        self.giveUp(std::string("reading from the G2 failed (")
+                    + (t->status == LIBUSB_TRANSFER_STALL ? "stall" : "overflow") + ")");
         return;
     }
 }
@@ -274,15 +363,17 @@ int LIBUSB_CALL LibusbTransport::Impl::onHotplug(libusb_context*, libusb_device*
     auto& self = *static_cast<Impl*>(user);
     if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED) {
         self.arrivedHint = true;
-    } else if (self.handle && libusb_get_device(self.handle) == device) {
-        self.goneHint = true;
+    } else {
+        self.waitForReplug = false;
+        if (self.handle && libusb_get_device(self.handle) == device)
+            self.goneHint = true;
     }
     return 0; // keep the callback
 }
 
 // ---- Transport -------------------------------------------------------------------
 
-LibusbTransport::LibusbTransport() : impl_(std::make_unique<Impl>())
+LibusbTransport::LibusbTransport(LibusbTimeouts timeouts) : impl_(std::make_unique<Impl>(timeouts))
 {
     if (libusb_init_context(&impl_->ctx, nullptr, 0) != 0) {
         impl_->ctx = nullptr;
@@ -325,13 +416,18 @@ std::string LibusbTransport::lastError() const
 
 bool LibusbTransport::send(std::span<const std::uint8_t> frame)
 {
+    if (frame.size() > kMaxSendFrame) {
+        impl_->setError("not sent: a message of " + std::to_string(frame.size()) + " bytes, above the "
+                        + std::to_string(kMaxSendFrame) + " a G2 takes safely (one of about 34 KB hangs it)");
+        return false;
+    }
     const std::lock_guard lock(impl_->deviceMutex);
     if (!impl_->handle)
         return false;
     std::vector<std::uint8_t> data(frame.begin(), frame.end());
     int sent = 0;
     const int r = libusb_bulk_transfer(impl_->handle, impl_->bulkOut, data.data(), static_cast<int>(data.size()), &sent,
-                                       kSendTimeoutMs);
+                                       impl_->timeouts.sendMs);
     return r == 0 && sent == static_cast<int>(data.size());
 }
 
