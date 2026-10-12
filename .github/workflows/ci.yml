@@ -3,9 +3,45 @@ name: CI
 on:
   push:
   pull_request:
+  # By hand (Actions > CI > Run workflow): with "sign", a rehearsal of a release's signing and notarization
+  # without a tag.
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: Sign and notarize as a release does (needs the secrets, docs/RELEASING.md)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  # A release (a v* tag) and a run started by hand with "sign" are signed and notarized, when the repository has
+  # the secrets (docs/RELEASING.md). Every other build, and every build of a fork or a pull request, is signed
+  # ad-hoc on macOS and not at all on Windows. To sign every push instead, make this 'true'.
+  SIGN: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.sign) }}
 
 jobs:
+  # The version the packages are named after (CMakeLists.txt). A release's tag must be that version: a v* tag
+  # that is not stops here, before anything is built.
+  version:
+    name: Version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version=$(tools/package/version.sh "$GITHUB_REF_NAME")
+          else
+            version=$(tools/package/version.sh)
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -21,6 +57,9 @@ jobs:
             cmake_extra: ""
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    env:
+      # secrets cannot be read in a step's `if`: whether the certificates are there, as plain words
+      HAVE_MACOS_CERT: ${{ secrets.MACOS_CERT_P12_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -60,47 +99,130 @@ jobs:
           curl -fsSL -o pv.zip "https://github.com/Tracktion/pluginval/releases/download/v1.0.4/$asset"
           unzip -q pv.zip
           run=""; [ "$RUNNER_OS" = Linux ] && run="xvfb-run -a"
-          $run ./$bin --strictness-level 5 --validate-in-process \
+          $run "./$bin" --strictness-level 5 --validate-in-process \
             --validate build/plugin/G2Editor_artefacts/Release/VST3/G2fresh.vst3
 
-      # g2bridge (the process that owns the G2's USB connection) ships next to
-      # the stand-alone app's executable and in each plugin bundle's
-      # Contents/Resources, where the editors look for it.
-      - name: Package (macOS bundles ad-hoc signed; archives keep file permissions)
-        shell: bash
+      # Packaging (tools/package/, docs/RELEASING.md): the installers and the archives, into dist/. g2bridge (the
+      # process that owns the G2's USB connection) ships next to the stand-alone app's executable and in each
+      # plugin bundle's Contents/Resources, where the editors look for it.
+
+      # macOS: the Developer ID certificates (one .p12 with the Application and the Installer identity) go into a
+      # keychain of this run's own, removed at the end.
+      - name: macOS signing certificates into a temporary keychain
+        if: runner.os == 'macOS' && env.SIGN == 'true' && env.HAVE_MACOS_CERT == 'true'
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
         run: |
-          cd build/plugin/G2Editor_artefacts/Release
-          mkdir -p pkg
-          case "$RUNNER_OS" in
-            macOS)
-              bridge=../../../bridge/g2bridge
-              cp "$bridge" Standalone/G2fresh.app/Contents/MacOS/
-              for b in VST3/G2fresh.vst3 AU/G2fresh.component; do
-                mkdir -p "$b/Contents/Resources" && cp "$bridge" "$b/Contents/Resources/"
-                codesign --force -s - "$b/Contents/Resources/g2bridge"
-              done
-              codesign --force -s - Standalone/G2fresh.app/Contents/MacOS/g2bridge
-              for b in Standalone/G2fresh.app VST3/G2fresh.vst3 AU/G2fresh.component; do
-                codesign --force --deep -s - "$b"
-              done
-              cp -R Standalone/G2fresh.app VST3/G2fresh.vst3 AU/G2fresh.component pkg/
-              (cd pkg && ditto -c -k --sequesterRsrc . ../G2fresh-macOS-universal.zip) ;;
-            Windows)
-              bridge=../../../bridge/g2bridge.exe
-              mkdir -p VST3/G2fresh.vst3/Contents/Resources && cp "$bridge" VST3/G2fresh.vst3/Contents/Resources/
-              cp -R Standalone/G2fresh.exe "$bridge" VST3/G2fresh.vst3 pkg/
-              (cd pkg && 7z a -tzip ../G2fresh-Windows-x64.zip . > /dev/null) ;;
-            Linux)
-              bridge=../../../bridge/g2bridge
-              mkdir -p VST3/G2fresh.vst3/Contents/Resources && cp "$bridge" VST3/G2fresh.vst3/Contents/Resources/
-              cp -R Standalone/G2fresh "$bridge" VST3/G2fresh.vst3 pkg/
-              (cd pkg && tar czf ../G2fresh-Linux-x64.tar.gz .) ;;
-          esac
+          keychain="$RUNNER_TEMP/g2fresh-signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          printf '%s' "$MACOS_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/certificates.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificates.p12" -k "$keychain" -P "$MACOS_CERT_PASSWORD" -f pkcs12 \
+            -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/productsign
+          rm -f "$RUNNER_TEMP/certificates.p12"
+          # codesign and productbuild may use the keys without a dialog
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
+          # on the search list, before the runner's own keychains: identities are only found there
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v "$keychain"
+          echo "MACOS_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        env:
+          MACOS_SIGN_IDENTITY: ${{ env.SIGN == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
+          MACOS_INSTALLER_IDENTITY: ${{ env.SIGN == 'true' && secrets.MACOS_INSTALLER_IDENTITY || '' }}
+          NOTARY_KEY_ID: ${{ env.SIGN == 'true' && secrets.NOTARY_KEY_ID || '' }}
+          NOTARY_ISSUER_ID: ${{ env.SIGN == 'true' && secrets.NOTARY_ISSUER_ID || '' }}
+          NOTARY_KEY_P8_BASE64: ${{ env.SIGN == 'true' && secrets.NOTARY_KEY_P8_BASE64 || '' }}
+          # the alternative to the API key: an Apple ID with an app-specific password
+          NOTARY_APPLE_ID: ${{ env.SIGN == 'true' && secrets.NOTARY_APPLE_ID || '' }}
+          NOTARY_TEAM_ID: ${{ env.SIGN == 'true' && secrets.NOTARY_TEAM_ID || '' }}
+          NOTARY_PASSWORD: ${{ env.SIGN == 'true' && secrets.NOTARY_PASSWORD || '' }}
+        run: tools/package/macos.sh --build build --out dist
+
+      - name: Remove the temporary keychain
+        if: always() && runner.os == 'macOS' && env.MACOS_KEYCHAIN != ''
+        run: security delete-keychain "$MACOS_KEYCHAIN"
+
+      - name: Inno Setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installed = (Get-Command iscc.exe -ErrorAction SilentlyContinue) -or
+            (Test-Path (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'))
+          if (-not $installed) { choco install innosetup --no-progress -y }
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ env.SIGN == 'true' && secrets.WINDOWS_CERT_PFX_BASE64 || '' }}
+          WINDOWS_CERT_PASSWORD: ${{ env.SIGN == 'true' && secrets.WINDOWS_CERT_PASSWORD || '' }}
+        run: ./tools/package/windows.ps1 -Build build -Out dist
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: tools/package/linux.sh --build build --out dist
 
       - uses: actions/upload-artifact@v4
         with:
           name: G2fresh-${{ runner.os }}
-          path: |
-            build/plugin/G2Editor_artefacts/Release/G2fresh-*.zip
-            build/plugin/G2Editor_artefacts/Release/G2fresh-*.tar.gz
+          path: dist/*
           if-no-files-found: error
+
+  # A v* tag: the packages of the three builds, attached to a draft release named after the tag. Publishing the
+  # draft is done by hand (docs/RELEASING.md).
+  release:
+    name: Draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Attach the packages to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          files=()
+          for f in macOS-universal.pkg macOS-universal.zip Windows-x64-setup.exe Windows-x64.zip Linux-x64.tar.gz; do
+            if [ ! -f "dist/G2fresh-$VERSION-$f" ]; then
+              echo "::error::the builds did not make G2fresh-$VERSION-$f"
+              ls -l dist
+              exit 1
+            fi
+            files+=("dist/G2fresh-$VERSION-$f")
+          done
+          # the notes start with how each system's packages are signed, as the packaging scripts say it
+          {
+            echo "Installers and archives for macOS, Windows and Linux: see [Download](https://github.com/$GH_REPO#download) in the README."
+            echo
+            for f in dist/signing-*.txt; do
+              if [ -f "$f" ]; then echo "- $(cat "$f")"; fi
+            done
+          } > notes.md
+          cat notes.md
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # a run started again: the files of the draft are replaced (its notes are left as they are); a
+            # published release is left alone
+            if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != true ]; then
+              echo "::error::the release $TAG is already published: its files are not replaced"
+              exit 1
+            fi
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" --draft --verify-tag --title "$TAG" --notes-file notes.md
+          fi
