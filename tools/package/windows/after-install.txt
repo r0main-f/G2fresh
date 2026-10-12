@@ -1,0 +1,15 @@
+G2fresh is installed.
+
+CONNECTING A G2 BY USB
+
+Windows needs the WinUSB driver for the G2, which this installer does not install. Install it once with Zadig (https://zadig.akeo.ie): plug in the G2, choose Options > List All Devices, select the Nord Modular G2, choose WinUSB and click Replace Driver.
+
+Clavia's own driver cannot be used by G2fresh. The original editor needs it: switch back with Zadig to use that one. The USB connection is experimental.
+
+PLAYING WITHOUT A G2
+
+The Emulated G2 and the Classic look run on Clavia's own software, which G2fresh does not include. Download the free "Nord Modular G2 OS v1.62 Update" for the Mac from nordkeyboards.com (in the Nord Modular G2 downloads) and keep the .dmg: G2fresh reads the Mac download on Windows too, and asks for it the first time you choose Synth > Connect to Emulated G2 or View > Classic Look. Everything else works without it.
+
+G2fresh is free software under the GNU Affero General Public License (LICENSE.txt and NOTICE.txt are next to the app); its source is at https://github.com/r0main-f/G2fresh. It is not affiliated with or endorsed by Clavia DMI AB. Nord Modular, Nord and Clavia are trademarks of Clavia DMI AB.
+
+To remove G2fresh: Settings > Apps > Installed apps > G2fresh > Uninstall. Your patches and settings stay.

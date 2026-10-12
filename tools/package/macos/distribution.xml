@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The installer's pages and choices (productbuild's distribution file). tools/package/macos.sh fills in the
+     names between @ signs: the version, the oldest macOS the build runs on, the build's architectures. -->
+<installer-gui-script minSpecVersion="2">
+    <title>G2fresh @VERSION@</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <license file="LICENSE.txt" mime-type="text/plain"/>
+    <!-- customize="always": the choices below are a page of their own. Into the system's folders only, where
+         every host looks for plugins. -->
+    <options customize="always" require-scripts="false" hostArchitectures="@ARCHS@"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="@MINOS@"/>
+        </allowed-os-versions>
+    </volume-check>
+    <choices-outline>
+        <line choice="app"/>
+        <line choice="vst3"/>
+        <line choice="au"/>
+    </choices-outline>
+    <choice id="app" title="G2fresh (stand-alone app)"
+            description="G2fresh.app, in Applications. It plays through your audio device and takes MIDI from your keyboard.">
+        <pkg-ref id="org.g2fresh.pkg.app"/>
+    </choice>
+    <choice id="vst3" title="VST3 plugin"
+            description="G2fresh.vst3, in /Library/Audio/Plug-Ins/VST3, for hosts that load VST3 plugins.">
+        <pkg-ref id="org.g2fresh.pkg.vst3"/>
+    </choice>
+    <choice id="au" title="Audio Unit"
+            description="G2fresh.component, in /Library/Audio/Plug-Ins/Components, for Logic Pro, GarageBand, Live and other Audio Unit hosts.">
+        <pkg-ref id="org.g2fresh.pkg.au"/>
+    </choice>
+    <pkg-ref id="org.g2fresh.pkg.app" version="@VERSION@" onConclusion="none">#G2fresh-app.pkg</pkg-ref>
+    <pkg-ref id="org.g2fresh.pkg.vst3" version="@VERSION@" onConclusion="none">#G2fresh-vst3.pkg</pkg-ref>
+    <pkg-ref id="org.g2fresh.pkg.au" version="@VERSION@" onConclusion="none">#G2fresh-au.pkg</pkg-ref>
+</installer-gui-script>
