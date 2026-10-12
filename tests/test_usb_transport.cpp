@@ -177,6 +177,9 @@ TEST_CASE("usb: a bulk-IN read that times out or fails is read again until the d
 
 TEST_CASE("usb: a message has 5 s to come, in reads of 1 s (M2)", "[usb]")
 {
+    // As Clavia's CUSBManager::RxData (0x108a7e): the time is read after each
+    // empty read, and the G2 is given up once 5000 ms have passed since the
+    // first one started; a read under way is not cut short.
     Connected c(true);
     const auto m = message(20);
     fakeusb::interrupt(announce(20));
