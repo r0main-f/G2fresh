@@ -55,13 +55,14 @@ include(Catch)
 catch_discover_tests(g2tests)
 
 # The libusb transport as it is, on a scripted libusb (fake_libusb.cpp) instead of the real one: no hardware needed.
+# It runs on a clock the tests move, so they take milliseconds; the timeout is for an I/O thread that would never end.
 if(TARGET g2usb)
   add_executable(g2usbtests test_usb_transport.cpp fake_libusb.cpp ${PROJECT_SOURCE_DIR}/usb/src/libusb_transport.cpp)
   target_include_directories(g2usbtests PRIVATE ${PROJECT_SOURCE_DIR}/usb/include)
   target_include_directories(g2usbtests SYSTEM PRIVATE $<TARGET_PROPERTY:usb-1.0,INTERFACE_INCLUDE_DIRECTORIES>)
   target_link_libraries(g2usbtests PRIVATE g2proto Catch2::Catch2WithMain)
   target_compile_definitions(g2usbtests PRIVATE G2_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus")
-  catch_discover_tests(g2usbtests)
+  catch_discover_tests(g2usbtests PROPERTIES TIMEOUT 60)
 endif()
 
 # Checks that need Python: the generated module database is in sync with
