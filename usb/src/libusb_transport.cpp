@@ -22,6 +22,8 @@ constexpr auto kScanInterval = std::chrono::seconds(1);
 // said to be out of step.
 constexpr int kMismatchesOutOfStep = 2;
 
+std::chrono::steady_clock::time_point steadyNow() { return std::chrono::steady_clock::now(); }
+
 } // namespace
 
 struct LibusbTransport::Impl {
@@ -31,9 +33,10 @@ struct LibusbTransport::Impl {
         std::vector<std::uint8_t> data;
     };
 
-    explicit Impl(LibusbTimeouts t) : timeouts(t) {}
+    Impl(LibusbTimeouts t, LibusbClock c) : timeouts(t), clock(c ? c : &steadyNow) {}
 
     const LibusbTimeouts timeouts;
+    const LibusbClock clock;
     libusb_context* ctx = nullptr;
     std::thread io;
     std::atomic<bool> running{false};
@@ -103,7 +106,7 @@ void LibusbTransport::Impl::run()
         if (!handle) {
             // With hotplug, arrivals wake us; a slow scan still catches a
             // device that could not be opened at its arrival (busy, no access).
-            const auto now = std::chrono::steady_clock::now();
+            const auto now = clock();
             if (arrivedHint.exchange(false) || now >= nextScan) {
                 nextScan = now + (hotplug ? 5 * kScanInterval : kScanInterval);
                 tryOpen();
@@ -251,7 +254,7 @@ void LibusbTransport::Impl::submitInterrupt()
 void LibusbTransport::Impl::startBulk(std::size_t length)
 {
     bulkLength = length;
-    bulkDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeouts.readTotalMs);
+    bulkDeadline = clock() + std::chrono::milliseconds(timeouts.readTotalMs);
     readBulk();
 }
 
@@ -340,7 +343,7 @@ void LIBUSB_CALL LibusbTransport::Impl::onBulk(libusb_transfer* t)
         // or fails with kIOReturnNotResponding or 0xE0004006 (an ERROR here)
         // as an empty one. A G2 sends one or two zero-length packets before
         // most messages.
-        if (std::chrono::steady_clock::now() < self.bulkDeadline)
+        if (self.clock() < self.bulkDeadline)
             self.readBulk();
         else
             self.giveUp("the G2 announced a message and sent nothing for " + std::to_string(self.timeouts.readTotalMs)
@@ -373,7 +376,8 @@ int LIBUSB_CALL LibusbTransport::Impl::onHotplug(libusb_context*, libusb_device*
 
 // ---- Transport -------------------------------------------------------------------
 
-LibusbTransport::LibusbTransport(LibusbTimeouts timeouts) : impl_(std::make_unique<Impl>(timeouts))
+LibusbTransport::LibusbTransport(LibusbTimeouts timeouts, LibusbClock clock)
+    : impl_(std::make_unique<Impl>(timeouts, clock))
 {
     if (libusb_init_context(&impl_->ctx, nullptr, 0) != 0) {
         impl_->ctx = nullptr;

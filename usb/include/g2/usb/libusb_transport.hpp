@@ -41,6 +41,7 @@
 
 #include "g2/proto/transport.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <span>
@@ -60,16 +61,21 @@ inline constexpr std::uint16_t kProductId = 0x0002;
 // as the original. Patches stay far below (the largest of 4 500: 19 359 bytes).
 inline constexpr std::size_t kMaxSendFrame = 32768;
 
-// Clavia's timings; tests shorten them.
+// Clavia's timings; tests give others too.
 struct LibusbTimeouts {
     unsigned sendMs = 5000;      // one bulk-OUT write
     unsigned readMs = 1000;      // one bulk-IN read
     unsigned readTotalMs = 5000; // all the reads of one message
 };
 
+// Where the transport reads the time, for the deadline of a message's reads and
+// for its scans: std::chrono::steady_clock when null. Tests give the clock
+// their libusb counts its timeouts with.
+using LibusbClock = std::chrono::steady_clock::time_point (*)();
+
 class LibusbTransport final : public proto::Transport {
 public:
-    explicit LibusbTransport(LibusbTimeouts timeouts = {});
+    explicit LibusbTransport(LibusbTimeouts timeouts = {}, LibusbClock clock = nullptr);
     ~LibusbTransport() override;
     LibusbTransport(const LibusbTransport&) = delete;
     LibusbTransport& operator=(const LibusbTransport&) = delete;
