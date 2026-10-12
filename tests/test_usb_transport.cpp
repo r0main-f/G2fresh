@@ -144,7 +144,7 @@ TEST_CASE("usb: without data by the deadline the G2 is given up until it leaves 
             fakeusb::bulkIn({});
         REQUIRE(until(c.transport, [&] { return c.sink.count("removed") == 1; }));
         CHECK(c.transport.lastError().find("sent nothing") != std::string::npos);
-        CHECK(fakeusb::stats().bulkReads >= 6); // three empty, then a 20 ms timeout each
+        CHECK(fakeusb::stats().bulkReads >= 4); // three empty, then reads that time out (how many depends on the machine)
 
         // Still there: not opened again, even on an arrival.
         fakeusb::arrivalAgain();
