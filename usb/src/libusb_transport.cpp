@@ -112,6 +112,11 @@ void LibusbTransport::Impl::run()
                 tryOpen();
             }
         }
+        // closeDevice() runs libusb's events too (as libusb may in tryOpen(), in
+        // a synchronous transfer), and the wake-up of ~LibusbTransport ends only
+        // one such run: look again, not to wait out the timeout below.
+        if (!running)
+            break;
         timeval tv{0, 100'000};
         libusb_handle_events_timeout_completed(ctx, &tv, nullptr);
     }

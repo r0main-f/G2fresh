@@ -532,6 +532,23 @@ TEST_CASE("usb: a transport destroyed with a read pending cancels it and waits f
     CHECK(s.waitsWhileStopping == waits);
 }
 
+TEST_CASE("usb: a transport destroyed while it closes its device does not wait for a timeout", "[usb]")
+{
+    auto c = std::make_unique<Connected>(true);
+    // The wake-up of ~LibusbTransport comes while the I/O thread, told that the
+    // G2 left, cancels the interrupt read: the events that the closing runs
+    // take it, and the thread must not go on to wait for more.
+    fakeusb::holdCancelUntilStopped();
+    fakeusb::unplug();
+    fakeusb::settle(); // the I/O thread is held in libusb_cancel_transfer
+    c.reset();
+    const auto s = fakeusb::stats();
+    CHECK(s.calls.back() == "close");
+    CHECK(s.cancelled == 1);
+    CHECK(s.transfers == 0);
+    CHECK(s.waitsWhileStopping == 0);
+}
+
 TEST_CASE("usb: poll(), send() and lastError() while the I/O thread works", "[usb]")
 {
     // Called without settling first, so that they meet the I/O thread at its
