@@ -22,13 +22,20 @@ Clavia's last editor (v1.62) is a 32-bit Carbon app on the Mac and depends on a 
 | `plugin/` | JUCE target: stand-alone app, VST3, AU |
 | `emu/` | Emulation, built with `-DG2_BUILD_EMU=ON`: `g2emu`, the whole G2 in C++ running the user's own firmware (`re/notes/g2-hardware-and-emulation.md` §3.9), and the DSP experiments |
 | `tests/` | Catch2 tests; `tests/corpus/` holds freely licensed patch files. Set `G2_EXTRA_CORPUS=<dir>` to also test your own patches |
+| `tools/package/` | What a release is made of: the macOS installer and its signing and notarization (`macos.sh`), the Windows installer (`windows.ps1`, Inno Setup), the Linux archive and its install script (`linux.sh`); `docs/RELEASING.md` says how a release is cut |
 
 ## Download
 
-Builds for macOS (universal), Windows and Linux are attached to each [release](https://github.com/r0main-f/G2fresh/releases). They are not code-signed:
-- **macOS:** after unzipping, right-click the app (or plugin installer) and choose Open. If macOS says the app "is damaged", run `xattr -dr com.apple.quarantine G2fresh.app`. Copy `G2fresh.vst3` to `~/Library/Audio/Plug-Ins/VST3/` and `G2fresh.component` to `~/Library/Audio/Plug-Ins/Components/`.
-- **Windows:** SmartScreen may warn: choose "More info", then "Run anyway". Copy `G2fresh.vst3` to `C:\Program Files\Common Files\VST3\`.
-- **Linux:** copy `G2fresh.vst3` to `~/.vst3/`.
+Each [release](https://github.com/r0main-f/G2fresh/releases) has an installer and a plain archive for macOS (universal), Windows (x64) and Linux (x64). A release's notes say whether its macOS and Windows files are signed.
+
+- **macOS:** open `G2fresh-<version>-macOS-universal.pkg`. It installs the app in Applications, the VST3 plugin in `/Library/Audio/Plug-Ins/VST3` and the Audio Unit in `/Library/Audio/Plug-Ins/Components`; untick what you do not want on the Installation Type page. The `.zip` holds the same three bundles, to put there by hand (or the plugins in `~/Library/Audio/Plug-Ins/VST3/` and `~/Library/Audio/Plug-Ins/Components/`, for you alone).
+  - A release signed with a Developer ID and notarized by Apple opens like any other software.
+  - A release that is not (every one up to 0.10.0, and any build made without the certificates) is refused by macOS at first. Either run `xattr -dr com.apple.quarantine` on the downloaded `.pkg` (or on the three bundles from the zip) in Terminal, or try to open it once and then choose Open Anyway in System Settings > Privacy & Security (on macOS 14 and earlier: right-click the file and choose Open).
+  - To remove G2fresh, put `/Applications/G2fresh.app`, `/Library/Audio/Plug-Ins/VST3/G2fresh.vst3` and `/Library/Audio/Plug-Ins/Components/G2fresh.component` in the Trash. Your patches and settings (`~/Library/Application Support/G2fresh`) stay.
+- **Windows:** run `G2fresh-<version>-Windows-x64-setup.exe`. It installs the app in `Program Files\G2fresh`, with a Start menu entry, and the VST3 plugin in `C:\Program Files\Common Files\VST3` (each optional), and removes them again from Settings > Apps. The `.zip` holds the same files: put `G2fresh.exe` and `g2bridge.exe` together where you like, and `G2fresh.vst3` in `C:\Program Files\Common Files\VST3\`. If the release is not signed, SmartScreen warns: choose "More info", then "Run anyway". A real G2 needs the WinUSB driver: see "Connecting a G2".
+- **Linux:** unpack `G2fresh-<version>-Linux-x64.tar.gz` and run `./install.sh` in it: the app and `g2bridge` go to `~/.local/bin` with an entry in the applications menu, the VST3 plugin to `~/.vst3`, all without root (`./uninstall.sh` removes them). By hand: keep `G2fresh` and `g2bridge` together, and copy `G2fresh.vst3` to `~/.vst3/`. A real G2 needs a udev rule, which the script prints and "Connecting a G2" has.
+
+How the releases are built, signed and notarized: `docs/RELEASING.md`.
 
 ## Playing without a G2
 
@@ -48,7 +55,7 @@ A new emulated G2 starts as a G2 leaves the factory, without its sounds. Its sys
   - On a G2 the microphone input (XLR) feeds IN 1 while nothing is plugged into the IN 1 jack, through a preamp whose gain is the Mic Level knob. Here In 1 is the jack, and the knob does nothing, as on a G2 with a plug in IN 1. Right-click the Mic Level knob in the Live view to make In 1 the microphone input: the knob then adds 0 to +40 dB.
 - The latency from a MIDI note or an input to the output is about 32 ms at 48 kHz with 512-sample blocks (27 ms with 256); G2fresh reports it to the host, which compensates it on playback. What the G2 makes of an input comes out exactly that much later.
 - The expansion ports are not emulated; the pedals are not connected (the control pedal reads 0, the sustain pedal is up). Checked in the emulator (as the G2 OS reads them): the lowest key plays C1, the pitch stick bends up to the right, the mod wheel's vibrato grows upwards. Not verified: the global wheels' direction and the key velocity curve (approximated).
-- In a DAW on macOS, the emulator generates code at run time; a host that forbids it cannot run it (not seen so far).
+- On macOS the emulator generates code at run time. A plugin does so by its host's leave: a host signed with the hardened runtime must have the `allow-jit` or the `allow-unsigned-executable-memory` entitlement (Live 11, Apple's `auval` and Apple's Audio Unit hosting service have the second). In a host with neither, the Emulated G2 does not start and Synth > Connect to Emulated G2 says why in the status line; the rest of the plugin works. No such host seen so far.
 - G2fresh is not affiliated with Clavia. The G2 OS is Clavia DMI AB's copyright: download it yourself from Nord's website and do not share the file; G2fresh never includes or distributes it.
 
 ## The Classic look
@@ -155,7 +162,7 @@ brew install cmake ninja   # macOS (JUCE, Catch2 and libusb are fetched by CMake
 cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 ```
 
-`-DG2_WITH_USB=OFF` builds without libusb (the bridge then only serves the virtual G2). `-DG2_BUILD_EMU=ON` adds the Emulated G2 (it fetches the DSP56300 emulator and Gearmulator's ColdFire core, both GPL-3); the release builds have it.
+`-DG2_WITH_USB=OFF` builds without libusb (the bridge then only serves the virtual G2). `-DG2_BUILD_EMU=ON` adds the Emulated G2 (it fetches the DSP56300 emulator and Gearmulator's ColdFire core, both GPL-3); the release builds have it. `tools/package/macos.sh` (`linux.sh`, `windows.ps1`) then makes a build's installer and archive in `dist/`, as CI does for a release.
 
 ## Reverse-engineering setup
 
