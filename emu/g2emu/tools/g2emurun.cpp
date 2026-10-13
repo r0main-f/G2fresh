@@ -2,7 +2,7 @@
 //
 //   g2emurun [--fw PATH] [--patch FILE | --kbd FILE] [--to B:FILE ...] [--settle S] [--seconds S]
 //            [--note N@ON-OFF ...] [--midi N@ON-OFF[:CH] ...] [--wav OUT.wav] [--json OUT.json]
-//            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0..4|-1] [--skew N] [--dsp-lead N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
+//            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0..8|-1] [--model g2|g2x|engine] [--expansion on|off] [--skew N] [--dsp-lead N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
 //            [--no-usb] [--panel] [--panel-at T] [--press RAW@T[-T2]] [--turn RAW:N@T] [--adc POS:V@T] [--key K@T-T2[:MS]] [--var V@T]
 //            [--in N:HZ[:LEVEL] ...]
 //
@@ -527,6 +527,11 @@ int main(int argc, char** argv)
             const auto m = next();
             opt.model = m == "g2x" ? g2emu::PanelModel::G2X : m == "engine" ? g2emu::PanelModel::G2Engine : g2emu::PanelModel::G2;
         }
+        else if(a == "--expansion")
+        {
+            const auto e = next();
+            opt.expansion = e == "on" ? g2emu::Expansion::With : e == "off" ? g2emu::Expansion::Without : g2emu::Expansion::AsBuilt;
+        }
         else if(a == "--no-jit") opt.jit = false;
         else if(a == "--no-idle-skip") opt.idleSkip = false;
         else if(a == "--no-poll-skip") opt.pollSkip = false;
@@ -584,10 +589,11 @@ int main(int argc, char** argv)
             {
                 std::this_thread::sleep_for(std::chrono::seconds(2));
                 const auto s = m.stats();  // racy: debugging only
-                std::fprintf(stderr, "watch: cf pc %08x cycles %llu; dsp clocks %llu %llu %llu %llu pcs %06x %06x %06x %06x\n", s.cfPc,
-                             (unsigned long long)s.cfCycles, (unsigned long long)(s.dspExecuted[0] + s.dspSkipped[0]),
-                             (unsigned long long)(s.dspExecuted[1] + s.dspSkipped[1]), (unsigned long long)(s.dspExecuted[2] + s.dspSkipped[2]),
-                             (unsigned long long)(s.dspExecuted[3] + s.dspSkipped[3]), s.dspPc[0], s.dspPc[1], s.dspPc[2], s.dspPc[3]);
+                std::fprintf(stderr, "watch: cf pc %08x cycles %llu; dsp clocks", s.cfPc, (unsigned long long)s.cfCycles);
+                for(int n = 0; n < s.dsps; ++n) std::fprintf(stderr, " %llu", (unsigned long long)(s.dspExecuted[n] + s.dspSkipped[n]));
+                std::fprintf(stderr, " pcs");
+                for(int n = 0; n < s.dsps; ++n) std::fprintf(stderr, " %06x", s.dspPc[n]);
+                std::fprintf(stderr, "\n");
             }
         });
     struct Join { std::atomic<bool>& d; std::thread& t; ~Join() { d = true; if(t.joinable()) t.join(); } } join{done, watch};
@@ -596,14 +602,13 @@ int main(int argc, char** argv)
     auto report = [&](const char* what) {
         const auto s = m.stats();
         const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
-        std::fprintf(stderr,
-                     "[%7.3f s emulated, %7.3f s wall] %s: cf pc %08x, %llu instr; dsp pc %06x %06x %06x %06x; "
-                     "executed/frame %.0f %.0f %.0f %.0f; host cmds %llu; underruns %llu\n",
-                     m.seconds(), wall, what, s.cfPc, (unsigned long long)s.cfInstructions, s.dspPc[0], s.dspPc[1],
-                     s.dspPc[2], s.dspPc[3], double(s.dspExecuted[0]) / double(m.frame() + 1),
-                     double(s.dspExecuted[1]) / double(m.frame() + 1), double(s.dspExecuted[2]) / double(m.frame() + 1),
-                     double(s.dspExecuted[3]) / double(m.frame() + 1), (unsigned long long)s.hostCommands,
-                     (unsigned long long)s.linkUnderruns);
+        // the DSPs by chip select: A3..A6, then the expansion board's A7..A10
+        std::fprintf(stderr, "[%7.3f s emulated, %7.3f s wall] %s: cf pc %08x, %llu instr; dsp pc", m.seconds(), wall, what, s.cfPc,
+                     (unsigned long long)s.cfInstructions);
+        for(int n = 0; n < s.dsps; ++n) std::fprintf(stderr, " %06x", s.dspPc[n]);
+        std::fprintf(stderr, "; executed/frame");
+        for(int n = 0; n < s.dsps; ++n) std::fprintf(stderr, " %.0f", double(s.dspExecuted[n]) / double(m.frame() + 1));
+        std::fprintf(stderr, "; host cmds %llu; underruns %llu\n", (unsigned long long)s.hostCommands, (unsigned long long)s.linkUnderruns);
     };
 
     // boot
@@ -766,7 +771,7 @@ int main(int argc, char** argv)
         const double busy = recCfCpu - (opt.threads ? double(s2.cfWaitNs - s1.cfWaitNs) * 1e-9 : 0.0);
         std::printf(" (%.1f M instructions per busy s)", double(s2.cfInstructions - s1.cfInstructions) / std::max(busy, 1e-9) * 1e-6);
     }
-    for(int w = 0; w < 4; ++w)
+    for(int w = 0; w < g2emu::Machine::MaxDsps; ++w)
         if(s2.dspThreadCpuNs[w])
             std::printf("; DSP thread %d %.2f CPU s, of which waiting %.2f s", w,
                         double(s2.dspThreadCpuNs[w] - s1.dspThreadCpuNs[w]) * 1e-9 / emulated,

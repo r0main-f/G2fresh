@@ -58,8 +58,8 @@ void quietLog(const std::string& s)
     std::fprintf(stderr, "dsp56300: %s\n", s.c_str());
 }
 
-// A host port of an absent DSP (the expansion board's A7..A10): INIT completes at once, a host command is taken at
-// once, HF0 is echoed as HF2 (as g2hostemu.py's stubs).
+// A host port of an absent DSP (A7..A10 without the expansion board; the OS then never selects them, §3.12): INIT
+// completes at once, a host command is taken at once, HF0 is echoed as HF2 (as g2hostemu.py's stubs).
 struct StubPort {
     std::uint8_t icr = 0, cvr = 0, ivr = 0x0f, hf23 = 0;
     std::uint8_t read(int reg) const
@@ -103,10 +103,14 @@ struct Machine::Impl final : coldfire::Bus {
     Flash flashChip;
     Isp1181 usb;
     Panel panelHw;
-    std::array<std::unique_ptr<Dsp>, 4> dsps;
+    // By chip select: A3..A6 the main board's DSPs, A7..A10 the expansion board's (null without it) [§2.6, §3.12]
+    std::array<std::unique_ptr<Dsp>, MaxDsps> dsps;
     std::array<StubPort, 4> stubs;
-    std::array<std::unique_ptr<Link>, 8> links;
-    std::array<int, 4> chain{3, 2, 1, 0};  // A6 (clock master, ADCs) -> A5 -> A4 -> A3 (DACs) [§3.7.3]
+    std::array<std::unique_ptr<Link>, 2 * MaxDsps> links;
+    // A6 (clock master, ADCs) -> A5 -> A4 -> A3 (DACs) [§3.7.3]; with the expansion board its four DSPs come between
+    // A6 and A5, in the OS's order: A6 -> A10 -> A9 -> A8 -> A7 -> A5 -> A4 -> A3 [§3.12.2]
+    const bool expanded;
+    const std::vector<int> chain;
     std::vector<std::int32_t> dac;          // the DACs' words, 4 per frame
     std::uint64_t dacSent = 0;              // when the last of them was sent (A3's clock)
     std::uint64_t dacClock = 0;             // the same for the last frame run() handed out
@@ -122,8 +126,8 @@ struct Machine::Impl final : coldfire::Bus {
         std::atomic<std::uint64_t> time{0};
         std::atomic<std::uint64_t> cpuNs{0}, waitNs{0};  // CPU time, time spent waiting
     };
-    std::array<Worker, 4> worker{};
-    std::array<int, 4> dspWorker{};  // which DSP thread runs DSP n
+    std::array<Worker, MaxDsps> worker{};
+    std::array<int, MaxDsps> dspWorker{};  // which DSP thread runs DSP n
     struct alignas(128) {
         std::atomic<std::uint64_t> horizon{0};
         std::atomic<bool> quit{false};
@@ -189,6 +193,15 @@ struct Machine::Impl final : coldfire::Bus {
         }
         return true;
     }
+    // The parallel port's inputs: the panel's (keyboard rows, sustain pedal) and bit 9, which the expansion board
+    // pulls low: the OS reads it once at power-on and takes eight DSPs instead of four [C 0x30037F64, §3.12.1].
+    // (Without the board the bit reads high, as the OS's own write to PADAT left it before it was modelled.)
+    static constexpr std::uint16_t GpioExpansionAbsent = 0x0200;
+    void gpioChanged()
+    {
+        sim.setGpioInputs(std::uint16_t(panelHw.gpioMask() | GpioExpansionAbsent),
+                          std::uint16_t(panelHw.gpioInputs() | (expanded ? 0 : GpioExpansionAbsent)));
+    }
     void panelStep()
     {
         if(panelInputsPending.load(std::memory_order_acquire))
@@ -208,11 +221,11 @@ struct Machine::Impl final : coldfire::Bus {
                 case PanelInput::Key: panelHw.key(e.index, e.value != 0, std::uint64_t(e.extra), busNow()); break;
                 case PanelInput::Sustain:
                     panelHw.sustain(true, e.value != 0);
-                    sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
+                    gpioChanged();
                     break;
                 }
         }
-        if(panelHw.advance(busNow())) sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
+        if(panelHw.advance(busNow())) gpioChanged();
         if(panelHw.changes() != panelChanges && t >= panelPublishAt)
         {
             PanelState s;
@@ -290,9 +303,11 @@ struct Machine::Impl final : coldfire::Bus {
             std::fprintf(stderr, "  %08x %5.2f%%\n", v[i].second, 100.0 * double(v[i].first) / double(total));
     }
 
-    Impl(const Firmware& fw, Options o) : opt(o)
+    Impl(const Firmware& fw, Options o)
+        : opt(o), expanded(Machine::hasExpansion(o)),
+          chain(expanded ? std::vector<int>{3, 7, 6, 5, 4, 2, 1, 0} : std::vector<int>{3, 2, 1, 0})
     {
-        if(opt.threads < 0) opt.threads = Machine::autoThreads();
+        if(opt.threads < 0) opt.threads = Machine::autoThreads(int(chain.size()));
         Logging::setLogFunc(&quietLog);
         cfPerDsp = opt.cfHz / (double(FrameRate) * Dsp::CyclesPerFrame);
         busPerCf = double(Sim::BusHz) / opt.cfHz;
@@ -302,7 +317,7 @@ struct Machine::Impl final : coldfire::Bus {
         const std::uint8_t rest[7] = {0, std::uint8_t(std::lround(std::clamp(opt.masterVolume, 0.0, 1.0) * 255)), 0, 0xFF, 0x80, 0, 0};
         for(std::size_t i = 0; i < 7; ++i) sim.setPanelAdc(i, rest[i]);
         panelHw.setModel(opt.model == PanelModel::G2X ? 3 : opt.model == PanelModel::G2Engine ? 2 : 0);
-        sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
+        gpioChanged();
         load(fw);
         // Without this the library's JIT leaves its entry points null and the first DSP step jumps to address 0: in a
         // plugin that takes the host down with it.
@@ -316,7 +331,7 @@ struct Machine::Impl final : coldfire::Bus {
         Dsp::Options dopt;
         dopt.jit = opt.jit;
         dopt.idleSkip = opt.idleSkip;
-        for(int n = 0; n < 4; ++n) dsps[std::size_t(n)] = std::make_unique<Dsp>(n, dopt);
+        for(int n : chain) dsps[std::size_t(n)] = std::make_unique<Dsp>(n, dopt);
         wire();
         cpu.setFastMemory(sdram.data(), SdramBase, SdramSize);
         cpu.setUnimplementedCallback([this](std::uint32_t pc, std::uint16_t op) {
@@ -353,7 +368,7 @@ struct Machine::Impl final : coldfire::Bus {
     void wire()
     {
         const int first = chain.front(), last = chain.back();
-        for(int n = 0; n < 4; ++n)
+        for(int n : chain)
             dsps[std::size_t(n)]->setDividers(n == last ? 3 : 0, n == first ? 3 : 0, 0, 0);
         std::size_t li = 0;
         auto link = [&](int up, int upEsai, int txBase, int down, int downEsai, std::uint32_t prefill) {
@@ -518,7 +533,7 @@ struct Machine::Impl final : coldfire::Bus {
                 // the keyboard matrix's column latch (16 bits) [C 0x30029d78]
                 cpu.m_g2WaitCycles += 12;
                 panelHw.writeCs4(std::uint16_t(v));
-                sim.setGpioInputs(panelHw.gpioMask(), panelHw.gpioInputs());
+                gpioChanged();
                 return;
             }
             break;
@@ -563,12 +578,11 @@ struct Machine::Impl final : coldfire::Bus {
         for(int n = 0; n < 8; ++n)
         {
             if(!(sel & (1u << n))) continue;
-            if(n < 4)
+            if(auto* d = dsps[std::size_t(n)].get())
             {
-                auto& d = *dsps[std::size_t(n)];
-                if(d.hostReadDependsOnDsp(reg)) syncDsps(n);
+                if(d->hostReadDependsOnDsp(reg)) syncDsps(n);
                 ++st.hostReads;
-                v &= d.hostRead(reg);
+                v &= d->hostRead(reg);
             }
             else
                 v &= stubs[std::size_t(n - 4)].read(reg);
@@ -590,7 +604,7 @@ struct Machine::Impl final : coldfire::Bus {
         const std::uint32_t pc = cpu.getInstructionPC();
         const bool repeat = pc == poll.pc && off == poll.off && v == poll.value;
         poll = {pc, off, v};
-        if(!repeat || !opt.pollSkip || (reg != 1 && reg != 2) || (sel & (sel - 1)) || !(sel & 0x0f)) return v;
+        if(!repeat || !opt.pollSkip || (reg != 1 && reg != 2) || (sel & (sel - 1)) || !(sel & (expanded ? 0xff : 0x0f))) return v;
         if(opt.threads)
         {
             // the DSPs run on their own: the ColdFire's clock moves on a little per repeated poll instead of running
@@ -639,13 +653,13 @@ struct Machine::Impl final : coldfire::Bus {
         for(int n = 0; n < 8; ++n)
         {
             if(!(sel & (1u << n))) continue;
-            if(n < 4)
+            if(auto* d = dsps[std::size_t(n)].get())
             {
                 // single thread: catch the DSPs up first; with threads the writes need no wait (they reach the DSP
                 // in order through its host queue)
                 if(!opt.threads) syncDsps(n);
                 if(reg == 1 && (v & 0x80)) ++st.hostCommands;
-                dsps[std::size_t(n)]->hostWrite(reg, v);
+                d->hostWrite(reg, v);
             }
             else
                 stubs[std::size_t(n - 4)].write(reg, v);
@@ -945,7 +959,7 @@ struct Machine::Impl final : coldfire::Bus {
     // prefill past the last one (A6 needs A3's frames from around the ring). The ColdFire's thread moves `horizon`.
     void startWorkers()
     {
-        const int n = std::clamp(opt.threads, 1, 4);
+        const int n = std::clamp(opt.threads, 1, int(chain.size()));
         std::vector<std::vector<int>> parts(static_cast<std::size_t>(n));
         for(std::size_t k = 0; k < chain.size(); ++k)
         {
@@ -1008,7 +1022,8 @@ struct Machine::Impl final : coldfire::Bus {
         s.cfSkipped = cfSkipped;
         s.dspThreads = opt.threads;
         s.cfPc = cpu.getPC();
-        for(int n = 0; n < 4; ++n)
+        s.dsps = int(chain.size());
+        for(int n : chain)
         {
             s.dspExecuted[n] = dsps[std::size_t(n)]->executed();
             s.dspSkipped[n] = dsps[std::size_t(n)]->skipped();
@@ -1029,7 +1044,12 @@ struct Machine::Impl final : coldfire::Bus {
 
 // ---------------------------------------------------------------------------------------------------------------
 
-int Machine::autoThreads()
+bool Machine::hasExpansion(const Options& options)
+{
+    return options.expansion == Expansion::With || (options.expansion == Expansion::AsBuilt && options.model == PanelModel::G2X);
+}
+
+int Machine::autoThreads(int dsps)
 {
     int cores = 0;
 #ifdef __APPLE__
@@ -1051,6 +1071,7 @@ int Machine::autoThreads()
         const auto t = int(std::thread::hardware_concurrency());
         cores = t >= 6 ? 4 : (t >= 4 ? 3 : t);
     }
+    (void)dsps;
     return cores >= 4 ? 2 : 1;
 }
 
@@ -1213,7 +1234,8 @@ int Machine::dspThreads() const { return impl_->opt.threads; }
 
 std::uint32_t Machine::dspMemory(int n, int area, std::uint32_t address) const
 {
-    return impl_->dsps[std::size_t(n & 3)]->memRead(dsp56k::EMemArea(area), address);
+    const auto* d = impl_->dsps[std::size_t(n) % MaxDsps].get();
+    return d ? d->memRead(dsp56k::EMemArea(area), address) : 0;
 }
 
 std::uint32_t Machine::cfRead32(std::uint32_t address) const

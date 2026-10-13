@@ -14,6 +14,7 @@
 #include "g2/module_db.hpp"
 #include "g2/patch.hpp"
 #include "g2/proto/client.hpp"
+#include "g2/proto/frame.hpp"
 #include "SynthSettingsForm.h"
 #include "g2/uprate.hpp"
 #include "g2emu/firmware.hpp"
@@ -32,6 +33,7 @@
 #include <map>
 #include <memory>
 #include <fstream>
+#include <iterator>
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -2068,7 +2070,7 @@ struct InputRig {
     MachineTransport transport{m};
     g2::proto::ManualClock clock;
     g2::proto::Client client{transport, clock};
-    explicit InputRig(const Firmware& fw) : m(fw)
+    explicit InputRig(const Firmware& fw, Machine::Options options = {}) : m(fw, options)
     {
         m.setAdcSource(&source);
         m.run(Machine::FrameRate * 2);
@@ -2489,21 +2491,12 @@ TEST_CASE("The user's G2 OS in real time: audio inputs on the reader's timeline 
     CHECK(runner.machine().stats().dspsWild == 0);
 }
 
-TEST_CASE("The user's G2 OS: a bus and an FX send cross the lines between the DSPs", "[g2emu][firmware]")
+namespace {
+
+// A 440 Hz sine to Bus 1/2 and a 2-In (Bus 1/2) to Out 1/2: once around the ring (§3.7.2). An 880 Hz sine to
+// FX 1/2 and, in the FX area, an Fx-In to Out 3/4: down the chain.
+g2::Patch busAndFxPatch()
 {
-    Firmware fw;
-    try
-    {
-        fw = Firmware::load(firmwarePath());
-    }
-    catch(const std::exception&)
-    {
-        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
-    }
-    InputRig g2(fw);
-    REQUIRE(g2.client.synced());
-    // A 440 Hz sine to Bus 1/2 and a 2-In (Bus 1/2) to Out 1/2: once around the ring (§3.7.2). An 880 Hz sine to
-    // FX 1/2 and, in the FX area, an Fx-In to Out 3/4: down the chain.
     PatchBuilder b;
     const auto osc = b.add("OscA", 0), toBus = b.add("2-Out", 1), fromBus = b.add("2-In", 2), out = b.add("2-Out", 3);
     const auto osc2 = b.add("OscA", 0, 10), toFx = b.add("2-Out", 1, 10);
@@ -2532,6 +2525,25 @@ TEST_CASE("The user's G2 OS: a bus and an FX send cross the lines between the DS
             for(g2::u8 v = 0; v < g2::kFileVariations; ++v) g2::edit::setParam(patch, g2::Location::Fx, fxOut, g2::u8(i), v, 1);
     g2::edit::connect(patch, g2::Location::Fx, {fxIn, 0, true}, {fxOut, 0, false});
     g2::uprate::update(patch, g2::Location::Fx);
+    return patch;
+}
+
+} // namespace
+
+TEST_CASE("The user's G2 OS: a bus and an FX send cross the lines between the DSPs", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    const auto patch = busAndFxPatch();
     // twice: the lines are as long after another upload (they grew with each one before they had a fixed delay)
     for(int upload = 0; upload < 2; ++upload)
     {
@@ -2548,4 +2560,428 @@ TEST_CASE("The user's G2 OS: a bus and an FX send cross the lines between the DS
         // no frame is lost on any line while the patch plays
         CHECK(g2.m.stats().linkUnderruns == underruns);
     }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The voice expansion board (re/notes §3.12)
+
+namespace {
+
+// A G2 keyboard with the board fitted.
+Machine::Options expandedG2()
+{
+    Machine::Options o;
+    o.expansion = Expansion::With;
+    return o;
+}
+
+// Keyboard -> OscA (sine, note 69 = 440 Hz) -> EnvADSR -> 2-Out per voice, as keyboardSine(), with `voices` voices
+// asked. Beside it `stacks` oscillator -> filter pairs that nothing listens to: they only cost DSP time, so that the
+// OS fits few voices on a DSP and has to spread a chord over several.
+g2::Patch heavyPolySine(int voices, int stacks)
+{
+    PatchBuilder b;
+    const auto kbd = b.add("Keyboard", 0), osc = b.add("OscA", 1), env = b.add("EnvADSR", 2), out = b.add("2-Out", 3);
+    b.param(osc, "Wave", 0);
+    b.param(osc, "Coarse", 64);
+    b.param(env, "Attack", 0);
+    b.param(env, "Sustain", 127);
+    b.cable(osc, 0, env, 0);
+    b.cable(kbd, 1, env, 1);
+    b.cable(env, 1, out, 0);
+    for(int k = 0; k < stacks; ++k)
+    {
+        const auto o = b.add("OscB", g2::u8(4 + k), 0), f = b.add("FltNord", g2::u8(4 + k), 10);
+        b.cable(o, 0, f, 0);
+    }
+    g2::edit::setVoices(b.patch, g2::edit::VoiceMode::Poly, g2::u8(voices));
+    return b.done();
+}
+
+double noteHz(int note) { return 440.0 * std::pow(2.0, (note - 69) / 12.0); }
+
+// What each DSP executes per frame (of 1536) over the next `seconds`, by chip select (A3..A6, then the expansion
+// board's A7..A10): where the OS put the patch.
+std::array<double, Machine::MaxDsps> dspLoads(InputRig& g2, double seconds)
+{
+    const auto before = g2.m.stats();
+    const auto f0 = g2.m.frame();
+    g2.run(seconds);
+    const auto after = g2.m.stats();
+    std::array<double, Machine::MaxDsps> load{};
+    for(std::size_t n = 0; n < load.size(); ++n)
+        load[n] = double(after.dspExecuted[n] - before.dspExecuted[n]) / double(g2.m.frame() - f0);
+    return load;
+}
+
+std::string loadsText(const std::array<double, Machine::MaxDsps>& load, int dsps)
+{
+    std::string s;
+    for(int n = 0; n < dsps; ++n) s += (n ? " " : "") + std::to_string(int(load[std::size_t(n)]));
+    return s;
+}
+
+// The amplitude of `hz` in word `word` under a Hann window: the other notes of a chord, tens of hertz away, do
+// not leak into it (into tone()'s plain sum they do, by a few percent over a quarter of a second).
+double chordTone(const std::vector<float>& out, std::size_t word, double hz)
+{
+    double re = 0, im = 0, sum = 0;
+    const std::size_t n = out.size() / 4;
+    for(std::size_t i = 0; i < n; ++i)
+    {
+        const double window = 0.5 - 0.5 * std::cos(kTwoPi * (double(i) + 0.5) / double(n));
+        const double w = kTwoPi * hz * double(i) / Machine::FrameRate;
+        re += window * out[4 * i + word] * std::sin(w);
+        im += window * out[4 * i + word] * std::cos(w);
+        sum += window;
+    }
+    return 2 * std::hypot(re, im) / sum;
+}
+
+// The largest third difference of word `word`: a sum of low sines has almost none ((2 pi f / fs)^3 of each sine's
+// amplitude: under 1e-5 here, 2e-5 measured), a frame lost, repeated or out of place between two DSPs a hundred
+// times more (a step of a sine's slope: 1.8e-3 for a full 220 Hz).
+double roughness(const std::vector<float>& out, std::size_t word)
+{
+    double worst = 0;
+    for(std::size_t f = 3; f < out.size() / 4; ++f)
+        worst = std::max(worst, std::fabs(double(out[4 * f + word]) - 3.0 * out[4 * (f - 1) + word] + 3.0 * out[4 * (f - 2) + word]
+                                          - out[4 * (f - 3) + word]));
+    return worst;
+}
+
+// The chord `notes` held on MIDI channel 1: each note's amplitude on Out 1, and the roughness of what was recorded
+// against what the tones themselves account for.
+struct Chord {
+    std::vector<double> amplitude;
+    double roughness = 0, smooth = 0;
+};
+Chord playChord(InputRig& g2, const std::vector<int>& notes)
+{
+    for(const int n : notes)
+    {
+        const std::uint8_t on[3] = {0x90, std::uint8_t(n), 100};
+        g2.m.midiIn(on);
+        g2.run(0.01);
+    }
+    g2.run(0.2);
+    std::uint64_t clock0 = 0;
+    const auto out = g2.record(0.25, clock0);
+    Chord c;
+    for(const int n : notes)
+    {
+        const double a = chordTone(out, 0, noteHz(n));
+        c.amplitude.push_back(a);
+        c.smooth += a * std::pow(kTwoPi * noteHz(n) / Machine::FrameRate, 3.0);
+    }
+    c.roughness = roughness(out, 0);
+    for(const int n : notes)
+    {
+        const std::uint8_t off[3] = {0x80, std::uint8_t(n), 0};
+        g2.m.midiIn(off);
+    }
+    g2.run(0.1);
+    return c;
+}
+
+// The version reply as the OS sends it over USB (the bytes from the 0x80 on).
+Bytes versionReply(Machine& m)
+{
+    m.plugUsb();
+    while(!m.usbArrived() && m.seconds() < 4) m.run(Machine::FrameRate / 1000);
+    m.usbSend(g2::proto::versionRequest());
+    Bytes reply;
+    for(int ms = 0; ms < 500 && reply.empty(); ++ms)
+    {
+        m.run(Machine::FrameRate / 1000);
+        Machine::UsbIn in;
+        while(m.usbTake(in))
+            if(in.bulk && in.data.size() > 2 && in.data[0] == 0x80 && in.data[1] == 0x0A) reply = in.data;
+    }
+    return reply;
+}
+
+// The line of the main display that says "Version" while the OS boots (it comes and goes within the first second).
+std::string bootVersionLine(Machine& m)
+{
+    std::string line;
+    while(m.seconds() < 2)
+    {
+        m.run(Machine::FrameRate / 100);
+        if(!line.empty()) continue;
+        const auto p = m.panel();
+        for(int l = 0; l < 2; ++l)
+            if(p.displays[0].text(l).find("Version") != std::string::npos) line = p.displays[0].text(l);
+    }
+    while(!line.empty() && line.back() == ' ') line.pop_back();
+    return line;
+}
+
+} // namespace
+
+TEST_CASE("Expansion board: a G2X has it, a G2 and a G2 Engine when fitted", "[g2emu]")
+{
+    Machine::Options o;
+    CHECK_FALSE(Machine::hasExpansion(o));  // a G2 keyboard as built
+    o.model = PanelModel::G2Engine;
+    CHECK_FALSE(Machine::hasExpansion(o));
+    o.expansion = Expansion::With;
+    CHECK(Machine::hasExpansion(o));
+    o.model = PanelModel::G2;
+    CHECK(Machine::hasExpansion(o));
+    o.model = PanelModel::G2X;
+    o.expansion = Expansion::AsBuilt;
+    CHECK(Machine::hasExpansion(o));
+    o.expansion = Expansion::Without;  // no such instrument: for a computer that cannot run eight DSPs
+    CHECK_FALSE(Machine::hasExpansion(o));
+}
+
+TEST_CASE("The user's G2 OS finds the expansion board: eight DSPs booted, Exp on its display and in its version reply",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    constexpr std::uint32_t DspCount = 0x302AA5D4;  // the OS's number of DSPs (a byte) [C 0x30038416]
+    constexpr int A3 = 0, A4 = 1, A5 = 2, A6 = 3;
+    auto program = [](const Machine& m, int n) {
+        // stage 1 (P:$0-$234) and the frame program of the empty patch behind it (§3.6.3)
+        std::vector<std::uint32_t> p;
+        for(std::uint32_t a = 0; a < 0x2C0; ++a) p.push_back(m.dspMemory(n, 0, a));
+        return p;
+    };
+
+    Machine base(fw);
+    CHECK(bootVersionLine(base) == "Version 1.62");
+    CHECK(base.stats().dsps == 4);
+    CHECK((base.cfRead32(DspCount) >> 24) == 4);
+    const auto baseReply = versionReply(base);
+    REQUIRE(baseReply.size() > 34);
+    CHECK(baseReply[34] == 2);  // [C 0x3001C606]: 1 with the board, 2 without
+
+    Machine m(fw, expandedG2());
+    CHECK(bootVersionLine(m) == "Version 1.62 Exp");  // [C 0x3001B882]
+    const auto s = m.stats();
+    CHECK(s.dsps == 8);
+    CHECK((m.cfRead32(DspCount) >> 24) == 8);
+    CHECK(s.exceptions == 0);
+    CHECK(s.dspsWild == 0);
+    for(int n = 0; n < 8; ++n)
+    {
+        INFO("DSP on chip select A" << 3 + n);
+        CHECK(s.dspExecuted[n] > 0);
+        // each runs its frame program: the frame counter of stage 1's background loop moves (X:$43, §3.8.1) and the
+        // control ticks count up (L:$42)
+        CHECK(m.dspMemory(n, 1, 0x42) + m.dspMemory(n, 2, 0x42) != 0);
+    }
+    const auto reply = versionReply(m);
+    REQUIRE(reply.size() > 34);
+    CHECK(reply[34] == 1);
+    CHECK(reply.size() == baseReply.size());
+    CHECK(reply[2] == 0);  // still a G2 keyboard
+
+    // The OS loads the eight DSPs as it loads four: its first (A6) and its last (A3) get the programs they get
+    // without the board, the six between them the program of A5 and A4. So the expansion board's DSPs are four more
+    // DSPs in the middle of the serial chain (§3.12.2).
+    CHECK(program(m, A6) == program(base, A6));
+    CHECK(program(m, A3) == program(base, A3));
+    CHECK(program(base, A5) == program(base, A4));
+    CHECK(program(base, A6) != program(base, A5));
+    CHECK(program(base, A3) != program(base, A5));
+    for(const int n : {A4, A5, 4, 5, 6, 7})
+    {
+        INFO("DSP on chip select A" << 3 + n);
+        CHECK(program(m, n) == program(base, A5));
+    }
+}
+
+TEST_CASE("The user's G2 OS: with the expansion board a heavy patch gets a G2X's voices", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // The bench pack's voice patches, 32 voices asked: two and three oscillator-filter-envelope chains per voice
+    // (21 % and 31 % of a DSP), and eight (79 %) with a reverb in the FX area. The manual: 31 % "would allow 12 voices
+    // or 24 voices on an expanded system or on the G2X model"; with the FX area on a DSP of its own "the minimum
+    // polyphony is three voices plus effects or seven voices plus effects in an expanded or G2X model" [M p.121].
+    const char* files[3] = {"B11 Voices Light.pch2", "B12 Voices Mid.pch2", "B13 Voices Heavy.pch2"};
+    const int unexpanded[3] = {16, 12, 3}, expanded[3] = {32, 24, 7};
+    const char* shownExpanded[3] = {"32 (32)", "24 (32)", "07 (32)"};
+    for(const bool board : {false, true})
+    {
+        Machine::Options o;
+        o.model = board ? PanelModel::G2X : PanelModel::G2;  // as built
+        InputRig g2(fw, o);
+        REQUIRE(g2.client.synced());
+        CHECK(g2.client.state().version.model == (board ? g2::proto::VersionInfo::G2X : g2::proto::VersionInfo::G2));
+        for(int k = 0; k < 3; ++k)
+        {
+            INFO(files[k] << (board ? " on a G2X" : " on a G2"));
+            std::ifstream f(std::filesystem::path(G2_SOURCE_DIR) / "bench" / "hardware-pack" / "patches" / files[k], std::ios::binary);
+            REQUIRE(f);
+            const Bytes bytes{std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};
+            const auto loaded = g2::load(bytes);
+            g2.client.sendPatch(0, std::get<g2::Patch>(loaded.content), "Voices");
+            const double end = g2.m.seconds() + 4;
+            while(!g2.client.idle() && g2.m.seconds() < end) g2.step();
+            REQUIRE(g2.client.idle());
+            g2.run(0.3);
+            CHECK(int(g2.client.state().voices[0]) == (board ? expanded[k] : unexpanded[k]));
+            // what the editor shows as the patch load is one voice's share of a DSP: the same with the board
+            REQUIRE(g2.client.state().slots[0].load[1]);
+            if(board)
+            {
+                // the Patch Settings page shows the voices above knob 2 (§3.10.2)
+                CHECK(g2.m.panel().displays[1].text(0).find(shownExpanded[k]) != std::string::npos);
+            }
+        }
+        CHECK(g2.m.stats().exceptions == 0);
+        CHECK(g2.m.stats().dspsWild == 0);
+    }
+}
+
+TEST_CASE("The user's G2 OS: a chord spread over the eight DSPs sounds as on four, without a click", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // A sine per voice and enough beside it that a DSP holds one voice. Three voices asked: both machines give them,
+    // on three DSPs. Seven asked: the expanded one alone gives them all, one on each of seven DSPs.
+    const std::vector<int> three = {57, 64, 72}, seven = {57, 60, 64, 67, 71, 74, 77};
+    const int stacks = 8;
+    constexpr double Full = 0.1247;  // a sine of 1.0 at the DACs (§3.9.8)
+    auto heavyDsps = [](const std::array<double, Machine::MaxDsps>& load) {
+        int n = 0;
+        for(const double l : load) n += l > 600;  // the empty patch's frame and control code: under 250
+        return n;
+    };
+
+    InputRig base(fw);
+    REQUIRE(base.client.synced());
+    REQUIRE(base.upload(heavyPolySine(3, stacks)));
+    CHECK(int(base.client.state().voices[0]) == 3);
+    const auto baseLoad = dspLoads(base, 0.05);
+    INFO("four DSPs, instructions per frame: " << loadsText(baseLoad, 4));
+    CHECK(heavyDsps(baseLoad) == 3);
+    const auto baseChord = playChord(base, three);
+
+    InputRig g2(fw, expandedG2());
+    REQUIRE(g2.client.synced());
+    REQUIRE(g2.upload(heavyPolySine(3, stacks)));
+    CHECK(int(g2.client.state().voices[0]) == 3);
+    const auto load3 = dspLoads(g2, 0.05);
+    INFO("eight DSPs, three voices, instructions per frame: " << loadsText(load3, 8));
+    CHECK(heavyDsps(load3) == 3);
+    auto underruns = g2.m.stats().linkUnderruns;
+    const auto chord3 = playChord(g2, three);
+    CHECK(g2.m.stats().linkUnderruns == underruns);
+    for(std::size_t k = 0; k < three.size(); ++k)
+    {
+        INFO("note " << three[k]);
+        CHECK_THAT(baseChord.amplitude[k], Catch::Matchers::WithinRel(Full, 0.01));
+        CHECK_THAT(chord3.amplitude[k], Catch::Matchers::WithinRel(baseChord.amplitude[k], 1e-4));
+    }
+    INFO("roughness: four DSPs " << baseChord.roughness << " (the tones': " << baseChord.smooth << "), eight " << chord3.roughness
+                                 << " (" << chord3.smooth << ")");
+    CHECK(baseChord.roughness < 2 * baseChord.smooth + 1e-4);
+    CHECK(chord3.roughness < 2 * chord3.smooth + 1e-4);
+
+    REQUIRE(g2.upload(heavyPolySine(7, stacks)));
+    CHECK(int(g2.client.state().voices[0]) == 7);
+    const auto load7 = dspLoads(g2, 0.05);
+    INFO("eight DSPs, seven voices, instructions per frame: " << loadsText(load7, 8));
+    CHECK(heavyDsps(load7) == 7);
+    int onTheBoard = 0;
+    for(std::size_t n = 4; n < 8; ++n) onTheBoard += load7[n] > 600;
+    CHECK(onTheBoard >= 3);
+    underruns = g2.m.stats().linkUnderruns;
+    const auto chord7 = playChord(g2, seven);
+    CHECK(g2.m.stats().linkUnderruns == underruns);
+    for(std::size_t k = 0; k < seven.size(); ++k)
+    {
+        INFO("note " << seven[k]);
+        CHECK_THAT(chord7.amplitude[k], Catch::Matchers::WithinRel(Full, 0.01));
+    }
+    INFO("seven voices: roughness " << chord7.roughness << " (the tones': " << chord7.smooth << ")");
+    CHECK(chord7.roughness < 2 * chord7.smooth + 1e-4);
+    CHECK(g2.m.stats().exceptions == 0);
+    CHECK(g2.m.stats().dspsWild == 0);
+}
+
+TEST_CASE("The user's G2 OS with the expansion board: buses, the FX area and the audio inputs cross eight DSPs",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    InputRig g2(fw, expandedG2());
+    REQUIRE(g2.client.synced());
+    // the bus once around the ring of eight, the FX send down the chain: as on four (the test above this section)
+    REQUIRE(g2.upload(busAndFxPatch()));
+    auto underruns = g2.m.stats().linkUnderruns;
+    std::uint64_t clock0 = 0;
+    auto o = g2.record(0.25, clock0);
+    CHECK_THAT(tone(o, 0, 440.0, clock0).amplitude, Catch::Matchers::WithinRel(0.1247, 0.01));  // Out 1
+    CHECK_THAT(tone(o, 1, 880.0, clock0).amplitude, Catch::Matchers::WithinRel(0.1247, 0.01));  // Out 3
+    CHECK(tone(o, 0, 880.0, clock0).amplitude < 1e-4);
+    CHECK(tone(o, 1, 440.0, clock0).amplitude < 1e-4);
+    CHECK(g2.m.stats().linkUnderruns == underruns);
+
+    // In 1/2 -> Out 1/2: the ADCs' words pass A6, the expansion board's four DSPs, A5 and A4 on their way to A3's DACs
+    PatchBuilder two;
+    const auto in2 = two.add("2-In", 0), out2 = two.add("2-Out", 1);
+    two.cable(in2, 0, out2, 0);
+    two.cable(in2, 1, out2, 1);
+    REQUIRE(g2.upload(two.done()));
+    constexpr int In1 = 0, In2 = 2;
+    constexpr double Through = 0.4987;
+    g2.source.hz[In1] = 1000;
+    g2.source.hz[In2] = 2000;
+    g2.source.amplitude[In1] = 0.125;
+    g2.source.amplitude[In2] = 0.0625;
+    g2.run(0.1);
+    const auto irregular = g2.source.irregular;
+    underruns = g2.m.stats().linkUnderruns;
+    o = g2.record(0.25, clock0);
+    CHECK(g2.source.irregular == irregular);
+    CHECK(g2.m.stats().linkUnderruns == underruns);
+    const auto left = tone(o, 0, 1000, clock0), right = tone(o, 2, 2000, clock0);
+    CHECK_THAT(left.amplitude, Catch::Matchers::WithinRel(0.125 * Through, 0.01));
+    CHECK_THAT(right.amplitude, Catch::Matchers::WithinRel(0.0625 * Through, 0.01));
+    CHECK(residue(o, 0, 1000, clock0) < 1e-6);
+    CHECK(residue(o, 2, 2000, clock0) < 1e-6);
+    // Four more DSPs on the way, each 5.5 frames: a frame to take the buffer in, one to work on it, one to send it
+    // (§3.7.1), and the emulator's line of 2 frames (the board's lines take none). 42.2 frames against the 20.4 of
+    // four DSPs.
+    const double delay = InputRig::delayOf(left.phase, 1000);
+    INFO("ADCs to DACs: " << delay << " frames");
+    CHECK(delay > 39);
+    CHECK(delay < 45);
+    CHECK_THAT(std::fmod(delay, 48.0), Catch::Matchers::WithinAbs(InputRig::delayOf(right.phase, 2000), 0.01));
+    CHECK(g2.m.stats().exceptions == 0);
+    CHECK(g2.m.stats().dspsWild == 0);
 }

@@ -1,13 +1,15 @@
 // g2benchrender: plays one patch or performance of the hardware bench pack on the emulated G2 and records it.
 //
-//   g2benchrender [--fw PATH] [--model g2|g2x|engine] [--settle S] [--seconds S] [--wav OUT.wav] [--json OUT.json]
-//                 [--in1 IN.wav [--in-level DB] [--in-ref REF.wav]] FILE
+//   g2benchrender [--fw PATH] [--model g2|g2x|engine] [--expansion on|off] [--settle S] [--seconds S] [--wav OUT.wav]
+//                 [--json OUT.json] [--in1 IN.wav [--in-level DB] [--in-ref REF.wav]] FILE
 //
 // Boots the user's own G2 OS (--fw: Clavia's .dmg as downloaded, the updater app or its .rsrc; default: $G2_FIRMWARE),
 // connects our protocol client over the emulated USB and loads FILE as Clavia's editor would: a .pch2 into slot A
 // under its file name, a .prf2 as a performance. After --settle seconds it records the four outputs for --seconds.
 //
 // Everything runs on one thread (Machine::Options::threads = 0), so two runs give the same samples.
+// --model g2x is a G2X as built, with the voice expansion board (eight DSPs); --expansion on fits the board to
+// a G2 or a G2 Engine, --expansion off takes it out.
 //
 // The WAV is 96 kHz, 4 channels (Out 1-4), 32-bit float: the DAC words, full scale 1.0, with the sign G2fresh plays
 // them with (the words are inverted: a signal of +1.0 inside the G2 is a word of about -0.125, written as +0.125).
@@ -234,6 +236,7 @@ struct Args {
     double inLevelDb = 0.0; // --in-level
     double settle = 1.5, seconds = 5;
     g2emu::PanelModel model = g2emu::PanelModel::G2;
+    g2emu::Expansion expansion = g2emu::Expansion::AsBuilt;
     std::string modelName = "g2";
     std::vector<std::pair<g2emu::PanelAnalog, float>> analog; // --analog: set before recording
 };
@@ -247,6 +250,7 @@ int run(const Args& args)
     g2emu::Machine::Options opt;
     opt.threads = 0;
     opt.model = args.model;
+    opt.expansion = args.expansion;
     WavInput input; // before the machine, which it must outlive
     if (!args.in1.empty()) {
         input.sound = readWav(args.in1);
@@ -295,6 +299,7 @@ int run(const Args& args)
 
     std::vector<float> out;
     const std::uint64_t f0 = m.frame();
+    const auto statsBefore = m.stats();
     const auto total = std::uint64_t(args.seconds * g2emu::Machine::FrameRate);
     out.reserve(std::size_t(total) * 4 + 64);
     if (!args.in1.empty()) {
@@ -345,6 +350,7 @@ int run(const Args& args)
     j += " \"file\": " + jsonString(std::filesystem::path(args.file).filename().string()) + ",\n";
     j += " \"kind\": " + std::string(loaded.isPerformance() ? "\"performance\"" : "\"patch\"") + ",\n";
     j += " \"model\": " + jsonString(args.modelName) + ",\n";
+    j += " \"dsps\": " + std::to_string(stats.dsps) + ",\n";
     j += " \"os_version\": " + std::to_string(st.version.firmware) + ",\n";
     j += " \"sample_rate\": " + std::to_string(g2emu::Machine::FrameRate) + ",\n";
     j += " \"settle_s\": " + std::to_string(args.settle) + ",\n";
@@ -386,6 +392,12 @@ int run(const Args& args)
                       static_cast<unsigned long long>(input.frames), static_cast<unsigned long long>(input.clipped), input.phase);
         j += " \"input\": {\"file\": " + jsonString(std::filesystem::path(args.in1).filename().string()) + ", " + (buf + 1) + ",\n";
     }
+    // what each DSP executed per frame while recording (of 1536), by chip select: A3 (the DACs), A4, A5, A6 (the
+    // ADCs), then the expansion board's A7..A10: where the OS put the patch
+    j += " \"dsp_instructions_per_frame\": [";
+    for (int n = 0; n < stats.dsps; ++n)
+        j += (n ? ", " : "") + std::to_string((stats.dspExecuted[n] - statsBefore.dspExecuted[n]) / std::max<std::uint64_t>(1, m.frame() - f0));
+    j += "],\n";
     j += " \"emulator\": {\"exceptions\": " + std::to_string(stats.exceptions) + ", \"dsps_wild\": " + std::to_string(stats.dspsWild)
         + ", \"link_underruns\": " + std::to_string(stats.linkUnderruns) + "}\n}\n";
     if (args.json.empty())
@@ -430,6 +442,11 @@ int main(int argc, char** argv)
                 args.modelName = next();
                 args.model = args.modelName == "g2x" ? g2emu::PanelModel::G2X
                     : args.modelName == "engine" ? g2emu::PanelModel::G2Engine : g2emu::PanelModel::G2;
+            } else if (a == "--expansion") {
+                const auto e = next();
+                if (e != "on" && e != "off")
+                    throw std::runtime_error("--expansion takes on or off");
+                args.expansion = e == "on" ? g2emu::Expansion::With : g2emu::Expansion::Without;
             } else if (a == "--analog") {
                 const auto v = next();
                 const auto eq = v.find('=');
@@ -447,8 +464,8 @@ int main(int argc, char** argv)
                 throw std::runtime_error("unknown option " + a);
         }
         if (args.file.empty() || args.fw.empty()) {
-            std::fprintf(stderr, "usage: g2benchrender [--fw PATH] [--model g2|g2x|engine] [--settle S] [--seconds S] [--wav OUT.wav] "
-                                 "[--json OUT.json] [--in1 IN.wav [--in-level DB] [--in-ref REF.wav]] FILE.pch2|FILE.prf2\n"
+            std::fprintf(stderr, "usage: g2benchrender [--fw PATH] [--model g2|g2x|engine] [--expansion on|off] [--settle S] [--seconds S] "
+                                 "[--wav OUT.wav] [--json OUT.json] [--in1 IN.wav [--in-level DB] [--in-ref REF.wav]] FILE.pch2|FILE.prf2\n"
                                  "   --fw or $G2_FIRMWARE: Clavia's OS update .dmg\n"
                                  "   --in1: a WAV file into IN 1; --in-level: its full scale in dB re the ADC's (0); --in-ref: what came to the ADC\n");
             return 2;
