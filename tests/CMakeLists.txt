@@ -87,6 +87,13 @@ if(Python3_FOUND)
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/pch2/pch2dump.py roundtrip ${G2_CORPUS_FILES})
 endif()
 
+# The patch library's audition (SynthSync::audition, in the editor's own code) on the virtual G2: the document is
+# never touched and the synth gets back what it had. g2render is a JUCE program: not on Linux, where the tests run
+# without a display.
+if(TARGET g2render AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_test(NAME library_audition_on_the_virtual_g2 COMMAND g2render audition)
+endif()
+
 # The hardware bench pack (bench/hardware-pack, tools/benchpack): the committed patches are what the generator
 # writes, the printable pages are what the instructions give, and the analysis finds the faults of synthetic
 # recordings. With the emulator built and G2_FIRMWARE set (Clavia's OS update .dmg), four of its patches are also

@@ -86,6 +86,21 @@ public:
     // A slot's patch name on the synth ("" when unknown).
     juce::String slotName(int slot) const;
 
+    // ---- Audition (the patch library) ------------------------------------
+    // Plays a patch or a performance on the synth without touching the
+    // document: a patch goes to the slot the document is live on (else the
+    // synth's focused slot), a performance replaces the synth's. While it
+    // plays, what it replaced is cut off from the document: edits wait, and
+    // nothing the synth says about it comes in. endAudition() puts back what
+    // was there: the document as it is then where it was live, else what the
+    // synth had. An upload only; the synth's memory (flash) is never written.
+    // Sending or loading something else to the same place ends the audition
+    // without the way back.
+    void audition(const g2::Patch& patch, const std::string& name);
+    void audition(const g2::Performance& perf, const std::string& name);
+    void endAudition();
+    bool auditioning() const { return audition_ != Audition::None; }
+
     // ---- Synth memory (flash banks) --------------------------------------
     // Loads a stored patch into a slot (slot 4: a stored performance); with
     // `open`, the editor then shows it (replacing the document, bound).
@@ -109,6 +124,13 @@ public:
 
 private:
     enum class Binding { None, Patch, Performance };
+    enum class Audition { None, Slot, Performance };
+    // Everything a synth plays: its performance (the four slots' patches), and whether it is in performance mode.
+    struct SynthContent {
+        g2::Performance performance;
+        std::string name;
+        bool performanceMode = false;
+    };
 
     void timerCallback() override;
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
@@ -130,6 +152,18 @@ private:
     // know the synth has, so it is not sent back.
     void fromSynth(int synthSlot, const std::function<void(g2::Patch&)>& change);
     void slotReplacedOnSynth(int synthSlot);
+    // A synth slot that plays an audition: not the document's for now.
+    bool auditioned(int synthSlot) const
+    {
+        return audition_ == Audition::Performance || (audition_ == Audition::Slot && synthSlot == auditionSlot_);
+    }
+    // The first audition remembers what the synth has.
+    void beginAudition();
+    // What endAudition() leaves on the synth.
+    SynthContent afterAudition() const;
+    // Before something else goes to `slot` (4: to every slot): the audition
+    // ends, without putting back what that replaces anyway.
+    void leaveAuditionFor(int slot);
 
     // SynthLink::Listener
     void statusChanged(g2::proto::Status) override;
@@ -163,6 +197,16 @@ private:
     std::uint32_t ledGeneration_ = 0;
     double lastVirtualLeds_ = 0.0;
     int pendingOpen_ = -1; // a slot (4: the performance) to open once the synth has loaded it
+    Audition audition_ = Audition::None;
+    int auditionSlot_ = 0; // Audition::Slot: the synth slot
+    // What the synth had when the audition began.
+    SynthContent beforeAudition_;
+    bool auditionedPerformance_ = false; // a performance replaced every slot since then
+    // What the last audition put back, while the mirror may not show it yet
+    // (it takes an upload when it goes out): until the synth's next slot
+    // report, a few seconds at most.
+    std::optional<SynthContent> putBack_;
+    double putBackAt_ = 0.0;
 };
 
 } // namespace g2ui

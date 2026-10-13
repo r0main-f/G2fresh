@@ -6,6 +6,7 @@
 #include "CableLayout.h"
 
 #include "Dialogs.h"
+#include "PatchLibrary.h"
 #include "SynthSettingsWindow.h"
 
 #include "g2/patch_load.hpp"
@@ -16,7 +17,7 @@ namespace {
 const juce::String kOpenPattern = "*.pch2;*.prf2";
 
 enum MenuId {
-    kNew = 1, kOpen, kSave, kSaveAs, kClearRecent, kNewPerformance, kPerformanceSettings,
+    kNew = 1, kOpen, kSave, kSaveAs, kClearRecent, kNewPerformance, kPerformanceSettings, kPatchLibrary,
     kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
@@ -218,6 +219,7 @@ MainView::~MainView()
     setLookAndFeel(nullptr);
     doc_.removeChangeListener(this);
     synthSettings_.reset();
+    library_.reset(); // ends an audition while the synth is still there
     if (synth_ != nullptr) {
         synth_->removeChangeListener(this);
         synth_->onFlashProblem = nullptr;
@@ -228,6 +230,7 @@ MainView::~MainView()
 void MainView::setSynth(SynthSync* synth)
 {
     synthSettings_.reset();
+    library_.reset();
     if (synth_ != nullptr) {
         synth_->removeChangeListener(this);
         synth_->onFlashProblem = nullptr;
@@ -432,6 +435,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             recent.addItem(item(kClearRecent, "Clear Menu"));
         }
         m.addSubMenu("Open Recent", recent, recent.getNumItems() > 0);
+        m.addItem(item(kPatchLibrary, "Patch Library...", kCmd + "B"));
         m.addSeparator();
         m.addItem(item(kSave, "Save", kCmd + "S"));
         m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S"));
@@ -659,6 +663,7 @@ void MainView::menuItemSelected(int id, int)
     case kMutate: randomize(true); break;
     case kMutator: showMutator(); break;
     case kOpen: open(); break;
+    case kPatchLibrary: showLibrary(); break;
     case kSave: save(false); break;
     case kSaveAs: save(true); break;
     case kClearRecent:
@@ -996,6 +1001,8 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return open(), true;
     if (key == juce::KeyPress('n', cmd, 0))
         return newPatch(), true;
+    if (key == juce::KeyPress('b', cmd, 0))
+        return showLibrary(), true;
     if (key == juce::KeyPress('c', cmd, 0))
         return copySelection(false), true;
     if (key == juce::KeyPress('x', cmd, 0))
@@ -1040,6 +1047,20 @@ void MainView::showSynthSettings()
         if (safe)
             safe->synthSettings_.reset();
     });
+}
+
+void MainView::showLibrary()
+{
+    // The original's Patch Browser (Tools > Patch Browser, Ctrl-B: CWindowTogglerEx<CBrowser>::Toggle 0x19efbc).
+    if (library_ != nullptr && library_->isVisible() && library_->isActiveWindow()) {
+        library_->closeButtonPressed();
+        return;
+    }
+    if (!library_)
+        library_ = std::make_unique<PatchLibrary>(LibraryHost{
+            doc_, synth_, [this](std::function<void()> then) { confirmDiscard(std::move(then)); },
+            [this](const juce::File& f) { openFile(f); }});
+    library_->open();
 }
 
 void MainView::showFlashProblem(const juce::String& text)

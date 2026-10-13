@@ -75,19 +75,12 @@ public:
     // ---- Sorting ---------------------------------------------------------------------------------------------------
     SortKey sortKey() const { return sortKey_; }
     bool descending() const { return descending_; }
-    // A click on a column's header: that column, in its usual direction (names A to Z; starred, newest, largest
-    // first); a click on the sorted column turns it around.
-    void sortBy(Column c)
+    // A column's header clicked: `forwards` is the column's usual direction (names A to Z; the newest, the largest,
+    // the most first), which a first click gives and the next one turns around.
+    void sortBy(Column c, bool forwards)
     {
-        const SortKey key = keyFor(c);
-        descending_ = key == sortKey_ ? !descending_ : startsDescending(key);
-        sortKey_ = key;
-        refresh();
-    }
-    void setSort(SortKey key, bool descending)
-    {
-        sortKey_ = key;
-        descending_ = descending;
+        sortKey_ = keyFor(c);
+        descending_ = startsDescending(sortKey_) == forwards;
         refresh();
     }
     static SortKey keyFor(Column c)
@@ -166,8 +159,12 @@ public:
         case Column::Modules: return std::to_string(e.moduleTotal());
         case Column::Load: return e.moduleTotal() == 0 ? std::string() : percent(e.voiceLoad());
         case Column::Version: return std::to_string(e.version);
-        default: return {};
+        case Column::Favourite: // a star, drawn
+        case Column::Name:
+        case Column::Date:
+        case Column::Folder: break;
         }
+        return {};
     }
 
     // The detail pane's facts about a file, one per line.
@@ -205,7 +202,8 @@ public:
             if (e.voicesOn4 == 0)
                 lines.push_back("Too large for a G2 by this estimate");
             else if (e.fitsUnexpanded())
-                lines.push_back("Its " + voiceCount(e.voices) + " fit a G2 without expansion (4 DSPs), by this estimate");
+                lines.push_back((e.voices == 1 ? std::string("Its voice fits") : "Its " + voiceCount(e.voices) + " fit")
+                                + " a G2 without expansion (4 DSPs), by this estimate");
             else
                 lines.push_back("A G2 without expansion (4 DSPs) would play about " + std::to_string(e.voicesOn4) + " of its "
                                 + voiceCount(e.voices) + (e.voicesOn8 > e.voicesOn4

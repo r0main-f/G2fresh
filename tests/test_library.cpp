@@ -675,14 +675,17 @@ TEST_CASE("library window: rows, selection and sorting")
 
     // The selected file stays selected when the rows change order or number.
     model.select(3);
-    model.sortBy(Column::Name); // already by name: turned around
+    model.sortBy(Column::Name, false); // Z to A
     CHECK(model.descending());
     CHECK(model.selected()->name() == "Robot");
     CHECK(model.selectedRow() == 1);
-    model.sortBy(Column::Date);
+    model.sortBy(Column::Date, true);
     CHECK(model.sortKey() == g2::library::SortKey::Date);
-    CHECK(model.descending()); // newest first
-    model.sortBy(Column::Name);
+    CHECK(model.descending()); // a date's usual direction: the newest first
+    model.sortBy(Column::Modules, false);
+    CHECK_FALSE(model.descending());
+    CHECK(model.entry(model.rowCount() - 1).name() == "Three Osc"); // the most modules last
+    model.sortBy(Column::Name, true);
     CHECK_FALSE(model.descending());
     model.query.text = "robot";
     model.refresh();
