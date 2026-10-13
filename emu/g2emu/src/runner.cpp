@@ -76,6 +76,7 @@ std::size_t Runner::read(float* out, std::size_t frames)
     // their place in the reader's time. (Counting only the frames read would shift everything after a gap, and a
     // MIDI clock would then reach the G2 too fast.)
     read_.store(r + frames, std::memory_order_release);
+    lastRead_ = frames;
     consumed_.fetch_add(1, std::memory_order_release);
     consumed_.notify_one();  // the machine's thread, if it waits for room (a wake-up, no lock)
     return n;
@@ -160,6 +161,28 @@ void Runner::loop()
         for(std::size_t i = skip; i < frames; ++i)
             std::memcpy(&ring_[((w + i - skip) % capacity_) * 4], &chunk[4 * i], 4 * sizeof(float));
         w += frames - skip;
+        // MIDI OUT, before the reader may take these frames: each byte to the ring frame the DACs sent as its stop
+        // bit ended (ring frame w - 1, the last one handed out, at dacClock(); while the DACs do not run yet, by the
+        // machine's frames), plus the lead. What does not fit stays in the machine's queue.
+        {
+            const std::int64_t per = Machine::ClocksPerFrame;
+            const std::int64_t zero = machine_->dacClock() ? std::int64_t(machine_->dacClock()) - (std::int64_t(w) - 1) * per
+                                                            : (std::int64_t(machine_->frame()) - std::int64_t(w)) * per;
+            Machine::MidiOut sent[32];
+            for(;;)
+            {
+                const auto h = midiOutHead_.load(std::memory_order_relaxed);
+                const auto room = midiOutRing_.size() - std::size_t(h - midiOutTail_.load(std::memory_order_acquire));
+                const auto n = machine_->takeMidiOut({sent, std::min(room, std::size(sent))});
+                if(!n) break;
+                for(std::size_t k = 0; k < n; ++k)
+                {
+                    const std::int64_t at = (std::int64_t(sent[k].clock) - zero) / per + std::int64_t(midiOutLeadFrames());
+                    midiOutRing_[(h + k) % midiOutRing_.size()] = {std::uint64_t(std::max<std::int64_t>(0, at)), sent[k].byte};
+                }
+                midiOutHead_.store(h + n, std::memory_order_release);
+            }
+        }
         written_.store(w, std::memory_order_release);  // room: it only runs below the target level
         // ring frame i was made at machine frame i + offset (the DACs' pipeline is constant)
         frameOffset_.store(std::int64_t(machine_->frame()) - std::int64_t(w), std::memory_order_release);
@@ -204,12 +227,32 @@ void Runner::midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset)
     }
 }
 
+std::size_t Runner::midiOut(std::span<MidiOut> out)
+{
+    // the frames of the last read(): [end - lastRead_, end)
+    const auto end = read_.load(std::memory_order_relaxed);
+    const auto start = end - std::min<std::uint64_t>(end, lastRead_);
+    auto t = midiOutTail_.load(std::memory_order_relaxed);
+    const auto h = midiOutHead_.load(std::memory_order_acquire);
+    std::size_t n = 0;
+    for(; n < out.size() && t != h; ++n, ++t)
+    {
+        const auto& e = midiOutRing_[t % midiOutRing_.size()];
+        if(e.frame >= end) break;  // a later read()'s
+        if(e.frame < start) midiOutLate_.fetch_add(1, std::memory_order_relaxed);
+        out[n] = {std::uint32_t(e.frame > start ? e.frame - start : 0), e.byte};
+    }
+    midiOutTail_.store(t, std::memory_order_release);
+    return n;
+}
+
 Runner::Stats Runner::stats() const
 {
     Stats s;
     s.framesRead = read_.load();
     s.framesMissing = missing_.load();
     s.inputMissing = input_.missing();
+    s.midiOutLate = midiOutLate_.load();
     s.speed = speed_.load();
     s.longestChunkMs = longestChunk_.load() * 1e3;
     return s;

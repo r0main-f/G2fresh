@@ -1,7 +1,7 @@
 // A Nord Modular G2 in software: the user's own firmware (OS 1.62) on an emulated ColdFire (Gearmulator's ColdFire
 // core) with the board's hardware, driving four emulated DSP56367s (Gearmulator's dsp56300, JIT) through their host
-// ports, their serial audio links between them, the USB chip our protocol client talks to, and MIDI IN on the
-// ColdFire's UART (re/notes/g2-hardware-and-emulation.md §3.9).
+// ports, their serial audio links between them, the USB chip our protocol client talks to, and MIDI IN and OUT on
+// the ColdFire's UART (re/notes/g2-hardware-and-emulation.md §3.9, §3.12).
 //
 // Time: one master clock, the DSPs' frame clock. A frame is one 96 kHz sample, 1536 DSP clocks [C]; per frame the
 // ColdFire runs 1687.5 of its cycles (162 MHz) and its timers 562.5 bus clocks (54 MHz) (§3.9.2).
@@ -70,6 +70,8 @@ public:
         // The instrument the panel says it is (read by the OS at boot): the G2 keyboard, the G2X (adds the two global
         // wheels, 61 keys) or the G2 Engine (rack).
         PanelModel model = PanelModel::G2;
+        // MIDI OUT bytes kept while nobody takes them (takeMidiOut): 21 s of a line that never rests
+        std::uint32_t midiOutKept = 65536;
         bool trace = false;            // log unusual events (unmapped accesses, exceptions) to stderr
     };
 
@@ -79,6 +81,9 @@ public:
         std::uint64_t dspExecuted[4] = {}, dspSkipped[4] = {};
         std::uint64_t linkUnderruns = 0, linkOverruns = 0;
         std::uint64_t unmapped = 0, exceptions = 0, midiOverruns = 0;
+        // MIDI OUT: bytes the OS sent, and those lost (nobody took them: Options::midiOutKept; or the OS wrote one while the
+        // transmitter was busy, which OS 1.62 does not do)
+        std::uint64_t midiOutBytes = 0, midiOutLost = 0;
         int dspsWild = 0;  // DSPs that jumped into P memory without code (stopped there: the machine needs a restart)
         std::uint32_t cfPc = 0;
         std::uint32_t dspPc[4] = {};
@@ -138,7 +143,18 @@ public:
     // The same at a given time: the first byte starts on the line at the start of machine frame `frame` (see frame()),
     // or at once if that is past. A note-on's three bytes then reach the OS 0.96 ms later, always the same.
     void midiInAt(std::span<const std::uint8_t> bytes, std::uint64_t frame);
-    std::vector<std::uint8_t> takeMidiOut();
+    // MIDI OUT: what the OS sends through UART0's transmitter, at the cable's rate (a byte takes 320 us, whatever
+    // the OS has waiting: a patch dump of 5 kB takes 1.6 s). Each byte with the time its stop bit ends on the line,
+    // on the master clock in DSP clocks (as dacClock(): the DACs send a frame every ClocksPerFrame). The machine
+    // keeps the last Options::midiOutKept bytes while nobody takes them, as a cable nobody listens to
+    // (Stats::midiOutLost counts the others); nothing is allocated as it runs.
+    struct MidiOut {
+        std::uint64_t clock = 0;
+        std::uint8_t byte = 0;
+    };
+    // Oldest first, up to out.size(); returns how many.
+    std::size_t takeMidiOut(std::span<MidiOut> out);
+    std::vector<std::uint8_t> takeMidiOut();  // all of them, the bytes alone
 
     // ---- the front panel (thread-safe; re/notes §3.10, g2emu/panel.hpp) ----
     // What the panel shows: a snapshot the machine's thread publishes at most once per emulated millisecond, when
