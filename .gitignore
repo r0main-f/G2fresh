@@ -16,8 +16,9 @@ __pycache__/
 # Downloaded third-party patch libraries (local testing only)
 corpus-external/
 
-# Claude Code worktrees
+# Claude Code: agents' worktrees and personal settings (the agents, skills and CLAUDE.md are committed)
 .claude/worktrees/
+.claude/settings.local.json
 
 
 # Other G2 editors cloned for bench testing (see re/notes/references.md), never committed
