@@ -959,6 +959,7 @@ struct Machine::Impl final : coldfire::Bus {
         for(int w = 0; w < n; ++w)
             workers.emplace_back([this, w, n, ringSlack, mine = parts[std::size_t(w)]] {
                 auto& my = worker[std::size_t(w)].time;
+                if(opt.realtimeThreads) makeThreadRealtime(0.001, 0.0005);
                 std::uint64_t done = my.load(), frames = 0;
                 auto limit = [&] {
                     std::uint64_t l = horizon.load(std::memory_order_acquire);

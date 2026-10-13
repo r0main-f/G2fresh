@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <thread>
 #include <vector>
@@ -18,10 +19,10 @@ struct Runner::Thread {
 Runner::Runner(const Firmware& firmware) : Runner(firmware, Options{}) {}
 
 namespace {
-// room for the buffer, the largest read size (setReadSize) and a few chunks
+// room for the largest reserve (setBufferMs), the largest read size (setReadSize) or stretch, and a few chunks
 std::size_t ringFrames(const Runner::Options& o)
 {
-    return std::size_t(o.bufferMs * Machine::FrameRate / 1000.0) + Runner::MaxReadSize + 8 * o.chunkFrames + 1;
+    return std::size_t((Runner::MaxBufferMs + o.stretchMs) * Machine::FrameRate / 1000.0) + Runner::MaxReadSize + 8 * o.chunkFrames + 1;
 }
 } // namespace
 
@@ -33,7 +34,8 @@ Runner::Runner(const Firmware& firmware, Options options)
 {
     capacity_ = ringFrames(options_);
     ring_.assign(capacity_ * 4, 0.0f);
-    input_.setLatency(latencyFrames() + inputLead());
+    stretch_ = std::uint32_t(std::max(0.0, options_.stretchMs) * Machine::FrameRate / 1000.0);
+    setBufferMs(options_.bufferMs);
     machine_->setAdcSource(&input_);
     if(!options_.flash.empty())
     {
@@ -70,6 +72,7 @@ std::size_t Runner::read(float* out, std::size_t frames)
     {
         std::memset(out + 4 * n, 0, (frames - n) * 4 * sizeof(float));
         missing_.fetch_add(frames - n, std::memory_order_relaxed);
+        shortReads_.fetch_add(1, std::memory_order_relaxed);
     }
     // The ring's timeline is the reader's: frames the machine had not made in time are skipped (heard as a gap) and
     // dropped when they come, so that the frames after the gap, and the MIDI scheduled against them (midiInAt), keep
@@ -127,21 +130,35 @@ void InputQueue::adcFrame(std::uint64_t clock, std::int32_t words[4])
 void Runner::loop()
 {
     using Clock = std::chrono::steady_clock;
-    const auto buffer = std::size_t(options_.bufferMs * Machine::FrameRate / 1000.0);
+    if(options_.machine.realtimeThreads) makeThreadRealtime(0.001, 0.0005);
     std::vector<float> chunk;
     // the speed while running (the rests left out), over about the last tenth of a second of running
     double busyWall = 0;
     std::uint64_t busyFrames = 0;
+    bool woke = false, filling = true;
     while(!quit_.load(std::memory_order_relaxed))
     {
-        const auto target = buffer + readSize_.load(std::memory_order_relaxed);
-        if(available() >= target)
+        // The machine fills the ring up to `high` and rests; it starts again when the reader's next block would
+        // reach into the reserve (`low`: at once after a block that is longer than the stretch).
+        const std::size_t reserve = buffer_.load(std::memory_order_relaxed), block = readSize_.load(std::memory_order_relaxed);
+        const std::size_t low = reserve + block, high = reserve + std::max<std::size_t>(block, stretch_);
+        const auto level = available();
+        if(level >= high) filling = false;
+        else if(level < low) filling = true;
+        if(!filling)
         {
-            // full: wait until the reader takes some (it wakes this thread)
+            // wait until the reader takes some (it wakes this thread)
             const auto seen = consumed_.load(std::memory_order_acquire);
-            if(available() >= target && !quit_.load(std::memory_order_relaxed)) consumed_.wait(seen, std::memory_order_acquire);
+            if(available() >= low && !quit_.load(std::memory_order_relaxed))
+            {
+                consumed_.wait(seen, std::memory_order_acquire);
+                woke = true;
+            }
             continue;
         }
+        // No further than `high` ahead of the reader as it was when `level` was taken: MIDI the audio thread puts at
+        // latencyFrames() after its place is still ahead of the machine, and is taken below, before the machine runs.
+        const auto wanted = std::uint32_t(std::min<std::size_t>(options_.chunkFrames, high - level));
         const auto chunkStart = Clock::now();
         for(auto t = midiTail_.load(std::memory_order_relaxed); t != midiHead_.load(std::memory_order_acquire); ++t)
         {
@@ -150,7 +167,7 @@ void Runner::loop()
             midiTail_.store(t + 1, std::memory_order_release);
         }
         chunk.clear();
-        machine_->run(options_.chunkFrames, &chunk);
+        machine_->run(wanted, &chunk);
         const std::size_t frames = chunk.size() / 4;
         auto w = written_.load(std::memory_order_relaxed);
         // frames the reader has gone past (it read silence there): dropped, the timeline stays the reader's
@@ -166,7 +183,10 @@ void Runner::loop()
         // for the inputs, to the DSP clock: the last frame handed out, ring frame w - 1, left the DACs at dacClock()
         if(frames) input_.setDacClock(std::int64_t(machine_->dacClock()) - std::int64_t(w - 1) * std::int64_t(Machine::ClocksPerFrame));
         busyFrames += frames;
-        const double chunkWall = std::chrono::duration<double>(Clock::now() - chunkStart).count();
+        const auto chunkEnd = Clock::now();
+        const double chunkWall = std::chrono::duration<double>(chunkEnd - chunkStart).count();
+        if(options_.onChunk) options_.onChunk({chunkStart, chunkEnd, std::uint32_t(frames), woke});
+        woke = false;
         busyWall += chunkWall;
         if(chunkWall > longestChunk_.load(std::memory_order_relaxed)) longestChunk_.store(chunkWall, std::memory_order_relaxed);
         if(busyWall > 0.1)
@@ -180,10 +200,9 @@ void Runner::loop()
 
 std::uint32_t Runner::latencyFrames() const
 {
-    // the reader takes frame R while the machine makes R + bufferMs + the read size (it runs in chunks until it is
-    // that far ahead)
-    return std::uint32_t(options_.bufferMs * Machine::FrameRate / 1000.0) + readSize_.load(std::memory_order_relaxed) +
-           options_.chunkFrames;
+    // the reader takes frame R while the machine makes at most R + the reserve + the read size (or the stretch): it
+    // runs until it is exactly that far ahead
+    return buffer_.load(std::memory_order_relaxed) + std::max(readSize_.load(std::memory_order_relaxed), stretch_);
 }
 
 void Runner::midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset)
@@ -209,6 +228,7 @@ Runner::Stats Runner::stats() const
     Stats s;
     s.framesRead = read_.load();
     s.framesMissing = missing_.load();
+    s.shortReads = shortReads_.load();
     s.inputMissing = input_.missing();
     s.speed = speed_.load();
     s.longestChunkMs = longestChunk_.load() * 1e3;

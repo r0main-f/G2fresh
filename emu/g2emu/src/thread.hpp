@@ -28,6 +28,9 @@
 #else
 #include <pthread.h>
 #ifdef __APPLE__
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <mach/thread_policy.h>
 #include <pthread/qos.h>
 #endif
 #endif
@@ -101,6 +104,29 @@ private:
 #endif
 };
 
+
+// The calling thread at the computer's real-time priority, as a host's audio threads are: one that works `busy`
+// seconds in every `period`. On macOS a time-constraint thread: it takes a performance core ahead of every ordinary
+// thread, the user-interactive ones included (those gave way to other programs' work for milliseconds at a time:
+// re/notes/audio-path.md). Elsewhere the thread's priority is already what BigStackThread could get.
+inline void makeThreadRealtime(double period, double busy)
+{
+#ifdef __APPLE__
+    mach_timebase_info_data_t tb;
+    mach_timebase_info(&tb);
+    const auto ticks = [&](double s) { return std::uint32_t(s * 1e9 * double(tb.denom) / double(tb.numer)); };
+    thread_time_constraint_policy_data_t policy;
+    policy.period = ticks(period);
+    policy.computation = ticks(busy);
+    policy.constraint = ticks(period);
+    policy.preemptible = 1;
+    thread_policy_set(pthread_mach_thread_np(pthread_self()), THREAD_TIME_CONSTRAINT_POLICY, reinterpret_cast<thread_policy_t>(&policy),
+                      THREAD_TIME_CONSTRAINT_POLICY_COUNT);
+#else
+    (void)period;
+    (void)busy;
+#endif
+}
 
 // A hint to the core that this thread spins (lets the other hardware threads of the core run, saves power).
 inline void cpuRelax()

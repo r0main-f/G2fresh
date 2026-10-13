@@ -3,6 +3,15 @@
 // ready. MIDI goes in from any thread; our protocol client talks to the machine through MachineTransport (the
 // machine's USB queues are thread-safe), e.g. a LocalLink built on it.
 //
+// How far ahead (re/notes/audio-path.md). The reader takes a block at a time; the machine then makes up for it, at
+// two to three times real time, and rests. Its ring holds, when full,
+//   the reserve (bufferMs): never touched while the machine keeps pace; what a stall of its threads may take
+//   + the reader's largest block (setReadSize), or the machine's stretch (stretchMs) if that is longer: with
+//     small blocks the machine does not start for each one (its threads would sleep and wake a thousand times a
+//     second, and lose half their speed to it), it lets a stretch's worth go and makes it up in one run.
+// That sum is latencyFrames(): the machine is never further ahead of the reader, which is what makes MIDI and the
+// inputs land at a fixed time.
+//
 // The audio is the G2's own: 96 kHz, 4 words per frame as Machine::run() gives them (outputs 1, 3, 2, 4). Resampling
 // to the host's rate is the caller's job. The audio inputs go the other way (write()), on the reader's timeline.
 #pragma once
@@ -12,7 +21,9 @@
 #include <array>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <span>
 #include <vector>
@@ -50,12 +61,22 @@ private:
 
 class Runner {
 public:
+    // What one chunk of the machine's thread took, for measurements (Options::onChunk; tools/audiopath).
+    struct Chunk {
+        std::chrono::steady_clock::time_point start, end;
+        std::uint32_t frames = 0;
+        bool woke = false;  // the thread had slept before it (the buffer was full), until a read() woke it
+    };
+
     struct Options {
         Machine::Options machine = defaultMachineOptions();
-        double bufferMs = 20;      // audio kept ready ahead of the reader
-        std::uint32_t chunkFrames = 96;  // frames the machine runs at a time (1 ms)
+        double bufferMs = 20;      // the reserve: audio kept ready ahead of the reader's next block (setBufferMs)
+        double stretchMs = 0;      // the least the machine makes in one run before it rests (0: the reader's block)
+        std::uint32_t chunkFrames = 96;  // frames the machine runs at a time at most (1 ms)
         // the memory at power-on, flash then EEPROM (Machine::loadMemory; empty: as the machine starts it)
         std::vector<std::uint8_t> flash;
+        // called on the machine's thread after every chunk (none: nothing; for measurements only)
+        std::function<void(const Chunk&)> onChunk;
         static Machine::Options defaultMachineOptions()
         {
             Machine::Options o;
@@ -66,6 +87,7 @@ public:
 
     struct Stats {
         std::uint64_t framesRead = 0, framesMissing = 0;  // the reader asked for frames that were not there yet
+        std::uint64_t shortReads = 0;  // read() calls that came short (dropouts, as the listener counts them)
         // frames the ADCs took as silence because their input had not been written yet (while write() is in use)
         std::uint64_t inputMissing = 0;
         double speed = 0;  // emulated seconds per wall second while the machine runs (its rests left out), recently
@@ -102,6 +124,15 @@ public:
         readSize_.store(std::min(frames, MaxReadSize), std::memory_order_relaxed);
         input_.setLatency(latencyFrames() + inputLead());
     }
+    // The reserve, while it runs (any thread; up to MaxBufferMs): latencyFrames() changes with it, and with it when
+    // the MIDI and the inputs written from now on land (what is on its way keeps its place: a step in time, once).
+    static constexpr double MaxBufferMs = 100;
+    void setBufferMs(double ms)
+    {
+        buffer_.store(std::uint32_t(std::clamp(ms, 0.0, MaxBufferMs) * Machine::FrameRate / 1000.0), std::memory_order_relaxed);
+        input_.setLatency(latencyFrames() + inputLead());
+    }
+    double bufferMs() const { return buffer_.load(std::memory_order_relaxed) * 1000.0 / Machine::FrameRate; }
 
     // Any thread.
     void midiIn(std::span<const std::uint8_t> bytes) { machine_->midiIn(bytes); }
@@ -146,7 +177,9 @@ private:
     std::atomic<std::uint64_t> missing_{0};
     std::atomic<double> speed_{0}, longestChunk_{0};
     std::atomic<bool> quit_{false};
-    std::atomic<std::uint32_t> readSize_{0};
+    std::atomic<std::uint32_t> readSize_{0}, buffer_{0};
+    std::uint32_t stretch_ = 0;  // frames
+    std::atomic<std::uint64_t> shortReads_{0};
     // bumped by every read(): the machine's thread sleeps on it while the buffer is full (no polling: under load a
     // short sleep could overrun by milliseconds and leave the reader short)
     std::atomic<std::uint32_t> consumed_{0};
