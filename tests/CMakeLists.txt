@@ -25,6 +25,7 @@ add_executable(g2tests
   test_param_text.cpp
   test_param_text_golden.cpp
   test_graphs.cpp
+  test_library.cpp
   test_proto_framing.cpp
   test_proto_messages.cpp
   test_proto_session.cpp
