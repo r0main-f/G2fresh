@@ -81,3 +81,11 @@ Answer:
 
 Q20. Anything odd, anything you did differently, anything else we should know
 Answer:
+
+Q21. Only if you tried G2fresh with your G2: you click slot B, then C, in G2fresh.
+     Does the lit Slot button on the G2 follow? Which slot plays when you press a key?
+Answer:
+
+Q22. Only if you tried G2fresh with your G2: after Edit > Patch Notes... and OK,
+     does the G2 still follow a knob turned in G2fresh, or did it stop responding?
+Answer:

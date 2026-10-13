@@ -66,7 +66,7 @@ Fill in the rest of `form.txt`, put it in a folder with your WAV files, zip the 
 
 ## Optional: try G2fresh with your G2
 
-*Needs G2fresh v0.10.0 or later. On Windows, G2fresh needs the WinUSB driver for the G2 (see G2fresh's README).*
+*Needs G2fresh v0.10.2 or later. On Windows, G2fresh needs the WinUSB driver for the G2 (see G2fresh's README).*
 
 1. Quit Clavia's editor: only one program at a time can talk to the G2.
 2. Start G2fresh and choose **Synth > Connect to G2 (USB)**. The status bar shows the G2's version.
@@ -74,4 +74,6 @@ Fill in the rest of `form.txt`, put it in a folder with your WAV files, zip the 
 4. Turn a knob in G2fresh and listen; then turn a knob on the G2 and watch G2fresh follow.
 5. Choose **Synth > Send Patch to Slot > B**.
 6. Open **Synth > Synth Memory (Banks)...**, look around, and store one patch in an empty location.
-7. Whatever happened, choose **Synth > Show USB Log** and send us `usb.log` (and `usb.log.1` if there is one) with a few words about what worked and what did not. The log holds the USB traffic only, and leaves the contents of your patches out.
+7. Slots: choose **Synth > Get Performance from G2**. Buttons **A B C D** appear in G2fresh's toolbar. Click **B**, then **C**. On the G2, does the lit Slot button follow each click, and when you play a key, which slot do you hear (Q21)?
+8. **Do this one last, and save your work in the G2 first.** Choose **Edit > Patch Notes...**, type a few words and click OK. Then turn a knob in G2fresh: does the G2 still follow (Q22)? One person reported that this message froze their G2. If yours stops responding, nothing is damaged: switch it off and on, and tell us. Anything you had not stored in the G2 is lost, which is why this step comes last.
+9. Whatever happened, choose **Synth > Show USB Log** and send us `usb.log` (and `usb.log.1` if there is one) with a few words about what worked and what did not. The log holds the USB traffic only, and leaves the contents of your patches out.

@@ -82,3 +82,11 @@ Réponse :
 
 Q20. Quoi que ce soit de bizarre, ce que tu as fait autrement, tout ce qu'on devrait savoir
 Réponse :
+
+Q21. Seulement si tu as essayé G2fresh avec ton G2 : tu cliques sur le slot B, puis C, dans G2fresh.
+     Le bouton Slot allumé sur le G2 suit-il ? Quel slot joue quand tu appuies sur une touche ?
+Réponse :
+
+Q22. Seulement si tu as essayé G2fresh avec ton G2 : après Edit > Patch Notes... et OK,
+     le G2 suit-il encore un potentiomètre tourné dans G2fresh, ou a-t-il cessé de répondre ?
+Réponse :

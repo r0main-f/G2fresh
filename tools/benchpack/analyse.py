@@ -32,6 +32,7 @@ QUESTIONS = {
     "Q07": "input_gain", "Q08": "full_scale_dbu", "Q09": "recording_format", "Q10": "outputs_recorded", "Q11": "master_level",
     "Q12": "voices_b11", "Q13": "voices_b12", "Q14": "voices_b13", "Q15": "clock_at_power_on", "Q16": "pitch_stick",
     "Q17": "g_wheel_1", "Q18": "g_wheel_2", "Q19": "store_protected", "Q20": "comments",
+    "Q21": "usb_slot_focus", "Q22": "usb_patch_notes",
 }
 
 
@@ -617,7 +618,12 @@ def report(results):
                              ("g_wheel_1", "G.Wheel 1 away from the player (B14)", "emulator: the top of the wheel's range raises the note"),
                              ("g_wheel_2", "G.Wheel 2 away from the player (B14)", "emulator: the top of the wheel's range brings the second note in"),
                              ("store_protected", "Store with Memory Protect on", "emulator: \"Memory is protected!\" for about two seconds, nothing stored"),
-                             ("master_level", "Master Level fully up", None), ("outputs_recorded", "Outputs recorded", None), ("comments", "Comments", None)):
+                             ("master_level", "Master Level fully up", None), ("outputs_recorded", "Outputs recorded", None),
+                             # G2fresh over USB (re/notes/usb-crosscheck.md §11): the original sends 09 alone for the shown slot
+                             # and a standalone 6F for the notes; other editors' authors saw trouble with both on hardware
+                             ("usb_slot_focus", "G2fresh over USB: slot B then C shown", "the G2's lit slot and the slot played should follow"),
+                             ("usb_patch_notes", "G2fresh over USB: after Patch Notes", "the G2 should go on answering; one report of a G2 frozen by this message"),
+                             ("comments", "Comments", None)):
         if form.get(key) or ours:
             L.append("- %s: %s%s" % (label, form.get(key, "(no answer)"), " (%s)" % ours if ours else ""))
     L.append("")
