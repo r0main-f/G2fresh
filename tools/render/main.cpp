@@ -435,10 +435,26 @@ int checkAudition()
     check(slotPatch(0) == g2::savePatch(mine) && slotPatch(1) == g2::savePatch(third) && synth.link()->state().perfName == "Own"
               && synth.performanceBound(),
           "and comes back on the synth");
+    // a patch after a performance, with an edit of another slot meanwhile: the performance is back around the patch
+    synth.audition(perf, "Audition");
+    settle();
+    doc.setSlot(1);
+    synth.audition(other, "Other");
+    settle();
+    check(slotPatch(0) == g2::savePatch(mine) && slotPatch(1) == g2::savePatch(other) && synth.link()->state().perfName == "Own",
+          "a patch after a performance: the live performance is back around the auditioned slot");
+    doc.setSlot(0);
+    doc.perform("Add module", [](g2::Patch& p) { g2::edit::addModule(p, g2::Location::Va, 5, 1, 0); });
+    settle();
+    check(slotPatch(0) == g2::savePatch(doc.slotPatch(0)), "and its other slots are edited live");
+    synth.endAudition();
+    settle();
+    check(slotPatch(1) == g2::savePatch(third) && slotPatch(0) == g2::savePatch(doc.slotPatch(0)), "the end puts the slot's own patch back");
+
     doc.setSlot(1);
     synth.audition(other, "Other"); // into the slot shown
     settle();
-    check(slotPatch(1) == g2::savePatch(other) && slotPatch(0) == g2::savePatch(mine), "a patch is auditioned in the slot shown");
+    check(slotPatch(1) == g2::savePatch(other) && slotPatch(0) == g2::savePatch(doc.slotPatch(0)), "a patch is auditioned in the slot shown");
     synth.endAudition();
     settle();
     check(slotPatch(1) == g2::savePatch(third), "and the slot's own patch comes back");
@@ -484,6 +500,6 @@ int main(int argc, char* argv[])
         std::cerr << "error: " << e.what() << "\n";
         return 1;
     }
-    std::cerr << "usage: g2render modules <out.png> [typeId...] | g2render patch <in.pch2> <out.png> | g2render ui <in.pch2> <out.png> | g2render live <out.png> [--off]\n";
+    std::cerr << "usage: g2render modules <out.png> [typeId...] | g2render patch <in.pch2> <out.png> | g2render ui <in.pch2> <out.png> | g2render live <out.png> [--off] | g2render library <out.png> <folder>... | g2render audition\n";
     return 2;
 }

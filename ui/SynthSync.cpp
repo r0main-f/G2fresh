@@ -327,11 +327,12 @@ void SynthSync::audition(const g2::Patch& patch, const std::string& name)
         if (audition_ == Audition::Performance) {
             const auto after = afterAudition();
             link_->sendPerformance(after.performance, after.name, after.performanceMode);
+            if (binding_ == Binding::Performance && doc_.isPerformance())
+                bindPerformance(); // the other slots are the document's again, as it is now
         }
-        // Where the document plays, so that what plays the document plays this.
-        auditionSlot_ = binding_ == Binding::Patch         ? slot_
-                        : binding_ == Binding::Performance ? doc_.slot()
-                                                           : std::min<int>(link_->state().slotFocus, 3);
+        // Where the document plays, so that what plays the document plays this; else the synth's focused slot.
+        const int focus = link_->state().slotFocus;
+        auditionSlot_ = binding_ == Binding::Patch ? slot_ : binding_ == Binding::Performance ? doc_.slot() : focus < 4 ? focus : 0;
         audition_ = Audition::Slot;
     }
     link_->sendPatch(auditionSlot_, patch, name);
@@ -420,15 +421,14 @@ void SynthSync::endAudition()
 
 void SynthSync::leaveAuditionFor(int slot)
 {
-    if (audition_ == Audition::None)
-        return;
     if (slot == 4 || (audition_ == Audition::Slot && slot == auditionSlot_)) {
+        if (audition_ != Audition::None)
+            sendChangeMessage();
         audition_ = Audition::None;
-        sendChangeMessage();
-        return;
+    } else {
+        endAudition();
     }
-    endAudition();
-    putBack_.reset(); // something else goes to the synth now
+    putBack_.reset(); // something else goes to the synth now: the mirror is what it has
 }
 
 // ---- Editor -> synth ----------------------------------------------------------
