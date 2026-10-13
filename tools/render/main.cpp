@@ -5,7 +5,7 @@
 //   g2render patch <file.pch2> <out.png>
 //   g2render ui <file.pch2> <out.png>        (the whole editor window)
 //   g2render synthsettings <out.png>         (the Synth Settings window, over the virtual G2)
-//   g2render library <out.png> [--select <name>] [--search <words>] <folder>...
+//   g2render library <out.png> [--select <name>] [--search <words>] [--size <w>x<h>] <folder>...
 //                                            (the Patch Library window over these folders of patches; nothing
 //                                            of the user's settings is read or written)
 //   g2render audition                        (checks the library's audition on the virtual G2: exit code 0 if the
@@ -222,9 +222,9 @@ int renderSynthSettings(const juce::File& out)
 // kept in memory and in a temporary file: the user's own library is not touched.
 int renderLibrary(const juce::File& out, juce::StringArray args)
 {
-    juce::String select, search;
-    for (auto* option : {&select, &search}) {
-        const int at = args.indexOf(option == &select ? "--select" : "--search");
+    juce::String select, search, size;
+    for (auto* option : {&select, &search, &size}) {
+        const int at = args.indexOf(option == &select ? "--select" : option == &search ? "--search" : "--size");
         if (at >= 0 && at + 1 < args.size()) {
             *option = args[at + 1];
             args.removeRange(at, 2);
@@ -250,6 +250,9 @@ int renderLibrary(const juce::File& out, juce::StringArray args)
     }
     {
         auto panel = makePatchLibraryPanel({doc, &synth, {}, {}}, store);
+        if (size.isNotEmpty())
+            panel->setSize(size.upToFirstOccurrenceOf("x", false, true).getIntValue(),
+                           size.fromFirstOccurrenceOf("x", false, true).getIntValue());
         const auto start = juce::Time::getMillisecondCounterHiRes();
         // no message loop here: the panel's timer is run by hand until the folders are read
         for (int i = 0; i < 6000 && libraryScanning(*panel); ++i) {
@@ -285,13 +288,18 @@ int checkAudition()
     PatchDocument doc;
     SynthSync synth(doc);
     synth.connectVirtual();
-    // no message loop here: the link's timer is run by hand
+    // no message loop here: the link's timer and the change messages are run by hand, until the link has nothing
+    // left to send or to wait for (however slow the machine is)
     auto settle = [&synth, &doc] {
-        for (int i = 0; i < 60; ++i) {
-            juce::Thread::sleep(5);
+        auto* link = dynamic_cast<const g2::proto::LocalLink*>(synth.link());
+        int quiet = 0;
+        for (int i = 0; i < 4000 && quiet < 12; ++i) {
+            juce::Thread::sleep(3);
             juce::Timer::callPendingTimersSynchronously();
             doc.dispatchPendingMessages();
             synth.dispatchPendingMessages();
+            const bool idle = link == nullptr || const_cast<g2::proto::LocalLink*>(link)->client().idle();
+            quiet = idle && i >= 12 ? quiet + 1 : 0;
         }
     };
     for (int i = 0; i < 500 && !synth.ready(); ++i) {
@@ -347,6 +355,24 @@ int checkAudition()
     doc.perform("Add module", [](g2::Patch& p) { g2::edit::addModule(p, g2::Location::Va, 5, 1, 0); });
     settle();
     check(slotPatch(1) == g2::savePatch(doc.patch()), "and live editing goes on");
+
+    // the auditioned patch opened: it stays in the slot, and becomes the live document
+    synth.audition(other, "Other");
+    settle();
+    check(synth.adoptAudition(0) && !synth.auditioning(), "the auditioned patch is adopted for a document that loads it");
+    doc.loadPatch(other, "Other");
+    settle();
+    check(slotPatch(1) == g2::savePatch(other) && slotName(1) == "Other" && synth.boundSlot() == 1, "it stays in the slot, bound");
+    doc.perform("Add module", [](g2::Patch& p) { g2::edit::addModule(p, g2::Location::Va, 5, 1, 0); });
+    settle();
+    check(slotPatch(1) == g2::savePatch(doc.patch()), "and is edited live");
+    check(!synth.adoptAudition(0), "nothing to adopt without an audition");
+    doc.loadPatch(mine, "Mine");
+    settle();
+    check(slotPatch(1) == g2::savePatch(mine), "(the first patch again, sent by the live editing)");
+    doc.perform("Voices", [](g2::Patch& p) { g2::edit::setVoices(p, g2::edit::VoiceMode::Poly, 7); });
+    juce::Thread::sleep(700); // a voice count goes out after 0.6 s
+    settle();
 
     // ---- a performance auditioned over it
     g2::Performance perf = g2::Performance::playing(other, "Perf A");

@@ -100,6 +100,12 @@ public:
     void audition(const g2::Performance& perf, const std::string& name);
     void endAudition();
     bool auditioning() const { return audition_ != Audition::None; }
+    // For a document about to load the auditioned patch into `docSlot`, where
+    // it is live: the audition ends with the patch left in the slot, known as
+    // what the synth has, so that the document's arrival sends only what
+    // differs (nothing: the sound goes on). False, and nothing done, if no
+    // patch is auditioned there; endAudition() is the way then.
+    bool adoptAudition(int docSlot);
 
     // ---- Synth memory (flash banks) --------------------------------------
     // Loads a stored patch into a slot (slot 4: a stored performance); with
@@ -199,6 +205,8 @@ private:
     int pendingOpen_ = -1; // a slot (4: the performance) to open once the synth has loaded it
     Audition audition_ = Audition::None;
     int auditionSlot_ = 0; // Audition::Slot: the synth slot
+    g2::Patch auditionedPatch_; // ... and what plays there
+    std::string auditionedName_;
     // What the synth had when the audition began.
     SynthContent beforeAudition_;
     bool auditionedPerformance_ = false; // a performance replaced every slot since then

@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <system_error>
 
+#include <sys/types.h>
+
 #include <sys/stat.h>
 
 namespace g2::library {

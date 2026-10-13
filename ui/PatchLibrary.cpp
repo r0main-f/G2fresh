@@ -470,15 +470,15 @@ public:
         const int sortable = juce::TableHeaderComponent::defaultFlags;
         const int fixed = juce::TableHeaderComponent::visible | juce::TableHeaderComponent::sortable;
         header.addColumn({}, static_cast<int>(Column::Favourite), 28, 28, 28, fixed);
-        header.addColumn("Name", static_cast<int>(Column::Name), 240, 140, -1, sortable);
+        header.addColumn("Name", static_cast<int>(Column::Name), 240, 120, -1, sortable);
         header.addColumn("Type", static_cast<int>(Column::Type), 54, 50, 90, sortable);
-        header.addColumn("Category", static_cast<int>(Column::Category), 84, 76, 130, sortable);
+        header.addColumn("Category", static_cast<int>(Column::Category), 84, 70, 130, sortable);
         header.addColumn("Voices", static_cast<int>(Column::Voices), 60, 58, 90, sortable);
         header.addColumn("Modules", static_cast<int>(Column::Modules), 68, 66, 90, sortable);
         header.addColumn("Load", static_cast<int>(Column::Load), 54, 52, 90, sortable);
         header.addColumn("Version", static_cast<int>(Column::Version), 62, 60, 90, sortable);
         header.addColumn("Date", static_cast<int>(Column::Date), 92, 90, 120, sortable);
-        header.addColumn("Folder", static_cast<int>(Column::Folder), 200, 70, -1, sortable);
+        header.addColumn("Folder", static_cast<int>(Column::Folder), 200, 50, -1, sortable);
         header.setSortColumnId(static_cast<int>(Column::Name), true);
         header.setStretchToFitActive(true); // the columns share the list's width
         table_.getViewport()->setScrollBarsShown(true, false);
@@ -615,7 +615,6 @@ public:
         foldersButton_.setBounds(bottom.removeFromLeft(96));
         bottom.removeFromLeft(6);
         rescan_.setBounds(bottom.removeFromLeft(76));
-        bottom.removeFromLeft(10);
         open_.setBounds(bottom.removeFromRight(84));
         bottom.removeFromRight(6);
         slotButton_.setBounds(bottom.removeFromRight(118));
@@ -623,11 +622,11 @@ public:
         audition_.setBounds(bottom.removeFromRight(124));
         bottom.removeFromRight(6);
         onSelect_.setBounds(bottom.removeFromRight(152));
-        bottom.removeFromRight(8);
-        status_.setBounds(bottom);
-        r.removeFromBottom(8);
+        r.removeFromBottom(6);
+        status_.setBounds(r.removeFromBottom(22));
+        r.removeFromBottom(4);
 
-        detail_.setBounds(r.removeFromRight(juce::jlimit(240, 380, getWidth() / 3)));
+        detail_.setBounds(r.removeFromRight(juce::jlimit(280, 380, getWidth() * 3 / 10)));
         r.removeFromRight(8);
         table_.setBounds(r);
         pictureDue_ = juce::Time::getMillisecondCounter() + 150; // the picture's room may have changed
@@ -705,8 +704,17 @@ private:
         const bool number = column == Column::Voices || column == Column::Modules || column == Column::Load || column == Column::Version;
         g.setColour(colour);
         g.setFont(theme::font());
-        g.drawText(text(PatchLibraryModel::cell(e, column)), r, number ? juce::Justification::centredRight : juce::Justification::centredLeft,
-                   true);
+        auto shown = text(PatchLibraryModel::cell(e, column));
+        if (column == Column::Folder) {
+            // A folder too long for its column keeps its end: the folder the file is in says the most.
+            const auto ellipsis = juce::String::fromUTF8("\xe2\x80\xa6/");
+            const auto whole = shown;
+            while (shown.containsChar('/') && juce::GlyphArrangement::getStringWidthInt(theme::font(), ellipsis + shown) > r.getWidth())
+                shown = shown.fromFirstOccurrenceOf("/", false, false);
+            if (shown != whole)
+                shown = ellipsis + shown;
+        }
+        g.drawText(shown, r, number ? juce::Justification::centredRight : juce::Justification::centredLeft, true);
     }
 
     void sortOrderChanged(int columnId, bool forwards) override
@@ -779,10 +787,13 @@ private:
             return false;
         model_.step(delta);
         rowsChanged(true);
+        // The keyboard is in the list from here (Space auditions there); typing takes it back to the search field.
+        if (!table_.hasKeyboardFocus(true))
+            table_.grabKeyboardFocus();
         return true;
     }
 
-    // In the list: Space auditions, and typing goes to the search field.
+    // In the list: Space auditions, and typing goes on in the search field.
     bool tableKey(const juce::KeyPress& key)
     {
         if (key.getModifiers().isCommandDown() || key.getModifiers().isCtrlDown())
@@ -868,7 +879,7 @@ private:
             Entry playing;
             playing.path = auditioned_;
             status_.setText("Auditioning \"" + text(playing.name()) + "\" on " + synth->statusText()
-                                + ": the open patch is untouched. Space or Escape stops it, Return opens it.",
+                                + ". The open patch is untouched: Space or Escape stops the audition, Return opens the file.",
                             juce::dontSendNotification);
             status_.setColour(juce::Label::textColourId, kPlaying);
             return;
@@ -1033,10 +1044,16 @@ private:
     void open(const std::string& path, int slot)
     {
         const auto file = toFile(path);
-        stopAudition(); // the synth gets back what it had before the document changes
+        // The file that plays, opened where the editor is live: it stays in its slot and the sound goes on. Else
+        // the synth gets back what it had before the document changes.
+        const bool adopted = path == auditioned_ && host_.synth != nullptr && !host_.doc.isPerformance() && host_.synth->adoptAudition(0);
+        stopAudition();
         host_.openFile(file);
-        if (host_.doc.file() != file)
-            return; // not opened (unreadable, or a question is being asked)
+        if (host_.doc.file() != file) {
+            if (adopted)
+                host_.doc.sendChangeMessage(); // not opened after all: the live editing brings the document back
+            return; // (unreadable, or a question is being asked)
+        }
         model_.opened(path);
         store_.set(kRecentKey, text(model_.marks.recentText()));
         auto* synth = host_.synth;
@@ -1044,9 +1061,11 @@ private:
             if (slot >= 0 && !host_.doc.isPerformance())
                 synth->sendPatch(slot);
             // The original's Open downloads to the synth (CPatchFilePort::LoadComplete 0x6cbce). G2fresh's does not on a
-            // G2 (see README), but the Emulated G2 is there to play the document: when the editor is not live on it
-            // (a performance opened over a patch, or the reverse), the document is sent.
-            else if (!synth->bound() && synth->kind() == SynthSync::Kind::Emulated) {
+            // G2 (see README), but the Emulated G2 is there to play the document: when the editor is not live on it,
+            // or will not be (a performance opened over a live patch, or the reverse, ends the live editing), the
+            // document is sent.
+            else if (synth->kind() == SynthSync::Kind::Emulated
+                     && (host_.doc.isPerformance() ? !synth->performanceBound() : synth->boundSlot() < 0)) {
                 if (host_.doc.isPerformance())
                     synth->sendPerformance();
                 else
@@ -1084,8 +1103,10 @@ private:
             say(text(e->name()) + ": " + (error.isNotEmpty() ? error : juce::String("not a patch")));
             return;
         }
-        stopAudition();
         host_.doc.setSlot(slot);
+        if (path == auditioned_ && host_.synth != nullptr)
+            host_.synth->adoptAudition(slot); // it plays there already: it stays
+        stopAudition();
         const g2::Patch patch = loaded.patch();
         if (host_.doc.perform("Open in Slot " + slotLetter(slot), [&patch](g2::Patch& p) { p = patch; })) {
             host_.doc.setName(loaded.name());
@@ -1364,7 +1385,7 @@ PatchLibrary::PatchLibrary(LibraryHost host, LibraryStore store)
     setUsingNativeTitleBar(true);
     setContentNonOwned(panel_.get(), true);
     setResizable(true, false);
-    setResizeLimits(820, 420, 4000, 3000);
+    setResizeLimits(980, 480, 4000, 3000);
     centreWithSize(getWidth(), getHeight());
 }
 

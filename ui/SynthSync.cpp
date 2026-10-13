@@ -335,7 +335,23 @@ void SynthSync::audition(const g2::Patch& patch, const std::string& name)
         audition_ = Audition::Slot;
     }
     link_->sendPatch(auditionSlot_, patch, name);
+    auditionedPatch_ = patch;
+    auditionedName_ = name;
     sendChangeMessage();
+}
+
+bool SynthSync::adoptAudition(int docSlot)
+{
+    if (audition_ != Audition::Slot || !ready())
+        return false;
+    audition_ = Audition::None; // the slot is the document's again
+    if (synthSlotFor(docSlot) != auditionSlot_) {
+        audition_ = Audition::Slot;
+        return false;
+    }
+    live_[static_cast<std::size_t>(auditionSlot_)] = g2::proto::LiveSlot::uploaded(auditionedPatch_, auditionedName_);
+    sendChangeMessage();
+    return true;
 }
 
 void SynthSync::audition(const g2::Performance& perf, const std::string& name)

@@ -15,6 +15,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <random>
 
 #include "test_support.hpp"
 
@@ -63,10 +64,12 @@ void writeBytes(const fs::path& file, const std::vector<u8>& bytes)
     out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
 }
 
-// An empty folder of its own for a test, removed when the test ends.
+// An empty folder of its own for a test (ctest runs the cases side by side, each in its process), removed when the
+// test ends.
 struct TempDir {
     fs::path path;
-    explicit TempDir(const std::string& name) : path(fs::temp_directory_path() / ("g2fresh-library-" + name))
+    explicit TempDir(const std::string& name)
+        : path(fs::temp_directory_path() / ("g2fresh-library-" + name + "-" + std::to_string(std::random_device{}())))
     {
         fs::remove_all(path);
         fs::create_directories(path);
