@@ -294,6 +294,28 @@ double toneLevel(const std::vector<float>& v, std::size_t from, std::size_t to, 
     return n > 0 ? 2 * std::sqrt(std::max(0.0, power)) / static_cast<double>(n) : 0.0;
 }
 
+// How late the tone `hz` in v[from, to) is, in samples, if v is sin(2 pi hz (n - delay) / rate): by its phase, which
+// gives the delay within one period; `about` says which period.
+double toneDelay(const std::vector<float>& v, std::size_t from, std::size_t to, double rate, double hz, double about)
+{
+    const double w = 2 * juce::MathConstants<double>::pi * hz / rate;
+    double ss = 0, cc = 0, sc = 0, xs = 0, xc = 0;
+    for (auto i = from; i < std::min(to, v.size()); ++i) {
+        const double s = std::sin(w * static_cast<double>(i)), c = std::cos(w * static_cast<double>(i));
+        ss += s * s;
+        cc += c * c;
+        sc += s * c;
+        xs += v[i] * s;
+        xc += v[i] * c;
+    }
+    const double det = ss * cc - sc * sc;
+    if (det == 0.0)
+        return about;
+    const double a = (xs * cc - xc * sc) / det, b = (xc * ss - xs * sc) / det; // v = a sin(w n) + b cos(w n)
+    const double period = rate / hz, delay = -std::atan2(b, a) / w;
+    return delay + period * std::round((about - delay) / period);
+}
+
 // The plugin's outputs: a patch with a 440 Hz sine on Out 1/2 and a 659 Hz one on Out 3/4, played with the second
 // output bus on (each pair on its own), off (Out 1/2 only, as the G2's headphones), and off with Out 3/4 mixed in.
 void outputs(const juce::String& path, const juce::File& patch)
@@ -449,15 +471,16 @@ void inputs(const juce::String& path, const juce::File& patch)
                 continue;
             }
             check(own && !others, "In " + juce::String(c + 1) + " comes out of Out " + juce::String(c + 1) + " alone, at the level it went in");
-            // the delay: the first sample that is not silence (the interpolators spread the start over a few samples)
+            // The delay. Roughly: where the tone first reaches a fifth of its level (the converters' filters ring a
+            // little before a start: far below that), less the time a sine takes to get there. Exactly: the steady
+            // tone's phase, in the period that estimate points at.
             std::size_t onset = 0;
-            while (onset < v.size() && std::abs(v[onset]) < 0.002f)
+            while (onset < v.size() && std::abs(v[onset]) < 0.2f * level)
                 ++onset;
-            // the tone's own start is slow (a sine from zero): where its first samples reach the threshold
-            const double rise = std::asin(0.002 / level) / (2 * juce::MathConstants<double>::pi * hz[c]) * rate;
-            const double measured = static_cast<double>(onset) - rise;
-            check(std::abs(measured - latency) < 4.0,
-                  "it comes " + juce::String(measured, 1) + " samples after it went in; the plugin reports " + juce::String(latency)
+            const double rise = std::asin(0.2) / (2 * juce::MathConstants<double>::pi * hz[c]) * rate;
+            const double measured = toneDelay(v, from, to, rate, hz[c], static_cast<double>(onset) - rise);
+            check(std::abs(measured - latency) < 2.0,
+                  "it comes " + juce::String(measured, 2) + " samples after it went in; the plugin reports " + juce::String(latency)
                       + " (" + juce::String(latency * 1000.0 / rate, 2) + " ms)");
             // no gaps: no run of zeros, and the tone's level over every tenth of a second stays the same
             double low = 1e9, high = 0;

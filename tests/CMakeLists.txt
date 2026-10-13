@@ -11,6 +11,7 @@ add_executable(g2tests
   test_bitstream.cpp
   test_hostclock.cpp
   test_audio_io.cpp
+  test_resampler.cpp
   test_edit.cpp
   test_cables.cpp
   test_morph.cpp
@@ -38,7 +39,7 @@ add_executable(g2tests
   test_benchpack.cpp
 )
 target_link_libraries(g2tests PRIVATE g2bridgelib g2engine g2clavia Catch2::Catch2WithMain) # g2proto and g2core come with it
-target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/plugin/Source) # HostClock.h, AudioIo.h (plain C++)
+target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/plugin/Source) # HostClock.h, AudioIo.h, Resampler.h (plain C++)
 target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/ui) # SynthSettingsForm.h (plain C++)
 target_compile_definitions(g2tests PRIVATE G2_BRIDGE_EXECUTABLE="$<TARGET_FILE:g2bridge>")
 add_dependencies(g2tests g2bridge)

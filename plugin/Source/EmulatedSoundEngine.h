@@ -4,13 +4,15 @@
 // sends patches over the emulated USB cable (SynthSync::connectEmulated with a
 // link on machine()), as to a G2.
 //
-// The G2's four outputs at 96 kHz, resampled to the host's rate, in signal
+// The G2's four outputs at 96 kHz, converted to the host's rate as a converter
+// does it (Resampler.h: band-limited, nothing folds into the audible band; at
+// a 96 kHz host the samples go through as they are), in signal
 // units (a signal of 1.0 into an Out module is 1.0): Out 1/2 on the first two
 // channels, and Out 3/4 on the next two when the host gives four (the plugin's
 // second output bus). Without them Out 3/4 are not heard, as on a G2 whose
 // headphones carry Out 1/2 only, unless setMixOut34() mixes them in. The track's MIDI goes to the G2's MIDI IN,
 // sample-accurate (a fixed latency, Runner::latencyFrames). The audio inputs In 1-4, also in signal units (AudioIo.h),
-// are resampled to 96 kHz and reach the G2's ADCs at a fixed latency too (Runner::write). The "flash" (the
+// are converted to 96 kHz the same way and reach the G2's ADCs at a fixed latency too (Runner::write). The "flash" (the
 // G2's memory: its flash with the banks, then its EEPROM with the system
 // settings, Machine::memorySnapshot) comes from the caller: the plugin keeps it
 // in the host's project, the stand-alone app in a file.
@@ -20,6 +22,7 @@
 // render() on the audio thread.
 #pragma once
 
+#include "Resampler.h"
 #include "SoundEngine.h"
 
 #if G2FRESH_NO_APP_NAP
@@ -51,9 +54,9 @@ public:
     // For diagnostics: the runner's speed while running, its longest chunk, the DSP threads in use.
     juce::String diagnostics() const;
     // What the plugin reports to the host, in host samples: from an input sample to what the G2 makes of it at the
-    // output (the two resamplers, the runner's buffer, and the emulated G2's own way from its ADCs to its DACs,
-    // kAdcToDacFrames). A MIDI event sounds about half a millisecond sooner than that, plus the OS's reaction
-    // (midiLatencySamples).
+    // output (the two sample rate converters' delays, the runner's buffer, and the emulated G2's own way from its
+    // ADCs to its DACs, kAdcToDacFrames). A MIDI event sounds less than a millisecond sooner than that, plus the
+    // OS's reaction (midiLatencySamples).
     int latencySamples() const;
     int midiLatencySamples() const;
     // The emulated G2's way from the ADCs to the DACs through an In and an Out module, in 96 kHz frames: 19 to 21,
@@ -98,15 +101,12 @@ private:
     // Audio thread.
     bool offline_ = false;
     double hostRate_ = 96000.0;
-    juce::Interpolators::Lagrange resamplers_[4];
+    g2io::Resampler down_;           // outputs 1-4: 96 kHz to the host's rate
     std::vector<float> frames_;      // 4 channels, interleaved, as the runner gives them
-    std::vector<float> render96_[4]; // outputs 1-4 at 96 kHz not consumed yet
     juce::AudioBuffer<float> outs_;  // outputs 1-4 at the host's rate
-    // The inputs, the other way: the same interpolation as the outputs (it leaves images of the input above the
-    // host's Nyquist frequency, as the outputs fold what is above it: re/notes/fidelity-audit.md).
-    juce::Interpolators::Lagrange inResamplers_[4];
-    int inHeld_ = 0;                 // host samples of silence the inputs start with: they are never short then
+    // The inputs, the other way. A block's 96 kHz frames take the host's samples up to the block's last but one
+    // or its last: at most one waits for the next block (tests/test_resampler.cpp).
+    g2io::Resampler up_;             // inputs 1-4: the host's rate to 96 kHz
     std::vector<float> inHost_[4];   // inputs 1-4 at the host's rate not consumed yet
-    std::vector<float> in96_;        // one input at 96 kHz
     std::vector<float> inFrames_;    // 4 channels, interleaved, as the runner takes them
 };
