@@ -111,7 +111,9 @@ def table(rows, out=sys.stdout):
     for name, reserve in SETTINGS:
         cells = []
         for busy in (False, True):
-            runs = [r for r in new if r["buffer_ms"] >= reserve and bool(r.get("burners") or r.get("instances", 1) > 1) == busy]
+            # beside other work: the sweep's own (burners, a second emulator) or a computer that was not quiet
+            runs = [r for r in new if r["buffer_ms"] >= reserve
+                    and bool(r.get("burners") or r.get("instances", 1) > 1 or r.get("loadavg", 0) > QUIET_LOAD) == busy]
             worst = max((r["reserve_taken_ms"]["max"] for r in runs), default=0.0)
             cells += [str(len(runs)), str(sum(1 for r in runs if r["reserve_taken_ms"]["max"] >= reserve)), "%.2f" % max(0.0, worst)]
         w("| %s | %g | %s |\n" % (name, reserve, " | ".join(cells)))
