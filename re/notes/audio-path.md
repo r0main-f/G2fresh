@@ -349,8 +349,20 @@ Windows and Linux nothing changes, and where macOS refuses the threads stay as t
   2 ms reserve, 1 ms stretch, 32-frame reads: latencyFrames() is 192 + 96 + 10; the machine is never further ahead
   of the reader than that; a note lands at the same place after the latency when the reserve changes to 10 ms while
   it runs; no frame missing (the reader waits for the machine, so this checks the bookkeeping, not real time).
-* The plugin's reported latency against what comes out: `g2plugintest --inputs` (an input tone's delay by its phase,
-  measured against the reported latency); see the report of the run for the figures and the load it ran under.
+* The plugin's reported latency against what comes out: `g2plugintest --inputs` (four input tones, each one's delay
+  by its phase, against the latency the plugin reports; 2026-10-14, load average 6 to 15, so its "without gaps"
+  checks are not a quiet computer's):
+
+  | Plugin, rate, block | Buffer | Reported | Measured |
+  |---|---|---|---|
+  | VST3, 48 kHz, 256 | Safe | 1327 | 1326.50 |
+  | VST3, 48 kHz, 256 | Normal | 607 | 606.50 |
+  | VST3, 48 kHz, 256 | Low | 415 | 414.50 |
+  | VST3, 44.1 kHz, 512 | Safe | 1530 | 1529.89 |
+  | AU, 48 kHz, 256 | Safe | 1327 | 1326.50 |
+
+  The formula of part 3.1 gives the reported figures exactly. The measured delay is about half a sample below the
+  reported one in every case (the check allows 2 samples); where that half sample comes from was not looked into.
 * The converter's delay in the latency: part 2.4.
 
 ### 3.6 The sweep: one command, on a quiet computer
