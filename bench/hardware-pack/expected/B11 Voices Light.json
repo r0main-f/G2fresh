@@ -23,8 +23,7 @@
    "voices": 32,
    "display_knobs_1_2": "120 BPM  32 (32)",
    "load_va": {"cycles_a": 253, "cycles_b": 136, "cycles_percent": 20.93},
-   "load_fx": {"cycles_a": 0, "cycles_b": 0, "cycles_percent": 0.0},
-   "dsp_instructions_per_frame": [1051, 1033, 1033, 1071, 1033, 1033, 1033, 1033]
+   "load_fx": {"cycles_a": 0, "cycles_b": 0, "cycles_percent": 0.0}
   }
  },
  "note": "'facts' is a G2 or a G2 Engine without the voice expansion board (four DSPs); 'facts.g2x' a G2X, or any G2 with the board (eight DSPs). The plugin's emulated G2X runs without the board: its voices are the first figure."

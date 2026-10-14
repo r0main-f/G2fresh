@@ -6,10 +6,11 @@
 //            [--no-usb] [--panel] [--panel-at T] [--press RAW@T[-T2]] [--turn RAW:N@T] [--adc POS:V@T] [--key K@T-T2[:MS]] [--var V@T]
 //            [--in N:HZ[:LEVEL] ...] [--causal-reads] [--host-lag N] [--no-host-taken]
 //
-// The DSP threads' host port (re/notes §3.9.6): --host-lag N has the DSPs take what the OS writes only in every Nth
-// frame of theirs, as when their threads get little time; --no-host-taken lets the OS read a DSP's status before the
-// DSP has taken what it wrote (as before 2026-10-14): the two together show the fault the default prevents (a DSP
-// that reads its host port without a word, "WARNING: the host port out of step", then a DSP that strays).
+// The host port (re/notes §3.9.6): --no-host-taken lets the OS read a DSP's status before the DSP has taken what it
+// wrote (as before 2026-10-14); --host-lag N (with DSP threads) has the DSPs take what the OS writes only in every
+// Nth frame of theirs, as when their threads get little time. With the first, a heavy upload or a MIDI clock shows
+// the fault the default prevents (a DSP that reads its host port without a word, "WARNING: the host port out of
+// step", then silence or a DSP that strays).
 //
 // The audio inputs (re/notes §3.11): --in puts a sine of HZ on input N (1-4), LEVEL of the ADCs' full scale (0.25
 // unless given: a signal of 1.0 in the patch), all along (not with --realtime).
@@ -790,8 +791,7 @@ int main(int argc, char** argv)
     std::printf("host port: %.0f reads/s, %.0f commands/s, %.0f DSP syncs/s; ColdFire time in skipped polls %.1f%%\n",
                 double(s.hostReads) / m.seconds(), double(s.hostCommands) / m.seconds(), double(s.dspSyncs) / m.seconds(),
                 100.0 * double(s.cfPollSkipped) / double(s.cfCycles));
-    if(opt.threads)
-        std::printf("host port: %llu status reads found the DSP behind the host, %llu of them read it before it had caught up\n",
+    std::printf("host port: %llu status reads found the DSP behind the host, %llu of them read it before it had caught up\n",
                     (unsigned long long)s.statusBehind, (unsigned long long)s.statusStale);
     std::printf("whole run: %.1f emulated s, %.1f wall s, %.1f CPU s; cf %llu instr (%.1f M/s emulated); midi overruns %llu\n",
                 m.seconds(), std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count(),

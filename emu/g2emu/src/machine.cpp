@@ -480,10 +480,38 @@ struct Machine::Impl final : coldfire::Bus {
         const auto target = dspTimeOfCf(cfNow());
         ++st.dspSyncs;
         const auto t0 = timing ? clockNs() : 0;
+        std::uint64_t up = target;  // the whole frames the DSP before DSP n has run
         for(int k : chain)
         {
-            dsps[std::size_t(k)]->runTo(target);
-            if(k == n) break;
+            auto& d = *dsps[std::size_t(k)];
+            d.runTo(target);
+            if(k == n)
+            {
+                // The same rule on one thread (above): the DSP is at the ColdFire's time, but what was written just
+                // before may still be on its way, because the DSP had already run past the time of the writes (the
+                // JIT runs whole blocks, an idle DSP skips to its next serial slot) or is in its frame program, which
+                // takes no host command. A MIDI clock made that common: the OS's interrupt for each clock byte saves
+                // the host ports, and after a few seconds of clock a DSP went out of step and the notes went silent.
+                if(reg == 2 && d.hostPending())
+                {
+                    ++st.statusBehind;
+                    bool taken = opt.hostTakenOnRead && d.takeHost(std::max(up, target) + Dsp::CyclesPerFrame);
+                    // not within a frame past the DSP before it: the DSPs up to it run on together, as with threads
+                    for(auto to = target; opt.hostTakenOnRead && !taken && to < target + HorizonStretch * Dsp::CyclesPerFrame;)
+                    {
+                        to += 16;
+                        for(int u : chain)
+                        {
+                            dsps[std::size_t(u)]->runTo(to);
+                            if(u == n) break;
+                        }
+                        taken = !d.hostPending();
+                    }
+                    if(!taken) ++st.statusStale;
+                }
+                break;
+            }
+            up = d.clock() / Dsp::CyclesPerFrame * Dsp::CyclesPerFrame;
         }
         if(timing) syncNs += clockNs() - t0;
     }

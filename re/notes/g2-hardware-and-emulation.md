@@ -1280,7 +1280,8 @@ there, but it is the same code.
 * **Single thread** (`threads = 0`, deterministic): per quantum (1 frame) the ColdFire runs to the end of the
   quantum, then the DSPs in chain order (A6, A5, A4, A3). Whenever the ColdFire touches a DSP's host port, that DSP and
   the ones upstream of it are first run up to the ColdFire's time, so host commands are taken and answered within the
-  emulated microseconds the chip would need. **Poll skipping:** when the ColdFire reads the same status register of
+  emulated microseconds the chip would need. (Since 2026-10-14 a status read also has the DSP run on until it has
+  taken what was written: §3.9.6.) **Poll skipping:** when the ColdFire reads the same status register of
   one DSP from the same instruction and gets the same value (a wait for a host command to be taken, or for data), the
   DSPs run ahead until it changes (at most a frame) and the ColdFire's clock moves on by as much: 18-38 % of the
   ColdFire's time was such loops.
@@ -1398,11 +1399,28 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
   for that DSP to take what was written or for its worker to report the horizon, and a worker that is held only
   by the workers upstream of it tries again when they move, which they can (all workers held at once means all
   are at the horizon, as the ring's slack, `ringPrefill` > 3, keeps the first worker from waiting on the last).
-  The invariant: a status read finds the DSP past everything the ColdFire wrote before it. One thread gives that up
-  to the DSP's own latency (a command waits for the end of a frame program: the library takes no interrupt during
-  a long one, and on the chip the host port's priority, IPRP = `$431` [C], would have to be read against the
-  DSP56367 manual's register layout, not done); the board, where the two chips run at once, the same. With
-  threads the backlog was up to `dspLead` + `skew`, 10 frames; now there is none.
+  The invariant: a status read finds the DSP past everything the ColdFire wrote before it. With threads the
+  backlog was up to `dspLead` + `skew`, 10 frames; now there is none.
+  **One thread had the same fault, rarer** (found through a MIDI clock by the MIDI OUT work, 2026-10-14): the
+  single-threaded machine runs the DSP up to the ColdFire's time before a read, but a DSP may already be past the
+  time of the writes (the JIT runs whole blocks, an idle DSP skips to its next serial slot), and a DSP in its frame
+  program takes no host command (the library takes no interrupt during a long one). Each MIDI clock byte (F8) has the
+  OS's interrupt save the host ports; within a second of clock at 120 BPM a DSP read its host port without a word
+  (A6, at its clock 502432805, every time: one thread is deterministic) and from then on notes were silent; the
+  next upload could send a DSP into P memory without code. Now one thread follows the same rule: before a status
+  read the DSP runs on until it has taken what was written (up to a frame past the DSP before it, then the DSPs up
+  to it together, up to 5 frames). With a MIDI clock: one thread and two DSP threads play after 96 clock bytes; with
+  the rule off both go silent with an empty read (test "notes still sound after it has followed an external MIDI
+  clock"). This changes when the DSPs take host writes on one thread, so 9 of the bench pack's 17 single-threaded
+  renders are not the same samples as before: the same sound shifted by a few to a few hundred frames (when an
+  upload ends, against a patch's own sequencer and oscillator phases); every measured fact is as committed
+  (`expected.py --check`).
+  On the board: a real G2 follows a MIDI clock without going silent, so there a host command does not wait long
+  enough for the OS's save to see it pending; whether because the host port's interrupt priority is above the
+  frame program's (stage 1's IPRP = `$431` [C] would have to be read against the DSP56367 manual's register layout:
+  not done) or the chip's timing leaves no such window, is inferred, not verified. The emulator's DSPs take no
+  interrupt during the frame program (the library has no interrupt levels): a known deviation, which the rule
+  covers for the host port.
   Proof [emulated, 2026-10-14, bigsynth, a note, threads 2, M1 loaded 6-11]: with `--host-lag 16` (the DSPs take
   host writes only in every 16th frame of theirs: `Options::hostLagFrames`, for tests) and the wait off
   (`--no-host-taken`), 1 run of 3 went out of step during the boot ("DSP 3 read its host port without a word",
@@ -2017,9 +2035,11 @@ And the manual, p.19: an expansion board "will double the computational resource
 A chord of one heavy voice per DSP (test "a chord spread over the eight DSPs"): three voices land on three DSPs with
 four and with eight, and play the same amplitudes to 1e-4; seven voices land on seven DSPs, at least three of them on
 the board, each note at full level, no click (the third difference of the output stays at the tones' own).
-Where the code lands (B13 on eight DSPs, instructions per frame by chip select, `facts.g2x`): the FX area's reverb
-alone on A3, the last DSP (360), one voice on each of the other seven (969, A6 1011 with its ADC work); B11 and B12
-put four and three voices on every DSP (1033-1071, 1117-1155).
+Where the code lands (B13 on eight DSPs, instructions per frame by chip select: `g2benchrender --model g2x`, its
+`dsp_instructions_per_frame`): the FX area's reverb alone on A3, the last DSP (360-365), one voice on each of the
+other seven (969, A6 1011-1022 with its ADC work); B11 and B12 put four and three voices on every DSP (1033-1075,
+1117-1161). (The counts move by a few instructions with the host port's timing, so the bench pack's JSON does not
+keep them.)
 
 ### 3.12.4 In the emulator
 

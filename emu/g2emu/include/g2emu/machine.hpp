@@ -72,9 +72,9 @@ public:
         // threads > 0: a status read of a DSP's host port waits (wall time) until that DSP has reached the ColdFire's
         // time. Off: it cost 15-25 % of speed and no failure needed it once the host port was ordered (§3.9.6)
         bool causalReads = false;
-        // threads > 0: a read of a DSP's status register waits until the DSP has taken what the ColdFire wrote before
-        // it, as one thread gives (the DSP runs up to the ColdFire's time first) and the board (the two run at once):
-        // the OS counts on it (§3.9.6). Off: as it was before 2026-10-14, for the test that shows what it is for.
+        // A read of a DSP's status register finds the DSP past what the ColdFire wrote before it (with threads the
+        // ColdFire waits, on one thread it runs that DSP on), as on the board, where the two run at once: the OS
+        // counts on it (§3.9.6). Off: as it was before 2026-10-14, for the tests that show what it is for.
         bool hostTakenOnRead = true;
         // Testing, threads > 0: the DSPs take what the host wrote only in every that many frames of theirs (0: as soon
         // as they run), as when their threads get little time; a status read still has them take it at once.
@@ -106,10 +106,10 @@ public:
         // The host port out of step: the OS read a DSP's answer where there was none, a DSP read a word from the OS
         // where there was none (other than for the OS's pings). Both stay 0 while all is well.
         std::uint64_t hostEmptyReads = 0, dspEmptyReads = 0;
-        // threads > 0: reads of a DSP's status register that found something the ColdFire wrote before still on its
-        // way to the DSP (`statusBehind`), and how many of them returned before the DSP had taken it (`statusStale`:
-        // all of them with Options::hostTakenOnRead off; with it, those the wait gave up on, for a DSP that takes
-        // nothing more). statusStale stays 0 while all is well.
+        // Reads of a DSP's status register that found something the ColdFire wrote before still on its way to the
+        // DSP (`statusBehind`), and how many of them returned before the DSP had taken it (`statusStale`: all of them
+        // with Options::hostTakenOnRead off; with it, those where the DSP could not take it within the frames it may
+        // run ahead: one that takes nothing more). statusStale stays 0 while all is well.
         std::uint64_t statusBehind = 0, statusStale = 0;
         // threads > 0: each DSP thread's CPU time (as of its last wait) and the time it spent waiting (spinning or
         // yielding: the waits count as CPU time too)

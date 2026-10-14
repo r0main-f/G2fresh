@@ -173,8 +173,7 @@ def one_patch(tool, fw, entry, renders):
         result.update(status="ok", facts={"requested_voices": info["requested_voices"], "voices": info["voices"][0],
                                           "display_knobs_1_2": info.get("display_knobs_1_2"),
                                           "g2x": {"voices": g2x["voices"][0], "display_knobs_1_2": g2x.get("display_knobs_1_2"),
-                                                  "load_va": g2x.get("load_va"), "load_fx": g2x.get("load_fx"),
-                                                  "dsp_instructions_per_frame": g2x.get("dsp_instructions_per_frame")}},
+                                                  "load_va": g2x.get("load_va"), "load_fx": g2x.get("load_fx")}},
                       note="'facts' is a G2 or a G2 Engine without the voice expansion board (four DSPs); 'facts.g2x' a G2X, or "
                            "any G2 with the board (eight DSPs). The plugin's emulated G2X runs without the board: its voices "
                            "are the first figure.")

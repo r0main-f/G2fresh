@@ -3052,3 +3052,72 @@ TEST_CASE("The user's G2 OS with DSP threads: a status read finds the DSP past w
         for(const double a : chord.amplitude) CHECK_THAT(a, Catch::Matchers::WithinRel(0.1247, 0.01));
     }
 }
+
+
+TEST_CASE("The user's G2 OS: notes still sound after it has followed an external MIDI clock", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // Every clock byte (F8) on MIDI IN has the OS's interrupt save and restore the host ports (re/notes §3.9.6).
+    // Before a status read waited for the DSP to take what the OS had written, one of those saves went wrong within
+    // a second of clock, on one thread as with DSP threads: a DSP read its host port without a word, and from then on
+    // the notes were silent (found by the MIDI OUT work). One thread is deterministic: without the rule the fault
+    // comes at the same place every time, which shows the test bites.
+    struct Case {
+        const char* name;
+        int threads;
+        bool taken;
+    };
+    for(const Case c : {Case{"one thread", 0, true}, Case{"one thread, without the rule", 0, false}, Case{"two DSP threads", 2, true}})
+    {
+        INFO(c.name);
+        Machine::Options o;
+        o.threads = c.threads;
+        o.hostTakenOnRead = c.taken;
+        InputRig g2(fw, o);
+        REQUIRE(g2.client.synced());
+        REQUIRE(g2.upload(keyboardSine()));
+        auto peak = [&] {
+            const std::uint8_t on[3] = {0x90, 69, 100}, off[3] = {0x80, 69, 64};
+            g2.m.midiIn(on);
+            g2.run(0.1);
+            std::uint64_t clock0 = 0;
+            const auto out = g2.record(0.2, clock0);
+            g2.m.midiIn(off);
+            g2.run(0.2);
+            float p = 0;
+            for(std::size_t f = 0; f < out.size() / 4; ++f) p = std::max(p, std::fabs(out[f * 4]));
+            return p;
+        };
+        CHECK(peak() > 0.1f);
+        // 96 clock bytes at 120 BPM (one every 2400 frames)
+        const std::uint8_t tick[1] = {0xF8};
+        const auto from = g2.m.frame();
+        for(std::uint64_t i = 0; i < 96; ++i)
+        {
+            g2.m.midiInAt(tick, from + i * 2400);
+            while(g2.m.frame() < from + (i + 1) * 2400) g2.step();
+        }
+        const float after = peak();
+        const auto s = g2.m.stats();
+        CHECK(s.statusBehind > 0);
+        if(!c.taken)
+        {
+            CHECK(s.dspEmptyReads > 0);
+            continue;
+        }
+        CHECK(after > 0.1f);
+        g2.run(1.0);
+        CHECK(peak() > 0.1f);
+        CHECK(g2.m.stats().statusStale == 0);
+        CHECK(g2.m.stats().dspEmptyReads == 0);
+        CHECK(g2.m.stats().dspsWild == 0);
+    }
+}
