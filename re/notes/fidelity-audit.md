@@ -9,6 +9,8 @@ editor. Each part lists the original behavior with its source, G2fresh's, the ga
 carry Out 1/2 only). Live editing (gap 4; part B §4.1, most of §4.2, L9's `03`, L12, B3): every edit, undo and
 redo goes to the synth as the original's messages, see `re/notes/usb-protocol.md` §9 and the README's deviations;
 still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2F`), global knobs (`1C`/`1D`).
+Brought up to date 2026-10-14 (at 1f1dd80): items closed since are marked **Closed**, with the date and where it is
+described; the rest of this audit is as written on 2026-10-11.
 
 ## Ranked gaps (both parts)
 
@@ -41,13 +43,20 @@ still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2
 
 **Sound and timing in the plugin (A)**
 12. Resampling from 96 kHz without an anti-alias filter (aliasing, inferred from the algorithm).
+    **Closed 2026-10-14:** a band-limited conversion both ways, flat to 20 kHz and 100 dB down above the host's
+    range, none at a 96 kHz host (`plugin/Source/Resampler.h`, `re/notes/audio-path.md` §2; README, a deliberate fix).
 13. No audio inputs (In modules silent; no mic, no In 1 Level).
     **Closed 2026-10-11:** the plugin has In 1/2 and In 3/4 (the stand-alone app: the device's inputs 1-4), they
     reach the In modules at a fixed latency, the In 1 level LEDs follow, and In 1 can be the microphone input with
     the Mic Level knob's gain (g2-hardware-and-emulation.md §3.11). Open: the level against a real G2's jacks, the
     preamp's gain range (assumed), Live 11 not tried; the resampler is the outputs' (gap 12).
 14. Tempo sync on by default, and Local / clock receive forced on: changes what the user hears, should be opt-in.
+    **Closed 2026-10-11** (a0f760f, 4a47e33): Follows the Host's Tempo is off by default; switched on, it sets the
+    G2's Clk Recv on, the one setting it changes. A new emulated G2 gets a factory G2's settings once; a memory in
+    use keeps its own Local and clock settings.
 15. Master Level knob not saved, and the on-screen knob can disagree with the machine.
+    **Closed 2026-10-11** (a0f760f): the knob's position is kept in the project's state and given back to the
+    machine; the Live view's knob shows the kept value.
 16. The G2's MIDI OUT is dropped (notes, CC, sysex dumps) and its queue grows without bound; incoming sysex skipped.
     **Closed 2026-10-13:** MIDI OUT is the plugin's MIDI output (the stand-alone app: a MIDI output device), at the
     pace of a MIDI cable, each message at the sample of the sound made at the same instant; the queue is bounded;
@@ -60,6 +69,10 @@ still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2
     of §3.9.6, which every clock byte made certain; its fix cures it (tests on both sides, `g2plugintest
     --midi-tempo` passes as a VST3 and an Audio Unit).
 17. Output level convention (x8) unverified against hardware; latency 26-32 ms against about 2 ms on a G2.
+    **Latency: a user setting since 2026-10-14**, Synth > Emulated G2 Buffer: Safe (the default) 27.6 ms, Normal
+    12.6 ms, Low 8.6 ms at 48 kHz with 256-sample blocks, reported to the host (`re/notes/audio-path.md` §3; which
+    of them hold without dropouts on a given computer is still to be measured on a quiet one). Still about four
+    times a G2's 2 ms at the lowest. The level convention: still unverified.
     (Until 2026-10-11 the emulated lines between the DSPs added to it with every patch upload, up to 8 ms over a
     session: fixed, g2-hardware-and-emulation.md §3.11.4.)
 
@@ -71,6 +84,7 @@ still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2
     Init recall, Parameter Pages / Overview, MIDI Learn and the controller dialog, bank delete and
     upload/download, Patch Adjuster, keyboard focus, Options dialog, F5-F8 hints, module help, virtual keyboard over
     USB, controller snapshot / Dump One, Patch Browser disk tab, Window menu, About.
+    (The Patch Browser's disk tab: since 2026-10-14 File > Patch Library, see B7.)
 
 **Deviations on by default or unflagged (B)**
 21. Modern look, cable animation, mouse wheel on knobs, double-click resets a knob (original: starts a morph),
@@ -107,14 +121,14 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 |---|---|---|---|
 | 1 | **Polyphony is a G2's, not a G2X's.** We present a G2X, but the expansion board's 4 DSPs are stubs, so the OS uses 4 DSPs. A heavy patch gets 3 voices where a G2X gives 7. **Emulated since 2026-10-13** (`Machine::Options::expansion`, 7 voices measured); the plugin keeps 4 DSPs until real time is measured (§3.12.5 of the hardware notes) | **High** | [Measured] `voices.cpp`: `bigsynth.pch2` requesting 32 voices gets "03 (32)" on both the G2X and G2 models; [M p.121]: "minimum polyphony is three voices plus effects or seven voices plus effects in an expanded or G2X model" |
 | 2 | **An erased flash gives non-factory system settings.** MIDI Ctrl is Off, so CC7, CC11 and every assigned CC from the DAW are ignored. Slot channels are 1/1/1/1 and the Global channel is 1, so multitimbral use is impossible. Program Change is Off. There are **no factory patches**. | **High** | [Measured] `sysmenu.sh`, `probe`: CC7=0 has no effect with the OS default, and drops the level with Ctrl on. Factory values: [M p.126] Global channel Off, [M p.39/49] Memory Protect On, [M p.21] factory sounds |
-| 3 | **Downsampling 96 kHz to the host rate uses Lagrange interpolation with no anti-alias filter.** Content above the host's Nyquist folds into the audible band; a real G2 recorded at 48 kHz does not alias that way. | **High** for bright, FM or distorted patches | [Code] `EmulatedSoundEngine.h:86`, `.cpp:137-138`. [Inferred] from the algorithm: at 96→48 kHz a 4-point Lagrange returns every second input sample, i.e. plain decimation. Not measured |
+| 3 | (**Closed 2026-10-14**: a band-limited conversion, see item 12 above.) **Downsampling 96 kHz to the host rate uses Lagrange interpolation with no anti-alias filter.** Content above the host's Nyquist folds into the audible band; a real G2 recorded at 48 kHz does not alias that way. | **High** for bright, FM or distorted patches | [Code] `EmulatedSoundEngine.h:86`, `.cpp:137-138`. [Inferred] from the algorithm: at 96→48 kHz a 4-point Lagrange returns every second input sample, i.e. plain decimation. Not measured |
 | 4 | **Audio inputs are absent.** There is no input bus, the ADCs read silence, and the Mic Level knob is decorative. Patches using 2-In/4-In (effects, vocoders) are silent. **Closed 2026-10-11** ([Notes §3.11]; section 2 below) | **High** for those patches | [Code] `PluginProcessor.cpp:38-40` (outputs only), [Notes §3.9.6], `LiveView.cpp:311`; [M p.26, p.53] |
 | 5 | **Live panel: only one button can be held at a time.** Shift functions (Store As, Dump One, Panic, Split Point, Global octave, Shift+Slot, Vari.Init, Clear) and hold-and-turn gestures (hold Slot + dial, hold Morph + knobs, hold Down + dial for naming) cannot be done with the mouse. | **Medium-high** (functional) | [Code] `LiveView.cpp:333-378`: a single `pressed_`, released on mouse-up; [M p.27-31, p.47, p.44] |
 | 6 | **The Master Level knob is neither saved nor kept in sync.** It is full at every start. The UI resets to full whenever the editor reopens, while the machine keeps the old value. | **Medium-high** (loudness jumps: knob at 0.5 = −15.7 dB) | [Code] `LiveView.cpp:257` and `MainView.h:134` (LiveView belongs to the editor); [Measured] master 1 / 0.5 = 0 / −15.7 dB |
 | 7 | **MIDI OUT is dropped.** (**Closed 2026-10-13**, see gap 16 above and [Notes §3.13].) The OS transmits notes from the Live keyboard, CCs from the wheels and knobs, clock, Dump One sysex and the MIDI modules' output; the plugin outputs nothing. Incoming sysex is also dropped. The OS's MIDI OUT queue is never drained, so it grows without bound. | **Medium** | [Measured] Live key → `90 45 66 80 45 72`; mod wheel → `b0 01 7f`; G.Wheel 1 → `b0 60 7f`; Dump One → 1099 bytes of sysex. [Code] `PluginProcessor.h:38` `producesMidi() false`; `EmulatedSoundEngine.cpp:110-111` skips sysex; `machine.cpp:807-808, 1091-1097` |
 | 8 | **Output reference level is unverified.** The ×(−8) scaling puts signal 1.0 at 0 dBFS. That is 18 dB hotter than "DAC full scale = 0 dBFS", and the DAW sees up to +18 dBFS before the G2's own clip point. | **Medium** (convention; unknown against a real G2) | [Code] `EmulatedSoundEngine.cpp:126-132`; [Notes §3.9 "Master volume"]; [M p.53] −10 dBV line outputs |
-| 9 | **Host tempo is on by default and the G2's own clock setting is forced.** The patch's own tempo is replaced, and "MIDI Clk Recv" is forced On (and Local On) at every start, so the G2's own setting cannot be kept. | **Medium** (changes what is heard; flagged in the README but not opt-in) | [Code] `PluginProcessor.h:113`, `.cpp:416-427, 574`; [Measured] the OS follows Start/Stop/Continue (Run/Stop on the display) |
-| 10 | **Live latency is 26-32 ms** (Runner buffer of 20 ms plus a host block). A G2 plays about 2 ms after the MIDI bytes. | **Medium** for live play | README:42; [Notes §3.9.2, §3.9.4] |
+| 9 | (**Closed 2026-10-11**: opt-in, see item 14 above.) **Host tempo is on by default and the G2's own clock setting is forced.** The patch's own tempo is replaced, and "MIDI Clk Recv" is forced On (and Local On) at every start, so the G2's own setting cannot be kept. | **Medium** (changes what is heard; flagged in the README but not opt-in) | [Code] `PluginProcessor.h:113`, `.cpp:416-427, 574`; [Measured] the OS follows Start/Stop/Continue (Run/Stop on the display) |
+| 10 | (**A user setting since 2026-10-14**: 8.6 to 27.6 ms at 48 kHz/256, see item 17 above.) **Live latency is 26-32 ms** (Runner buffer of 20 ms plus a host block). A G2 plays about 2 ms after the MIDI bytes. | **Medium** for live play | README:42; [Notes §3.9.2, §3.9.4] |
 
 ---
 
@@ -126,15 +140,15 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 | Mono | "If only OUTPUT 1 is connected, the audio from OUTPUT 2 is mixed to OUTPUT 1" [M p.53] | (Out 1 + Out 2) × 0.5 (`EmulatedSoundEngine.cpp:150-154`) | Halved; the G2's summing gain is unknown | Low | Document it, or use 1 + 2 without halving if a real G2 measures so (trivial) |
 | Output level reference | DAC words saturate at full scale; the analog stage is −10 dBV nominal [M p.53]. The DAC full-scale voltage is **unknown** [Notes §3.9] | Words × (−8), so signal 1.0 ↔ 0 dBFS and DAC full scale ↔ +18 dBFS (`EmulatedSoundEngine.cpp:126-132`). The clip point is faithful (in words) but sits at +18 dBFS in the host | Reference differs from "DAC full scale = 0 dBFS" by 18 dB. Unflagged in the UI | Medium | Measure a real G2: a 1 kHz sine at Out level 127, in dBV at OUT 1. Document the choice; optionally offer "G2 DAC reference (−18 dB)" as an option (small) |
 | Polarity | DAC words are inverted relative to the signal [Notes §3.9]. Whether the analog stage inverts again is unknown | Re-inverted by the −8 | Unknown | Low | Check on hardware: a pulse patch into a scope or interface |
-| Master Level knob | A physical pot; its position persists. The OS reads it through the ADC (128-step table) [Notes §3.9]. No MIDI CC [M p.26] | Full at every start (`machine.hpp:53`). The UI knob is `LiveView.cpp:257` and is recreated with the editor, so it desyncs from the machine. Not in the project state | Not persisted; UI desync. The taper is faithful (the OS's table) [Measured: 0.5 → −15.7 dB] | Medium-high | Keep the value in the processor and in the state; the UI reads it from there (small) |
-| Resampling 96 kHz → host | The G2 runs at 96 kHz [Notes §1.1; OS pitch tables exact at 96 kHz]. A recording at 48 kHz goes through the interface's anti-alias filter | JUCE Lagrange, 4-point, per channel, no low-pass (`EmulatedSoundEngine.h:86`) | Aliasing below the host's Nyquist [Inferred] | High (bright patches) | A proper polyphase/FIR resampler, e.g. a 96→48 half-band plus a fractional stage, or r8brain/libsamplerate (medium). Verify with a 30 kHz sine patch at a 48 kHz host |
+| Master Level knob | A physical pot; its position persists. The OS reads it through the ADC (128-step table) [Notes §3.9]. No MIDI CC [M p.26] | **Since 2026-10-11** kept in the project's state (`PluginProcessor.cpp`, "masterLevel") and given back to the machine at start; the Live view's knob shows the kept value. (Before: full at every start, the UI knob desynced.) | None known. The taper is faithful (the OS's table) [Measured: 0.5 → −15.7 dB] | – | – |
+| Resampling 96 kHz → host | The G2 runs at 96 kHz [Notes §1.1; OS pitch tables exact at 96 kHz]. A recording at 48 kHz goes through the interface's anti-alias filter | **Since 2026-10-14** a windowed-sinc conversion: flat to 20 kHz, 100 dB down from 28 kHz at a 48 kHz host (24.1 kHz at 44.1 kHz), none at 96 kHz (`plugin/Source/Resampler.h`; measured, `re/notes/audio-path.md` §2). (Before: JUCE Lagrange, no low-pass.) | None known; a change heard on bright patches, flagged in the README as a deliberate fix | – | – |
 | Sample rate | 96.000 kHz (possibly 98.3; open [Notes §4 Q2]) | 96 000 (`machine.hpp:26`) | Matches as far as known | Low | – |
 
 ### 2. Audio inputs
 
 | Item | Original | G2fresh | Gap | Severity | Recommendation |
 |---|---|---|---|---|---|
-| IN 1-4 | Line inputs at −10 dBV, into the Input modules of all four slots [M p.53, p.~139 (line 5669)] | No input bus; the ADCs give silence ([Notes §3.9.6]; `PluginProcessor.cpp:38-40`) | Missing | High (effect and vocoder patches) | See the planned features below |
+| IN 1-4 | Line inputs at −10 dBV, into the Input modules of all four slots [M p.53, p.~139 (line 5669)] | **Since 2026-10-11** buses In 1/2 and In 3/4 (see the IN 1-4 row below and item 13). (Before: no input bus, silent ADCs.) | See item 13 | – | – |
 | Mic (XLR) | A preamp for dynamic microphones; the IN 1 jack overrides it [M p.53]. On the G2X the XLR is on the top panel [Photo g2x-left]. The Mic Level knob affects the XLR only [M p.26] | The knob is drawn at a fixed 20°, not interactive (`LiveView.cpp:311`) | Missing; the knob is decorative | Medium | Tooltip "not emulated" now; later, a gain stage on In 1 when "mic" is the source |
 | In 1 Level LEDs (−20, −12, 0 dB) | Show the mic, or IN 1 when nothing is in the mic [M p.26]. Driven by the OS from DSP data (thresholds 0.1/0.25/0.89) [Notes §3.10.3] | Mapped (`PluginProcessor.cpp:319-321`); always off (no input) | Follows once inputs exist | – | – |
 
@@ -146,7 +160,7 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 | Input level | An input of 1.0 is a signal of 1.0 (the level of an oscillator), a quarter of the ADCs' full scale: the inputs clip at +12 dBFS, the outputs at +18 dBFS (the In and Out modules' own scales [Measured]). Through In → Out the host gets back what it sent | A convention, unverified against a G2's jacks (the converters' full-scale voltages are unknown, as for the outputs). With equal full-scale voltages a G2 would play In → Out 6 dB lower | Medium (convention) |
 | Mic (XLR) | In 1 is the IN 1 jack by default: Mic Level then does nothing, as on a G2 with a plug in IN 1. Opt-in (Live view: right-click Mic Level): In 1 is the microphone input, through a preamp of 0 to +40 dB set by the knob, kept with the project | The gain range is assumed (not in the manual). One host input serves as either: a G2 has two connectors | Low-medium |
 | In 1 Level LEDs | Follow In 1 as the OS drives them [Measured: 0.1 / 0.25 / 0.89 of the ADC's full scale, either sign, 0 dB held] | With the level convention above they show −12 dB at 0 dBFS | – |
-| Latency | 27 ms at 48 kHz with 256-sample blocks (32 ms with 512), reported to the host: an input sample's sound comes out that much later [Measured in the VST3 and the Audio Unit: within one sample] | A G2 passes its inputs to its outputs in well under a millisecond [Inferred]. As the outputs' latency (gap 10) | Medium for live use |
+| Latency | 27 ms at 48 kHz with 256-sample blocks (32 ms with 512) until 2026-10-14; since then the Emulated G2 Buffer setting's: 27.6 ms (Safe), 12.6 ms (Normal), 8.6 ms (Low) at 48 kHz/256, reported to the host: an input sample's sound comes out that much later [Measured in the VST3 and the Audio Unit: within one sample] | A G2 passes its inputs to its outputs in well under a millisecond [Inferred]. As the outputs' latency (gap 10) | Medium for live use |
 
 ### 3. Pedals and controllers
 
@@ -182,11 +196,11 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 
 | Item | Original | G2fresh | Gap | Severity | Recommendation |
 |---|---|---|---|---|---|
-| Local On/Off | A user setting, memorized [M p.30, p.25]. The figure shows "On". Erased flash: **Off** [Measured] | Forced On whenever it reads Off (`PluginProcessor.cpp:416-427`), and written to flash | The user cannot keep Local Off. Benign while MIDI OUT is not routed | Low | Force it only once (first boot of an empty flash), then respect the setting (small) |
+| Local On/Off | A user setting, memorized [M p.30, p.25]. The figure shows "On". Erased flash: **Off** [Measured] | **Since 2026-10-11** a new emulated G2 gets a factory G2's settings once; afterwards the memory's own setting is kept (`PluginProcessor.cpp`, `applySynthSettings`). (Before: forced On at every start.) | None known | – | – |
 | Slot and Global channels | Factory Global = **Off** [M p.126]. Figure: slots "1 2 3 4" [M p.30, inferred factory]. Erased flash: slots **1 1 1 1**, Global **1** [Measured] | Left as the erased flash has them | Only channel 1 plays. A performance's slots all listen on channel 1, so the G2's multitimbral workflow (4 tracks → 4 slots [M p.125]) needs manual setup | Medium | On an empty flash, initialise to the factory values: slots 1-4, Global Off (small) |
 | MIDI Ctrl (CC) | Figure: "Send & Receive" [M p.31, inferred factory]. CC7 = patch volume, CC11 expression, CC96/97 global wheels, and user CCs [M p.126-127]. Erased flash: **Off** [Measured] | Not set | **CC7 and assigned CCs from the DAW are ignored** [Measured: CC7=0 no effect; with Ctrl on, rms 0.70 → 0.10]. CC64 still works; CC1 unverified | High | Initialise to Send & Receive on an empty flash (small) |
 | Program Change | Figure: "Send & Receive" [M p.31]. Erased flash: **Off** [Measured] | Not set | DAW program changes ignored | Low-medium | Initialise as above |
-| MIDI clock in | Clk Recv: external clock takes over and the display shows the tempo [M p.33, p.31]. Erased flash: Recv **On** [Measured]. Figure: Off | `HostClock.h` sends F8 always (also while stopped), FA from the top, SPP+FB otherwise, FC on stop and on jumps. On by default (`PluginProcessor.h:113`); Clk Recv forced On | [Measured]: the display reads "Ext 60/90/120/140/180" for 60-180 BPM (after averaging; briefly "Ext 122"/"143" while settling). FA → Run, FC → Stop, SPP+FB → Run. So the G2 behaves as a G2 slaved to a DAW. But it is **on by default** and overrides the patch tempo | Medium (heard) | Make "Follow host tempo" explicit at first use (or opt-in per the rule), and respect the G2's own Clk Recv instead of forcing it (small) |
+| MIDI clock in | Clk Recv: external clock takes over and the display shows the tempo [M p.33, p.31]. Erased flash: Recv **On** [Measured]. Figure: Off | `HostClock.h` sends F8 always (also while stopped), FA from the top, SPP+FB otherwise, FC on stop and on jumps. **Off by default since 2026-10-11** (Synth > Emulated G2 Follows the Host's Tempo); switched on, it sets Clk Recv On | [Measured]: the display reads "Ext 60/90/120/140/180" for 60-180 BPM (after averaging; briefly "Ext 122"/"143" while settling). FA → Run, FC → Stop, SPP+FB → Run. So the G2 behaves as a G2 slaved to a DAW. (Until 2026-10-11 it was on by default and overrode the patch tempo; until 2026-10-14 notes went silent after an external clock, §3.13.6.) | – (opt-in) | – |
 | MIDI clock out / Start-Stop out | Clk Send sends clock; Run/Stop sends Start/Stop [M p.33] | **Since 2026-10-13** on MIDI OUT: F8 always while Clk Send is On, FA and FC with the Run button (and controller 80 on the Global channel) [Measured, Notes §3.13.3]. Reaches an Audio Unit host and the stand-alone app's MIDI output | A VST3 host gets none of them: the format has no event for real-time messages | Low | – (a VST3 limit; say so) |
 | Internal clock accuracy | Unknown | [Measured] 120 BPM internal → 48.34 F8/s (+0.7 %) on MIDI OUT, 20.54 to 20.80 ms apart; 91 BPM → 36.66 (+0.7 %) | Possibly emulator timing (timer period TRR vs TRR+1, ±2 % [Notes §3.9.2]) or the OS's own table; **check on hardware** | Low | Compare a real G2's F8 rate at 120 BPM |
 | MIDI OUT | Notes, CCs, clock, Program Change, sysex dumps, MIDI modules [M p.30, p.29, p.126-131] | **Since 2026-10-13** the plugin's MIDI output (`producesMidi()` true with the emulator), at the cable's 3125 bytes a second (the UART's transmitter as the chip has it), each message at the sample of the sound made at the same instant; bounded queues [Notes §3.13] | Matches, in a test host. Not tried in a DAW; the stand-alone app sends ahead of the sound by the audio device's output latency; Program Changes on a load from memory not measured | Low | Try Live and Logic; delay the stand-alone's MIDI by the output latency (small) |
@@ -215,7 +229,7 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 
 | Item | Original | G2fresh | Gap | Severity | Recommendation |
 |---|---|---|---|---|---|
-| Note latency | About 1.7 ms from the MIDI bytes [Notes §3.9.2] | 26-32 ms, reported to the host (README:42) | Live play feels late | Medium | A user setting for the buffer (for example 10 ms) once the emulator is faster; keep the PDC report (small) |
+| Note latency | About 1.7 ms from the MIDI bytes [Notes §3.9.2] | 26-32 ms until 2026-10-14; since then a user setting, 8.6 to 27.6 ms at 48 kHz/256, reported to the host (`re/notes/audio-path.md` §3) | Live play feels late, less so at Low | Medium | Measure on a quiet computer which setting holds without dropouts, and set the default from that |
 | Editing link | Clavia's editor over USB | The same protocol over the emulated USB (SynthSync) | Matches by design | – | – |
 | Link watchdog | – | Restarts the link when it gives up (`PluginProcessor.cpp:182-187`) | n/a | – | – |
 
@@ -225,7 +239,7 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 
 **Audio inputs.** (Built 2026-10-11 as below, [Notes §3.11]. Differences from this plan: the level is the In
 module's own scale, a quarter of the ADCs' full scale, so that In → Out returns the level; the In 1 switch is on
-the Mic Level knob's pop-up menu; the resampler is still the outputs'.)
+the Mic Level knob's pop-up menu; the resampler is the outputs', band-limited since 2026-10-14.)
 - **What the original has:** IN 1-4, line level at −10 dBV [M p.53]; an XLR mic with a preamp on G2/G2X (on the G2X's top panel [Photo]); the IN 1 jack disables the mic [M p.53]; Mic Level affects the XLR only [M p.26]; the In 1 Level LEDs are OS-driven.
 - **Following it:**
   - Add an input bus "In 1/2" and an optional "In 3/4", which DAWs can route as a sidechain.
@@ -258,12 +272,13 @@ the Mic Level knob's pop-up menu; the resampler is still the outputs'.)
 
 **Implied by the gaps above.**
 - **Expansion board** (true G2X polyphony): emulated since 2026-10-13; the plugin's default waits for a speed measurement.
-- **Factory initialisation** of system settings, plus optional factory banks from the user's own downloads.
+- **Factory initialisation** of system settings (done 2026-10-11 for a new emulated G2), plus optional factory banks
+  from the user's own downloads.
 - **MIDI OUT**: notes from the Live keyboard (a real G2 acts as a master keyboard [M p.27]), CCs, clock, sysex.
   (Built 2026-10-13, [Notes §3.13].)
 - **Two-handed panel gestures**.
-- **Master level persistence**.
-- **Proper resampling**.
+- **Master level persistence** (done 2026-10-11).
+- **Proper resampling** (done 2026-10-14, `re/notes/audio-path.md` §2).
 - **LCD glyphs and cursor**.
 - **Aftertouch and pedals** in the Live view.
 
