@@ -78,6 +78,8 @@ SynthSync::~SynthSync()
 void SynthSync::startLink(std::unique_ptr<g2::proto::SynthLink> link, Kind kind)
 {
     unbind();
+    audition_ = Audition::None; // nothing to put back on a synth that is gone
+    putBack_.reset();
     if (link_)
         link_->setListener(nullptr);
     link_ = std::move(link);
@@ -133,6 +135,8 @@ void SynthSync::restartLink()
     if (link_ == nullptr)
         return;
     unbind();
+    audition_ = Audition::None;
+    putBack_.reset();
     wasReady_ = false;
     link_->restart();
     sendChangeMessage();
@@ -173,15 +177,14 @@ juce::String SynthSync::slotName(int slot) const
 
 int SynthSync::synthSlotFor(int docSlot) const
 {
-    if (binding_ == Binding::Patch)
-        return docSlot == 0 ? slot_ : -1;
-    if (binding_ == Binding::Performance)
-        return docSlot;
-    return -1;
+    const int slot = binding_ == Binding::Patch ? (docSlot == 0 ? slot_ : -1) : binding_ == Binding::Performance ? docSlot : -1;
+    return auditioned(slot) ? -1 : slot;
 }
 
 int SynthSync::docSlotFor(int synthSlot) const
 {
+    if (auditioned(synthSlot))
+        return -1;
     if (binding_ == Binding::Patch)
         return synthSlot == slot_ ? 0 : -1;
     if (binding_ == Binding::Performance)
@@ -193,6 +196,7 @@ void SynthSync::sendPatch(int slot)
 {
     if (!ready() || doc_.isPerformance() || !juce::isPositiveAndBelow(slot, 4))
         return;
+    leaveAuditionFor(slot);
     unbind();
     link_->sendPatch(slot, doc_.patch(), doc_.name().toStdString());
     // The slot the document is in has the focus (CSynth::DownloadPatch
@@ -209,6 +213,7 @@ void SynthSync::sendPatchAlone()
 {
     if (!ready() || doc_.isPerformance())
         return;
+    leaveAuditionFor(4);
     unbind();
     // The original's download of a patch to a synth without a performance
     // (CreateDownloadPerformanceFromPatch @000fe478): a "void" performance,
@@ -237,6 +242,7 @@ void SynthSync::sendPerformance()
 {
     if (!ready() || !doc_.isPerformance())
         return;
+    leaveAuditionFor(4);
     unbind();
     link_->sendPerformance(*doc_.performance(), doc_.performanceName().toStdString(), true);
     bindPerformance();
@@ -247,9 +253,19 @@ void SynthSync::getPatch(int slot)
 {
     if (!ready() || !juce::isPositiveAndBelow(slot, 4))
         return;
-    unbind();
-    const auto& s = link_->state().slots[static_cast<std::size_t>(slot)];
-    doc_.loadPatch(s.patch, juce::String(s.name));
+    if (auditioned(slot)) {
+        // The slot as it is once the audition is over (the mirror still has
+        // the auditioned patch until the way back went out).
+        const auto after = afterAudition().performance;
+        endAudition();
+        unbind();
+        doc_.loadPatch(after.slots[static_cast<std::size_t>(slot)],
+                       juce::String(after.header.slots[static_cast<std::size_t>(slot)].patchName));
+    } else {
+        unbind();
+        const auto& s = link_->state().slots[static_cast<std::size_t>(slot)];
+        doc_.loadPatch(s.patch, juce::String(s.name));
+    }
     if (link_->state().slotFocus != slot)
         link_->selectSlot(slot); // the window shown is the focused slot (CPatch::SetTrulyFocused @000d4a18)
     binding_ = Binding::Patch;
@@ -262,8 +278,15 @@ void SynthSync::getPerformance()
 {
     if (!ready())
         return;
-    unbind();
-    doc_.loadPerformance(link_->state().performance(), juce::String(link_->state().perfName));
+    if (auditioning()) {
+        const auto after = afterAudition();
+        endAudition();
+        unbind();
+        doc_.loadPerformance(after.performance, juce::String(after.name));
+    } else {
+        unbind();
+        doc_.loadPerformance(link_->state().performance(), juce::String(link_->state().perfName));
+    }
     bindPerformance();
     sendChangeMessage();
 }
@@ -276,6 +299,136 @@ void SynthSync::unbind()
     for (auto& s : live_)
         s.reset();
     sendChangeMessage();
+}
+
+// ---- Audition ------------------------------------------------------------------
+
+void SynthSync::beginAudition()
+{
+    // What the synth has: what an audition just put back, if the mirror may
+    // not have it yet, else the mirror.
+    if (putBack_ && juce::Time::getMillisecondCounterHiRes() - putBackAt_ < 5000.0) {
+        beforeAudition_ = *putBack_;
+    } else {
+        const auto& state = link_->state();
+        beforeAudition_ = {state.performance(), state.perfName, state.settings.perfMode};
+    }
+    auditionedPerformance_ = false;
+}
+
+void SynthSync::audition(const g2::Patch& patch, const std::string& name)
+{
+    if (!ready())
+        return;
+    if (audition_ == Audition::None)
+        beginAudition();
+    if (audition_ != Audition::Slot) {
+        // After a performance, the slots first: the patch replaces one of them.
+        if (audition_ == Audition::Performance) {
+            const auto after = afterAudition();
+            link_->sendPerformance(after.performance, after.name, after.performanceMode);
+            if (binding_ == Binding::Performance && doc_.isPerformance())
+                bindPerformance(); // the other slots are the document's again, as it is now
+        }
+        // Where the document plays, so that what plays the document plays this; else the synth's focused slot.
+        const int focus = link_->state().slotFocus;
+        auditionSlot_ = binding_ == Binding::Patch ? slot_ : binding_ == Binding::Performance ? doc_.slot() : focus < 4 ? focus : 0;
+        audition_ = Audition::Slot;
+    }
+    link_->sendPatch(auditionSlot_, patch, name);
+    auditionedPatch_ = patch;
+    auditionedName_ = name;
+    sendChangeMessage();
+}
+
+bool SynthSync::adoptAudition(int docSlot)
+{
+    if (audition_ != Audition::Slot || !ready())
+        return false;
+    audition_ = Audition::None; // the slot is the document's again
+    if (synthSlotFor(docSlot) != auditionSlot_) {
+        audition_ = Audition::Slot;
+        return false;
+    }
+    live_[static_cast<std::size_t>(auditionSlot_)] = g2::proto::LiveSlot::uploaded(auditionedPatch_, auditionedName_);
+    sendChangeMessage();
+    return true;
+}
+
+void SynthSync::audition(const g2::Performance& perf, const std::string& name)
+{
+    if (!ready())
+        return;
+    if (audition_ == Audition::None)
+        beginAudition();
+    audition_ = Audition::Performance;
+    auditionedPerformance_ = true;
+    link_->sendPerformance(perf, name, true);
+    sendChangeMessage();
+}
+
+SynthSync::SynthContent SynthSync::afterAudition() const
+{
+    // The document where it is live. Around it, what the synth had when the
+    // audition began; or, if only one slot was ever replaced, what it has now
+    // beside that slot.
+    if (binding_ == Binding::Performance && doc_.isPerformance())
+        return {*doc_.performance(), doc_.performanceName().toStdString(), true};
+    SynthContent after = beforeAudition_;
+    if (!auditionedPerformance_) {
+        const auto& state = link_->state();
+        after = {state.performance(), state.perfName, state.settings.perfMode};
+        const auto s = static_cast<std::size_t>(auditionSlot_);
+        after.performance.slots[s] = beforeAudition_.performance.slots[s];
+        after.performance.header.slots[s].patchName = beforeAudition_.performance.header.slots[s].patchName;
+    }
+    if (binding_ == Binding::Patch && !doc_.isPerformance()) {
+        after.performance.slots[static_cast<std::size_t>(slot_)] = doc_.patch();
+        after.performance.header.slots[static_cast<std::size_t>(slot_)].patchName = doc_.name().toStdString();
+    }
+    return after;
+}
+
+void SynthSync::endAudition()
+{
+    if (audition_ == Audition::None)
+        return;
+    if (!ready()) {
+        audition_ = Audition::None;
+        sendChangeMessage();
+        return;
+    }
+    const auto after = afterAudition();
+    const auto was = audition_;
+    audition_ = Audition::None;
+    if (was == Audition::Slot) {
+        const auto s = static_cast<std::size_t>(auditionSlot_);
+        const auto& name = after.performance.header.slots[s].patchName;
+        link_->sendPatch(auditionSlot_, after.performance.slots[s], name);
+        if (docSlotFor(auditionSlot_) >= 0)
+            live_[s] = g2::proto::LiveSlot::uploaded(after.performance.slots[s], name);
+    } else {
+        link_->sendPerformance(after.performance, after.name, after.performanceMode);
+        if (binding_ == Binding::Performance && doc_.isPerformance())
+            bindPerformance();
+        else if (binding_ == Binding::Patch && !doc_.isPerformance())
+            live_[static_cast<std::size_t>(slot_)] = g2::proto::LiveSlot::uploaded(doc_.patch(), doc_.name().toStdString());
+    }
+    putBack_ = after;
+    putBackAt_ = juce::Time::getMillisecondCounterHiRes();
+    sendChangeMessage();
+}
+
+void SynthSync::leaveAuditionFor(int slot)
+{
+    if (slot == 4 || (audition_ == Audition::Slot && slot == auditionSlot_)) {
+        if (audition_ != Audition::None)
+            sendChangeMessage();
+        audition_ = Audition::None;
+    } else {
+        endAudition();
+    }
+    putBack_.reset(); // something else goes to the synth now: the mirror is what it has
 }
 
 // ---- Editor -> synth ----------------------------------------------------------
@@ -351,7 +504,7 @@ void SynthSync::push(int docSlot, const g2::live::Edit* edit, bool undo)
 void SynthSync::pushPerformance()
 {
     const auto* perf = doc_.performance();
-    if (binding_ != Binding::Performance || perf == nullptr)
+    if (binding_ != Binding::Performance || perf == nullptr || audition_ == Audition::Performance)
         return;
     // CDialogPerformance::TrySendData @00039b36: the name (29) if it changed,
     // then the whole header (11) unless only the name did. P bubbles, no undo.
@@ -428,8 +581,11 @@ void SynthSync::timerCallback()
         }
     if (ready() != wasReady_) {
         wasReady_ = ready();
-        if (!wasReady_)
+        if (!wasReady_) {
             unbind(); // the connection went: what the synth has is unknown now
+            audition_ = Audition::None;
+            putBack_.reset();
+        }
         sendChangeMessage();
     }
 }
@@ -441,6 +597,7 @@ void SynthSync::statusChanged(g2::proto::Status)
 
 void SynthSync::synced()
 {
+    putBack_.reset(); // everything was read again: the mirror is the synth
     // A performance loaded from the synth's memory: the synth released it and
     // everything was read again; open it now that the slots are read too.
     if (pendingOpen_ == 4) {
@@ -452,6 +609,7 @@ void SynthSync::synced()
 
 void SynthSync::slotChanged(int slot)
 {
+    putBack_.reset(); // the synth reported after an upload: the mirror has what an audition put back
     if (slot == pendingOpen_) {
         pendingOpen_ = -1;
         getPatch(slot); // the patch just loaded from the synth's memory
@@ -484,6 +642,7 @@ void SynthSync::loadFromBank(int slot, std::uint8_t bank, std::uint8_t prog, boo
 {
     if (!ready() || !juce::isPositiveAndBelow(slot, 5))
         return;
+    leaveAuditionFor(slot);
     pendingOpen_ = open ? slot : -1;
     link_->loadFromFlash(slot, bank, prog);
 }
@@ -492,6 +651,7 @@ void SynthSync::storeToBank(int slot, std::uint8_t bank, std::uint8_t prog)
 {
     if (!ready() || !juce::isPositiveAndBelow(slot, 5))
         return;
+    endAudition(); // what is stored is the slot's own patch, never an auditioned one
     link_->storeToFlash(slot, bank, prog);
 }
 
@@ -511,7 +671,8 @@ void SynthSync::performanceChanged()
 {
     // The synth focused another slot (09 from its panel): the original opens
     // and shows that slot's patch (CPerformance @00100582).
-    if (ready() && binding_ == Binding::Performance && doc_.isPerformance()) {
+    // (Not the focus of a performance that is only auditioned.)
+    if (ready() && binding_ == Binding::Performance && doc_.isPerformance() && audition_ != Audition::Performance) {
         const int focus = link_->state().slotFocus;
         if (focus < 4 && focus != sentFocus_) {
             sentFocus_ = focus;

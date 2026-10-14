@@ -132,6 +132,9 @@ private:
     SynthSync* synth_ = nullptr;
     EmulatorHost* emulator_ = nullptr;
     std::unique_ptr<class BankBrowser> bankBrowser_;
+    std::unique_ptr<class PatchLibrary> library_;
+    // File > Patch Library... (shows or hides it, as the original's Patch Browser key).
+    void showLibrary();
     std::unique_ptr<juce::Component> synthSettings_;
     void showSynthSettings();
     // A store the synth refused: the original's alert ("Flash Problem").

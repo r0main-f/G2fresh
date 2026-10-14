@@ -25,6 +25,7 @@ add_executable(g2tests
   test_param_text.cpp
   test_param_text_golden.cpp
   test_graphs.cpp
+  test_library.cpp
   test_proto_framing.cpp
   test_proto_messages.cpp
   test_proto_session.cpp
@@ -84,6 +85,13 @@ if(Python3_FOUND)
   file(GLOB G2_CORPUS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/corpus/pch2csd/*.pch2)
   add_test(NAME reference_decoder_roundtrip
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/pch2/pch2dump.py roundtrip ${G2_CORPUS_FILES})
+endif()
+
+# The patch library's audition (SynthSync::audition, in the editor's own code) on the virtual G2: the document is
+# never touched and the synth gets back what it had. g2render is a JUCE program: not on Linux, where the tests run
+# without a display.
+if(TARGET g2render AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_test(NAME library_audition_on_the_virtual_g2 COMMAND g2render audition)
 endif()
 
 # The hardware bench pack (bench/hardware-pack, tools/benchpack): the committed patches are what the generator
