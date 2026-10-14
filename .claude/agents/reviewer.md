@@ -15,7 +15,7 @@ Establish the change first: `git diff main...HEAD` for a branch, `gh pr diff <n>
    - lifetimes across asynchronous callbacks (JUCE `callAsync`, `SafePointer`, the `alive_` token pattern);
    - file parsing and anything that reads a user's file or the synth's bytes: lengths, bounds, a damaged file;
    - undo: every edit is one step, and its inverse really restores the state (and, when bound to a synth, sends the inverse).
-2. **Tests that lie.** A test that sleeps, counts something that depends on the machine's speed, or passes for the wrong reason. A change in behaviour with no test. A test that needs Clavia's files and silently skips, hiding that nothing was checked.
+2. **Tests that lie, or that came last.** A test that sleeps, counts something that depends on the machine's speed, or passes for the wrong reason. A change in behaviour with no test. A test that would pass without the change (the rule is tests first: put the old code back in your head, or in a scratch copy, and check the test would fail). A test that needs Clavia's files and silently skips, hiding that nothing was checked.
 3. **The project's rules.**
    - Behaviour that differs from the original without a line in README "Deliberate deviations", or on by default when it changes what is heard or seen. If the change claims to follow the original, is the source cited, and does the code match what the citation says?
    - Anything of Clavia's added to the repository or the build: images, text from the manual or help, firmware, factory patches, analysis output. Code copied from `references/`.

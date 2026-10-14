@@ -10,13 +10,14 @@ G2fresh is an editor for the Clavia Nord Modular G2 (C++20, JUCE: stand-alone ap
 4. **Other people's repositories:** no `Co-Authored-By` and no "Generated with" line in anything sent upstream, and the user reviews it first.
 5. **Nothing leaves the machine without the user's word:** no merge into `main`, tag, release, or message to anyone until they ask for that step.
 6. **Say what was not verified.** Tests passing is not the app working; a build on macOS says nothing about Windows.
+7. **Tests first.** Every change starts with a test that fails. For a feature, the test states what it must do; when the behaviour comes from the original, the test states the original's behaviour and cites its source. For a bug, the test reproduces it. Run the test and see it fail for the expected reason, then write the code until it passes. The test is committed with the change or before it. Where no automated test can show it (a real G2 on USB, a DAW, a timing only a quiet machine gives), the pull request says so and lists the manual check instead.
 
 ## How changes reach main
 
 `main` is protected: changes arrive by pull request with CI green on macOS, Windows and Linux.
 
 - Work on a branch (`git switch -c <topic>`); agents work in worktrees under `.claude/worktrees/`.
-- Before opening a pull request: `/check` (build, tests, the plugin in a host).
+- Before opening a pull request: `/check` (build, tests, the plugin in a host). Each change's test must fail without it: the pull request says how that was seen.
 - Open the pull request with `gh pr create`; describe what changed, what the original does, what was verified and what was not.
 - Merge only when the user says so, with a merge commit (`gh pr merge --merge --delete-branch`), so each step's commits stay readable.
 - A release is `/release <version>`, typed by the user. `docs/RELEASING.md` describes the steps.
