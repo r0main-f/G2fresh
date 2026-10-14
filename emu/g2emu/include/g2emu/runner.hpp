@@ -91,6 +91,9 @@ public:
         std::uint64_t shortReads = 0;  // read() calls that came short (dropouts, as the listener counts them)
         // frames the ADCs took as silence because their input had not been written yet (while write() is in use)
         std::uint64_t inputMissing = 0;
+        // MIDI OUT bytes that reached the reader after the frame they belong to (the machine was late: they are given
+        // at the start of the next read()). Bytes nobody takes are lost in the machine (Machine::Stats::midiOutLost).
+        std::uint64_t midiOutLate = 0;
         double speed = 0;  // emulated seconds per wall second while the machine runs (its rests left out), recently
         double longestChunkMs = 0;  // the longest wall time one chunk took (a stall of the machine's threads shows here)
         // the machine's thread has the computer's real-time priority (Machine::Options::realtimeThreads asked for it
@@ -143,9 +146,24 @@ public:
     // Sample-accurate MIDI, from the audio thread before its read(): the bytes start on the G2's MIDI IN `offset`
     // frames (96 kHz) after the first frame the next read() returns, plus latencyFrames(). So the delay from a
     // block's MIDI event to its sound is the same for every event (plus the OS's own reaction). Real-time safe
-    // (a lock-free queue of 1024 events of up to 16 bytes; longer messages take several).
+    // (a lock-free queue of 2048 events of up to 16 bytes; longer messages take several: 32 kB, more than a
+    // performance dump given in one block. A message that does not fit whole is dropped).
     void midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset);
     std::uint32_t latencyFrames() const;
+    // The G2's MIDI OUT, from the audio thread after its read(), real-time safe (a lock-free queue): the bytes the
+    // G2 sent during the frames that read() returned, oldest first, up to out.size() (the rest at the next call);
+    // returns how many. `offset`: the frame of that read() in which the byte's stop bit ended on the line, i.e. the
+    // frame the DACs sent at that instant, plus midiOutLeadFrames(), always the same: a MIDI event and the sound
+    // the G2 made with it stay together. Bytes from before that read() (the first call, or a machine that ran
+    // late) come at offset 0.
+    struct MidiOut {
+        std::uint32_t offset = 0;
+        std::uint8_t byte = 0;
+    };
+    std::size_t midiOut(std::span<MidiOut> out);
+    // A byte is given this many frames after the frame the DACs sent as it ended: the DSPs may run that far ahead
+    // of the ColdFire (Machine::Options::dspLead), whose UART then has not sent the bytes of those frames yet.
+    std::uint32_t midiOutLeadFrames() const { return (options_.machine.threads ? options_.machine.dspLead / Machine::ClocksPerFrame : 0) + 2; }
     // The front panel (any thread, not real-time safe: they take a mutex): see Machine.
     PanelState panel() const { return machine_->panel(); }
     void panelButton(PanelButton b, bool down) { machine_->panelButton(b, down); }
@@ -180,8 +198,18 @@ private:
         std::uint8_t size = 0;
         std::array<std::uint8_t, MaxBytes> bytes{};
     };
-    std::array<MidiEvent, 1024> midiRing_{};
+    std::array<MidiEvent, 2048> midiRing_{};
     std::atomic<std::uint64_t> midiHead_{0}, midiTail_{0};
+    // MIDI OUT on its way to the reader: each byte with the ring frame it belongs to. The machine's thread fills it
+    // from the machine's own queue (which keeps what does not fit here); the reader empties it.
+    struct MidiOutEvent {
+        std::uint64_t frame = 0;
+        std::uint8_t byte = 0;
+    };
+    std::array<MidiOutEvent, 4096> midiOutRing_{};  // 1.3 s of a line that never rests
+    std::atomic<std::uint64_t> midiOutHead_{0}, midiOutTail_{0};
+    std::atomic<std::uint64_t> midiOutLate_{0};
+    std::size_t lastRead_ = 0;  // the reader's: the frames its last read() asked for
     std::atomic<std::uint64_t> missing_{0};
     std::atomic<double> speed_{0}, longestChunk_{0};
     std::atomic<bool> quit_{false}, realtime_{false};

@@ -141,6 +141,44 @@ void EmulatedSoundEngine::prepare(double sampleRate, int maxBlock)
         held.clear();
         held.reserve(block + 8);
     }
+    // MIDI OUT bytes still waiting belong to the old timeline: they go out with the first block of the new one
+    // (a message on its way in the assembler goes on)
+    for (auto t = outTail_; t != outHead_; ++t)
+        outBytes_[t % outBytes_.size()].frame = 0;
+    framesRead_ = 0;
+    rendered_ = 0;
+    lastBlock_ = 0;
+}
+
+void EmulatedSoundEngine::collectMidiOut(std::size_t framesRead)
+{
+    // the bytes the G2 sent during the frames just read, each at its frame in them
+    g2emu::Runner::MidiOut sent[64];
+    while (const auto n = runner_->midiOut(sent)) {
+        for (std::size_t k = 0; k < n; ++k) {
+            if (outHead_ - outTail_ == outBytes_.size())
+                ++outTail_; // takeMidiOut() is not called: the oldest goes
+            outBytes_[outHead_++ % outBytes_.size()] = {framesRead_ + sent[k].offset, sent[k].byte};
+        }
+    }
+    framesRead_ += framesRead;
+}
+
+void EmulatedSoundEngine::takeMidiOut(juce::MidiBuffer& out)
+{
+    // 96 kHz frame f (counted as read from the runner) is in the output at host sample (f + the output converter's
+    // delay, as in midiLatencySamples()) / ratio, counted as rendered: the bytes whose sample is in the block just
+    // rendered, at their place in it. A byte from before the block (the machine was late with it) goes at its start.
+    const double ratio = g2emu::Machine::FrameRate / hostRate_;
+    const auto start = static_cast<std::int64_t>(rendered_) - lastBlock_;
+    for (; outTail_ != outHead_; ++outTail_) {
+        const auto& e = outBytes_[outTail_ % outBytes_.size()];
+        const auto sample = static_cast<std::int64_t>(std::floor((static_cast<double>(e.frame) + static_cast<double>(down_.delay())) / ratio));
+        if (sample >= static_cast<std::int64_t>(rendered_))
+            break; // a later block's
+        midiOut_.push(e.byte, static_cast<int>(std::max<std::int64_t>(0, sample - start)),
+                      [&out](int at, const std::uint8_t* data, std::size_t size) { out.addEvent(data, static_cast<int>(size), at); });
+    }
 }
 
 juce::String EmulatedSoundEngine::status() const
@@ -174,10 +212,10 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
 
     // The track's MIDI to the G2's MIDI IN, at its place in the block: where the output converter is at that sample,
     // in 96 kHz frames after the next frame read, plus the runner's fixed latency.
+    // System Exclusive too (patch and performance dumps, requests [manual p.131]): the emulated cable carries a
+    // long message at its 3125 bytes a second, real-time bytes of this block between its bytes.
     for (const auto meta : midi) {
         const auto m = meta.getMessage();
-        if (m.isSysEx())
-            continue;
         const auto at = std::max(0.0, std::round(down_.position(static_cast<std::size_t>(std::max(0, meta.samplePosition)))));
         runner_->midiInAt({m.getRawData(), static_cast<std::size_t>(m.getRawDataSize())}, static_cast<std::uint32_t>(at));
     }
@@ -205,6 +243,7 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         runner_->write(inFrames_.data(), more);
         frames_.resize(more * 4);
         const auto got = runner_->read(frames_.data(), more); // silence for what is not there yet (booting, too slow)
+        collectMidiOut(more);
         if (got == more && !playing_.load(std::memory_order_relaxed)) {
             shortBefore_.store(runner_->stats().shortReads, std::memory_order_relaxed);
             playing_.store(true, std::memory_order_release);
@@ -220,6 +259,8 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         juce::FloatVectorOperations::multiply(outs_.getWritePointer(c), toSignal, frames);
     }
     down_.advance(static_cast<std::size_t>(frames));
+    rendered_ += static_cast<std::uint64_t>(frames); // for takeMidiOut()
+    lastBlock_ = frames;
     out.clear();
     if (out.getNumChannels() >= 4) { // the second output bus: Out 3/4 on their own
         for (int c = 0; c < 4; ++c)

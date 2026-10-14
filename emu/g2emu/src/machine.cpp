@@ -175,7 +175,9 @@ struct Machine::Impl final : coldfire::Bus {
     std::deque<std::vector<std::uint8_t>> usbOut;  // from the client
     std::deque<UsbIn> usbIn;               // to the client
     bool plugRequest = false;
-    std::vector<std::uint8_t> midiOutQueue;
+    // MIDI OUT: the last midiOutKept bytes the OS sent that nobody took yet (a ring: nothing is allocated as it runs)
+    std::vector<MidiOut> midiOutRing;
+    std::uint64_t midiOutHead = 0, midiOutTail = 0;
     struct MidiIn {
         std::vector<std::uint8_t> bytes;
         std::uint64_t frame = 0;  // 0: as soon as possible
@@ -322,6 +324,7 @@ struct Machine::Impl final : coldfire::Bus {
           chain(expanded ? std::vector<int>{3, 7, 6, 5, 4, 2, 1, 0} : std::vector<int>{3, 2, 1, 0})
     {
         if(opt.threads < 0) opt.threads = Machine::autoThreads(int(chain.size()));
+        midiOutRing.resize(std::max<std::uint32_t>(1, opt.midiOutKept));
         Logging::setLogFunc(&quietLog);
         cfPerDsp = opt.cfHz / (double(FrameRate) * Dsp::CyclesPerFrame);
         busPerCf = double(Sim::BusHz) / opt.cfHz;
@@ -917,8 +920,16 @@ struct Machine::Impl final : coldfire::Bus {
                 midiInQueue.clear();
                 nextSimEvent = 0;
             }
-            auto mo = sim.takeMidiOut();
-            midiOutQueue.insert(midiOutQueue.end(), mo.begin(), mo.end());
+            // MIDI OUT: the bytes whose stop bit has ended, with that time on the master clock (bus clocks to DSP
+            // clocks, as above the other way). The oldest goes when nobody took the last midiOutKept.
+            Sim::MidiOutByte sent[8];
+            while(const auto n = sim.takeMidiOut(sent, std::size(sent), busNow()))
+                for(std::size_t k = 0; k < n; ++k)
+                {
+                    if(midiOutHead - midiOutTail >= midiOutRing.size()) { ++midiOutTail; ++st.midiOutLost; }
+                    midiOutRing[midiOutHead++ % midiOutRing.size()] = {std::uint64_t(double(sent[k].done) / (cfPerDsp * busPerCf)), sent[k].byte};
+                    ++st.midiOutBytes;
+                }
         }
         if(!host.plugged) return;
         const std::uint64_t ms = (t / Dsp::CyclesPerFrame - host.plugFrame) / (FrameRate / 1000);
@@ -1175,6 +1186,7 @@ struct Machine::Impl final : coldfire::Bus {
         for(const auto& l : links)
             if(l) { s.linkUnderruns += l->underruns; s.linkOverruns += l->overruns; }
         s.midiOverruns = sim.midiOverruns();
+        s.midiOutLost += sim.midiOutLost();
         for(std::size_t w = 0; w < workers.size(); ++w)
         {
             s.dspThreadCpuNs[w] = worker[w].cpuNs.load(std::memory_order_relaxed);
@@ -1271,11 +1283,21 @@ void Machine::midiInAt(std::span<const std::uint8_t> bytes, std::uint64_t frame)
     impl_->midiInQueue.push_back({{bytes.begin(), bytes.end()}, frame});
 }
 
-std::vector<std::uint8_t> Machine::takeMidiOut()
+std::size_t Machine::takeMidiOut(std::span<MidiOut> out)
 {
     std::lock_guard lock(impl_->ioMutex);
+    std::size_t n = 0;
+    for(; n < out.size() && impl_->midiOutTail != impl_->midiOutHead; ++n)
+        out[n] = impl_->midiOutRing[impl_->midiOutTail++ % impl_->midiOutRing.size()];
+    return n;
+}
+
+std::vector<std::uint8_t> Machine::takeMidiOut()
+{
     std::vector<std::uint8_t> v;
-    v.swap(impl_->midiOutQueue);
+    MidiOut sent[256];
+    while(const auto n = takeMidiOut(sent))
+        for(std::size_t k = 0; k < n; ++k) v.push_back(sent[k].byte);
     return v;
 }
 

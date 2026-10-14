@@ -11,7 +11,9 @@
 // channels, and Out 3/4 on the next two when the host gives four (the plugin's
 // second output bus). Without them Out 3/4 are not heard, as on a G2 whose
 // headphones carry Out 1/2 only, unless setMixOut34() mixes them in. The track's MIDI goes to the G2's MIDI IN,
-// sample-accurate (a fixed latency, Runner::latencyFrames). The audio inputs In 1-4, also in signal units (AudioIo.h),
+// sample-accurate (a fixed latency, Runner::latencyFrames), System Exclusive included (dumps and requests). What
+// the G2 sends on its MIDI OUT comes back as messages at the samples of the sound it made at the same instant
+// (takeMidiOut). The audio inputs In 1-4, also in signal units (AudioIo.h),
 // are converted to 96 kHz the same way and reach the G2's ADCs at a fixed latency too (Runner::write). The "flash" (the
 // G2's memory: its flash with the banks, then its EEPROM with the system
 // settings, Machine::memorySnapshot) comes from the caller: the plugin keeps it
@@ -24,6 +26,7 @@
 
 #include "AudioIo.h"
 #include "Resampler.h"
+#include "MidiOutAssembler.h"
 #include "SoundEngine.h"
 
 #if G2FRESH_NO_APP_NAP
@@ -34,6 +37,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include <array>
 #include <atomic>
 #include <memory>
 #include <vector>
@@ -88,6 +92,13 @@ public:
 
     void prepare(double sampleRate, int maxBlock) override;
     void render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi, const juce::AudioBuffer<float>* in = nullptr) override;
+    // Audio thread, after render(): the G2's MIDI OUT during the block render() just made, added to `out` as whole
+    // messages (notes, controllers, program changes, clock, System Exclusive dumps put together across blocks).
+    // Alignment: a message is at the sample of the block whose sound the G2's DACs sent as the message's last byte
+    // ended on its MIDI cable (plus Runner::midiOutLeadFrames, 0.1 ms). So MIDI OUT and the audio output are on
+    // one timeline: both come the plugin's reported latency after the input that caused them, and a host that
+    // compensates the audio by that latency finds the MIDI where the sound is by shifting it the same way.
+    void takeMidiOut(juce::MidiBuffer& out);
     juce::String status() const override;
 
     // The stand-alone app's flash, and the first flash of a new plugin
@@ -123,4 +134,19 @@ private:
     g2io::Resampler up_;             // inputs 1-4: the host's rate to 96 kHz
     std::vector<float> inHost_[4];   // inputs 1-4 at the host's rate not consumed yet
     std::vector<float> inFrames_;    // 4 channels, interleaved, as the runner takes them
+
+    // MIDI OUT: the G2's bytes with the 96 kHz frame each belongs to, counted from prepare() as the frames read
+    // from the runner are; a byte waits here until the block that plays its frame (the runner is read a few
+    // frames ahead of the resampler).
+    void collectMidiOut(std::size_t framesRead);
+    struct OutByte {
+        std::uint64_t frame = 0;
+        std::uint8_t byte = 0;
+    };
+    std::array<OutByte, 4096> outBytes_{}; // 1.3 s of a MIDI line that never rests
+    std::uint64_t outHead_ = 0, outTail_ = 0;
+    std::uint64_t framesRead_ = 0; // 96 kHz frames read from the runner since prepare()
+    std::uint64_t rendered_ = 0;   // host samples rendered since prepare()
+    int lastBlock_ = 0;            // the samples of the last render()
+    MidiOutAssembler midiOut_;
 };
