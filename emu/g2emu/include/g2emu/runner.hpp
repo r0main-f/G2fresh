@@ -111,7 +111,8 @@ public:
     // Sample-accurate MIDI, from the audio thread before its read(): the bytes start on the G2's MIDI IN `offset`
     // frames (96 kHz) after the first frame the next read() returns, plus latencyFrames(). So the delay from a
     // block's MIDI event to its sound is the same for every event (plus the OS's own reaction). Real-time safe
-    // (a lock-free queue of 1024 events of up to 16 bytes; longer messages take several).
+    // (a lock-free queue of 2048 events of up to 16 bytes; longer messages take several: 32 kB, more than a
+    // performance dump given in one block. A message that does not fit whole is dropped).
     void midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset);
     std::uint32_t latencyFrames() const;
     // The G2's MIDI OUT, from the audio thread after its read(), real-time safe (a lock-free queue): the bytes the
@@ -158,7 +159,7 @@ private:
         std::uint8_t size = 0;
         std::array<std::uint8_t, MaxBytes> bytes{};
     };
-    std::array<MidiEvent, 1024> midiRing_{};
+    std::array<MidiEvent, 2048> midiRing_{};
     std::atomic<std::uint64_t> midiHead_{0}, midiTail_{0};
     // MIDI OUT on its way to the reader: each byte with the ring frame it belongs to. The machine's thread fills it
     // from the machine's own queue (which keeps what does not fit here); the reader empties it.

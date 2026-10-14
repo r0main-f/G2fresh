@@ -215,10 +215,13 @@ void Runner::midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset)
     // that many frames after the reader's position, always the same. Lock-free: the runner's thread hands it on.
     const auto at = std::int64_t(read_.load(std::memory_order_relaxed)) + std::int64_t(offset) + std::int64_t(latencyFrames()) +
                     frameOffset_.load(std::memory_order_acquire);
+    // A message goes in whole or not at all: the G2 never gets the first part of a System Exclusive block.
+    const std::size_t pieces = (bytes.size() + MidiEvent::MaxBytes - 1) / MidiEvent::MaxBytes;
+    if(midiHead_.load(std::memory_order_relaxed) - midiTail_.load(std::memory_order_acquire) + pieces > midiRing_.size())
+        return;  // full: dropped
     for(std::size_t k = 0; k < bytes.size(); k += MidiEvent::MaxBytes)
     {
         const auto h = midiHead_.load(std::memory_order_relaxed);
-        if(h - midiTail_.load(std::memory_order_acquire) >= midiRing_.size()) return;  // full: dropped
         auto& e = midiRing_[h % midiRing_.size()];
         e.frame = at > 0 ? std::uint64_t(at) : 1;
         e.size = std::uint8_t(std::min<std::size_t>(MidiEvent::MaxBytes, bytes.size() - k));
