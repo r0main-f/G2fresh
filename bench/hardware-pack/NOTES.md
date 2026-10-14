@@ -31,9 +31,9 @@ All play as soon as they are loaded, with one voice, keyboard tracking off every
 | B09c Drum | DrumSynth | SeqEvent, DrumSynth with its noise off | 4.006 s loop, peak -9.8 dBFS | 12 % |
 | B09d Rev Delay | Reverb and delay | a 1 ms pulse into Reverb (Hall, 1.5 s, mix 50), four seconds later another into DlyStereo (252 / 378 ms, feedback 50) | 8.012 s loop | 48 % |
 | B10 Audio In | input gain, delay, polarity, clip point | 2-In (Pad 0 dB) to 2-Out (Pad 0 dB), `B10 Stimulus.wav` played into IN 1 | DAC word = 0.4987 x ADC word: -6.04 dB from full scale to full scale; 20.4 frames (0.212 ms); in phase; clean up to the ADC's full scale | 3 % |
-| B11 Voices Light | voice count | 2 x (OscB, FltNord, EnvADSR) per voice, 32 voices asked | 16 voices: "16 (32)" | 21 % per voice |
-| B12 Voices Mid | voice count | 3 of those chains | 12 voices | 31 % per voice |
-| B13 Voices Heavy | voice count with effects | 8 chains, then a Hall reverb in the FX area | 3 voices | 79 % per voice, FX 31 % |
+| B11 Voices Light | voice count | 2 x (OscB, FltNord, EnvADSR) per voice, 32 voices asked | 16 voices: "16 (32)"; on a G2X 32: "32 (32)" | 21 % per voice |
+| B12 Voices Mid | voice count | 3 of those chains | 12 voices; on a G2X 24 | 31 % per voice |
+| B13 Voices Heavy | voice count with effects | 8 chains, then a Hall reverb in the FX area | 3 voices; on a G2X 7 | 79 % per voice, FX 31 % |
 | B14 Wheels | which way the stick and the global wheels count | a steady A4; morph groups: P.Stick +5 semitones, G.Wh 1 +12, G.Wh 2 brings in an E6 | top of each control's range: 587 Hz, 880 Hz, E6 in; stick at the bottom: 330 Hz | 10 % |
 
 Changes to the list we were given, and why:
@@ -75,7 +75,7 @@ The first term depends on the interface and its volume knob, the second is not i
 - A ClkGen on "Intern" at 120 BPM runs at 119.82 BPM (a beat is 48072.2 samples): every sequenced loop is 0.15 % longer than nominal. The master clock at 120 BPM is exact in the emulator (48000.0 samples a beat), where its clock is tied to the sample clock. On a G2 the two may come from different crystals: B08's two outputs give their ratio.
 - The Patch Settings page shows the master clock and the voices above knobs 1 and 2: `120 BPM  03 (32)` over `Run  Poly`. After power-on the emulated G2 shows 120 BPM, Run.
 - Store with Memory Protect on shows "Memory is protected!" and stores nothing. With it off, Store shows "Store to 1:1" and Patch leaves that without storing.
-- The emulated G2 has four DSPs whatever model it says it is: the voice counts are a G2's without the expansion board. A G2X should give about twice as many (B13: 7, if the rule of thumb of three and seven voices plus effects holds).
+- Voice counts come in two figures: a G2 or a G2 Engine without the expansion board (four DSPs: `facts`), and a G2X or any G2 with the board (eight DSPs: `facts.g2x`). The emulator has the board since 2026-10-13 (the OS finds it by itself); with it B11-B13 get 32, 24 and 7 voices, the manual's "seven voices plus effects in an expanded or G2X model" (p.121). On eight DSPs B13's reverb runs alone on the last DSP and each of the seven voices on one of the others. The plugin's own emulated G2X still runs four DSPs: in G2fresh it gives the first figure.
 
 ## Regenerating
 
@@ -115,7 +115,8 @@ The folder holds the WAV files and the filled form. The report gives, against `e
 - **The sample clock figure includes the interface's clock**: a few tens of ppm either way.
 - **G2 Engine**: the instructions say Clavia's editor shows the voice count in its toolbar and the OS version when it connects. That is from memory of the editor, not checked.
 - **Leaving Store**: "press Patch twice" is what the emulated panel does; untested on hardware.
-- **G.Wheel directions and the unexpanded-versus-G2X voice counts** are exactly what we do not know: the emulator's answers above are not predictions for a G2X.
+- **G.Wheel directions** are exactly what we do not know: the emulator's answer above is not a prediction.
+- **The G2X's voice counts** are the emulated board's: the OS's own allocation over eight DSPs, which matches the manual's figures, but the board itself (its DSPs' clock, its memory) is modelled after the main board's, not measured. A friend's G2X (or an expanded G2) confirms or corrects `facts.g2x`.
 - **B10's delay is not a prediction for a G2**: 20.4 frames is the emulator's digital way, with no converter in it. A G2's converters add their filters' delay, and its board may take fewer frames between the DSPs than the emulator's lines do (`re/notes/g2-hardware-and-emulation.md` §3.11.2). The gain, the polarity of the words and the absence of a clip under the ADC's full scale are digital facts of the OS and should hold.
 - **B10's clip above the ADC's full scale** is the render tool's hard stop, not a model of a converter: a real ADC, or the analogue stage before it, may bend sooner or softer. The top steps are 5 to 8 dB apart, so a recording brackets the clip point; it does not measure it.
 - **B10's levels at the ADC** (K, the ADC's full scale in dBu) rest on three things a recording cannot show: the G2's gain from the ADC to the DAC being ours, Out 1 still being on the interface input it was on for B01 at the same gain, and the interface's two outputs (and its two inputs) being alike. If the interface's output level is too low for the loudest step to reach the ADC's full scale, there is no clip point, only "above this".

@@ -14,6 +14,9 @@ g2emu::Runner::Options runnerOptions(std::vector<std::uint8_t> flash)
     g2emu::Runner::Options o;
     o.flash = std::move(flash);
     o.machine.model = g2emu::PanelModel::G2X; // the Live view is a G2X: 61 keys and the two global wheels
+    // ...without its voice expansion board (a deliberate deviation: a G2's polyphony, four DSPs to emulate instead of
+    // eight; whether eight hold real time on a typical computer is not measured yet, re/notes §3.12.5)
+    o.machine.expansion = g2emu::Expansion::Without;
     // The DSPs on two threads of their own where the computer has 4 performance cores, else one
     // (Machine::autoThreads): two were faster for every patch measured, at the same CPU time
     o.machine.threads = -1;

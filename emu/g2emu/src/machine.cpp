@@ -1179,7 +1179,10 @@ int Machine::autoThreads(int dsps)
         const auto t = int(std::thread::hardware_concurrency());
         cores = t >= 6 ? 4 : (t >= 4 ? 3 : t);
     }
-    (void)dsps;
+    // Eight DSPs (the expansion board): a third thread where there are 6 performance cores, so that the ColdFire's
+    // thread and three DSP threads leave the host's audio thread a core. Provisional: not measured on a quiet
+    // computer yet (re/notes §3.12.5).
+    if(dsps > 4 && cores >= 6) return 3;
     return cores >= 4 ? 2 : 1;
 }
 

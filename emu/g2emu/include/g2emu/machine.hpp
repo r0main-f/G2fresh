@@ -123,7 +123,7 @@ public:
     // The number of DSP threads for Options::threads = -1: 2 on a computer with at least 4 performance cores (or
     // 6 hardware threads where the cores' kinds are not known), else 1. Two threads were faster than one for every
     // patch measured, light ones included, at the same CPU time per emulated second (§3.9.7); they need three
-    // cores at once.
+    // cores at once. With eight DSPs (`dsps`), 3 where there are at least 6 performance cores (provisional, §3.12.5).
     static int autoThreads(int dsps = 4);
     // Whether a machine with these options has the expansion board (eight DSPs).
     static bool hasExpansion(const Options& options);

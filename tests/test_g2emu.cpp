@@ -883,12 +883,17 @@ TEST_CASE("Doorbell: no wake-up is lost between threads that wait for each other
     }
 }
 
-TEST_CASE("Machine::autoThreads: one or two DSP threads", "[g2emu]")
+TEST_CASE("Machine::autoThreads: one or two DSP threads, three for eight DSPs on six performance cores", "[g2emu]")
 {
     const int n = Machine::autoThreads();
     CHECK(n >= 1);
     CHECK(n <= 2);
     if(std::thread::hardware_concurrency() <= 2) CHECK(n == 1);
+    // eight DSPs: a third thread only where there are cores for it
+    const int eight = Machine::autoThreads(8);
+    CHECK(eight >= n);
+    CHECK(eight <= 3);
+    if(eight == 3) CHECK(std::thread::hardware_concurrency() >= 6);
 }
 
 TEST_CASE("The user's G2 OS: boots, syncs with our client, plays a MIDI note", "[g2emu][firmware]")
@@ -2819,6 +2824,7 @@ TEST_CASE("The user's G2 OS: with the expansion board a heavy patch gets a G2X's
     const char* files[3] = {"B11 Voices Light.pch2", "B12 Voices Mid.pch2", "B13 Voices Heavy.pch2"};
     const int unexpanded[3] = {16, 12, 3}, expanded[3] = {32, 24, 7};
     const char* shownExpanded[3] = {"32 (32)", "24 (32)", "07 (32)"};
+    std::array<std::array<g2::u8, 27>, 3> unexpandedLoad{};
     for(const bool board : {false, true})
     {
         Machine::Options o;
@@ -2841,8 +2847,11 @@ TEST_CASE("The user's G2 OS: with the expansion board a heavy patch gets a G2X's
             CHECK(int(g2.client.state().voices[0]) == (board ? expanded[k] : unexpanded[k]));
             // what the editor shows as the patch load is one voice's share of a DSP: the same with the board
             REQUIRE(g2.client.state().slots[0].load[1]);
-            if(board)
+            const auto& load = g2.client.state().slots[0].load[1]->counters;
+            if(!board) unexpandedLoad[std::size_t(k)] = load;
+            else
             {
+                CHECK(load == unexpandedLoad[std::size_t(k)]);
                 // the Patch Settings page shows the voices above knob 2 (§3.10.2)
                 CHECK(g2.m.panel().displays[1].text(0).find(shownExpanded[k]) != std::string::npos);
             }
