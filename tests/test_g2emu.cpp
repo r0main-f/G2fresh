@@ -2496,6 +2496,87 @@ TEST_CASE("The user's G2 OS in real time: audio inputs on the reader's timeline 
     CHECK(runner.machine().stats().dspsWild == 0);
 }
 
+TEST_CASE("The user's G2 OS in real time: the reserve and the reader's block are the latency, and MIDI lands by it", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // A small reserve, and blocks shorter than the machine's stretch: as a host with a 16-sample buffer at 48 kHz
+    Runner::Options options;
+    options.bufferMs = 2;
+    options.stretchMs = 1;
+    options.machine.realtimeThreads = true;
+    Runner runner(fw, options);
+    constexpr std::size_t N = 32;
+    runner.setReadSize(N);
+    // the reserve and the stretch (longer than the block), and the 10 frames the DACs may be ahead of the machine
+    CHECK(runner.latencyFrames() == 192 + 96 + 10);
+    auto link = emulatedG2Link(runner.machine());
+    // As an audio thread that waits for the machine instead of the clock, so that no frame is missing.
+    std::vector<float> out(4 * N), heard;
+    std::size_t most = 0;
+    bool keep = false;
+    using Clock = std::chrono::steady_clock;
+    const auto start = Clock::now();
+    auto within = [&](double s) { return std::chrono::duration<double>(Clock::now() - start).count() < s; };
+    auto block = [&] {
+        while(runner.available() < N && within(120)) std::this_thread::sleep_for(std::chrono::microseconds(100));
+        most = std::max(most, runner.available());
+        runner.read(out.data(), N);
+        if(keep) heard.insert(heard.end(), out.begin(), out.end());
+        link->tick();
+    };
+    while(!link->synced() && within(20)) block();
+    REQUIRE(link->synced());
+    link->sendPerformance(g2::Performance::playing(keyboardSine(), "Sine"), "Sine");
+    while(!link->client().idle() && within(30)) block();
+    REQUIRE(link->client().idle());
+    for(int i = 0; i < 3000; ++i) block();  // the output ramps up after an upload
+
+    // A note 5 frames into a block sounds latencyFrames() after that place, plus the G2's own time for a note: its
+    // three bytes on the MIDI line (92 frames) and the OS's reaction. `at` frames (in blocks) are recorded.
+    const std::uint8_t on[3] = {0x90, 69, 100}, off[3] = {0x80, 69, 64};
+    auto note = [&](std::size_t frames) {
+        heard.clear();
+        keep = true;
+        runner.midiInAt(on, 5);
+        for(std::size_t f = 0; f < frames; f += N) block();
+        keep = false;
+        std::size_t onset = 0;
+        while(onset < heard.size() / 4 && std::fabs(heard[onset * 4]) < 1e-3f) ++onset;
+        runner.midiIn(off);
+        for(int i = 0; i < 3000; ++i) block();
+        return double(onset) - 5.0;
+    };
+    const double first = note(4800) - double(runner.latencyFrames());
+    INFO("with a reserve of 2 ms a note sounds " << first << " frames after the latency (" << runner.latencyFrames() << " frames)");
+    CHECK(first >= 92);
+    CHECK(first < 92 + 960);
+    // the machine was never further ahead of the reader than the latency says (what MIDI and the inputs rely on)
+    CHECK(most <= runner.latencyFrames());
+
+    // The reserve changed while it runs: the latency follows, and the note's own time stays what it was
+    runner.setBufferMs(10);
+    CHECK(runner.latencyFrames() == 960 + 96 + 10);
+    CHECK(runner.inputLatencyFrames() > runner.latencyFrames());
+    for(int i = 0; i < 300; ++i) block();
+    most = 0;
+    const double second = note(4800) - double(runner.latencyFrames());
+    INFO("with a reserve of 10 ms: " << second << " frames after the latency");
+    CHECK(std::fabs(second - first) < 48);  // (the OS takes its MIDI bytes within half a millisecond)
+    CHECK(most <= runner.latencyFrames());
+    CHECK(runner.stats().framesMissing == 0);
+    CHECK(runner.stats().shortReads == 0);
+    runner.stop();
+    CHECK(runner.machine().stats().exceptions == 0);
+}
+
 namespace {
 
 // A 440 Hz sine to Bus 1/2 and a 2-In (Bus 1/2) to Out 1/2: once around the ring (§3.7.2). An 880 Hz sine to

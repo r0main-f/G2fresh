@@ -28,6 +28,9 @@
 #else
 #include <pthread.h>
 #ifdef __APPLE__
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <mach/thread_policy.h>
 #include <pthread/qos.h>
 #endif
 #endif
@@ -101,6 +104,60 @@ private:
 #endif
 };
 
+
+// The calling thread at the computer's real-time priority, as a host's audio threads are: one that works `busy`
+// seconds in every `period`. On macOS a time-constraint thread: it takes a performance core ahead of every ordinary
+// thread, the user-interactive ones included (those gave way to other programs' work for milliseconds at a time:
+// re/notes/audio-path.md §3.4).
+// Returns whether the thread has it now. macOS only: on Windows and Linux this does nothing and returns false (the
+// thread keeps what BigStackThread gave it: THREAD_PRIORITY_HIGHEST on Windows, the default policy on Linux, where
+// a real-time class needs a privilege a plugin cannot count on). Where macOS refuses, the thread stays as it was:
+// nothing else depends on the answer.
+inline bool makeThreadRealtime(double period, double busy)
+{
+#ifdef __APPLE__
+    mach_timebase_info_data_t tb;
+    if(mach_timebase_info(&tb) != KERN_SUCCESS || tb.numer == 0) return false;
+    const auto ticks = [&](double s) { return std::uint32_t(s * 1e9 * double(tb.denom) / double(tb.numer)); };
+    thread_time_constraint_policy_data_t policy;
+    policy.period = ticks(period);
+    policy.computation = ticks(busy);
+    policy.constraint = ticks(period);
+    policy.preemptible = 1;
+    return thread_policy_set(pthread_mach_thread_np(pthread_self()), THREAD_TIME_CONSTRAINT_POLICY,
+                             reinterpret_cast<thread_policy_t>(&policy), THREAD_TIME_CONSTRAINT_POLICY_COUNT) == KERN_SUCCESS;
+#else
+    (void)period;
+    (void)busy;
+    return false;
+#endif
+}
+
+// A real-time thread that computes for about a second without ever waiting is taken for a runaway by macOS: it loses
+// its priority for the next two seconds (XNU's fail-safe, osfmk/kern/priority.c thread_quantum_expire: more than
+// max_unsafe_rt_computation, 100 quanta of 10 ms, since the thread last waited demotes it for twice as long). The
+// machine's threads do compute without a wait when they are behind (the boot, an upload, after a stall), and beside
+// eight busy threads a machine without this fell behind and stayed there, in the one comparison made (re/notes/
+// audio-path.md §3.4: provisional). So a real-time thread takes a breath: call this often while working; every
+// 50 ms it sleeps for 20 microseconds (0.04 % of the time), and the count starts again. Nothing elsewhere.
+class RealtimeBreath {
+public:
+    void operator()()
+    {
+#ifdef __APPLE__
+        using Clock = std::chrono::steady_clock;
+        const auto now = Clock::now();
+        if(now - last_ < std::chrono::milliseconds(50)) return;
+        std::this_thread::sleep_for(std::chrono::microseconds(20));
+        last_ = Clock::now();
+#endif
+    }
+
+private:
+#ifdef __APPLE__
+    std::chrono::steady_clock::time_point last_ = std::chrono::steady_clock::now();
+#endif
+};
 
 // A hint to the core that this thread spins (lets the other hardware threads of the core run, saves power).
 inline void cpuRelax()

@@ -69,6 +69,11 @@ public:
         // reaches its DSP up to dspLead late (8 frames: 83 us) (§3.9.4).
         std::uint32_t skew = 2 * 1536;
         std::uint32_t dspLead = 8 * 1536;
+        // threads > 0: the DSP threads (and a Runner's own) at the computer's real-time priority, as a host's audio
+        // threads are. macOS only (a time-constraint thread); on Windows and Linux, and where macOS refuses, the
+        // threads stay as they are (Runner::Stats::realtime tells). What the machine computes does not depend on it
+        // (re/notes/audio-path.md §3.4)
+        bool realtimeThreads = false;
         // threads > 0: a status read of a DSP's host port waits (wall time) until that DSP has reached the ColdFire's
         // time. Off: it cost 15-25 % of speed and no failure needed it once the host port was ordered (§3.9.6)
         bool causalReads = false;

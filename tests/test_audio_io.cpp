@@ -92,6 +92,26 @@ TEST_CASE("Input level: 1.0 is a signal of 1.0, a quarter of the ADCs' full scal
     CHECK_THAT(8.0 * 0.4987 * g2io::kAdcPerUnit, Catch::Matchers::WithinAbs(1.0, 0.003));
 }
 
+TEST_CASE("The emulated G2's buffer: three reserves, named in the settings", "[audioio]")
+{
+    using g2io::Buffer;
+    // smallest first; Safe keeps at least what G2fresh kept before there was a choice (20 ms, and up to 1 ms more:
+    // the machine ran in 1 ms chunks past its mark), and it is the default until a quiet computer's sweep says more
+    CHECK(g2io::reserveMs(Buffer::Low) < g2io::reserveMs(Buffer::Normal));
+    CHECK(g2io::reserveMs(Buffer::Normal) < g2io::reserveMs(Buffer::Safe));
+    CHECK(g2io::reserveMs(Buffer::Safe) >= 20.0 + 1.0);
+    CHECK(g2io::kDefaultBuffer == Buffer::Safe);
+    // the menu's index and the settings file's word
+    for (int i = 0; i < g2io::kBuffers; ++i)
+        CHECK(g2io::bufferFromKey(g2io::bufferKey(g2io::bufferOf(i)), Buffer::Safe) == g2io::bufferOf(i));
+    CHECK(g2io::bufferKey(Buffer::Low) == "low");
+    CHECK(g2io::bufferOf(-1) == Buffer::Low);
+    CHECK(g2io::bufferOf(7) == Buffer::Safe);
+    // a settings file without the word, or with another: the default
+    CHECK(g2io::bufferFromKey("", Buffer::Normal) == Buffer::Normal);
+    CHECK(g2io::bufferFromKey("fast", Buffer::Safe) == Buffer::Safe);
+}
+
 TEST_CASE("Mic Level: the preamp's gain from 0 to +40 dB", "[audioio]")
 {
     CHECK_THAT(g2io::micGain(0.0f), Catch::Matchers::WithinRel(1.0f, 1e-5f));

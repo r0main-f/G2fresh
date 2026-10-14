@@ -61,6 +61,10 @@ public:
     juce::String startEmulator(const juce::File& firmware) override;
     bool emulatorRunning() const override { return emulated_ != nullptr; }
     int emulatorsInHost() const override;
+    int emulatorBuffer() const override;
+    void setEmulatorBuffer(int buffer) override;
+    double emulatorLatencyMs(int buffer) const override;
+    int emulatorDropouts() const override;
     bool hostClock() const override { return hostClockOn_; }
     bool mixOut34() const override { return mixOut34_; }
     float masterLevel() const override { return masterLevel_; }
@@ -96,6 +100,9 @@ private:
     // The running emulated G2's flash into the state.
     void captureFlash();
     std::vector<std::uint8_t> startingFlash() const;
+    // The running emulated G2 takes the buffer the settings ask for, and the host learns the new latency.
+    void applyBuffer();
+    int dropoutsShown_ = 0; // as the editor last heard of them
 #endif
 
     g2ui::PatchDocument document_;

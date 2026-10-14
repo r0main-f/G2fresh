@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #if JUCE_MAC
+#include <AudioToolbox/AudioToolbox.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -34,15 +35,60 @@ auto onMessageThread(F&& f)
     return juce::MessageManager::callSync(std::forward<F>(f));
 }
 
-std::unique_ptr<juce::AudioPluginInstance> load(const juce::String& path, double rate, int block)
+#if JUCE_PLUGINHOST_AU && JUCE_MAC
+// An Audio Unit is found by the system, not by its path: a .component's path gives the one that is installed under
+// that name. To test the one at `path` (a build that is not installed), its bundle is loaded here and its factory
+// registered in this process under a subtype of its own. Returns the identifier JUCE finds it by ("" if it cannot).
+juce::String registerAudioUnit(const juce::String& path)
+{
+    static juce::String registered, registeredPath;
+    if (registeredPath == path)
+        return registered;
+    registeredPath = path;
+    registered = {};
+    const auto url = CFURLCreateWithFileSystemPath(nullptr, path.toCFString(), kCFURLPOSIXPathStyle, true);
+    const auto bundle = CFBundleCreate(nullptr, url); // stays loaded
+    CFRelease(url);
+    if (bundle == nullptr)
+        return {};
+    juce::String factoryName = "G2freshAUFactory";
+    if (const auto list = static_cast<CFArrayRef>(CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("AudioComponents")));
+        list != nullptr && CFGetTypeID(list) == CFArrayGetTypeID() && CFArrayGetCount(list) > 0)
+        if (const auto first = static_cast<CFDictionaryRef>(CFArrayGetValueAtIndex(list, 0)); CFGetTypeID(first) == CFDictionaryGetTypeID())
+            if (const auto name = static_cast<CFStringRef>(CFDictionaryGetValue(first, CFSTR("factoryFunction"))))
+                factoryName = juce::String::fromCFString(name);
+    const auto factory = reinterpret_cast<AudioComponentFactoryFunction>(CFBundleGetFunctionPointerForName(bundle, factoryName.toCFString()));
+    if (factory == nullptr)
+        return {};
+    AudioComponentDescription d{};
+    d.componentType = 'aumu';
+    d.componentSubType = 'G2te';
+    d.componentManufacturer = 'G2fr';
+    if (AudioComponentRegister(&d, CFSTR("G2fresh: G2fresh (the build under test)"), 1, factory) == nullptr)
+        return {};
+    registered = "AudioUnit:Synths/aumu,G2te,G2fr";
+    return registered;
+}
+#endif
+
+std::unique_ptr<juce::AudioPluginInstance> load(const juce::String& file, double rate, int block)
 {
     return *onMessageThread([&]() -> std::unique_ptr<juce::AudioPluginInstance> {
         // a .component is an Audio Unit (as Live uses it), anything else a VST3
         std::unique_ptr<juce::AudioPluginFormat> format;
+        juce::String path = file;
 #if JUCE_PLUGINHOST_AU && JUCE_MAC
-        if (path.endsWithIgnoreCase(".component"))
+        if (path.endsWithIgnoreCase(".component")) {
             format = std::make_unique<juce::AudioUnitPluginFormat>();
-        else
+            // the bundle at that path, unless it is an installed one (G2TEST_AU_INSTALLED=1: the system's)
+            if (juce::SystemStats::getEnvironmentVariable("G2TEST_AU_INSTALLED", {}).isEmpty()) {
+                path = registerAudioUnit(file);
+                if (path.isEmpty()) {
+                    std::cout << "  cannot register the Audio Unit at " << file << std::endl;
+                    return nullptr;
+                }
+            }
+        } else
 #endif
             format = std::make_unique<juce::VST3PluginFormat>();
         juce::OwnedArray<juce::PluginDescription> types;
@@ -83,7 +129,8 @@ std::vector<float> play(juce::AudioPluginInstance& p, double rate, int block, do
                         double noteOff, bool offline, std::vector<int> notes = {69})
 {
     std::vector<float> out;
-    juce::AudioBuffer<float> buffer(2, block);
+    // as many channels as the plugin's buses have (an Audio Unit has all four pairs; Out 1 is channel 0 either way)
+    juce::AudioBuffer<float> buffer(std::max({2, p.getTotalNumInputChannels(), p.getTotalNumOutputChannels()}), block);
     const auto blocks = static_cast<int>(seconds * rate / block);
     if (!offline)
         makeRealtime(block / rate);
@@ -178,7 +225,20 @@ HostState parseHostState(const juce::MemoryBlock& hostState)
     return h;
 }
 
-juce::ValueTree pluginState(const juce::MemoryBlock& hostState) { return parseHostState(hostState).tree; }
+#if JUCE_MAC
+juce::MemoryBlock withAuPluginState(const juce::MemoryBlock& hostState, const std::function<void(juce::ValueTree&)>& edit);
+#endif
+
+// G2fresh's tree in a VST3 host's state, or in an Audio Unit's (below)
+juce::ValueTree pluginState(const juce::MemoryBlock& hostState)
+{
+    auto tree = parseHostState(hostState).tree;
+#if JUCE_MAC
+    if (!tree.isValid())
+        withAuPluginState(hostState, [&](juce::ValueTree& t) { tree = t; });
+#endif
+    return tree;
+}
 
 // `hostState` with G2fresh's tree replaced by `tree`.
 juce::MemoryBlock withPluginState(const juce::MemoryBlock& hostState, const juce::ValueTree& tree)
@@ -292,6 +352,28 @@ double toneLevel(const std::vector<float>& v, std::size_t from, std::size_t to, 
     }
     const double power = s1 * s1 + s2 * s2 - c * s1 * s2;
     return n > 0 ? 2 * std::sqrt(std::max(0.0, power)) / static_cast<double>(n) : 0.0;
+}
+
+// How late the tone `hz` in v[from, to) is, in samples, if v is sin(2 pi hz (n - delay) / rate): by its phase, which
+// gives the delay within one period; `about` says which period.
+double toneDelay(const std::vector<float>& v, std::size_t from, std::size_t to, double rate, double hz, double about)
+{
+    const double w = 2 * juce::MathConstants<double>::pi * hz / rate;
+    double ss = 0, cc = 0, sc = 0, xs = 0, xc = 0;
+    for (auto i = from; i < std::min(to, v.size()); ++i) {
+        const double s = std::sin(w * static_cast<double>(i)), c = std::cos(w * static_cast<double>(i));
+        ss += s * s;
+        cc += c * c;
+        sc += s * c;
+        xs += v[i] * s;
+        xc += v[i] * c;
+    }
+    const double det = ss * cc - sc * sc;
+    if (det == 0.0)
+        return about;
+    const double a = (xs * cc - xc * sc) / det, b = (xc * ss - xs * sc) / det; // v = a sin(w n) + b cos(w n)
+    const double period = rate / hz, delay = -std::atan2(b, a) / w;
+    return delay + period * std::round((about - delay) / period);
 }
 
 // The plugin's outputs: a patch with a 440 Hz sine on Out 1/2 and a 659 Hz one on Out 3/4, played with the second
@@ -449,15 +531,16 @@ void inputs(const juce::String& path, const juce::File& patch)
                 continue;
             }
             check(own && !others, "In " + juce::String(c + 1) + " comes out of Out " + juce::String(c + 1) + " alone, at the level it went in");
-            // the delay: the first sample that is not silence (the interpolators spread the start over a few samples)
+            // The delay. Roughly: where the tone first reaches a fifth of its level (the converters' filters ring a
+            // little before a start: far below that), less the time a sine takes to get there. Exactly: the steady
+            // tone's phase, in the period that estimate points at.
             std::size_t onset = 0;
-            while (onset < v.size() && std::abs(v[onset]) < 0.002f)
+            while (onset < v.size() && std::abs(v[onset]) < 0.2f * level)
                 ++onset;
-            // the tone's own start is slow (a sine from zero): where its first samples reach the threshold
-            const double rise = std::asin(0.002 / level) / (2 * juce::MathConstants<double>::pi * hz[c]) * rate;
-            const double measured = static_cast<double>(onset) - rise;
-            check(std::abs(measured - latency) < 4.0,
-                  "it comes " + juce::String(measured, 1) + " samples after it went in; the plugin reports " + juce::String(latency)
+            const double rise = std::asin(0.2) / (2 * juce::MathConstants<double>::pi * hz[c]) * rate;
+            const double measured = toneDelay(v, from, to, rate, hz[c], static_cast<double>(onset) - rise);
+            check(std::abs(measured - latency) < 2.0,
+                  "it comes " + juce::String(measured, 2) + " samples after it went in; the plugin reports " + juce::String(latency)
                       + " (" + juce::String(latency * 1000.0 / rate, 2) + " ms)");
             // no gaps: no run of zeros, and the tone's level over every tenth of a second stays the same
             double low = 1e9, high = 0;
@@ -550,15 +633,15 @@ void run(const juce::String& path, const juce::File& patch)
         // a project with this patch (a drone: it sounds without notes), in the host's wrapping of the state
         juce::MemoryBlock data;
         if (patch.loadFileAsData(data)) {
-            juce::MemoryBlock empty;
-            a->getStateInformation(empty);
-            auto s = pluginState(empty);
-            s.setProperty("name", patch.getFileNameWithoutExtension(), nullptr);
-            s.setProperty("data", data.toBase64Encoding(), nullptr);
-            const auto wrapped = withPluginState(empty, s);
+            // (an Audio Unit's state is wrapped as an AU host keeps it, a VST3's as a VST3 host does)
+            const auto wrapped = projectState(*a, path.endsWithIgnoreCase(".component"), [&](juce::ValueTree& s) {
+                s.setProperty("name", patch.getFileNameWithoutExtension(), nullptr);
+                s.setProperty("data", data.toBase64Encoding(), nullptr);
+            });
             if (wrapped.getSize() == 0)
                 std::cout << "  (cannot wrap the patch into the host's state)" << std::endl;
-            a->setStateInformation(wrapped.getData(), static_cast<int>(wrapped.getSize()));
+            else
+                a->setStateInformation(wrapped.getData(), static_cast<int>(wrapped.getSize()));
         }
         a->prepareToPlay(rate, block);
     });
@@ -606,12 +689,29 @@ void run(const juce::String& path, const juce::File& patch)
     // as a host does for a bounce: offline, then a new set-up (the VST3 process mode reaches the plugin there)
     onMessageThread([&] {
         b->setNonRealtime(true);
+#if JUCE_PLUGINHOST_AU && JUCE_MAC
+        // JUCE's Audio Unit host does not pass that on: as an AU host does it, the unit's offline-render property
+        if (path.endsWithIgnoreCase(".component"))
+            if (auto* client = b->getAudioUnitClient(); client != nullptr && client->getAudioUnitHandle() != nullptr) {
+                const auto unit = client->getAudioUnitHandle();
+                const UInt32 on = 1;
+                AudioUnitSetProperty(unit, kAudioUnitProperty_OfflineRender, kAudioUnitScope_Global, 0, &on, sizeof on);
+            }
+#endif
         b->prepareToPlay(rate, block);
     });
     const auto t0 = std::chrono::steady_clock::now();
     auto bounce = play(*b, rate, block, 4.0, 0.5, 3.5, true);
     const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     b->setNonRealtime(false);
+#if JUCE_PLUGINHOST_AU && JUCE_MAC
+    if (path.endsWithIgnoreCase(".component"))
+        if (auto* client = b->getAudioUnitClient(); client != nullptr && client->getAudioUnitHandle() != nullptr) {
+            const auto unit = client->getAudioUnitHandle();
+            const UInt32 off = 0;
+            AudioUnitSetProperty(unit, kAudioUnitProperty_OfflineRender, kAudioUnitScope_Global, 0, &off, sizeof off);
+        }
+#endif
     std::cout << "  (4 s rendered in " << took << " s; output peak " << peak(bounce, 0, bounce.size()) << ")" << std::endl;
     {
         std::size_t run = 0, best = 0, end = 0;

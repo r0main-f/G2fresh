@@ -189,6 +189,55 @@ int G2EditorProcessor::emulatorsInHost() const
     return EmulatedSoundEngine::running();
 }
 
+namespace {
+
+// The buffer the user chose for this computer (Synth > Emulated G2 Buffer), from the settings every instance
+// shares. The environment variable G2FRESH_EMULATOR_BUFFER (low, normal or safe) goes first: for tests, which do
+// not touch the user's settings.
+g2io::Buffer chosenBuffer()
+{
+    const auto env = juce::SystemStats::getEnvironmentVariable("G2FRESH_EMULATOR_BUFFER", {});
+    const auto key = env.isNotEmpty() ? env : g2ui::userSettings().getValue("emulatorBuffer");
+    return g2io::bufferFromKey(key.toStdString(), g2io::kDefaultBuffer);
+}
+
+} // namespace
+
+int G2EditorProcessor::emulatorBuffer() const
+{
+    return static_cast<int>(chosenBuffer());
+}
+
+void G2EditorProcessor::setEmulatorBuffer(int buffer)
+{
+    const auto key = g2io::bufferKey(g2io::bufferOf(buffer));
+    g2ui::userSettings().setValue("emulatorBuffer", juce::String(key.data(), key.size()));
+    applyBuffer();
+}
+
+void G2EditorProcessor::applyBuffer()
+{
+    if (emulated_ == nullptr)
+        return;
+    auto& engine = static_cast<EmulatedSoundEngine&>(*emulated_);
+    if (const auto chosen = chosenBuffer(); engine.buffer() != chosen) {
+        engine.setBuffer(chosen);
+        setLatencySamples(engine.latencySamples()); // the host compensates the new latency
+    }
+}
+
+double G2EditorProcessor::emulatorLatencyMs(int buffer) const
+{
+    if (emulated_ == nullptr || sampleRate_ <= 0)
+        return 0.0;
+    return static_cast<EmulatedSoundEngine&>(*emulated_).latencySamples(g2io::bufferOf(buffer)) * 1000.0 / sampleRate_;
+}
+
+int G2EditorProcessor::emulatorDropouts() const
+{
+    return emulated_ != nullptr ? static_cast<int>(static_cast<EmulatedSoundEngine&>(*emulated_).dropouts()) : 0;
+}
+
 std::vector<std::uint8_t> G2EditorProcessor::startingFlash() const
 {
     // the project's, else (a new instance, or the stand-alone app) the one kept next to the settings
@@ -247,6 +296,12 @@ void G2EditorProcessor::timerCallback()
     checkCapture();
     if (emulated_ == nullptr)
         return;
+    applyBuffer(); // another instance may have changed the setting
+    // dropouts are for the user to see (the editor's status line): never traded silently for latency
+    if (const int dropouts = emulatorDropouts(); dropouts != dropoutsShown_) {
+        dropoutsShown_ = dropouts;
+        synth_.sendChangeMessage();
+    }
     // The emulated G2 runs but the link gave up on it (it ran too slowly to answer in time, e.g. while the host
     // loaded a project): talk to it again, and send it the patch once it answers.
     if (synth_.kind() == g2ui::SynthSync::Kind::Emulated && synth_.linkFailed()) {
@@ -308,6 +363,7 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
     } catch (const std::exception& e) {
         return juce::String("the emulated G2 cannot start: ") + e.what();
     }
+    engine->setBuffer(chosenBuffer());
     engine->prepare(sampleRate_ > 0 ? sampleRate_ : 48000.0, blockSize_);
     engine->setMixOut34(mixOut34_);
     engine->setMic(micInput_, micLevel_);
@@ -317,6 +373,7 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
     emulatedSent_ = false;
     emulatedLocal_ = false;
     emulatorWanted_ = true;
+    dropoutsShown_ = 0;
     setLatencySamples(engine->latencySamples());
     setEmulated(std::move(engine));
     refreshState();

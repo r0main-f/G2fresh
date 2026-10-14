@@ -41,6 +41,20 @@ public:
     // the jack, which on a G2 disconnects the microphone; the Mic Level knob then does nothing, as on a G2).
     virtual bool micInput() const { return false; }
     virtual void setMicInput(bool on) { juce::ignoreUnused(on); }
+    // Its buffer: how much audio it keeps ready ahead of the host against a busy computer, which is most of its
+    // latency. 0 Low, 1 Normal, 2 Safe (plugin/Source/AudioIo.h); the user's choice for this computer, kept in
+    // the settings, not in the project.
+    virtual int emulatorBuffer() const { return 0; }
+    virtual void setEmulatorBuffer(int buffer) { juce::ignoreUnused(buffer); }
+    // The latency from MIDI or an input to the output with that buffer, as the host runs it now, in milliseconds
+    // (0: not running).
+    virtual double emulatorLatencyMs(int buffer) const
+    {
+        juce::ignoreUnused(buffer);
+        return 0.0;
+    }
+    // Blocks of audio it was late for since it started (heard as clicks or gaps): the buffer was too small.
+    virtual int emulatorDropouts() const { return 0; }
     // How many emulated G2s run in this host process (all plugin instances).
     virtual int emulatorsInHost() const { return 0; }
     // MIDI into its MIDI IN (e.g. the on-screen keyboard), from the message

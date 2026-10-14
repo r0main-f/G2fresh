@@ -37,6 +37,7 @@ if(G2_BUILD_EMU)
   add_subdirectory(emu)
 endif()
 add_subdirectory(tools/benchpack)  # after emu: its renderer needs g2emu
+add_subdirectory(tools/audiopath)  # after emu: its Runner measurements need g2emu
 
 if(G2_BUILD_PLUGIN)
   include(FetchContent)
