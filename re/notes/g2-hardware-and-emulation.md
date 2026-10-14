@@ -1305,7 +1305,8 @@ there, but it is the same code.
   and the client retries only after 10 s. The ISP1181's registers now read back what was written (the OS
   read-modify-writes the mode register).
 * **MIDI IN** is UART0: bytes reach its receiver FIFO at 31250 baud, with RxRDY interrupts at level 4, vector $42 [C].
-  MIDI OUT (UART0 transmitter) is captured; OS 1.62 sent nothing in these tests.
+  MIDI OUT (UART0 transmitter) is captured; OS 1.62 sent nothing in these tests. (Since 2026-10-13 it is the
+  chip's transmitter, with each byte's time: §3.12.)
 * **Sample-accurate MIDI:** `Machine::midiInAt(bytes, frame)` starts a message on the MIDI line at a given machine
   frame; `Runner::midiInAt(bytes, offset)` (lock-free, from the audio thread before its `read()`) puts it `offset`
   frames into the next block plus a fixed `latencyFrames()` (the buffer plus a chunk). Measured in real time
@@ -1901,6 +1902,185 @@ three; −0.15 lights −20; In 2-4 at 0.95 light none.
 * The G2X's goose-neck microphone and the Engine's missing XLR are not told apart: the option is there on every
   model.
 * `emu/dspbridge` and the Python tools keep silent ADCs.
+
+## 3.12 MIDI OUT, and System Exclusive on MIDI IN (2026-10-13)
+
+**Result.** What the OS sends on its MIDI OUT leaves the emulator: at the pace of a MIDI cable, each byte with its
+time, into a queue that cannot grow, and from there into the plugin's MIDI output at the samples of the sound the
+G2 made at the same instant. MIDI IN takes System Exclusive (dumps and requests). Tests: `tests/test_midi_out.cpp`
+(the transmitter and the line without the firmware, then `[firmware]` cases), `tests/test_midi_assembler.cpp`
+(bytes to messages), `g2plugintest <plugin> --midi <patch>` (the built VST3 or Audio Unit in a host).
+
+### 3.12.1 How the OS sends [C]
+
+* **Polled, one byte per call.** UART0's interrupt mask is `02` (receiver only, 0x30058472). The transmit routine
+  0x30002BEE reads USR, returns unless TxRDY (bit 2) is set, and writes one byte to UTB. It is called from two of
+  the tick scheduler's routines (0x3001BB56, registered at 0x3001B9CE, and 0x3001B90C), more often than the line
+  takes bytes [emulated: with the transmitter always ready a dump left at 2.6 times the line's 3125 bytes a
+  second, a byte per tick of 8272 a second]. So the chip's TxRDY paces a dump, not the OS.
+* **What waits, by priority** (the flag word 0x3012BA86): bit 5 a ring of 128 single bytes at 0x3012B9AA
+  (inferred: real time, i.e. clock, Start, Stop); bit 3 the message being sent, up to 3 bytes in a long word
+  that ends in `FF` (0x3012B58E); bit 4 the System Exclusive block being sent (4 descriptors of pointer, count,
+  callback at 0x3012BA36); bit 0 a ring of 128 messages at 0x3012B592 (notes, controllers, program changes:
+  0x30002F86, 0x30003004, 0x30003082); bit 1 a second ring of 128 at 0x3012B79E; bit 2 the next System Exclusive
+  block. All of them bounded: the OS cannot pile up more than that. The single bytes come first at every call:
+  **a clock tick goes out before the next byte of a note or of a dump block on its way**, as MIDI allows, so a
+  receiver must take real-time bytes inside any message (`MidiOutAssembler` does).
+* **Every message has its status byte:** no running status.
+* **It receives** by interrupt (level 4, vector $42, 0x3000286C), with the status bytes' lengths from a table at
+  0x3010A140. Real-time bytes are taken at once without touching the message on its way: F8, FA, FB and FC do
+  something (0x30011F5E), **F9, FD, Active Sensing (FE) and System Reset (FF) are ignored**. A System Exclusive
+  message goes into one of 4 buffers of 0x204 bytes (0x3012AD7C, taken in turn): at most 0x1FE bytes; an F0 that
+  finds its buffer still busy is dropped; another status byte ends the message (flagged). The main loop parses the
+  buffers (0x300046F8).
+
+### 3.12.2 The transmitter in the emulator
+
+`Sim` (hw.cpp) had a transmitter that was always ready: bytes left at once, 8272 a second, 2.6 times faster than
+a cable carries them. It is now the chip's: a holding register and a shift register.
+
+* A byte written to UTB while the holding register is free starts when the shifter has sent the byte before it and
+  takes 10 bits at fbus / (32 × UBG): 17,280 bus clocks, 320 µs. USR's TxRDY is "holding register free", TxEMP
+  "nothing left to send"; both read 0 while the transmitter is off (UCR). A byte written while the register is
+  full is lost (counted: `Stats::midiOutLost`; OS 1.62 never does it).
+* The first two bytes of a message are written in two successive ticks, the third when the first has left: the
+  bytes of a message end exactly 320 µs apart, and a dump keeps the line busy without a gap [emulated].
+* Not modelled: the chip starts a byte on its 16× bit clock (up to 20 µs later); UART1.
+* **Each byte's time** is the end of its stop bit, when a receiver has it, on the master clock in DSP clocks
+  (`Machine::MidiOut::clock`, the clock of `dacClock()`: the DACs send a frame every 1536). `Machine` keeps the
+  last `Options::midiOutKept` bytes (65,536) in a ring while nobody takes them, as a cable nobody listens to.
+* **`Runner::midiOut`** gives them to the audio thread, lock-free, after its `read()`: each at the frame of that
+  read in which its stop bit ended, plus `midiOutLeadFrames()` (10 frames, 0.1 ms, with DSP threads: the DSPs may
+  run 8 frames ahead of the ColdFire, whose UART then has not sent the bytes of those frames yet; 2 frames
+  without threads). In real time no byte came late (`Stats::midiOutLate`).
+
+### 3.12.3 What OS 1.62 sends [emulated: tests/test_midi_out.cpp]
+
+A new G2 (the OS's own settings: Local On, slot A on channel 1, Ctrl and Prg Chng Send & Receive, Clk Send Off,
+SysEx ID All, Global channel 16), the test patch in slot A:
+
+| Action | MIDI OUT |
+|---|---|
+| Power-on, a patch upload over USB | nothing (no Active Sensing, ever) |
+| A key (A above middle C, asked velocity 100) | `90 45 66`, complete 4.6 ms after the key went down (its contacts' time, the scan, 0.96 ms of bytes); the sound starts 0.5 ms before the message is complete |
+| The key released | `80 45 72` (a Note Off with a release velocity) |
+| Mod wheel to the top | `B0 01 7F` |
+| Pitch stick to the right | `E0 7F 7F` |
+| Global wheel 1 (G2X) | `B0 60 7F` |
+| Aftertouch | `D0 7F` |
+| Sustain pedal down, up | `B0 40 7F`, `B0 40 00` |
+| A knob whose parameter has controller 20, 3 steps | `B0 14 41`, `B0 14 43` (the first step in a new direction is dropped, §3.10.4) |
+| Variation 2 | `B0 46 10` (controller 70) |
+| MIDI Ctrl on Receive only | the wheel sends nothing |
+| MIDI Local Off | the key still sends its note and is not played |
+| MIDI Clk Send On | `F8` 48.34 times a second at 120 BPM (48 nominal: +0.7 %), 20.54 to 20.80 ms apart; 36.66 at 91 BPM (36.4: +0.7 %); also while the clock is stopped |
+| Run (the button under the Master Clock) | `FA`, then `BF 50 7F`: controller 80 on the Global channel |
+| Stop | `FC`, then `BF 50 00` |
+| NoteSend, CtrlSend, PCSend on the Keyboard's gate, a note on MIDI IN | `91 48 5A`, `B2 15 63`, `C3 05`; the first byte is out 3.0 ms after the note's first byte went in; `81 48 ..` when the gate closes |
+| Dump One (Shift + System) | 1105 bytes in 3 blocks for the test patch, from 42 ms after the button, 353 ms on the line: 3125 bytes a second without a gap ("about one second to transfer 3 kB" [M p.29]) |
+| Patch request by slot (`F0 33 7F 0A 30 00 00 F7`) | the same dump, byte for byte |
+| Performance request (`.. 38 00 00 F7`) | 3453 bytes in 7 blocks |
+| All controllers request (`.. 40 00 F7`) | `B0 07 64`, `B0 11 ..`, the patch's own controllers, `B0 01 ..`, `B0 0B ..`, `B0 12 ..`, `B0 40 ..`, `B0 46 ..`, `B0 60 ..`, `B0 61 ..` |
+| The dump on MIDI IN | the patch loads (its name on the display, it plays); no answer |
+| Another maker's System Exclusive, `FE`, `FF` | nothing |
+
+MIDI IN is not passed on to MIDI OUT (a G2 has a THRU jack for that). The clock's +0.7 % is the OS's ticks
+(8272 a second where its designers meant 8000, §3.9.2) or its own arithmetic: compare with a G2 (question 5 of
+the audit).
+
+**Three dumps sent back to back did not all load** [emulated]: the OS was still loading the first when the
+others' blocks came, and it has 4 buffers. A sequencer leaves a pause between dumps, as the tools for a G2 do.
+
+### 3.12.4 The MIDI IN line: real time inside a System Exclusive message
+
+A MIDI cable carries one stream; here the host's clock (HostClock) and the track's MIDI are two, merged in order
+of their times into the one queue of the emulated line (`Sim::midiInAt`), where a byte never starts before the one
+in front of it has ended. A dump takes the line for seconds, and a clock tick that waited behind it would reach
+the G2 late and in a burst. So a real-time byte (F8-FF) due while a System Exclusive message waits on the line
+goes between that message's bytes, at its own time, as a MIDI merger sends it and as the OS takes it (§3.12.1).
+Nothing else is overtaken: behind a note or a Song Position message, or with anything else queued behind the
+dump, it keeps its turn (Song Position then Continue, a note then Stop: their order matters).
+
+### 3.12.5 In the plugin
+
+* **Bytes to messages** (`MidiOutAssembler`, plain C++): channel messages (running status handled, though the OS
+  sends none), System Common, System Exclusive put together across blocks (up to 4096 bytes; the G2's blocks are
+  below 512), real-time bytes passed at once. A message has the time of its last byte. A System Exclusive message
+  cut short by another status byte is dropped.
+* **Alignment.** The engine reads 96 kHz frames from the runner and resamples them; a byte of frame f is at host
+  sample (f + 2) / ratio, the 2 being the output interpolator's delay (as in `latencySamples()`; **if the
+  resampler changes, `kOutputDelayFrames` must follow**). So a message sits in the block at the sample where the
+  sound the G2 made at that instant sits. Both are the reported latency late against the plugin's input; a host
+  that compensates the audio shifts the MIDI with it or not, as it does for any instrument.
+* **Formats.** `producesMidi()` is true in builds with the emulator. The Audio Unit stays `aumu` with its codes:
+  JUCE adds the MIDI output callback properties. The VST3 gets an event output bus; **VST3 has no event for MIDI
+  clock, Start, Stop or Song Position**, and JUCE's wrapper drops them: a VST3 host gets notes, controllers, pitch
+  bend, pressure, program changes and System Exclusive.
+* **Stand-alone:** the processor's MIDI output goes to the MIDI output device of Audio/MIDI Settings ("G2 MIDI
+  OUT to:"), each message at its time in the block through the device's sender thread; it leaves when the block
+  is computed, ahead of the block's sound by the audio device's output latency. (Built, not run with a device.)
+* **In a test host** (`g2plugintest <plugin> --midi <patch>`, JUCE's hosting code, 48 kHz, blocks of 256, the
+  patch of §3.12.3's MIDI modules with a sine on the same gate; the Audio Unit registered in the process from the
+  build's bundle, without installing it):
+
+  | | VST3 | Audio Unit |
+  |---|---|---|
+  | A note in → `91 48 5A`, `B2 15 63`, `C3 05` out | yes | yes |
+  | The Note On against the note in | 29.3 ms: the reported latency (27.0 ms) + 2.3 ms | 29.9 ms (the block's start, see below) |
+  | The sound's first sample against the Note On out | 1.4 ms before it | 2.1 ms before it |
+  | Note off in → `81 48 5A` | yes | yes |
+  | Patch request → the dump | 3 messages of 512, 512 and 254 bytes, checksums right; the last two 245.1 ms after the first (their 766 bytes at 320 µs) | the same, 245.3 ms |
+  | The dump back in | loads; the patch plays and sends | the same |
+
+  The G2 answers the note within 3 ms: 0.96 ms for its bytes to come in, the sound 1.4 ms after their first
+  byte, NoteSend's message complete 1.4 ms after the sound. JUCE's Audio Unit *host* ignores the packets' sample
+  offsets (the wrapper sets them) and puts every message at its block's start: the Audio Unit's timing inside a
+  block is not checked by this host, and `g2plugintest` checks it to the block (one run gave the Note On 2.4 ms
+  *before* the latency: its block's start). MIDI clock through either format: not checked (the test cannot switch
+  Clk Send on); by JUCE's code the VST3 wrapper drops it and the Audio Unit wrapper sends every message as bytes.
+* **System Exclusive in** goes through `Runner::midiInAt` in pieces of 16 bytes, into a queue of 2048 pieces
+  (32 kB, more than a performance dump given in one block); a message that does not fit whole is dropped whole,
+  so the G2 never gets the start of a block without its end.
+
+### 3.12.6 Open: an external MIDI clock breaks the emulated G2
+
+Found while sending a dump through a running clock; not MIDI OUT's, not fixed. **Once the OS has followed an
+external MIDI clock (a few quarter notes of F8 at 100 BPM, "Ext 99" on its display), new notes are silent**: on
+MIDI IN and from the panel's keys (which still send their notes on MIDI OUT). A note held from before the clock
+goes on sounding. It stays so after the clock has ended and the OS is back on its own tempo. A patch load after
+that (over USB, or a dump) sometimes sends DSP A6 to P:$040000, where there is no code, and the OS then hangs (it
+stops reading its UART). The same with the transmitter as it was before this work, with one thread and with two,
+as a G2 and as a G2X, with and without a MIDI Start first. A real G2 slaved to a sequencer plays, so this is the
+emulator's: something the OS sends its DSPs with every tick of an external clock goes wrong (the host port's
+ordering under the UART's interrupt, at level 4 above the tick's?). Reproduction: the hidden test case
+`[.clock-silence]` in `tests/test_midi_out.cpp`.
+
+**Older than the MIDI OUT work** (checked 2026-10-14): the same case built from the code before it (f7c5667, the
+transmitter always ready, no merge of real-time bytes into System Exclusive) gives a peak of 0.1247 before the
+clock, "Ext  99" on the display, then 0.0000 after the clock and 0.0000 three seconds later.
+
+**It shows in the plugin: Emulated G2 Follows the Host's Tempo is unusable.** `g2plugintest <plugin>
+--midi-tempo <patch>` (the `--midi` checks with the option on and a transport at 100 BPM): as a VST3, the patch's
+MIDI modules fire by themselves from the first seconds, with values nobody set (`81 00 00`, `B2 15 03`, `C3 03`,
+`91 00 67`, `B2 15 59`, `C3 59`: 3602 messages in 10 s, a full cable), a note in no longer gives NoteSend's
+message, a patch request gives fragments instead of a dump, and after the dump went back in DSP 3 jumped to
+P:$040000. As an Audio Unit, DSP 3 jumped there while the G2 was starting, and nothing came out at all. Without the
+option (`--midi`) the same patch passes every check. The option is off by default; until this is found, it should
+stay off (README).
+
+### 3.12.7 Not done, not known
+
+* Not tried in a DAW. Expected (**check**): Live takes a VST3 plug-in's MIDI output on another MIDI track ("MIDI
+  From": the instrument's track, then the plugin) and takes no MIDI from Audio Units, by Ableton's help articles
+  "Accessing the MIDI output of a VST plug-in" and "Using AU and VST plug-ins on macOS" (Direct MIDI Output: AU no,
+  VST2/VST3 yes), read 2026-10-14; Logic takes no MIDI from instrument Audio Units, by developers' reports on the
+  JUCE and Apple forums only (no Apple documentation found).
+* The Program Changes the G2 sends when a patch or performance is loaded from its memory (not measured: a new
+  G2's memory is empty); Dump CC from the panel (Shift + Patch; the same messages come on request); the Automate
+  and NoteZone modules.
+* The stand-alone app's MIDI OUT is not delayed by the audio device's output latency.
+* On a G2: the clock's rate at 120 BPM, a key's Note On against its sound, whether a dump needs a pause before
+  the next one.
 
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source

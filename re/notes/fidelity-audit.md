@@ -45,6 +45,16 @@ still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2
 14. Tempo sync on by default, and Local / clock receive forced on: changes what the user hears, should be opt-in.
 15. Master Level knob not saved, and the on-screen knob can disagree with the machine.
 16. The G2's MIDI OUT is dropped (notes, CC, sysex dumps) and its queue grows without bound; incoming sysex skipped.
+    **Closed 2026-10-13:** MIDI OUT is the plugin's MIDI output (the stand-alone app: a MIDI output device), at the
+    pace of a MIDI cable, each message at the sample of the sound made at the same instant; the queue is bounded;
+    MIDI IN takes System Exclusive (g2-hardware-and-emulation.md §3.12, with what the OS sends, measured). Left:
+    a VST3 host gets no MIDI clock, Start or Stop (the format has none); not tried in a DAW; the Program Changes
+    of a load from memory and Dump CC from the panel not measured.
+    **Found on the way, open (High):** after the OS has followed an external MIDI clock, new notes are silent and a
+    later patch load can crash a DSP (§3.12.6). Older than the MIDI OUT work (the same on f7c5667), and it shows
+    in the plugin: with "Emulated G2 Follows the Host's Tempo" on, a patch's MIDI modules fire garbage, notes and
+    dumps fail, a DSP crashes (VST3 and Audio Unit, `g2plugintest --midi-tempo`). The option must stay off until
+    this is fixed.
 17. Output level convention (x8) unverified against hardware; latency 26-32 ms against about 2 ms on a G2.
     (Until 2026-10-11 the emulated lines between the DSPs added to it with every patch upload, up to 8 ms over a
     session: fixed, g2-hardware-and-emulation.md §3.11.4.)
@@ -97,7 +107,7 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 | 4 | **Audio inputs are absent.** There is no input bus, the ADCs read silence, and the Mic Level knob is decorative. Patches using 2-In/4-In (effects, vocoders) are silent. **Closed 2026-10-11** ([Notes §3.11]; section 2 below) | **High** for those patches | [Code] `PluginProcessor.cpp:38-40` (outputs only), [Notes §3.9.6], `LiveView.cpp:311`; [M p.26, p.53] |
 | 5 | **Live panel: only one button can be held at a time.** Shift functions (Store As, Dump One, Panic, Split Point, Global octave, Shift+Slot, Vari.Init, Clear) and hold-and-turn gestures (hold Slot + dial, hold Morph + knobs, hold Down + dial for naming) cannot be done with the mouse. | **Medium-high** (functional) | [Code] `LiveView.cpp:333-378`: a single `pressed_`, released on mouse-up; [M p.27-31, p.47, p.44] |
 | 6 | **The Master Level knob is neither saved nor kept in sync.** It is full at every start. The UI resets to full whenever the editor reopens, while the machine keeps the old value. | **Medium-high** (loudness jumps: knob at 0.5 = −15.7 dB) | [Code] `LiveView.cpp:257` and `MainView.h:134` (LiveView belongs to the editor); [Measured] master 1 / 0.5 = 0 / −15.7 dB |
-| 7 | **MIDI OUT is dropped.** The OS transmits notes from the Live keyboard, CCs from the wheels and knobs, clock, Dump One sysex and the MIDI modules' output; the plugin outputs nothing. Incoming sysex is also dropped. The OS's MIDI OUT queue is never drained, so it grows without bound. | **Medium** | [Measured] Live key → `90 45 66 80 45 72`; mod wheel → `b0 01 7f`; G.Wheel 1 → `b0 60 7f`; Dump One → 1099 bytes of sysex. [Code] `PluginProcessor.h:38` `producesMidi() false`; `EmulatedSoundEngine.cpp:110-111` skips sysex; `machine.cpp:807-808, 1091-1097` |
+| 7 | **MIDI OUT is dropped.** (**Closed 2026-10-13**, see gap 16 above and [Notes §3.12].) The OS transmits notes from the Live keyboard, CCs from the wheels and knobs, clock, Dump One sysex and the MIDI modules' output; the plugin outputs nothing. Incoming sysex is also dropped. The OS's MIDI OUT queue is never drained, so it grows without bound. | **Medium** | [Measured] Live key → `90 45 66 80 45 72`; mod wheel → `b0 01 7f`; G.Wheel 1 → `b0 60 7f`; Dump One → 1099 bytes of sysex. [Code] `PluginProcessor.h:38` `producesMidi() false`; `EmulatedSoundEngine.cpp:110-111` skips sysex; `machine.cpp:807-808, 1091-1097` |
 | 8 | **Output reference level is unverified.** The ×(−8) scaling puts signal 1.0 at 0 dBFS. That is 18 dB hotter than "DAC full scale = 0 dBFS", and the DAW sees up to +18 dBFS before the G2's own clip point. | **Medium** (convention; unknown against a real G2) | [Code] `EmulatedSoundEngine.cpp:126-132`; [Notes §3.9 "Master volume"]; [M p.53] −10 dBV line outputs |
 | 9 | **Host tempo is on by default and the G2's own clock setting is forced.** The patch's own tempo is replaced, and "MIDI Clk Recv" is forced On (and Local On) at every start, so the G2's own setting cannot be kept. | **Medium** (changes what is heard; flagged in the README but not opt-in) | [Code] `PluginProcessor.h:113`, `.cpp:416-427, 574`; [Measured] the OS follows Start/Stop/Continue (Run/Stop on the display) |
 | 10 | **Live latency is 26-32 ms** (Runner buffer of 20 ms plus a host block). A G2 plays about 2 ms after the MIDI bytes. | **Medium** for live play | README:42; [Notes §3.9.2, §3.9.4] |
@@ -173,10 +183,14 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 | MIDI Ctrl (CC) | Figure: "Send & Receive" [M p.31, inferred factory]. CC7 = patch volume, CC11 expression, CC96/97 global wheels, and user CCs [M p.126-127]. Erased flash: **Off** [Measured] | Not set | **CC7 and assigned CCs from the DAW are ignored** [Measured: CC7=0 no effect; with Ctrl on, rms 0.70 → 0.10]. CC64 still works; CC1 unverified | High | Initialise to Send & Receive on an empty flash (small) |
 | Program Change | Figure: "Send & Receive" [M p.31]. Erased flash: **Off** [Measured] | Not set | DAW program changes ignored | Low-medium | Initialise as above |
 | MIDI clock in | Clk Recv: external clock takes over and the display shows the tempo [M p.33, p.31]. Erased flash: Recv **On** [Measured]. Figure: Off | `HostClock.h` sends F8 always (also while stopped), FA from the top, SPP+FB otherwise, FC on stop and on jumps. On by default (`PluginProcessor.h:113`); Clk Recv forced On | [Measured]: the display reads "Ext 60/90/120/140/180" for 60-180 BPM (after averaging; briefly "Ext 122"/"143" while settling). FA → Run, FC → Stop, SPP+FB → Run. So the G2 behaves as a G2 slaved to a DAW. But it is **on by default** and overrides the patch tempo | Medium (heard) | Make "Follow host tempo" explicit at first use (or opt-in per the rule), and respect the G2's own Clk Recv instead of forcing it (small) |
-| MIDI clock out / Start-Stop out | Clk Send sends clock; Run/Stop sends Start/Stop [M p.33] | Not routed | Missing (part of #7) | Low | Route it with MIDI OUT |
-| Internal clock accuracy | Unknown | [Measured] 120 BPM internal → 48.3 F8/s (+0.6 %) on MIDI OUT | Possibly emulator timing (timer period TRR vs TRR+1, ±2 % [Notes §3.9.2]) or the OS's own table; **check on hardware** | Low | Compare a real G2's F8 rate at 120 BPM |
-| MIDI OUT | Notes, CCs, clock, Program Change, sysex dumps, MIDI modules [M p.30, p.29, p.126-131] | `producesMidi() false` (`PluginProcessor.h:38`); `Machine::takeMidiOut` is never called, so the queue grows forever (`machine.cpp:807-808`) | All of it is lost; a small leak | Medium | A lock-free MIDI OUT ring in Runner; drain it on the audio thread into the output MidiBuffer; `producesMidi() true` (medium) |
-| Sysex in | Patch and performance dumps over MIDI IN [M p.131-]; studios store sounds this way [M p.16] | Skipped (`EmulatedSoundEngine.cpp:110-111`). `midiInAt` takes 16-byte pieces (`runner.hpp:68`) | Missing | Low-medium | Pass sysex through in pieces (the UART paces it at 31250 baud: about 1.6 s per 5 kB) (small) |
+| MIDI clock out / Start-Stop out | Clk Send sends clock; Run/Stop sends Start/Stop [M p.33] | **Since 2026-10-13** on MIDI OUT: F8 always while Clk Send is On, FA and FC with the Run button (and controller 80 on the Global channel) [Measured, Notes §3.12.3]. Reaches an Audio Unit host and the stand-alone app's MIDI output | A VST3 host gets none of them: the format has no event for real-time messages | Low | – (a VST3 limit; say so) |
+| Internal clock accuracy | Unknown | [Measured] 120 BPM internal → 48.34 F8/s (+0.7 %) on MIDI OUT, 20.54 to 20.80 ms apart; 91 BPM → 36.66 (+0.7 %) | Possibly emulator timing (timer period TRR vs TRR+1, ±2 % [Notes §3.9.2]) or the OS's own table; **check on hardware** | Low | Compare a real G2's F8 rate at 120 BPM |
+| MIDI OUT | Notes, CCs, clock, Program Change, sysex dumps, MIDI modules [M p.30, p.29, p.126-131] | **Since 2026-10-13** the plugin's MIDI output (`producesMidi()` true with the emulator), at the cable's 3125 bytes a second (the UART's transmitter as the chip has it), each message at the sample of the sound made at the same instant; bounded queues [Notes §3.12] | Matches, in a test host. Not tried in a DAW; the stand-alone app sends ahead of the sound by the audio device's output latency; Program Changes on a load from memory not measured | Low | Try Live and Logic; delay the stand-alone's MIDI by the output latency (small) |
+| MIDI THRU | A jack that repeats MIDI IN [M p.53] | The plugin's output is MIDI OUT only: what comes in is not passed on | A host does this itself | – | – |
+| Sysex in | Patch and performance dumps over MIDI IN [M p.131-]; studios store sounds this way [M p.16] | **Since 2026-10-13** passed to the G2's MIDI IN at the cable's rate; a dump loads, the requests are answered [Measured, Notes §3.12.3] | Matches. Three dumps without a pause did not all load [emulated]: whether a G2 needs the pause is not known | Low | Check on a G2 |
+| Real-time bytes in | One cable: a sequencer or merger sends clock between the bytes of a dump | The host's clock and the track's MIDI are merged onto the emulated cable; a tick due during a System Exclusive message goes between its bytes [Notes §3.12.4] | A deliberate model of the merger (README, deviations) | – | – |
+| Active Sensing | Not sent [Measured]; FE and FF ignored on input [C 0x30011F5E] | Passed to the OS, which ignores it | Matches | – | – |
+| **Notes after an external MIDI clock** | A G2 slaved to a sequencer's clock plays | [Measured 2026-10-13] once the OS has followed an external clock, **new notes are silent** (held ones go on), also after the clock ended; a patch load after that can send DSP A6 into P memory without code and hang the OS. With 1 or 2 threads, G2 or G2X, with the old transmitter too, and on the code before the MIDI OUT work (f7c5667) [Notes §3.12.6]. [Measured 2026-10-14, test host] in the plugin with "Follows the Host's Tempo" on: the patch's MIDI modules fire by themselves with garbage values, notes and dump requests fail, DSP 3 crashes (VST3 and Audio Unit) | **An emulator fault**, found while testing sysex through a clock: "Follows the Host's Tempo" is unusable | **High** | Find what the OS sends the DSPs on an external tick and why it breaks (hidden test `[.clock-silence]`, `g2plugintest --midi-tempo`); until then keep the option off |
 | MIDI LED | Long blink for used messages, short for ignored ones [M p.26] | OS-driven (`PluginProcessor.cpp:318`) | Matches | – | – |
 
 ### 6. Memory, startup, performance and slots
@@ -242,6 +256,7 @@ the Mic Level knob's pop-up menu; the resampler is still the outputs'.)
 - **Expansion board** (true G2X polyphony).
 - **Factory initialisation** of system settings, plus optional factory banks from the user's own downloads.
 - **MIDI OUT**: notes from the Live keyboard (a real G2 acts as a master keyboard [M p.27]), CCs, clock, sysex.
+  (Built 2026-10-13, [Notes §3.12].)
 - **Two-handed panel gestures**.
 - **Master level persistence**.
 - **Proper resampling**.
@@ -255,7 +270,9 @@ the Mic Level knob's pop-up menu; the resampler is still the outputs'.)
 2. Whether LEDs really dim (Perf.Mode in Patch mode, inactive slots) and their colours.
 3. Whether the wheel LEDs are always lit, and the global wheels' direction.
 4. The control pedal's reading when unplugged.
-5. The real G2's F8 rate at an internal 120 BPM, compared with the emulator's 48.3 per second.
+5. The real G2's F8 rate at an internal 120 BPM, compared with the emulator's 48.3 per second. Also (2026-10-13):
+   how long after a key goes down its Note On is complete on MIDI OUT (emulated: 4.6 ms, the sound 0.5 ms before
+   that), and whether a second dump right after a first one loads.
 6. The factory system settings (MIDI Local, slot channels, Ctrl, Prg Chng, Clk Recv). The manual's figures suggest Local On, slots 1-4, Send & Receive, and Clk Recv Off; only "Global Off" and "Memory Protect On" are stated as factory values.
 7. Whether the G2 reloads its last performance on power-up.
 

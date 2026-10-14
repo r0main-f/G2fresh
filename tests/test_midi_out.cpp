@@ -840,6 +840,8 @@ TEST_CASE("The user's G2 OS: notes still sound after it followed an external MID
     if(!fw) SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
     Machine::Options o;
     if(const char* e = std::getenv("G2TEST_THREADS")) o.threads = std::atoi(e);
+    if(std::getenv("G2TEST_NO_POLL_SKIP")) o.pollSkip = false;
+    if(std::getenv("G2TEST_NO_IDLE_SKIP")) o.idleSkip = false;
     Rig r(*fw, o);
     r.load(keyboardSine(), "Clock");
     auto peak = [&] {
