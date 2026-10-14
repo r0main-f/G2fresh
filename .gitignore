@@ -16,8 +16,9 @@ __pycache__/
 # Downloaded third-party patch libraries (local testing only)
 corpus-external/
 
-# Claude Code worktrees
+# Claude Code: agents' worktrees and personal settings (the agents, skills and CLAUDE.md are committed)
 .claude/worktrees/
+.claude/settings.local.json
 # clangd's index (the clangd plugin)
 .cache/
 

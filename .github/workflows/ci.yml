@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # main and release tags; a branch is built through its pull request (not twice)
   push:
+    branches: [main]
+    tags: ['v*']
   pull_request:
   # By hand (Actions > CI > Run workflow): with "sign", a rehearsal of a release's signing and notarization
   # without a tag.
