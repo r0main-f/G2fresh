@@ -19,6 +19,8 @@ corpus-external/
 # Claude Code: agents' worktrees and personal settings (the agents, skills and CLAUDE.md are committed)
 .claude/worktrees/
 .claude/settings.local.json
+# clangd's index (the clangd plugin)
+.cache/
 
 
 # Other G2 editors cloned for bench testing (see re/notes/references.md), never committed

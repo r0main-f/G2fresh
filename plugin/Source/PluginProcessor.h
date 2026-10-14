@@ -17,7 +17,8 @@
 // port into a G2 (MidiForwarder); and holds the editor's connection to a G2
 // (SynthSync). Its audio output is the emulated G2's, while the editor is
 // connected to it; otherwise silence (a G2 makes its own sound). Its audio
-// inputs are the emulated G2's IN 1-4 (the buses and levels: AudioIo.h).
+// inputs are the emulated G2's IN 1-4 (the buses and levels: AudioIo.h), its
+// MIDI output the emulated G2's MIDI OUT.
 class G2EditorProcessor final : public juce::AudioProcessor,
                                 public g2ui::EmulatorHost,
                                 private juce::ChangeListener,
@@ -36,7 +37,9 @@ public:
 
     const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return true; }
-    bool producesMidi() const override { return false; }
+    // The emulated G2's MIDI OUT (notes from the Live view's keyboard, controllers, clock, dumps, MIDI modules);
+    // a build without the emulator sends nothing.
+    bool producesMidi() const override { return JucePlugin_ProducesMidiOutput; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
 
@@ -61,6 +64,10 @@ public:
     juce::String startEmulator(const juce::File& firmware) override;
     bool emulatorRunning() const override { return emulated_ != nullptr; }
     int emulatorsInHost() const override;
+    int emulatorBuffer() const override;
+    void setEmulatorBuffer(int buffer) override;
+    double emulatorLatencyMs(int buffer) const override;
+    int emulatorDropouts() const override;
     bool hostClock() const override { return hostClockOn_; }
     bool mixOut34() const override { return mixOut34_; }
     float masterLevel() const override { return masterLevel_; }
@@ -96,6 +103,9 @@ private:
     // The running emulated G2's flash into the state.
     void captureFlash();
     std::vector<std::uint8_t> startingFlash() const;
+    // The running emulated G2 takes the buffer the settings ask for, and the host learns the new latency.
+    void applyBuffer();
+    int dropoutsShown_ = 0; // as the editor last heard of them
 #endif
 
     g2ui::PatchDocument document_;

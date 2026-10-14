@@ -2,9 +2,15 @@
 //
 //   g2emurun [--fw PATH] [--patch FILE | --kbd FILE] [--to B:FILE ...] [--settle S] [--seconds S]
 //            [--note N@ON-OFF ...] [--midi N@ON-OFF[:CH] ...] [--wav OUT.wav] [--json OUT.json]
-//            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0..4|-1] [--skew N] [--dsp-lead N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
+//            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0..8|-1] [--model g2|g2x|engine] [--expansion on|off] [--skew N] [--dsp-lead N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
 //            [--no-usb] [--panel] [--panel-at T] [--press RAW@T[-T2]] [--turn RAW:N@T] [--adc POS:V@T] [--key K@T-T2[:MS]] [--var V@T]
-//            [--in N:HZ[:LEVEL] ...]
+//            [--in N:HZ[:LEVEL] ...] [--causal-reads] [--host-lag N] [--no-host-taken]
+//
+// The host port (re/notes §3.9.6): --no-host-taken lets the OS read a DSP's status before the DSP has taken what it
+// wrote (as before 2026-10-14); --host-lag N (with DSP threads) has the DSPs take what the OS writes only in every
+// Nth frame of theirs, as when their threads get little time. With the first, a heavy upload or a MIDI clock shows
+// the fault the default prevents (a DSP that reads its host port without a word, "WARNING: the host port out of
+// step", then silence or a DSP that strays).
 //
 // The audio inputs (re/notes §3.11): --in puts a sine of HZ on input N (1-4), LEVEL of the ADCs' full scale (0.25
 // unless given: a signal of 1.0 in the patch), all along (not with --realtime).
@@ -527,10 +533,17 @@ int main(int argc, char** argv)
             const auto m = next();
             opt.model = m == "g2x" ? g2emu::PanelModel::G2X : m == "engine" ? g2emu::PanelModel::G2Engine : g2emu::PanelModel::G2;
         }
+        else if(a == "--expansion")
+        {
+            const auto e = next();
+            opt.expansion = e == "on" ? g2emu::Expansion::With : e == "off" ? g2emu::Expansion::Without : g2emu::Expansion::AsBuilt;
+        }
         else if(a == "--no-jit") opt.jit = false;
         else if(a == "--no-idle-skip") opt.idleSkip = false;
         else if(a == "--no-poll-skip") opt.pollSkip = false;
         else if(a == "--causal-reads") opt.causalReads = true;
+        else if(a == "--no-host-taken") opt.hostTakenOnRead = false;
+        else if(a == "--host-lag") opt.hostLagFrames = std::uint32_t(std::stoul(next()));
         else if(a == "--trace") opt.trace = true;
         else if(a == "--panel") g_panelPrint = true;
         else if(a == "--var")
@@ -584,10 +597,11 @@ int main(int argc, char** argv)
             {
                 std::this_thread::sleep_for(std::chrono::seconds(2));
                 const auto s = m.stats();  // racy: debugging only
-                std::fprintf(stderr, "watch: cf pc %08x cycles %llu; dsp clocks %llu %llu %llu %llu pcs %06x %06x %06x %06x\n", s.cfPc,
-                             (unsigned long long)s.cfCycles, (unsigned long long)(s.dspExecuted[0] + s.dspSkipped[0]),
-                             (unsigned long long)(s.dspExecuted[1] + s.dspSkipped[1]), (unsigned long long)(s.dspExecuted[2] + s.dspSkipped[2]),
-                             (unsigned long long)(s.dspExecuted[3] + s.dspSkipped[3]), s.dspPc[0], s.dspPc[1], s.dspPc[2], s.dspPc[3]);
+                std::fprintf(stderr, "watch: cf pc %08x cycles %llu; dsp clocks", s.cfPc, (unsigned long long)s.cfCycles);
+                for(int n = 0; n < s.dsps; ++n) std::fprintf(stderr, " %llu", (unsigned long long)(s.dspExecuted[n] + s.dspSkipped[n]));
+                std::fprintf(stderr, " pcs");
+                for(int n = 0; n < s.dsps; ++n) std::fprintf(stderr, " %06x", s.dspPc[n]);
+                std::fprintf(stderr, "\n");
             }
         });
     struct Join { std::atomic<bool>& d; std::thread& t; ~Join() { d = true; if(t.joinable()) t.join(); } } join{done, watch};
@@ -596,14 +610,13 @@ int main(int argc, char** argv)
     auto report = [&](const char* what) {
         const auto s = m.stats();
         const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
-        std::fprintf(stderr,
-                     "[%7.3f s emulated, %7.3f s wall] %s: cf pc %08x, %llu instr; dsp pc %06x %06x %06x %06x; "
-                     "executed/frame %.0f %.0f %.0f %.0f; host cmds %llu; underruns %llu\n",
-                     m.seconds(), wall, what, s.cfPc, (unsigned long long)s.cfInstructions, s.dspPc[0], s.dspPc[1],
-                     s.dspPc[2], s.dspPc[3], double(s.dspExecuted[0]) / double(m.frame() + 1),
-                     double(s.dspExecuted[1]) / double(m.frame() + 1), double(s.dspExecuted[2]) / double(m.frame() + 1),
-                     double(s.dspExecuted[3]) / double(m.frame() + 1), (unsigned long long)s.hostCommands,
-                     (unsigned long long)s.linkUnderruns);
+        // the DSPs by chip select: A3..A6, then the expansion board's A7..A10
+        std::fprintf(stderr, "[%7.3f s emulated, %7.3f s wall] %s: cf pc %08x, %llu instr; dsp pc", m.seconds(), wall, what, s.cfPc,
+                     (unsigned long long)s.cfInstructions);
+        for(int n = 0; n < s.dsps; ++n) std::fprintf(stderr, " %06x", s.dspPc[n]);
+        std::fprintf(stderr, "; executed/frame");
+        for(int n = 0; n < s.dsps; ++n) std::fprintf(stderr, " %.0f", double(s.dspExecuted[n]) / double(m.frame() + 1));
+        std::fprintf(stderr, "; host cmds %llu; underruns %llu\n", (unsigned long long)s.hostCommands, (unsigned long long)s.linkUnderruns);
     };
 
     // boot
@@ -758,6 +771,9 @@ int main(int argc, char** argv)
     const auto s = m.stats();
     const double emulated = double(frames) / g2emu::Machine::FrameRate;
     if(s.dspsWild) std::printf("WARNING: %d DSP(s) ran into P memory without code\n", s.dspsWild);
+    if(s.hostEmptyReads || s.dspEmptyReads)
+        std::printf("WARNING: the host port out of step: %llu answers read by the OS that were not there, %llu words read by a DSP that were not there\n",
+                    (unsigned long long)s.hostEmptyReads, (unsigned long long)s.dspEmptyReads);
     std::printf("speed: %.3f emulated s in %.3f wall s = %.2fx real time, %.2f CPU s per emulated s\n", emulated,
                 recWall, emulated / recWall, recCpu / emulated);
     std::printf("per thread: ColdFire (and the caller) %.2f CPU s per emulated s", recCfCpu / emulated);
@@ -766,7 +782,7 @@ int main(int argc, char** argv)
         const double busy = recCfCpu - (opt.threads ? double(s2.cfWaitNs - s1.cfWaitNs) * 1e-9 : 0.0);
         std::printf(" (%.1f M instructions per busy s)", double(s2.cfInstructions - s1.cfInstructions) / std::max(busy, 1e-9) * 1e-6);
     }
-    for(int w = 0; w < 4; ++w)
+    for(int w = 0; w < g2emu::Machine::MaxDsps; ++w)
         if(s2.dspThreadCpuNs[w])
             std::printf("; DSP thread %d %.2f CPU s, of which waiting %.2f s", w,
                         double(s2.dspThreadCpuNs[w] - s1.dspThreadCpuNs[w]) * 1e-9 / emulated,
@@ -775,6 +791,8 @@ int main(int argc, char** argv)
     std::printf("host port: %.0f reads/s, %.0f commands/s, %.0f DSP syncs/s; ColdFire time in skipped polls %.1f%%\n",
                 double(s.hostReads) / m.seconds(), double(s.hostCommands) / m.seconds(), double(s.dspSyncs) / m.seconds(),
                 100.0 * double(s.cfPollSkipped) / double(s.cfCycles));
+    std::printf("host port: %llu status reads found the DSP behind the host, %llu of them read it before it had caught up\n",
+                    (unsigned long long)s.statusBehind, (unsigned long long)s.statusStale);
     std::printf("whole run: %.1f emulated s, %.1f wall s, %.1f CPU s; cf %llu instr (%.1f M/s emulated); midi overruns %llu\n",
                 m.seconds(), std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count(),
                 cpuSeconds() - cpu0, (unsigned long long)s.cfInstructions, double(s.cfInstructions) / m.seconds() / 1e6,

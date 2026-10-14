@@ -10,7 +10,9 @@ list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 add_executable(g2tests
   test_bitstream.cpp
   test_hostclock.cpp
+  test_midi_assembler.cpp
   test_audio_io.cpp
+  test_resampler.cpp
   test_edit.cpp
   test_cables.cpp
   test_morph.cpp
@@ -25,6 +27,7 @@ add_executable(g2tests
   test_param_text.cpp
   test_param_text_golden.cpp
   test_graphs.cpp
+  test_library.cpp
   test_proto_framing.cpp
   test_proto_messages.cpp
   test_proto_session.cpp
@@ -38,7 +41,7 @@ add_executable(g2tests
   test_benchpack.cpp
 )
 target_link_libraries(g2tests PRIVATE g2bridgelib g2engine g2clavia Catch2::Catch2WithMain) # g2proto and g2core come with it
-target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/plugin/Source) # HostClock.h, AudioIo.h (plain C++)
+target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/plugin/Source) # HostClock.h, AudioIo.h, Resampler.h (plain C++)
 target_include_directories(g2tests PRIVATE ${PROJECT_SOURCE_DIR}/ui) # SynthSettingsForm.h (plain C++)
 target_compile_definitions(g2tests PRIVATE G2_BRIDGE_EXECUTABLE="$<TARGET_FILE:g2bridge>")
 add_dependencies(g2tests g2bridge)
@@ -86,6 +89,13 @@ if(Python3_FOUND)
     COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/pch2/pch2dump.py roundtrip ${G2_CORPUS_FILES})
 endif()
 
+# The patch library's audition (SynthSync::audition, in the editor's own code) on the virtual G2: the document is
+# never touched and the synth gets back what it had. g2render is a JUCE program: not on Linux, where the tests run
+# without a display.
+if(TARGET g2render AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_test(NAME library_audition_on_the_virtual_g2 COMMAND g2render audition)
+endif()
+
 # The hardware bench pack (bench/hardware-pack, tools/benchpack): the committed patches are what the generator
 # writes, the printable pages are what the instructions give, and the analysis finds the faults of synthetic
 # recordings. With the emulator built and G2_FIRMWARE set (Clavia's OS update .dmg), four of its patches are also
@@ -111,7 +121,7 @@ endif()
 # The real-time G2 emulator (emu/g2emu, built with -DG2_BUILD_EMU=ON). Its [firmware] case boots the user's own OS
 # when it finds it (G2_FIRMWARE, or original/firmware) and is skipped otherwise.
 if(TARGET g2emu)
-  add_executable(g2emutests test_g2emu.cpp test_live_firmware.cpp)
+  add_executable(g2emutests test_g2emu.cpp test_live_firmware.cpp test_midi_out.cpp)
   target_link_libraries(g2emutests PRIVATE g2emu g2coldfire dsp56kEmu Catch2::Catch2WithMain)
   target_include_directories(g2emutests PRIVATE ${PROJECT_SOURCE_DIR}/emu/g2emu/src)
   target_include_directories(g2emutests PRIVATE ${PROJECT_SOURCE_DIR}/ui) # SynthSettingsForm.h (plain C++)

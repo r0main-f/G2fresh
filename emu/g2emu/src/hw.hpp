@@ -80,10 +80,26 @@ public:
     // Inputs on the parallel port (PADAT, MBAR + 0x248): the bits in `mask` read `value` instead of what was written
     // (the keyboard matrix's rows, the sustain pedal; see panel.hpp).
     void setGpioInputs(std::uint16_t mask, std::uint16_t value) { gpioInMask_ = mask; gpioIn_ = value; }
-    // The same, the first byte starting on the line at bus clock `notBefore` at the earliest.
+    // The same, the first byte starting on the line at bus clock `notBefore` at the earliest. A System Real Time
+    // byte (F8-FF: MIDI clock, Start, Stop) sent while a System Exclusive message waits on the line goes between
+    // that message's bytes, at its own time, as a MIDI merger sends it; behind anything else it keeps its turn.
     void midiInAt(const std::uint8_t* data, std::size_t n, std::uint64_t notBefore);
+    // MIDI OUT, UART0's transmitter: a holding register and a shift register, as on the chip. A byte written to
+    // UTB while the holding register is free (USR TxRDY) leaves when the shifter has sent the byte before it, 10
+    // bits at the line rate; one written while it is full is lost. The OS polls TxRDY from its tick and writes one
+    // byte per tick [C 0x30002BEE, called from the tick's hook 0x3001BB56], so the cable's 3125 bytes a second
+    // are what paces a dump.
+    struct MidiOutByte {
+        std::uint8_t byte = 0;
+        std::uint64_t done = 0;  // the bus clock at which its stop bit ends
+    };
+    // The bytes whose stop bit has ended by bus clock `now`, oldest first, up to `n`; returns how many.
+    std::size_t takeMidiOut(MidiOutByte* out, std::size_t n, std::uint64_t now);
+    // All the bytes written so far, also those still on the line.
     std::vector<std::uint8_t> takeMidiOut();
     std::uint64_t midiOverruns() const { return uartOverruns_; }
+    // Bytes written to UTB while the holding register was full or the transmitter off (lost), or that nobody took.
+    std::uint64_t midiOutLost() const { return txLost_; }
     // The EEPROM on the parallel port.
     Eeprom& eeprom() { return eeprom_; }
     const Eeprom& eeprom() const { return eeprom_; }
@@ -102,20 +118,26 @@ private:
         std::uint8_t uimr = 0, uivr = 0x0f, ubg1 = 0, ubg2 = 0;
         bool rxEnabled = true, txEnabled = true;
         std::deque<std::uint8_t> fifo;  // the receiver's FIFO (3 bytes)
-        std::vector<std::uint8_t> tx;
+        // the transmitter: the bus clocks at which the holding register is free again (its byte goes to the shifter)
+        // and at which the shifter has sent its byte; the bytes sent, until someone takes them
+        std::uint64_t txHoldFree = 0, txShiftFree = 0;
+        std::deque<MidiOutByte> tx;
         bool overrun = false;
     };
+    static constexpr std::size_t TxKept = 65536;  // bytes kept while nobody takes them
 
     std::uint32_t timerPeriod(const Timer& t) const;  // bus clocks per count
     std::uint32_t timerCount(const Timer& t, std::uint64_t now) const;
     void timerUpdate(Timer& t, std::uint64_t now);
-    std::uint8_t usr(const Uart& u) const;
-    std::uint8_t uisr(const Uart& u) const;
-    std::uint32_t readUart(Uart& u, std::uint32_t off);
-    void writeUart(Uart& u, std::uint32_t off, std::uint8_t v);
+    std::uint8_t usr(const Uart& u, std::uint64_t now) const;
+    std::uint8_t uisr(const Uart& u, std::uint64_t now) const;
+    bool uartIrq(const Uart& u) const;  // an unmasked UISR bit is set
+    std::uint32_t readUart(Uart& u, std::uint32_t off, std::uint64_t now);
+    void writeUart(Uart& u, std::uint32_t off, std::uint8_t v, std::uint64_t now);
     std::uint8_t readI2c(std::uint32_t off);
     void writeI2c(std::uint32_t off, std::uint8_t v);
-    std::uint32_t busClocksPerMidiByte() const;
+    std::uint32_t busClocksPerMidiByte() const { return busClocksPerByte(uart_[0]); }
+    static std::uint32_t busClocksPerByte(const Uart& u);
 
     std::function<std::uint64_t()> busNow_;
     std::array<std::uint8_t, 0x1000> r_{};  // registers without a model: read back what was written
@@ -128,11 +150,14 @@ private:
     struct MidiByte {
         std::uint8_t byte = 0;
         std::uint64_t notBefore = 0;  // bus clock
+        bool sysex = false;           // a data byte or the end (F7) of a System Exclusive message
     };
     std::deque<MidiByte> midiPending_;
     std::uint64_t midiLineFree_ = 0;  // the bus clock at which the last byte finished
+    bool midiInSysex_ = false;        // the last byte queued left a System Exclusive message open
     std::uint64_t midiCompletion() const;
-    std::uint64_t uartOverruns_ = 0;
+    std::uint64_t uartOverruns_ = 0, txLost_ = 0;
+    std::uint64_t advanced_ = 0;      // the bus clock of the last advance()
 
     // I2C master: every addressed slave acknowledges. The one slave the OS reads is the panel's ADC (MAX1039, address
     // 0x65): it writes a setup byte (0xAA) and a configuration byte (0x0D: scan inputs 0-6, single-ended), then reads

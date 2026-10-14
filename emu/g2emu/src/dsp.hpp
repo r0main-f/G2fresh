@@ -73,6 +73,7 @@ public:
     struct Options {
         bool jit = true;
         bool idleSkip = true;
+        std::uint32_t hostLagFrames = 0;  // for tests: see Machine::Options
     };
 
     // Stage 1's background loop [C]: P:$222..$22A spins while the frame counter X:$43 <= 3.
@@ -99,9 +100,21 @@ public:
     // up to the ColdFire's time first.
     bool hostReadDependsOnDsp(int reg) const { return reg != 3 && reg != 0; }
 
+    // Whether the DSP has yet to take something the host wrote: a word or a flag change it was not given yet, a host
+    // command it has not run. (A word it was given and has not read is not pending: it is in HORX, where the host
+    // sees it as TRDY = 0.) The host's thread.
+    bool hostPending() const
+    {
+        return hostHead_.load(std::memory_order_relaxed) != hostTail_.load(std::memory_order_acquire) ||
+               commandsOutstanding_.load(std::memory_order_acquire) != 0;
+    }
+
     // ---- running ----
     // Runs until the instruction counter reaches `target` (or a little beyond: the JIT runs whole blocks).
     void runTo(std::uint64_t target);
+    // Runs on, a few instructions at a time, until nothing of the host's is pending (true) or the counter reaches
+    // `limit` (false). The DSP's thread.
+    bool takeHost(std::uint64_t limit);
     std::uint64_t clock() const { return dsp_.getInstructionCounter(); }
     bool booting() const { return booting_; }
 
@@ -123,6 +136,19 @@ public:
     void setSource(AdcSource* source) { source_.store(source, std::memory_order_release); }
 
     // ---- statistics and debugging ----
+    // The two sides of the host port out of step (any thread): the host read the receive registers while the DSP
+    // had sent nothing (it gets the word before again), or the DSP read HORX while the host had sent nothing (it
+    // gets 0; the boot ROM's emulation, which asks before it looks, is not counted). Neither happens while all is
+    // well: the OS's $AE, once taken for a ping that reads without a word (§3.9.4), fetches a word the OS knows is
+    // there. The second is how a DSP came to write at P:0 with DSP threads (§3.9.6).
+    std::uint64_t hostEmptyReads() const { return hostEmptyReads_.load(std::memory_order_relaxed); }
+    std::uint64_t dspEmptyReads() const { return dspEmptyReads_.load(std::memory_order_relaxed); }
+    // The DSP the calling thread runs now (inside runTo()), for the library's log, which does not say whose it is.
+    static Dsp* running();
+    // The library logged an empty read of HORX / something that should not happen (an undefined opcode): the
+    // DSP's thread. `what` goes to stderr with the last host events the DSP took (once per DSP and kind).
+    void onEmptyRead();
+    void report(const char* what);
     std::uint64_t txFrames(int esaiIndex) const { return txFrames_[esaiIndex & 1]; }
     std::uint64_t rxFrames(int esaiIndex) const { return rxFrames_[esaiIndex & 1]; }
     std::uint64_t skipped() const { return skipped_; }
@@ -176,6 +202,7 @@ private:
     bool awaitingCommand_ = false, awaitingFlags_ = false;  // the DSP's thread
     struct alignas(128) {} endOfHostQueue_;
 
+    bool takingHost_ = false;  // inside takeHost(): the idle loop runs, so that the clock moves no further than it must
     Link* in_[2] = {nullptr, nullptr};
     Link* out_[2] = {nullptr, nullptr};
     std::vector<std::int32_t>* sink_ = nullptr;
@@ -187,6 +214,19 @@ private:
     std::uint64_t skipped_ = 0;
     static constexpr dsp56k::TWord WildPcFrom = 0x4000;  // no code above this
     bool wild_ = false;
+
+    // The last host events the DSP took (its thread), for report()
+    struct Traced {
+        enum Kind : std::uint8_t { Data, Command, Flags, Taken, FlagsSeen, EmptyRead } kind = Data;
+        dsp56k::TWord value = 0;
+        std::uint64_t clock = 0;
+    };
+    void trace(Traced::Kind kind, dsp56k::TWord value) { traced_[tracedCount_++ % traced_.size()] = {kind, value, clock()}; }
+    std::array<Traced, 256> traced_{};
+    std::uint32_t tracedCount_ = 0;
+    dsp56k::TWord lastCommand_ = 0;
+    int reports_ = 0;
+    std::atomic<std::uint64_t> hostEmptyReads_{0}, dspEmptyReads_{0};
 };
 
 } // namespace g2emu

@@ -6,6 +6,7 @@
 #include "CableLayout.h"
 
 #include "Dialogs.h"
+#include "PatchLibrary.h"
 #include "SynthSettingsWindow.h"
 
 #include "g2/patch_load.hpp"
@@ -16,7 +17,7 @@ namespace {
 const juce::String kOpenPattern = "*.pch2;*.prf2";
 
 enum MenuId {
-    kNew = 1, kOpen, kSave, kSaveAs, kClearRecent, kNewPerformance, kPerformanceSettings,
+    kNew = 1, kOpen, kSave, kSaveAs, kClearRecent, kNewPerformance, kPerformanceSettings, kPatchLibrary,
     kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
@@ -31,6 +32,7 @@ enum MenuId {
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
     kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34,
+    kEmulatorBufferBase = 740, // + buffer (EmulatorHost::emulatorBuffer)
     // Opt-in deviations from the original editor (View menu).
     kWheelEditsKnobs = 800, kDoubleClickMorph, kDoubleClickReset, kDoubleClickNothing, kShowLoadEstimate,
     kMorphGroupColours,
@@ -218,6 +220,7 @@ MainView::~MainView()
     setLookAndFeel(nullptr);
     doc_.removeChangeListener(this);
     synthSettings_.reset();
+    library_.reset(); // ends an audition while the synth is still there
     if (synth_ != nullptr) {
         synth_->removeChangeListener(this);
         synth_->onFlashProblem = nullptr;
@@ -228,6 +231,7 @@ MainView::~MainView()
 void MainView::setSynth(SynthSync* synth)
 {
     synthSettings_.reset();
+    library_.reset();
     if (synth_ != nullptr) {
         synth_->removeChangeListener(this);
         synth_->onFlashProblem = nullptr;
@@ -275,6 +279,16 @@ void MainView::updateLoad()
                                                                : juce::Colour(0xffa8adb6));
 }
 
+// "Low (9 ms)": a buffer of the emulated G2 with the latency it gives in this host now.
+juce::String MainView::emulatorBufferName(int buffer) const
+{
+    static const char* const names[] = {"Low", "Normal", "Safe"};
+    juce::String text = names[juce::jlimit(0, 2, buffer)];
+    if (const double ms = emulator_ != nullptr ? emulator_->emulatorLatencyMs(buffer) : 0.0; ms > 0)
+        text << " (" << juce::String(ms, 1) << " ms)";
+    return text;
+}
+
 void MainView::updateSynthStatus()
 {
     if (synth_ == nullptr)
@@ -287,6 +301,10 @@ void MainView::updateSynthStatus()
                    "more, about 1.5 cores each)";
         else if (emulator_->emulatorRunning() && others > 0)
             text << "  |  " << (others + 1) << " Emulated G2s run in this host: heavy on the CPU";
+        // the emulated G2 was late for the host: heard as clicks or gaps, and for the user to know
+        if (const int dropouts = emulator_->emulatorRunning() ? emulator_->emulatorDropouts() : 0; dropouts > 0)
+            text << "  |  " << dropouts << (dropouts == 1 ? " dropout" : " dropouts")
+                 << (emulator_->emulatorBuffer() < 2 ? ": try Synth > Emulated G2 Buffer" : ": the computer is too busy for the Emulated G2");
     }
     if (synth_->boundSlot() >= 0)
         text << "  |  live: slot " << juce::String::charToString(static_cast<juce::juce_wchar>('A' + synth_->boundSlot()));
@@ -370,6 +388,10 @@ juce::PopupMenu MainView::synthMenu()
         m.addItem(item(kHostClock, "Emulated G2 Follows the Host's Tempo (MIDI Clock)", {}, true, emulator_->hostClock()));
         m.addItem(item(kMixOut34, "Mix Out 3/4 into Out 1/2 (when the Out 3/4 output is not used)", {}, true,
                        emulator_->mixOut34()));
+        juce::PopupMenu buffer;
+        for (int b = 0; b < 3; ++b)
+            buffer.addItem(item(kEmulatorBufferBase + b, emulatorBufferName(b), {}, true, emulator_->emulatorBuffer() == b));
+        m.addSubMenu("Emulated G2 Buffer (latency)", buffer);
     }
     m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
     m.addSeparator();
@@ -432,6 +454,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             recent.addItem(item(kClearRecent, "Clear Menu"));
         }
         m.addSubMenu("Open Recent", recent, recent.getNumItems() > 0);
+        m.addItem(item(kPatchLibrary, "Patch Library...", kCmd + "B"));
         m.addSeparator();
         m.addItem(item(kSave, "Save", kCmd + "S"));
         m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S"));
@@ -494,7 +517,9 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             m.addItem(item(kAudioSettings, "Audio/MIDI Settings..."));
         if (midiOut_ != nullptr) {
             // The G2's USB connection carries no notes: MIDI goes to the
-            // synth through a MIDI interface.
+            // synth through a MIDI interface. (Not the emulated G2's MIDI
+            // OUT, which is the plugin's MIDI output: Audio/MIDI Settings
+            // in the stand-alone app.)
             juce::PopupMenu out;
             const auto current = midiOut_->deviceIdentifier();
             out.addItem(item(kMidiOutOff, "Off", {}, true, current.isEmpty()));
@@ -509,7 +534,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             for (int c = 1; c <= 16; ++c)
                 channels.addItem(item(kMidiChannelBase + c, "Channel " + juce::String(c), {}, true, midiOut_->channel() == c));
             out.addSubMenu("Channel", channels, current.isNotEmpty());
-            m.addSubMenu("MIDI Output to G2", out);
+            m.addSubMenu("Forward MIDI to a Hardware G2", out);
         }
     }
     return m;
@@ -545,6 +570,14 @@ void MainView::menuItemSelected(int id, int)
     if (id == kShowLoadEstimate) {
         setShowLoadEstimate(!showLoadEstimate());
         updateLoad();
+        menuItemsChanged();
+        return;
+    }
+    if (id >= kEmulatorBufferBase && id < kEmulatorBufferBase + 3 && emulator_ != nullptr) {
+        emulator_->setEmulatorBuffer(id - kEmulatorBufferBase);
+        setStatus("Emulated G2 buffer: " + emulatorBufferName(id - kEmulatorBufferBase)
+                  + ". A smaller buffer plays sooner; if you hear clicks or gaps, choose a larger one");
+        updateSynthStatus();
         menuItemsChanged();
         return;
     }
@@ -611,8 +644,8 @@ void MainView::menuItemSelected(int id, int)
         const auto devices = midiOut_->availableDevices();
         const int i = id - kMidiOutBase;
         midiOut_->setDevice(juce::isPositiveAndBelow(i, devices.size()) ? devices[i].identifier : juce::String());
-        setStatus(midiOut_->deviceIdentifier().isEmpty() ? juce::String("MIDI output to the G2: off")
-                                                         : "MIDI output to the G2: " + devices[i].name);
+        setStatus(midiOut_->deviceIdentifier().isEmpty() ? juce::String("MIDI forwarded to a hardware G2: off")
+                                                         : "MIDI forwarded to a hardware G2 through " + devices[i].name);
         return;
     }
     if (midiOut_ != nullptr && id >= kMidiChannelBase && id <= kMidiChannelBase + 16) {
@@ -659,6 +692,7 @@ void MainView::menuItemSelected(int id, int)
     case kMutate: randomize(true); break;
     case kMutator: showMutator(); break;
     case kOpen: open(); break;
+    case kPatchLibrary: showLibrary(); break;
     case kSave: save(false); break;
     case kSaveAs: save(true); break;
     case kClearRecent:
@@ -996,6 +1030,8 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return open(), true;
     if (key == juce::KeyPress('n', cmd, 0))
         return newPatch(), true;
+    if (key == juce::KeyPress('b', cmd, 0))
+        return showLibrary(), true;
     if (key == juce::KeyPress('c', cmd, 0))
         return copySelection(false), true;
     if (key == juce::KeyPress('x', cmd, 0))
@@ -1040,6 +1076,20 @@ void MainView::showSynthSettings()
         if (safe)
             safe->synthSettings_.reset();
     });
+}
+
+void MainView::showLibrary()
+{
+    // The original's Patch Browser (Tools > Patch Browser, Ctrl-B: CWindowTogglerEx<CBrowser>::Toggle 0x19efbc).
+    if (library_ != nullptr && library_->isVisible() && library_->isActiveWindow()) {
+        library_->closeButtonPressed();
+        return;
+    }
+    if (!library_)
+        library_ = std::make_unique<PatchLibrary>(LibraryHost{
+            doc_, synth_, [this](std::function<void()> then) { confirmDiscard(std::move(then)); },
+            [this](const juce::File& f) { openFile(f); }});
+    library_->open();
 }
 
 void MainView::showFlashProblem(const juce::String& text)

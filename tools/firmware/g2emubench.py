@@ -2,10 +2,11 @@
 """Speed benchmark of the C++ emulator (g2emurun) over a set of patches and thread settings
 (re/notes/g2-hardware-and-emulation.md §3.9.7).
 
-  g2emubench.py [--threads 0,1,2] [--seconds 3] [--patches A.pch2,B.pch2] [--chord 60,64,67] [--repeat N]
-                [--load N] [--realtime S] [--json OUT.json] [-- EXTRA g2emurun ARGS]
+  g2emubench.py [--threads 0,1,2] [--expansion off,on] [--seconds 3] [--patches A.pch2,B.pch2] [--chord 60,64,67]
+                [--repeat N] [--load N] [--realtime S] [--json OUT.json] [-- EXTRA g2emurun ARGS]
 
-Per patch and thread setting it runs `g2emurun --model g2x --kbd PATCH` (the patch in slot A on the keyboard) with
+Per patch, expansion board setting (off: four DSPs, the plugin's G2X; on: eight, a G2X as built; default off) and
+thread setting it runs `g2emurun --model g2x --expansion E --kbd PATCH` (the patch in slot A on the keyboard) with
 a chord held through MIDI over the whole recording, one run at a time, and reports the speed (emulated seconds per
 wall second), the CPU per emulated second (all threads), the busy CPU (waits taken out) per emulated second of the
 ColdFire thread and of each DSP thread, and the
@@ -14,7 +15,9 @@ instead plays S seconds through Runner + LocalLink at the wall clock (`g2emurun 
 the reader found missing. --load N keeps N busy processes (`yes > /dev/null`) running meanwhile, killed at the end.
 On macOS the emulator runs under `taskpolicy -a` (an application's scheduling policies, as in a DAW; --no-app: not).
 
-Measure with nothing else heavy running; one emulator at a time.
+Measure with nothing else heavy running; one emulator at a time. Each result carries the 1-minute load average
+before its run ("load" in the JSON), and the script warns when it is above 2: such a figure is not a measurement of
+the emulator (its threads waited for the other processes).
 """
 import argparse
 import json
@@ -81,6 +84,7 @@ def parse(out):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--threads', default='0,1,2')
+    ap.add_argument('--expansion', default='off', help='off, on or off,on: the voice expansion board (eight DSPs)')
     ap.add_argument('--seconds', type=float, default=3)
     ap.add_argument('--patches', default='')
     ap.add_argument('--chord', default='60,64,67')
@@ -98,55 +102,64 @@ def main():
         print(f'(skipped, not found: {p})', file=sys.stderr)
     patches = [p for p in patches if os.path.exists(p)]
     threads = [t for t in a.threads.split(',') if t != '']
+    expansions = [e for e in a.expansion.split(',') if e in ('off', 'on')]
+    busy = 0
     load = [subprocess.Popen(['yes'], stdout=subprocess.DEVNULL) for _ in range(a.load)]
     results = []
     try:
-        for p in patches:
+        for p, e, t in [(p, e, t) for p in patches for e in expansions for t in threads]:
             name = os.path.splitext(os.path.basename(p))[0]
-            for t in threads:
-                best = None
-                for _ in range(a.repeat):
-                    cmd = [a.emu, '--model', 'g2x', '--kbd', p, '--threads', t]
-                    if a.app and sys.platform == 'darwin':
-                        # an application's scheduling policies, as a DAW has them: without them (a process started by
-                        # a daemon, an agent) macOS ignores the threads' QoS class and they compete with any process
-                        cmd = ['taskpolicy', '-a'] + cmd
-                    if a.realtime:
-                        cmd += ['--realtime', str(a.realtime)]
-                        end = a.realtime
-                    else:
-                        cmd += ['--seconds', str(a.seconds)]
-                        end = a.seconds + 1
-                    for n in a.chord.split(','):
-                        if n:
-                            cmd += ['--midi', f'{n}@0-{end}:1']
-                    cmd += a.extra
-                    pr = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
-                    r = parse(pr.stdout + pr.stderr)
-                    r['rc'] = pr.returncode
-                    key = 'missing' if a.realtime else 'speed'
-                    if key not in r:
-                        sys.stderr.write(f'{name} threads {t}: no result (rc {pr.returncode})\n{pr.stderr[-2000:]}\n')
-                        continue
-                    better = (r[key] < best[key]) if a.realtime and best else (best is None or r[key] > best[key])
-                    if best is None or better:
-                        best = r
-                if best is None:
-                    continue
-                best.update(patch=name, threads=t)
-                results.append(best)
+            label = name[:12] + (' x8' if e == 'on' else '')
+            best = None
+            for _ in range(a.repeat):
+                cmd = [a.emu, '--model', 'g2x', '--expansion', e, '--kbd', p, '--threads', t]
+                if a.app and sys.platform == 'darwin':
+                    # an application's scheduling policies, as a DAW has them: without them (a process started by
+                    # a daemon, an agent) macOS ignores the threads' QoS class and they compete with any process
+                    cmd = ['taskpolicy', '-a'] + cmd
                 if a.realtime:
-                    print(f'{name:16} t{t:>2}  missing {best["missing"]:7d} frames ({best["missing_pct"]:5.2f}%) in {best["gaps"]} of '
-                          f'{best["blocks"]} blocks  speed while running {best.get("rt_speed", 0):.2f}x  peak {best.get("peak", 0):.4f}', flush=True)
+                    cmd += ['--realtime', str(a.realtime)]
+                    end = a.realtime
                 else:
-                    dsp = ' '.join(f'{c - w:.2f}' for c, w in best['dsp'])
-                    print(f'{name:16} t{t:>2}  {best["speed"]:5.2f}x  cpu {best["cpu"]:.2f}  busy: cf {best.get("cf", 0) - best.get("cf_wait", 0):.2f} '
-                          f'dsp {dsp:15}  polls {best.get("skipped", 0):4.1f}%  reads/s {best.get("reads", 0):7d}'
-                          f'{"  WILD" if best["wild"] else ""}', flush=True)
+                    cmd += ['--seconds', str(a.seconds)]
+                    end = a.seconds + 1
+                for n in a.chord.split(','):
+                    if n:
+                        cmd += ['--midi', f'{n}@0-{end}:1']
+                cmd += a.extra
+                load_before = os.getloadavg()[0] - a.load if hasattr(os, 'getloadavg') else 0.0
+                if load_before > 2:
+                    busy += 1
+                    print(f'WARNING: load average {load_before:.1f} before this run (above 2): not a measurement', file=sys.stderr, flush=True)
+                pr = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+                r = parse(pr.stdout + pr.stderr)
+                r['rc'] = pr.returncode
+                r['load'] = round(load_before, 2)
+                key = 'missing' if a.realtime else 'speed'
+                if key not in r:
+                    sys.stderr.write(f'{name} threads {t}: no result (rc {pr.returncode})\n{pr.stderr[-2000:]}\n')
+                    continue
+                better = (r[key] < best[key]) if a.realtime and best else (best is None or r[key] > best[key])
+                if best is None or better:
+                    best = r
+            if best is None:
+                continue
+            best.update(patch=name, threads=t, expansion=e)
+            results.append(best)
+            if a.realtime:
+                print(f'{label:16} t{t:>2}  missing {best["missing"]:7d} frames ({best["missing_pct"]:5.2f}%) in {best["gaps"]} of '
+                      f'{best["blocks"]} blocks  speed while running {best.get("rt_speed", 0):.2f}x  peak {best.get("peak", 0):.4f}  load {best["load"]:.1f}', flush=True)
+            else:
+                dsp = ' '.join(f'{c - w:.2f}' for c, w in best['dsp'])
+                print(f'{label:16} t{t:>2}  {best["speed"]:5.2f}x  cpu {best["cpu"]:.2f}  busy: cf {best.get("cf", 0) - best.get("cf_wait", 0):.2f} '
+                      f'dsp {dsp:15}  polls {best.get("skipped", 0):4.1f}%  reads/s {best.get("reads", 0):7d}'
+                      f'  load {best["load"]:.1f}{"  WILD" if best["wild"] else ""}', flush=True)
     finally:
         for pr in load:
             pr.kill()
             pr.wait()
+    if busy:
+        print(f'WARNING: {busy} run(s) started with a load average above 2: measure again on a quiet computer', file=sys.stderr)
     if a.json:
         with open(a.json, 'w') as f:
             json.dump(results, f, indent=1)

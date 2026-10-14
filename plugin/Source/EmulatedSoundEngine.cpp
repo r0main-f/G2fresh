@@ -14,9 +14,19 @@ g2emu::Runner::Options runnerOptions(std::vector<std::uint8_t> flash)
     g2emu::Runner::Options o;
     o.flash = std::move(flash);
     o.machine.model = g2emu::PanelModel::G2X; // the Live view is a G2X: 61 keys and the two global wheels
+    // ...without its voice expansion board (a deliberate deviation: a G2's polyphony, four DSPs to emulate instead of
+    // eight; whether eight hold real time on a typical computer is not measured yet, re/notes §3.12.5)
+    o.machine.expansion = g2emu::Expansion::Without;
     // The DSPs on two threads of their own where the computer has 4 performance cores, else one
     // (Machine::autoThreads): two were faster for every patch measured, at the same CPU time
     o.machine.threads = -1;
+    // Its threads at the priority of the host's audio threads (macOS: elsewhere nothing changes), and no less than a
+    // stretch of audio per run (AudioIo.h). Beside other busy programs this was the difference between losing all
+    // of the audio and losing none (re/notes/audio-path.md §3.4). G2FRESH_EMULATOR_REALTIME=0 leaves them as they
+    // were up to 0.10.2 (a user-interactive class), to tell whether it is the cause of a problem.
+    o.machine.realtimeThreads = juce::SystemStats::getEnvironmentVariable("G2FRESH_EMULATOR_REALTIME", "1") != "0";
+    o.stretchMs = g2io::kStretchMs;
+    o.bufferMs = g2io::reserveMs(g2io::kDefaultBuffer);
     return o;
 }
 
@@ -53,25 +63,48 @@ juce::String EmulatedSoundEngine::diagnostics() const
     const auto s = runner_->stats();
     return "emulator speed while running " + juce::String(s.speed, 2) + "x, longest chunk "
          + juce::String(s.longestChunkMs, 1) + " ms, DSP threads " + juce::String(runner_->machine().stats().dspThreads)
+         + (s.realtime ? " (real-time)" : "") + ", buffer " + juce::String(runner_->bufferMs(), 0) + " ms, "
+         + juce::String(static_cast<juce::int64>(dropouts())) + " dropouts"
          + ", buffered " + juce::String(static_cast<int>(runner_->available())) + " frames, input frames late "
          + juce::String(static_cast<juce::int64>(s.inputMissing))
          + "\nMaster Clock display: '" + juce::String(runner_->machine().panel().displays[1].text(0)) + "' / '"
          + juce::String(runner_->machine().panel().displays[1].text(1)) + "'";
 }
 
+std::uint64_t EmulatedSoundEngine::dropouts() const
+{
+    if (!playing_.load(std::memory_order_acquire))
+        return 0;
+    return runner_->stats().shortReads - shortBefore_.load(std::memory_order_relaxed);
+}
+
+void EmulatedSoundEngine::setBuffer(g2io::Buffer buffer)
+{
+    buffer_ = buffer;
+    runner_->setBufferMs(g2io::reserveMs(buffer));
+}
+
+int EmulatedSoundEngine::latencySamples(g2io::Buffer buffer) const
+{
+    const double more = (g2io::reserveMs(buffer) - g2io::reserveMs(buffer_)) * hostRate_ / 1000.0;
+    return latencySamples() + static_cast<int>(std::lround(more));
+}
+
 int EmulatedSoundEngine::midiLatencySamples() const
 {
-    // the runner's fixed delay, plus the samples the resampler holds back
-    return static_cast<int>(std::lround(runner_->latencyFrames() * hostRate_ / g2emu::Machine::FrameRate)) + 2;
+    // the runner's fixed delay, then the output converter's
+    const double toHost = hostRate_ / g2emu::Machine::FrameRate;
+    return static_cast<int>(std::lround(static_cast<double>(runner_->latencyFrames() + down_.delay()) * toHost));
 }
 
 int EmulatedSoundEngine::latencySamples() const
 {
-    // An input sample waits behind the silence the inputs start with and the two samples the input interpolator holds
-    // back; its frame reaches the ADCs Runner::inputLatencyFrames() after the DACs send the frame read with it; then
-    // the G2's own way to the DACs, and the two frames the output interpolator holds back.
+    // An input sample goes through the input converter (its delay, in host samples); its frame reaches the ADCs
+    // Runner::inputLatencyFrames() after the DACs send the frame read with it; then the G2's own way to the DACs,
+    // and the output converter's delay (in 96 kHz frames).
     const double toHost = hostRate_ / g2emu::Machine::FrameRate;
-    return static_cast<int>(std::lround(inHeld_ + 2 + (runner_->inputLatencyFrames() + kAdcToDacFrames + 2) * toHost));
+    return static_cast<int>(std::lround(static_cast<double>(up_.delay())
+                                        + static_cast<double>(runner_->inputLatencyFrames() + kAdcToDacFrames + down_.delay()) * toHost));
 }
 
 void EmulatedSoundEngine::setMic(bool in1IsMic, float level)
@@ -93,29 +126,59 @@ EmulatedSoundEngine::~EmulatedSoundEngine()
 
 void EmulatedSoundEngine::prepare(double sampleRate, int maxBlock)
 {
-    hostRate_ = sampleRate > 0 ? sampleRate : 96000.0;
-    const auto room = static_cast<std::size_t>(std::ceil(maxBlock * g2emu::Machine::FrameRate / hostRate_)) + 64;
+    hostRate_ = sampleRate > 0 ? std::round(sampleRate) : 96000.0;
+    const auto block = static_cast<std::size_t>(std::max(1, maxBlock));
+    down_.prepare(g2emu::Machine::FrameRate, hostRate_, 4, block);
+    // the most 96 kHz frames a block of that size takes (one more than the average, depending on where it starts)
+    const auto room = static_cast<std::size_t>(std::ceil(static_cast<double>(block) * g2emu::Machine::FrameRate / hostRate_));
+    up_.prepare(hostRate_, g2emu::Machine::FrameRate, 4, room);
     // the machine keeps a whole host block ready on top of its buffer (a block takes this many frames at once)
-    runner_->setReadSize(static_cast<std::uint32_t>(std::ceil(maxBlock * g2emu::Machine::FrameRate / hostRate_)) + 8);
+    runner_->setReadSize(static_cast<std::uint32_t>(room));
     frames_.reserve(room * 4);
-    for (int c = 0; c < 4; ++c) {
-        resamplers_[c].reset();
-        render96_[c].clear();
-        render96_[c].reserve(room * 2);
-    }
-    outs_.setSize(4, std::max(1, maxBlock));
-    // The inputs start with a little silence: the first block takes 8 frames more than it gives (as render96_ keeps
-    // them), and no block may find the inputs short. Part of latencySamples().
-    const double toHost = hostRate_ / g2emu::Machine::FrameRate;
-    inHeld_ = static_cast<int>(std::ceil(12 * toHost)) + 2;
-    for (int c = 0; c < 4; ++c) {
-        inResamplers_[c].reset();
-        inHost_[c].clear();
-        inHost_[c].reserve(static_cast<std::size_t>(std::max(1, maxBlock) + inHeld_) + 64);
-        inHost_[c].assign(static_cast<std::size_t>(inHeld_), 0.0f);
-    }
-    in96_.reserve(room);
     inFrames_.reserve(room * 4);
+    outs_.setSize(4, static_cast<int>(block));
+    for (auto& held : inHost_) {
+        held.clear();
+        held.reserve(block + 8);
+    }
+    // MIDI OUT bytes still waiting belong to the old timeline: they go out with the first block of the new one
+    // (a message on its way in the assembler goes on)
+    for (auto t = outTail_; t != outHead_; ++t)
+        outBytes_[t % outBytes_.size()].frame = 0;
+    framesRead_ = 0;
+    rendered_ = 0;
+    lastBlock_ = 0;
+}
+
+void EmulatedSoundEngine::collectMidiOut(std::size_t framesRead)
+{
+    // the bytes the G2 sent during the frames just read, each at its frame in them
+    g2emu::Runner::MidiOut sent[64];
+    while (const auto n = runner_->midiOut(sent)) {
+        for (std::size_t k = 0; k < n; ++k) {
+            if (outHead_ - outTail_ == outBytes_.size())
+                ++outTail_; // takeMidiOut() is not called: the oldest goes
+            outBytes_[outHead_++ % outBytes_.size()] = {framesRead_ + sent[k].offset, sent[k].byte};
+        }
+    }
+    framesRead_ += framesRead;
+}
+
+void EmulatedSoundEngine::takeMidiOut(juce::MidiBuffer& out)
+{
+    // 96 kHz frame f (counted as read from the runner) is in the output at host sample (f + the output converter's
+    // delay, as in midiLatencySamples()) / ratio, counted as rendered: the bytes whose sample is in the block just
+    // rendered, at their place in it. A byte from before the block (the machine was late with it) goes at its start.
+    const double ratio = g2emu::Machine::FrameRate / hostRate_;
+    const auto start = static_cast<std::int64_t>(rendered_) - lastBlock_;
+    for (; outTail_ != outHead_; ++outTail_) {
+        const auto& e = outBytes_[outTail_ % outBytes_.size()];
+        const auto sample = static_cast<std::int64_t>(std::floor((static_cast<double>(e.frame) + static_cast<double>(down_.delay())) / ratio));
+        if (sample >= static_cast<std::int64_t>(rendered_))
+            break; // a later block's
+        midiOut_.push(e.byte, static_cast<int>(std::max<std::int64_t>(0, sample - start)),
+                      [&out](int at, const std::uint8_t* data, std::size_t size) { out.addEvent(data, static_cast<int>(size), at); });
+    }
 }
 
 juce::String EmulatedSoundEngine::status() const
@@ -129,7 +192,6 @@ juce::String EmulatedSoundEngine::status() const
 void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi, const juce::AudioBuffer<float>* in)
 {
     const int frames = out.getNumSamples();
-    const double ratio = g2emu::Machine::FrameRate / hostRate_;
     constexpr int word[4] = {0, 2, 1, 3}; // the runner's frames: Out (and In) 1, 3, 2, 4
 
     // The inputs wait at the host's rate, as ADC words (AudioIo.h); In 1 through the microphone preamp if it is the
@@ -148,20 +210,19 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         }
     }
 
-    // The track's MIDI to the G2's MIDI IN, at its place in the block: 96 kHz frames after the next frame read
-    // (the samples already read come first), plus the runner's fixed latency.
-    const auto have = static_cast<double>(render96_[0].size());
+    // The track's MIDI to the G2's MIDI IN, at its place in the block: where the output converter is at that sample,
+    // in 96 kHz frames after the next frame read, plus the runner's fixed latency.
+    // System Exclusive too (patch and performance dumps, requests [manual p.131]): the emulated cable carries a
+    // long message at its 3125 bytes a second, real-time bytes of this block between its bytes.
     for (const auto meta : midi) {
         const auto m = meta.getMessage();
-        if (m.isSysEx())
-            continue;
-        const auto at = std::max(0.0, std::round(meta.samplePosition * ratio - have));
+        const auto at = std::max(0.0, std::round(down_.position(static_cast<std::size_t>(std::max(0, meta.samplePosition)))));
         runner_->midiInAt({m.getRawData(), static_cast<std::size_t>(m.getRawDataSize())}, static_cast<std::uint32_t>(at));
     }
 
-    const auto needed = static_cast<std::size_t>(std::ceil(frames * ratio)) + 8;
-    if (render96_[0].size() < needed) {
-        const auto more = needed - render96_[0].size();
+    // The 96 kHz frames this block's samples take: exactly, from where the output converter is.
+    const auto more = down_.needs(static_cast<std::size_t>(frames));
+    if (more > 0) {
         if (offline_) {
             // A bounce asks faster than real time: wait for the machine (up to 2 s per block).
             for (int i = 0; i < 2000 && runner_->available() < more; ++i)
@@ -169,31 +230,37 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         }
         // As many input frames as output frames, for the same stretch of the runner's time: they reach the ADCs a
         // fixed time after the DACs send the frames read here (Runner::write).
-        inFrames_.resize(more * 4); // (these three) within the capacity reserved in prepare() for normal blocks
-        in96_.resize(more);
+        inFrames_.resize(more * 4); // (and frames_) within the capacity reserved in prepare() for normal blocks
+        const auto taken = up_.needs(more);
         for (int c = 0; c < 4; ++c) {
             auto& held = inHost_[c];
-            const int used = inResamplers_[c].process(1.0 / ratio, held.data(), in96_.data(), static_cast<int>(more),
-                                                      static_cast<int>(held.size()), 0);
-            held.erase(held.begin(), held.begin() + static_cast<std::ptrdiff_t>(std::min<std::size_t>(static_cast<std::size_t>(std::max(0, used)), held.size())));
-            for (std::size_t i = 0; i < more; ++i)
-                inFrames_[4 * i + static_cast<std::size_t>(word[c])] = in96_[i];
+            if (held.size() < taken) // (never: the two converters keep step)
+                held.resize(taken, 0.0f);
+            up_.process(c, held.data(), 1, inFrames_.data() + word[c], 4, more);
+            held.erase(held.begin(), held.begin() + static_cast<std::ptrdiff_t>(taken));
         }
+        up_.advance(more);
         runner_->write(inFrames_.data(), more);
         frames_.resize(more * 4);
-        runner_->read(frames_.data(), more); // silence for what is not there yet (booting, too slow)
-        // Words: Out 1, Out 3, Out 2, Out 4 (Machine::run). With the volume knob all the way up, a signal of 1.0 into
-        // an Out module gives a word of about -0.125: scaled back to signal units.
-        constexpr float toSignal = -8.0f;
-        for (std::size_t i = 0; i < more; ++i)
-            for (int c = 0; c < 4; ++c)
-                render96_[c].push_back(toSignal * frames_[4 * i + static_cast<std::size_t>(word[c])]);
+        const auto got = runner_->read(frames_.data(), more); // silence for what is not there yet (booting, too slow)
+        collectMidiOut(more);
+        if (got == more && !playing_.load(std::memory_order_relaxed)) {
+            shortBefore_.store(runner_->stats().shortReads, std::memory_order_relaxed);
+            playing_.store(true, std::memory_order_release);
+        }
     }
     if (outs_.getNumSamples() < frames)
         outs_.setSize(4, frames, false, false, true);
-    int used = 0;
-    for (int c = 0; c < 4; ++c)
-        used = resamplers_[c].process(ratio, render96_[c].data(), outs_.getWritePointer(c), frames);
+    // Words: Out 1, Out 3, Out 2, Out 4 (Machine::run). With the volume knob all the way up, a signal of 1.0 into
+    // an Out module gives a word of about -0.125: scaled back to signal units.
+    constexpr float toSignal = -8.0f;
+    for (int c = 0; c < 4; ++c) {
+        down_.process(c, frames_.data() + word[c], 4, outs_.getWritePointer(c), 1, static_cast<std::size_t>(frames));
+        juce::FloatVectorOperations::multiply(outs_.getWritePointer(c), toSignal, frames);
+    }
+    down_.advance(static_cast<std::size_t>(frames));
+    rendered_ += static_cast<std::uint64_t>(frames); // for takeMidiOut()
+    lastBlock_ = frames;
     out.clear();
     if (out.getNumChannels() >= 4) { // the second output bus: Out 3/4 on their own
         for (int c = 0; c < 4; ++c)
@@ -210,6 +277,4 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         for (int c = 0; c < last; ++c)
             out.addFrom(0, 0, outs_.getReadPointer(c), frames, 0.5f);
     }
-    for (auto& r : render96_)
-        r.erase(r.begin(), r.begin() + static_cast<std::ptrdiff_t>(std::min<std::size_t>(static_cast<std::size_t>(used), r.size())));
 }

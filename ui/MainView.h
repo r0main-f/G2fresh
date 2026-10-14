@@ -36,7 +36,7 @@ public:
 
     // Stand-alone app only: opens the audio/MIDI device settings.
     std::function<void()> onAudioSettings;
-    // Where Options > MIDI Output to G2 sends the MIDI (nullptr: no such menu).
+    // Where Options > Forward MIDI to a Hardware G2 sends the MIDI (nullptr: no such menu).
     void setMidiOutput(MidiOutputTarget* target)
     {
         midiOut_ = target;
@@ -132,12 +132,16 @@ private:
     SynthSync* synth_ = nullptr;
     EmulatorHost* emulator_ = nullptr;
     std::unique_ptr<class BankBrowser> bankBrowser_;
+    std::unique_ptr<class PatchLibrary> library_;
+    // File > Patch Library... (shows or hides it, as the original's Patch Browser key).
+    void showLibrary();
     std::unique_ptr<juce::Component> synthSettings_;
     void showSynthSettings();
     // A store the synth refused: the original's alert ("Flash Problem").
     void showFlashProblem(const juce::String& text);
     juce::Label synthStatus_;
     void updateSynthStatus();
+    juce::String emulatorBufferName(int buffer) const;
     // Connects to the emulated G2, from the G2 OS chosen before (or asks where it is).
     void startEmulator(bool chooseFirmware);
     // Asks where the user's copy of Clavia's download is (the Emulated G2's G2 OS

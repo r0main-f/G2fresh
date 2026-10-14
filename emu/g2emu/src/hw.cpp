@@ -65,6 +65,7 @@ void Sim::timerUpdate(Timer& t, std::uint64_t now)
 
 void Sim::advance(std::uint64_t now)
 {
+    advanced_ = now;
     for(auto& t : timer_) timerUpdate(t, now);
     // MIDI bytes complete one by one at the line rate, none starting before its time; a full FIFO overruns
     while(!midiPending_.empty() && now >= midiCompletion())
@@ -96,6 +97,9 @@ std::uint64_t Sim::nextEvent() const
 {
     std::uint64_t next = ~0ull;
     if(!midiPending_.empty()) next = std::min(next, midiCompletion());
+    // a transmitter whose TxRDY interrupts (the OS leaves it masked): when its holding register is free again
+    for(const auto& u : uart_)
+        if((u.uimr & 1) && u.txHoldFree > advanced_) next = std::min(next, u.txHoldFree);
     for(int i = 0; i < 2; ++i)
     {
         const auto& t = timer_[i];
@@ -110,10 +114,10 @@ std::uint64_t Sim::nextEvent() const
     return next;
 }
 
-std::uint32_t Sim::busClocksPerMidiByte() const
+std::uint32_t Sim::busClocksPerByte(const Uart& u)
 {
     // 10 bits per byte at fbus / (32 * UBG)
-    const std::uint32_t ubg = (std::uint32_t(uart_[0].ubg1) << 8 | uart_[0].ubg2);
+    const std::uint32_t ubg = (std::uint32_t(u.ubg1) << 8 | u.ubg2);
     return 10u * 32u * (ubg ? ubg : 54u);
 }
 
@@ -124,42 +128,92 @@ void Sim::midiInAt(const std::uint8_t* data, std::size_t n, std::uint64_t notBef
     // bytes queued behind others keep their order: a byte never starts before the one in front of it
     const auto now = busNow_();
     if(midiPending_.empty()) midiLineFree_ = std::max(midiLineFree_, now);
-    for(std::size_t i = 0; i < n; ++i) midiPending_.push_back({data[i], notBefore});
+    const auto perByte = busClocksPerMidiByte();
+    for(std::size_t i = 0; i < n; ++i)
+    {
+        const auto b = data[i];
+        if(b >= 0xF8)
+        {
+            // System Real Time, which may come between the bytes of any message: at its time between the bytes of
+            // a System Exclusive message that waits here (a dump takes the line for seconds, and a clock that
+            // waited behind it would stall the G2's tempo), as a merger does. Nothing else is overtaken: it goes
+            // in front of the first byte that starts after its time, if only bytes of that one message follow.
+            const auto at = std::max(notBefore, now);
+            std::size_t first = 0, after = midiPending_.size();  // the first byte starting after `at`
+            std::uint64_t start = midiLineFree_;
+            for(std::size_t k = 0; k < midiPending_.size(); ++k)
+            {
+                start = std::max(start, midiPending_[k].notBefore);
+                if(start > at && after == midiPending_.size()) after = k;
+                if(!midiPending_[k].sysex) first = k + 1;  // not in front of this one
+                start += perByte;
+            }
+            midiPending_.insert(midiPending_.begin() + std::ptrdiff_t(std::max(first, after)), {b, notBefore, false});
+            continue;
+        }
+        const bool sysex = midiInSysex_ && (b < 0x80 || b == 0xF7);
+        midiInSysex_ = b == 0xF0 || (midiInSysex_ && b < 0x80);
+        midiPending_.push_back({b, notBefore, sysex});
+    }
+}
+
+std::size_t Sim::takeMidiOut(MidiOutByte* out, std::size_t n, std::uint64_t now)
+{
+    auto& tx = uart_[0].tx;
+    std::size_t k = 0;
+    for(; k < n && !tx.empty() && tx.front().done <= now; ++k)
+    {
+        out[k] = tx.front();
+        tx.pop_front();
+    }
+    return k;
 }
 
 std::vector<std::uint8_t> Sim::takeMidiOut()
 {
     std::vector<std::uint8_t> v;
-    v.swap(uart_[0].tx);
+    for(const auto& b : uart_[0].tx) v.push_back(b.byte);
+    uart_[0].tx.clear();
     return v;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // UARTs. USR: RB FE PE OE TxEMP TxRDY FFULL RxRDY; UISR: COS - - - - DB RxRDY/FFULL TxRDY.
 
-std::uint8_t Sim::usr(const Uart& u) const
+std::uint8_t Sim::usr(const Uart& u, std::uint64_t now) const
 {
-    std::uint8_t v = 0x0C;  // the transmitter is always ready and empty: bytes leave at once
+    std::uint8_t v = 0;
+    // TxRDY: the holding register is free; TxEMP: the shifter has sent everything. Both read 0 while the
+    // transmitter is off.
+    if(u.txEnabled && now >= u.txHoldFree) v |= 0x04;
+    if(u.txEnabled && now >= u.txShiftFree) v |= 0x08;
     if(!u.fifo.empty()) v |= 0x01;
     if(u.fifo.size() >= 3) v |= 0x02;
     if(u.overrun) v |= 0x10;
     return v;
 }
 
-std::uint8_t Sim::uisr(const Uart& u) const
+std::uint8_t Sim::uisr(const Uart& u, std::uint64_t now) const
 {
-    std::uint8_t v = 0x01;  // TxRDY
+    std::uint8_t v = 0;
+    if(u.txEnabled && now >= u.txHoldFree) v |= 0x01;  // TxRDY
     const bool ffullIrq = u.umr[0] & 0x40;  // UMR1[RxIRQ]: interrupt on FFULL instead of RxRDY
     if(ffullIrq ? u.fifo.size() >= 3 : !u.fifo.empty()) v |= 0x02;
     return v;
 }
 
-std::uint32_t Sim::readUart(Uart& u, std::uint32_t off)
+bool Sim::uartIrq(const Uart& u) const
+{
+    // the receiver's bit needs no clock; the transmitter's only where it is unmasked (the OS polls USR instead)
+    return (uisr(u, (u.uimr & 1) ? busNow_() : 0) & u.uimr) != 0;
+}
+
+std::uint32_t Sim::readUart(Uart& u, std::uint32_t off, std::uint64_t now)
 {
     switch(off)
     {
     case 0x00: { const auto v = u.umr[u.umrPtr]; u.umrPtr = 1; return v; }
-    case 0x04: return usr(u);
+    case 0x04: return usr(u, now);
     case 0x0C:
         if(u.fifo.empty()) return 0;
         {
@@ -168,7 +222,7 @@ std::uint32_t Sim::readUart(Uart& u, std::uint32_t off)
             return v;
         }
     case 0x10: return 0;          // UIPCR
-    case 0x14: return uisr(u);
+    case 0x14: return uisr(u, now);
     case 0x18: return u.ubg1;
     case 0x1C: return u.ubg2;
     case 0x30: return u.uivr;
@@ -177,7 +231,7 @@ std::uint32_t Sim::readUart(Uart& u, std::uint32_t off)
     }
 }
 
-void Sim::writeUart(Uart& u, std::uint32_t off, std::uint8_t v)
+void Sim::writeUart(Uart& u, std::uint32_t off, std::uint8_t v, std::uint64_t now)
 {
     switch(off)
     {
@@ -195,7 +249,16 @@ void Sim::writeUart(Uart& u, std::uint32_t off, std::uint8_t v)
         if(((v >> 2) & 3) == 1) u.txEnabled = true;
         if(((v >> 2) & 3) == 2) u.txEnabled = false;
         break;
-    case 0x0C: if(u.tx.size() < 65536) u.tx.push_back(v); break;
+    case 0x0C:  // UTB
+        // Into the holding register if it is free, from where the shifter takes it as soon as it has sent the byte
+        // before: 10 bits at the line rate. (The chip starts a byte on its bit clock, up to a sixteenth of a bit
+        // later: not modelled.) Written while the register is full or the transmitter off, the byte is lost.
+        if(!u.txEnabled || now < u.txHoldFree) { ++txLost_; break; }
+        u.txHoldFree = std::max(now, u.txShiftFree);
+        u.txShiftFree = u.txHoldFree + busClocksPerByte(u);
+        if(u.tx.size() >= TxKept) { u.tx.pop_front(); ++txLost_; }  // nobody listens: the oldest goes
+        u.tx.push_back({v, u.txShiftFree});
+        break;
     case 0x14: u.uimr = v; break;
     case 0x18: u.ubg1 = v; break;
     case 0x1C: u.ubg2 = v; break;
@@ -416,7 +479,7 @@ std::uint32_t Sim::read(std::uint32_t off, int size)
         }
         for(int i = 0; i < 2; ++i)
             if(o >= UartBase[i] && o < UartBase[i] + 0x40)
-                b = (o - UartBase[i]) % 4 == 0 ? std::uint8_t(readUart(uart_[i], o - UartBase[i])) : 0;
+                b = (o - UartBase[i]) % 4 == 0 ? std::uint8_t(readUart(uart_[i], o - UartBase[i], now)) : 0;
         if(o >= 0x280 && o < 0x2A0) b = readI2c(o);
         if(o == 0x248 || o == 0x249)  // PADAT: the inputs the board drives
         {
@@ -432,7 +495,7 @@ std::uint32_t Sim::read(std::uint32_t off, int size)
             for(int i = 0; i < 2; ++i)
                 if((timer_[i].ter & 2) && (timer_[i].tmr & 0x10)) ipr |= 1u << TimerImrBit[i];
             for(int i = 0; i < 2; ++i)
-                if(uisr(uart_[i]) & uart_[i].uimr) ipr |= 1u << UartImrBit[i];
+                if(uisr(uart_[i], now) & uart_[i].uimr) ipr |= 1u << UartImrBit[i];
             ipr |= externalIrqs_;
             b = std::uint8_t(ipr >> (8 * (3 - (o - IPR))));
         }
@@ -451,7 +514,7 @@ void Sim::write(std::uint32_t off, int size, std::uint32_t value)
         if(o < r_.size()) r_[o] = b;
         for(int i = 0; i < 2; ++i)
             if(o >= UartBase[i] && o < UartBase[i] + 0x40 && (o - UartBase[i]) % 4 == 0)
-                writeUart(uart_[i], o - UartBase[i], b);
+                writeUart(uart_[i], o - UartBase[i], b, now);
         if(o >= 0x280 && o < 0x2A0) writeI2c(o, b);
     }
     if(off < 0x24A && off + std::uint32_t(size) > 0x244) eepromLines();  // PADDR, PADAT
@@ -519,7 +582,7 @@ int Sim::pendingLevel() const
     {
         // a timer is autovectored only (it has no vector register): ignored unless its ICR says AVEC
         internal((timer_[i].ter & 2) && (timer_[i].tmr & 0x10) && (r_[TimerIcr[i]] & 0x80), TimerImrBit[i], TimerIcr[i]);
-        internal((uisr(uart_[i]) & uart_[i].uimr) != 0, UartImrBit[i], UartIcr[i]);
+        internal(uartIrq(uart_[i]), UartImrBit[i], UartIcr[i]);
     }
     return best;
 }
@@ -540,7 +603,7 @@ std::uint8_t Sim::acknowledge(int level) const
     for(int i = 0; i < 2; ++i)
     {
         consider((timer_[i].ter & 2) && (timer_[i].tmr & 0x10), TimerImrBit[i], TimerIcr[i], std::uint8_t(24 + level));
-        consider((uisr(uart_[i]) & uart_[i].uimr) != 0, UartImrBit[i], UartIcr[i], uart_[i].uivr);
+        consider(uartIrq(uart_[i]), UartImrBit[i], UartIcr[i], uart_[i].uivr);
     }
     if(bestPrio < 0 && (externalIrqs_ & (1u << level)) && (r_[AVCR] & (1u << level))) vec = std::uint8_t(24 + level);
     return vec;

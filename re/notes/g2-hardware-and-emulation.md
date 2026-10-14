@@ -98,6 +98,15 @@ extraction tool `tools/firmware/g2os.py` and this note. No Clavia bytes are comm
   while the OS reprogrammed it: the way from the ADCs to the DACs (and of every sound to the DACs) went from 50
   to 150 frames over four patch uploads. It is 19 to 21 frames now, always.
 
+**Update (§3.12, 2026-10-13): the voice expansion board.**
+* The OS finds the board by one input of the parallel port (PADAT bit 9 low) and then drives eight DSPs, the
+  board's four between A6 and A5 on the serial chain and ring. The emulator has it (a G2X as built; a G2 or an
+  Engine as an option): the bench pack's voice patches get 32, 24 and 7 + FX voices against 16, 12 and 3 + FX, as
+  the manual says. The plugin keeps four DSPs until eight are measured in real time on a quiet computer.
+* With DSP threads, a status read could find a DSP behind the host's writes, and the OS's interrupt-time save of
+  the host ports then put a word too many into the stream: the cause of the DSPs that strayed with 2-4 threads
+  (§3.9.6). A status read now waits until the DSP has taken what was written.
+
 ## 1. Hardware (Part A)
 
 ### 1.1 Summary table
@@ -977,6 +986,7 @@ What dominates:
   would overrun, or the other way round.
 * The ADCs feed silence; there is no test signal input yet. (The C++ emulator has them since: §3.11.)
 * The expansion board's four DSPs (A7–A10) are stubs; with them the chain would run A6, A10…A7, A5, A4, A3.
+  (Emulated since, in that order: §3.12.)
 * Speed: about 0.15–0.6 × real time here. Next: run the four DSPs' links without per-frame thread hand-offs (larger
   batches, or all four on one thread with the JIT), port the host to C++ (§3.6.7), fix the JIT.
 
@@ -1270,7 +1280,8 @@ there, but it is the same code.
 * **Single thread** (`threads = 0`, deterministic): per quantum (1 frame) the ColdFire runs to the end of the
   quantum, then the DSPs in chain order (A6, A5, A4, A3). Whenever the ColdFire touches a DSP's host port, that DSP and
   the ones upstream of it are first run up to the ColdFire's time, so host commands are taken and answered within the
-  emulated microseconds the chip would need. **Poll skipping:** when the ColdFire reads the same status register of
+  emulated microseconds the chip would need. (Since 2026-10-14 a status read also has the DSP run on until it has
+  taken what was written: §3.9.6.) **Poll skipping:** when the ColdFire reads the same status register of
   one DSP from the same instruction and gets the same value (a wait for a host command to be taken, or for data), the
   DSPs run ahead until it changes (at most a frame) and the ColdFire's clock moves on by as much: 18-38 % of the
   ColdFire's time was such loops.
@@ -1290,6 +1301,8 @@ there, but it is the same code.
   before the host writes its next word, and the OS relies on it: it sends `$AE` (echo, which reads the host port)
   without writing a word first. Delivered at once from the ColdFire's thread, such a command could take the word
   meant for the next command. The ColdFire reads only the library's thread-safe parts (the transmit queue, HF2/HF3).
+  (2026-10-14: `$AE` does read a word, one the OS has seen waiting in HORX; and with DSP threads a status read now
+  waits until the DSP has taken what was written before it: §3.9.6.)
 * **Links:** frame queues as in §3.7.4, non-blocking, with 2 frames of prefill per chain hop and **16 on the ring**
   (A3 → A6). The prefills add to the latency of an inter-slot bus (one ring turn, §3.7.2): 16 frames for the ring
   plus 2 per hop, on top of the frames the DSPs hold themselves (the board's own figure is not known; the community
@@ -1305,7 +1318,8 @@ there, but it is the same code.
   and the client retries only after 10 s. The ISP1181's registers now read back what was written (the OS
   read-modify-writes the mode register).
 * **MIDI IN** is UART0: bytes reach its receiver FIFO at 31250 baud, with RxRDY interrupts at level 4, vector $42 [C].
-  MIDI OUT (UART0 transmitter) is captured; OS 1.62 sent nothing in these tests.
+  MIDI OUT (UART0 transmitter) is captured; OS 1.62 sent nothing in these tests. (Since 2026-10-13 it is the
+  chip's transmitter, with each byte's time: §3.13.)
 * **Sample-accurate MIDI:** `Machine::midiInAt(bytes, frame)` starts a message on the MIDI line at a given machine
   frame; `Runner::midiInAt(bytes, offset)` (lock-free, from the audio thread before its `read()`) puts it `offset`
   frames into the next block plus a fixed `latencyFrames()` (the buffer plus a chunk). Measured in real time
@@ -1359,13 +1373,74 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
   benchmark and real-time runs of §3.9.7 (each with a performance upload): no DSP strayed (`dspsWild` 0), no run lost
   its sync. The cause of the old failure is still not known; if it comes back, the trap stops the DSP and the plugin
   has to restart the machine. 3 and 4 threads stay experimental (and are no faster).
+  **2026-10-14: the cause, and the fix.** A status read could find the DSP behind the host. The DSP threads take
+  what the ColdFire writes when they run (§3.9.4), and they may be frames behind it, or ahead of it and stopped at
+  the horizon until the ColdFire's quantum ends; meanwhile the ColdFire's reads of ISR showed the host port as it
+  was before those writes. The OS cannot cope with that in one place. An interrupt that wants the host ports
+  saves what the interrupted code left in them, DSP by DSP, interrupts masked [C `0x30050488`, called at the start
+  of some 30 routines from `0x3004D73A` on, indexed by the interrupt level]: an answer waiting in RX (RXDF) is read
+  and kept; else, if TRDY is 0, a word the DSP has yet to read is in HORX, and the OS waits for HC = 0, sends `$D7`
+  (host command P:`$AE`, the echo: HOTX = HORX), and keeps what comes back; then it saves r0 (`$D6`, P:`$AC`) and
+  EP (`$DB`, P:`$B6`). `0x30050656` puts it all back, the kept word by writing it to the host port again. The OS's
+  usual sender (`0x30059086`: wait TRDY, write the word, wait HC = 0, write the command that reads it, return)
+  does not wait for the command to run. So when the interrupt came just after it and the DSP's thread had not
+  taken word and command yet, TRDY said a word was waiting; the save waited for HC = 0, by which time the command
+  had taken the word, and `$AE` read an empty HORX (the library gives 0 and logs "Empty read"). The OS kept that 0,
+  wrote it back on restore: one word too many in the stream, every later word went to the command after its own,
+  and a DSP wrote its program's addresses at P:0 ("Undefined opcode … at 000000"), then jumped to P:`$040000`.
+  (The `$AE` of §3.9.4, taken then for a ping that reads without a word, is this echo: it reads a word the OS
+  knows is there. Its empty reads, filtered out of the log as harmless, were the fault's first sign.)
+  The fix (`Machine::Options::hostTakenOnRead`, on): before a status read with threads, if the DSP has yet to take
+  something the ColdFire wrote (`Dsp::hostPending()`: a queued word, flag or command, or a command not run yet),
+  the ColdFire waits (wall time) while the DSP's worker runs that DSP on, a few instructions at a time, until it
+  has taken it (`Dsp::takeHost`), up to one frame past its upstream DSP (so the lines keep their frames). A worker
+  held by the horizon says so, and the ColdFire moves the horizon a frame further, at most 5 frames past `dspLead`
+  (within the Runner's input lead of `dspLead` + 8 frames); after that it reads the status as it is
+  (`Stats::statusStale`, for a DSP that takes nothing more: one that strayed). No deadlock: the ColdFire waits only
+  for that DSP to take what was written or for its worker to report the horizon, and a worker that is held only
+  by the workers upstream of it tries again when they move, which they can (all workers held at once means all
+  are at the horizon, as the ring's slack, `ringPrefill` > 3, keeps the first worker from waiting on the last).
+  The invariant: a status read finds the DSP past everything the ColdFire wrote before it. With threads the
+  backlog was up to `dspLead` + `skew`, 10 frames; now there is none.
+  **One thread had the same fault, rarer** (found through a MIDI clock by the MIDI OUT work, 2026-10-14): the
+  single-threaded machine runs the DSP up to the ColdFire's time before a read, but a DSP may already be past the
+  time of the writes (the JIT runs whole blocks, an idle DSP skips to its next serial slot), and a DSP in its frame
+  program takes no host command (the library takes no interrupt during a long one). Each MIDI clock byte (F8) has the
+  OS's interrupt save the host ports; within a second of clock at 120 BPM a DSP read its host port without a word
+  (A6, at its clock 502432805, every time: one thread is deterministic) and from then on notes were silent; the
+  next upload could send a DSP into P memory without code. Now one thread follows the same rule: before a status
+  read the DSP runs on until it has taken what was written (up to a frame past the DSP before it, then the DSPs up
+  to it together, up to 5 frames). With a MIDI clock: one thread and two DSP threads play after 96 clock bytes; with
+  the rule off both go silent with an empty read (test "notes still sound after it has followed an external MIDI
+  clock"). This changes when the DSPs take host writes on one thread, so 9 of the bench pack's 17 single-threaded
+  renders are not the same samples as before: the same sound shifted by a few to a few hundred frames (when an
+  upload ends, against a patch's own sequencer and oscillator phases); every measured fact is as committed
+  (`expected.py --check`).
+  On the board: a real G2 follows a MIDI clock without going silent, so there a host command does not wait long
+  enough for the OS's save to see it pending; whether because the host port's interrupt priority is above the
+  frame program's (stage 1's IPRP = `$431` [C] would have to be read against the DSP56367 manual's register layout:
+  not done) or the chip's timing leaves no such window, is inferred, not verified. The emulator's DSPs take no
+  interrupt during the frame program (the library has no interrupt levels): a known deviation, which the rule
+  covers for the host port.
+  Proof [emulated, 2026-10-14, bigsynth, a note, threads 2, M1 loaded 6-11]: with `--host-lag 16` (the DSPs take
+  host writes only in every 16th frame of theirs: `Options::hostLagFrames`, for tests) and the wait off
+  (`--no-host-taken`), 1 run of 3 went out of step during the boot ("DSP 3 read its host port without a word",
+  then an undefined opcode at P:0, no sync; with a lag of 4, 0 of 6); with the wait on, 3 of 3 synced and played,
+  0 empty reads, `statusStale` 0; also 2 threads, 3 threads with eight DSPs, lags 0, 4 and 8: no fault. The test
+  "a status read finds the DSP past what the host wrote before it" checks the invariant itself, which does not
+  depend on timing: with a lag of 4 the OS meets a DSP behind it thousands of times per boot (`statusBehind`);
+  with the wait none of those reads returns early and the chord plays, without it every one does.
+  Cost: in these runs 5,000-12,000 status reads per emulated second waited (of some 300,000-750,000 host-port
+  reads; most are the OS's own polls just after a command); its effect on speed is not measured on a quiet
+  computer.
 * The OS's DSP code runs the undefined opcode `$000040`: harmless (dsp56300 runs it as ILLEGAL; its vector is empty),
   logged by the library when it compiles such a block; g2emu filters that line.
 * The core counts V2 cycles (§3.9.2): the emulated CPU is probably slower than the real one; nothing seen depends on it
   beyond background throughput.
 * The DSP clock still counts instructions, not cycles (§3.7.7).
 * Stubs: the I2C ADC (the boot's calibration takes about 1 s against a constant 0x80), the analogue inputs
-  (silence), the expansion board's DSPs. The panel is modelled since (§3.10), the analogue inputs too (§3.11).
+  (silence), the expansion board's DSPs. The panel is modelled since (§3.10), the analogue inputs too (§3.11), the
+  expansion board too (§3.12).
 * The flash is erased at power-on unless the caller loads an image (`Machine::loadMemory`, `g2emurun --flash`: the
   flash, then the EEPROM, §3.10.5); with one, the OS does not format it again; the boot still takes about 1.6 s (the
   calibration).
@@ -1901,6 +1976,300 @@ three; −0.15 lights −20; In 2-4 at 0.95 light none.
 * The G2X's goose-neck microphone and the Engine's missing XLR are not told apart: the option is there on every
   model.
 * `emu/dspbridge` and the Python tools keep silent ADCs.
+
+## 3.12 The voice expansion board (2026-10-13)
+
+**Result.** The emulator has the expansion board: four more DSPs (chip selects A7-A10), eight in all, found by the
+user's OS 1.62 by itself. A G2X has it as built; a G2 keyboard or a G2 Engine gets it with
+`Machine::Options::expansion = Expansion::With`. The bench pack's voice patches get 32, 24 and 7 voices where four
+DSPs give 16, 12 and 3: the manual's figures (below). The plugin's emulated G2X keeps four DSPs for now (§3.12.5).
+
+### 3.12.1 How the OS finds the board [C]
+
+* **One input of the parallel port.** `0x30037F64` reads PADAT (MBAR + `$248`) and returns true when bit 9 is
+  **low**. Nothing else is asked: no DSP is probed, no chip select tried. The board's connector presumably pulls the
+  line down (inferred: the bit and what it means are [C], the wiring is not documented). The OS reads it:
+  * at power-on, `0x300383FC`: the result goes to `0x300391E8`, which fills the host-port table at `0x30116970`
+    (§2.6: 8 ports A6, A10, A9, A8, A7, A5, A4, A3 and the broadcast `0x11000000`, or 4 ports and broadcast
+    `0x11000780`), and `0x30038414` sets the OS's DSP count `0x302AA5D4` to 8 or 4 (175 places read it);
+  * for the boot display, `0x3001B882`: a G2 keyboard or a G2 Engine with the board shows "Version 1.62 Exp"
+    (`0x300E9FEE`; a G2X, model byte 3 at `0x30119848`, skips it);
+  * for the version reply over USB, `0x3001C606`: byte 34 of the reply (`$22` in its body) is 1 with the board, 2
+    without.
+* **The emulator** drives PADAT bit 9 low when the board is fitted (`machine.cpp`, `gpioChanged`); without it the bit
+  reads high, as the OS's own earlier write left it, so nothing changes for four DSPs.
+* Service manual (§1.1): the error codes name "Mnb U16-U20" and "Exp U5-U8": the main board's and the expansion
+  board's DSPs. Nord's installation sheet: the board plugs into two sockets and needs nothing else. Neither says how
+  it is detected; the above is from the OS's code alone.
+
+### 3.12.2 Boot, programs and wiring [C, emulated]
+
+* **The same boot as four DSPs, over eight ports.** The OS resets, boots and loads the eight DSPs with the routines of
+  §3.6.3, looping over its DSP count. Its first DSP (A6) gets A6's stage-1 program, its last (A3) A3's, and the six
+  between them the program A5 and A4 get without the board (test "finds the expansion board": stage 1 and the
+  empty frame program, P:`$0`-`$2BF`, compared word for word). The tables (§3.6.3, step 6) go to all eight.
+* **So the expansion DSPs are pass-through DSPs in the middle of the chain**, like A5 and A4: slaves on A6's frame
+  clock (their TCCR/RCCR are the slave settings of §3.7.1), receiving on ESAI and ESAI_1 from the DSP before them
+  and sending to the one after. The order is the OS's numbering: **A6 → A10 → A9 → A8 → A7 → A5 → A4 → A3** on the
+  ESAI chain and the ESAI_1 ring (back from A3 to A6). That the board's lines run this way through its connector,
+  between A6 and A5, is inferred from the numbering (§3.7.3): no schematic or manual shows it. Medium.
+* **Clocking:** one frame clock from A6 for all eight, as for four (inferred, as §3.7.3).
+* **The FX area and the buses** use the same slots as with four DSPs (§3.7.2): a bus goes once around the ring of
+  eight, an FX send down the ESAI_1 chain, the ADCs' words down the ESAI chain (test "buses, the FX area and the
+  audio inputs cross eight DSPs": tones exact to 1 %, no frame lost). The way from the ADCs to the DACs is **42.2
+  frames** against 20.4 with four DSPs: about 5.5 frames per DSP in the emulator (2 in the DSP, §3.7.1, and its line's
+  2 frames of delay, which the board's wires do not have). On a G2X it is shorter by the lines' share; not measured.
+
+### 3.12.3 Voices and the FX area on eight DSPs [emulated]
+
+The OS spreads the voices over its DSP count; the editor's Patch Load stays one voice's share of one DSP (the
+counters of `72` are byte for byte the same with and without the board). The bench pack's patches, 32 voices asked
+(`bench/hardware-pack/expected/B11-B13*.json`, `facts` and `facts.g2x`):
+
+| Patch | Load per voice | Four DSPs | Eight DSPs | Manual (p.19, p.121) |
+|---|---|---|---|---|
+| B11 Voices Light | 21 % | 16 | 32 | as many voices as fit whole in a DSP, per DSP: 4 x 4, 4 x 8 |
+| B12 Voices Mid | 31 % | 12 | 24 | its example of a 33 % share: "12 voices or 24 voices on an expanded system or on the G2X" |
+| B13 Voices Heavy, Hall reverb in the FX area | 79 %, FX 31 % | 3 + FX | 7 + FX | "three voices plus effects or seven voices plus effects in an expanded or G2X model" |
+
+And the manual, p.19: an expansion board "will double the computational resources and allows four more voices".
+A chord of one heavy voice per DSP (test "a chord spread over the eight DSPs"): three voices land on three DSPs with
+four and with eight, and play the same amplitudes to 1e-4; seven voices land on seven DSPs, at least three of them on
+the board, each note at full level, no click (the third difference of the output stays at the tones' own).
+Where the code lands (B13 on eight DSPs, instructions per frame by chip select: `g2benchrender --model g2x`, its
+`dsp_instructions_per_frame`): the FX area's reverb alone on A3, the last DSP (360-365), one voice on each of the
+other seven (969, A6 1011-1022 with its ADC work); B11 and B12 put four and three voices on every DSP (1033-1075,
+1117-1161). (The counts move by a few instructions with the host port's timing, so the bench pack's JSON does not
+keep them.)
+
+### 3.12.4 In the emulator
+
+* `Machine::Options::expansion`: `AsBuilt` (the default: a G2X with the board, a G2 keyboard and a G2 Engine
+  without), `With`, `Without`. `Machine::hasExpansion(options)` says what a machine gets. `Without` on a G2X is
+  not an instrument Clavia sold: a deliberate deviation, for a computer that cannot run eight DSPs.
+* `Stats::dsps` is 8 with the board; the per-DSP statistics and `dspMemory()` index DSPs by chip select (0-3 A3-A6,
+  4-7 A7-A10).
+* Without the board A7-A10 are the old stub ports (INIT, host commands taken at once, HF0 echoed): the OS never
+  selects them then.
+* `g2emurun --expansion on|off`, `g2benchrender --expansion on|off`; `--model g2x` is a G2X as built.
+* Nothing changes for four DSPs: the bench pack's renders are the same samples (`python3 tools/benchpack/expected.py
+  --check`).
+* Idle expansion DSPs: on a G2X they run the empty frame program every frame (it passes the buffers on) and spin in
+  stage 1's background loop. The emulator runs the frame program and skips the background loop (§3.7.4), the same as
+  for the main board's DSPs: nothing cheaper is faithful, since every DSP's frame program carries the chain's audio.
+  What an idle DSP costs is mostly the library's per-slot work (§3.9.7: about 1.5 us per DSP and frame).
+
+### 3.12.5 Threads and CPU [measured, provisional]
+
+* `Options::threads` takes 1-8 DSP threads; each runs a stretch of the chain of eight. `threads = -1`
+  (`Machine::autoThreads(8)`): 3 where there are at least 6 performance cores, else as for four DSPs (2 with 4
+  performance cores, else 1).
+* **Not measured yet on a quiet computer.** Every run of 2026-10-13/14 shared the M1 with other emulators and builds
+  (load average 6 to 350), so no speed figure here decides whether eight DSPs hold real time in a DAW on an M1. The
+  plugin keeps four DSPs (its G2X runs `Expansion::Without`, flagged in the README) until that is measured. The
+  measurement, one command (it records the load average with every run and warns above 2):
+
+  ```sh
+  python3 tools/firmware/g2emubench.py --threads 2,3 --expansion off,on --seconds 5 --repeat 3 \
+    --chord 48,55,60,64,67,72,76 \
+    --patches original/firmware/g2emu-tests/kbd_sine.pch2,original/firmware/g2emu-tests/bigsynth.pch2,"bench/hardware-pack/patches/B13 Voices Heavy.pch2" \
+    --json speed-4-vs-8.json -- --fw "$G2_FIRMWARE"
+  ```
+
+  Seven notes: B13 then plays three voices on four DSPs and seven on eight. Real time in a DAW is "x real time" above
+  about 1.5 with two DSP threads (§3.9.7); `--realtime 20` instead of `--seconds` counts the frames missing.
+* As a rough guide only (provisional: one run of 0.3 emulated s each, load average 2.1-2.7, the script's smoke
+  test): B13 with the seven-note chord, two DSP threads, four DSPs (3 voices) 2.0 x real time, 1.5 CPU s per
+  emulated s; eight DSPs (7 voices) 0.77 x, 3.9 CPU s, the two DSP threads 1.1-1.3 s busy each; three DSP threads
+  1.06 x (3.7 CPU s), four 0.74 x. If the quiet measurement agrees, a heavy patch on eight DSPs does not hold real
+  time on an M1's four performance cores, and the unexpanded default stays.
+
+### 3.12.6 Not known, not done
+
+* The board's own wiring (the order of A7-A10 on the lines, whether its lines add delay), its clock distribution,
+  and what a G2X's ADC-to-DAC delay is: a G2X or the board's schematic.
+* Voice counts on a real G2X: the bench pack asks friends for B11-B13 (`bench/hardware-pack/NOTES.md`).
+* No UI chooses the board: the plugin's G2X has four DSPs, and a G2 or Engine model is not offered there.
+* The speed figures of §3.12.5.
+
+## 3.13 MIDI OUT, and System Exclusive on MIDI IN (2026-10-13)
+
+**Result.** What the OS sends on its MIDI OUT leaves the emulator: at the pace of a MIDI cable, each byte with its
+time, into a queue that cannot grow, and from there into the plugin's MIDI output at the samples of the sound the
+G2 made at the same instant. MIDI IN takes System Exclusive (dumps and requests). Tests: `tests/test_midi_out.cpp`
+(the transmitter and the line without the firmware, then `[firmware]` cases), `tests/test_midi_assembler.cpp`
+(bytes to messages), `g2plugintest <plugin> --midi <patch>` (the built VST3 or Audio Unit in a host).
+
+### 3.13.1 How the OS sends [C]
+
+* **Polled, one byte per call.** UART0's interrupt mask is `02` (receiver only, 0x30058472). The transmit routine
+  0x30002BEE reads USR, returns unless TxRDY (bit 2) is set, and writes one byte to UTB. It is called from two of
+  the tick scheduler's routines (0x3001BB56, registered at 0x3001B9CE, and 0x3001B90C), more often than the line
+  takes bytes [emulated: with the transmitter always ready a dump left at 2.6 times the line's 3125 bytes a
+  second, a byte per tick of 8272 a second]. So the chip's TxRDY paces a dump, not the OS.
+* **What waits, by priority** (the flag word 0x3012BA86): bit 5 a ring of 128 single bytes at 0x3012B9AA
+  (inferred: real time, i.e. clock, Start, Stop); bit 3 the message being sent, up to 3 bytes in a long word
+  that ends in `FF` (0x3012B58E); bit 4 the System Exclusive block being sent (4 descriptors of pointer, count,
+  callback at 0x3012BA36); bit 0 a ring of 128 messages at 0x3012B592 (notes, controllers, program changes:
+  0x30002F86, 0x30003004, 0x30003082); bit 1 a second ring of 128 at 0x3012B79E; bit 2 the next System Exclusive
+  block. All of them bounded: the OS cannot pile up more than that. The single bytes come first at every call:
+  **a clock tick goes out before the next byte of a note or of a dump block on its way**, as MIDI allows, so a
+  receiver must take real-time bytes inside any message (`MidiOutAssembler` does).
+* **Every message has its status byte:** no running status.
+* **It receives** by interrupt (level 4, vector $42, 0x3000286C), with the status bytes' lengths from a table at
+  0x3010A140. Real-time bytes are taken at once without touching the message on its way: F8, FA, FB and FC do
+  something (0x30011F5E), **F9, FD, Active Sensing (FE) and System Reset (FF) are ignored**. A System Exclusive
+  message goes into one of 4 buffers of 0x204 bytes (0x3012AD7C, taken in turn): at most 0x1FE bytes; an F0 that
+  finds its buffer still busy is dropped; another status byte ends the message (flagged). The main loop parses the
+  buffers (0x300046F8).
+
+### 3.13.2 The transmitter in the emulator
+
+`Sim` (hw.cpp) had a transmitter that was always ready: bytes left at once, 8272 a second, 2.6 times faster than
+a cable carries them. It is now the chip's: a holding register and a shift register.
+
+* A byte written to UTB while the holding register is free starts when the shifter has sent the byte before it and
+  takes 10 bits at fbus / (32 × UBG): 17,280 bus clocks, 320 µs. USR's TxRDY is "holding register free", TxEMP
+  "nothing left to send"; both read 0 while the transmitter is off (UCR). A byte written while the register is
+  full is lost (counted: `Stats::midiOutLost`; OS 1.62 never does it).
+* The first two bytes of a message are written in two successive ticks, the third when the first has left: the
+  bytes of a message end exactly 320 µs apart, and a dump keeps the line busy without a gap [emulated].
+* Not modelled: the chip starts a byte on its 16× bit clock (up to 20 µs later); UART1.
+* **Each byte's time** is the end of its stop bit, when a receiver has it, on the master clock in DSP clocks
+  (`Machine::MidiOut::clock`, the clock of `dacClock()`: the DACs send a frame every 1536). `Machine` keeps the
+  last `Options::midiOutKept` bytes (65,536) in a ring while nobody takes them, as a cable nobody listens to.
+* **`Runner::midiOut`** gives them to the audio thread, lock-free, after its `read()`: each at the frame of that
+  read in which its stop bit ended, plus `midiOutLeadFrames()` (10 frames, 0.1 ms, with DSP threads: the DSPs may
+  run 8 frames ahead of the ColdFire, whose UART then has not sent the bytes of those frames yet; 2 frames
+  without threads). In real time no byte came late (`Stats::midiOutLate`).
+
+### 3.13.3 What OS 1.62 sends [emulated: tests/test_midi_out.cpp]
+
+A new G2 (the OS's own settings: Local On, slot A on channel 1, Ctrl and Prg Chng Send & Receive, Clk Send Off,
+SysEx ID All, Global channel 16), the test patch in slot A:
+
+| Action | MIDI OUT |
+|---|---|
+| Power-on, a patch upload over USB | nothing (no Active Sensing, ever) |
+| A key (A above middle C, asked velocity 100) | `90 45 66`, complete 4.6 ms after the key went down (its contacts' time, the scan, 0.96 ms of bytes); the sound starts 0.5 ms before the message is complete |
+| The key released | `80 45 72` (a Note Off with a release velocity) |
+| Mod wheel to the top | `B0 01 7F` |
+| Pitch stick to the right | `E0 7F 7F` |
+| Global wheel 1 (G2X) | `B0 60 7F` |
+| Aftertouch | `D0 7F` |
+| Sustain pedal down, up | `B0 40 7F`, `B0 40 00` |
+| A knob whose parameter has controller 20, 3 steps | `B0 14 41`, `B0 14 43` (the first step in a new direction is dropped, §3.10.4) |
+| Variation 2 | `B0 46 10` (controller 70) |
+| MIDI Ctrl on Receive only | the wheel sends nothing |
+| MIDI Local Off | the key still sends its note and is not played |
+| MIDI Clk Send On | `F8` 48.34 times a second at 120 BPM (48 nominal: +0.7 %), 20.54 to 20.80 ms apart; 36.66 at 91 BPM (36.4: +0.7 %); also while the clock is stopped |
+| Run (the button under the Master Clock) | `FA`, then `BF 50 7F`: controller 80 on the Global channel |
+| Stop | `FC`, then `BF 50 00` |
+| NoteSend, CtrlSend, PCSend on the Keyboard's gate, a note on MIDI IN | `91 48 5A`, `B2 15 63`, `C3 05`; the first byte is out 3.0 ms after the note's first byte went in; `81 48 ..` when the gate closes |
+| Dump One (Shift + System) | 1105 bytes in 3 blocks for the test patch, from 42 ms after the button, 353 ms on the line: 3125 bytes a second without a gap ("about one second to transfer 3 kB" [M p.29]) |
+| Patch request by slot (`F0 33 7F 0A 30 00 00 F7`) | the same dump, byte for byte |
+| Performance request (`.. 38 00 00 F7`) | 3453 bytes in 7 blocks |
+| All controllers request (`.. 40 00 F7`) | `B0 07 64`, `B0 11 ..`, the patch's own controllers, `B0 01 ..`, `B0 0B ..`, `B0 12 ..`, `B0 40 ..`, `B0 46 ..`, `B0 60 ..`, `B0 61 ..` |
+| The dump on MIDI IN | the patch loads (its name on the display, it plays); no answer |
+| Another maker's System Exclusive, `FE`, `FF` | nothing |
+
+MIDI IN is not passed on to MIDI OUT (a G2 has a THRU jack for that). The clock's +0.7 % is the OS's ticks
+(8272 a second where its designers meant 8000, §3.9.2) or its own arithmetic: compare with a G2 (question 5 of
+the audit).
+
+**Three dumps sent back to back did not all load** [emulated]: the OS was still loading the first when the
+others' blocks came, and it has 4 buffers. A sequencer leaves a pause between dumps, as the tools for a G2 do.
+
+### 3.13.4 The MIDI IN line: real time inside a System Exclusive message
+
+A MIDI cable carries one stream; here the host's clock (HostClock) and the track's MIDI are two, merged in order
+of their times into the one queue of the emulated line (`Sim::midiInAt`), where a byte never starts before the one
+in front of it has ended. A dump takes the line for seconds, and a clock tick that waited behind it would reach
+the G2 late and in a burst. So a real-time byte (F8-FF) due while a System Exclusive message waits on the line
+goes between that message's bytes, at its own time, as a MIDI merger sends it and as the OS takes it (§3.13.1).
+Nothing else is overtaken: behind a note or a Song Position message, or with anything else queued behind the
+dump, it keeps its turn (Song Position then Continue, a note then Stop: their order matters).
+
+### 3.13.5 In the plugin
+
+* **Bytes to messages** (`MidiOutAssembler`, plain C++): channel messages (running status handled, though the OS
+  sends none), System Common, System Exclusive put together across blocks (up to 4096 bytes; the G2's blocks are
+  below 512), real-time bytes passed at once. A message has the time of its last byte. A System Exclusive message
+  cut short by another status byte is dropped.
+* **Alignment.** The engine reads 96 kHz frames from the runner and converts them to the host's rate; a byte of
+  frame f is at host sample (f + d) / ratio, d being the output converter's delay in 96 kHz frames
+  (`Resampler::delay()`: 40 at 48 kHz, 0 at 96 kHz; the same figure `midiLatencySamples()` reports). So a message
+  sits in the block at the sample where the sound the G2 made at that instant sits. Both are the reported latency late against the plugin's input; a host
+  that compensates the audio shifts the MIDI with it or not, as it does for any instrument.
+* **Formats.** `producesMidi()` is true in builds with the emulator. The Audio Unit stays `aumu` with its codes:
+  JUCE adds the MIDI output callback properties. The VST3 gets an event output bus; **VST3 has no event for MIDI
+  clock, Start, Stop or Song Position**, and JUCE's wrapper drops them: a VST3 host gets notes, controllers, pitch
+  bend, pressure, program changes and System Exclusive.
+* **Stand-alone:** the processor's MIDI output goes to the MIDI output device of Audio/MIDI Settings ("G2 MIDI
+  OUT to:"), each message at its time in the block through the device's sender thread; it leaves when the block
+  is computed, ahead of the block's sound by the audio device's output latency. (Built, not run with a device.)
+* **In a test host** (`g2plugintest <plugin> --midi <patch>`, JUCE's hosting code, 48 kHz, blocks of 256, the
+  patch of §3.13.3's MIDI modules with a sine on the same gate; the Audio Unit registered in the process from the
+  build's bundle, without installing it). With the band-limited converter and the Safe buffer (2026-10-14, the
+  integration of the four branches; load average 4-10, so real-time results are unverified):
+
+  | | VST3 | Audio Unit |
+  |---|---|---|
+  | A note in → `91 48 5A`, `B2 15 63`, `C3 05` out | yes | yes |
+  | The Note On against the note in | the reported latency (27.65 ms) + 3.23 ms | + 2.27 ms (the block's start, see below) |
+  | The sound's first sample against the Note On out | 2.73 ms before it | 1.77 ms before it (to the block) |
+  | Note off in → `81 48 5A` | yes | yes |
+  | Patch request → the dump | 3 messages of 512, 512 and 254 bytes, checksums right; the last two 245.1 ms after the first (their 766 bytes at 320 µs) | the same, 245.3 ms |
+  | The dump back in | loads; the patch plays and sends | the same |
+
+  The same with Follows the Host's Tempo on (`--midi-tempo`): + 2.96 ms and 2.46 ms (VST3). Before the converter
+  (2026-10-13, the old interpolator, a reported latency of 27.0 ms) the Note On came + 2.3 to 2.9 ms after the
+  latency and the sound 1.4 to 2.0 ms before it: these figures move by about a millisecond from run to run, with
+  where the note falls against the OS's ticks; not studied further. The G2 answers the note within 3 ms: 0.96 ms
+  for its bytes to come in, the sound 1.4 ms after their first byte, NoteSend's message complete 1.4 ms after the
+  sound (2026-10-13). JUCE's Audio Unit *host* ignores the packets' sample
+  offsets (the wrapper sets them) and puts every message at its block's start: the Audio Unit's timing inside a
+  block is not checked by this host, and `g2plugintest` checks it to the block (one run gave the Note On 2.4 ms
+  *before* the latency: its block's start). MIDI clock through either format: not checked (the test cannot switch
+  Clk Send on); by JUCE's code the VST3 wrapper drops it and the Audio Unit wrapper sends every message as bytes.
+* **System Exclusive in** goes through `Runner::midiInAt` in pieces of 16 bytes, into a queue of 2048 pieces
+  (32 kB, more than a performance dump given in one block); a message that does not fit whole is dropped whole,
+  so the G2 never gets the start of a block without its end.
+
+### 3.13.6 Fixed: an external MIDI clock broke the emulated G2
+
+**Fixed 2026-10-14 by the host ports' rule of §3.9.6** (a status read finds the DSP past what the host wrote before
+it). Every clock byte (F8) on MIDI IN has the OS's interrupt save and restore the host ports, which made that fault
+certain within a second of clock, on one thread as with DSP threads. Tests: "notes still sound after it followed an
+external MIDI clock, and a patch loads after it" in `tests/test_midi_out.cpp` (fails on f7c5667: peak 0 after the
+clock), and "notes still sound after it has followed an external MIDI clock" in `tests/test_g2emu.cpp` (the rule
+off: the host ports go out of step, `dspEmptyReads` > 0). No test switches the rule off and finds the notes silent:
+the cause rests on the first test failing before the fix and passing with it. `g2plugintest <plugin> --midi-tempo
+<patch>` passes as a VST3 and as an Audio Unit (2026-10-14, a busy computer: real-time checks unverified).
+
+What it was, as found: **once the OS had followed an external MIDI clock (a few quarter notes of F8 at 100 BPM,
+"Ext 99" on its display), new notes were silent**, on MIDI IN and from the panel's keys (which still sent their
+notes on MIDI OUT). A note held from before the clock went on sounding, and it stayed so after the clock had ended.
+A patch load after that sometimes sent DSP A6 to P:$040000, where there is no code, and the OS then hung. The same
+with one thread and two, as a G2 and as a G2X, with and without a MIDI Start first, and on the code before the MIDI
+OUT work (f7c5667: a peak of 0.1247 before the clock, 0.0000 after it and three seconds later). In the plugin, with
+Emulated G2 Follows the Host's Tempo on, the patch's MIDI modules fired by themselves with values nobody set
+(`81 00 00`, `B2 15 03`, `C3 03`...: 3602 messages in 10 s), a note in no longer gave NoteSend's message, a patch
+request gave fragments, and DSP 3 jumped to P:$040000 (as an Audio Unit, while the G2 was starting).
+
+### 3.13.7 Not done, not known
+
+* Not tried in a DAW. Expected (**check**): Live takes a VST3 plug-in's MIDI output on another MIDI track ("MIDI
+  From": the instrument's track, then the plugin) and takes no MIDI from Audio Units, by Ableton's help articles
+  "Accessing the MIDI output of a VST plug-in" and "Using AU and VST plug-ins on macOS" (Direct MIDI Output: AU no,
+  VST2/VST3 yes), read 2026-10-14; Logic takes no MIDI from instrument Audio Units, by developers' reports on the
+  JUCE and Apple forums only (no Apple documentation found).
+* The Program Changes the G2 sends when a patch or performance is loaded from its memory (not measured: a new
+  G2's memory is empty); Dump CC from the panel (Shift + Patch; the same messages come on request); the Automate
+  and NoteZone modules.
+* The stand-alone app's MIDI OUT is not delayed by the audio device's output latency.
+* On a G2: the clock's rate at 120 BPM, a key's Note On against its sound, whether a dump needs a pause before
+  the next one.
 
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source
