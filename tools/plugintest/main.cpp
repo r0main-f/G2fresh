@@ -129,7 +129,8 @@ std::vector<float> play(juce::AudioPluginInstance& p, double rate, int block, do
                         double noteOff, bool offline, std::vector<int> notes = {69})
 {
     std::vector<float> out;
-    juce::AudioBuffer<float> buffer(2, block);
+    // as many channels as the plugin's buses have (an Audio Unit has all four pairs; Out 1 is channel 0 either way)
+    juce::AudioBuffer<float> buffer(std::max({2, p.getTotalNumInputChannels(), p.getTotalNumOutputChannels()}), block);
     const auto blocks = static_cast<int>(seconds * rate / block);
     if (!offline)
         makeRealtime(block / rate);
@@ -224,7 +225,20 @@ HostState parseHostState(const juce::MemoryBlock& hostState)
     return h;
 }
 
-juce::ValueTree pluginState(const juce::MemoryBlock& hostState) { return parseHostState(hostState).tree; }
+#if JUCE_MAC
+juce::MemoryBlock withAuPluginState(const juce::MemoryBlock& hostState, const std::function<void(juce::ValueTree&)>& edit);
+#endif
+
+// G2fresh's tree in a VST3 host's state, or in an Audio Unit's (below)
+juce::ValueTree pluginState(const juce::MemoryBlock& hostState)
+{
+    auto tree = parseHostState(hostState).tree;
+#if JUCE_MAC
+    if (!tree.isValid())
+        withAuPluginState(hostState, [&](juce::ValueTree& t) { tree = t; });
+#endif
+    return tree;
+}
 
 // `hostState` with G2fresh's tree replaced by `tree`.
 juce::MemoryBlock withPluginState(const juce::MemoryBlock& hostState, const juce::ValueTree& tree)
@@ -619,15 +633,15 @@ void run(const juce::String& path, const juce::File& patch)
         // a project with this patch (a drone: it sounds without notes), in the host's wrapping of the state
         juce::MemoryBlock data;
         if (patch.loadFileAsData(data)) {
-            juce::MemoryBlock empty;
-            a->getStateInformation(empty);
-            auto s = pluginState(empty);
-            s.setProperty("name", patch.getFileNameWithoutExtension(), nullptr);
-            s.setProperty("data", data.toBase64Encoding(), nullptr);
-            const auto wrapped = withPluginState(empty, s);
+            // (an Audio Unit's state is wrapped as an AU host keeps it, a VST3's as a VST3 host does)
+            const auto wrapped = projectState(*a, path.endsWithIgnoreCase(".component"), [&](juce::ValueTree& s) {
+                s.setProperty("name", patch.getFileNameWithoutExtension(), nullptr);
+                s.setProperty("data", data.toBase64Encoding(), nullptr);
+            });
             if (wrapped.getSize() == 0)
                 std::cout << "  (cannot wrap the patch into the host's state)" << std::endl;
-            a->setStateInformation(wrapped.getData(), static_cast<int>(wrapped.getSize()));
+            else
+                a->setStateInformation(wrapped.getData(), static_cast<int>(wrapped.getSize()));
         }
         a->prepareToPlay(rate, block);
     });
@@ -675,12 +689,29 @@ void run(const juce::String& path, const juce::File& patch)
     // as a host does for a bounce: offline, then a new set-up (the VST3 process mode reaches the plugin there)
     onMessageThread([&] {
         b->setNonRealtime(true);
+#if JUCE_PLUGINHOST_AU && JUCE_MAC
+        // JUCE's Audio Unit host does not pass that on: as an AU host does it, the unit's offline-render property
+        if (path.endsWithIgnoreCase(".component"))
+            if (auto* client = b->getAudioUnitClient(); client != nullptr && client->getAudioUnitHandle() != nullptr) {
+                const auto unit = client->getAudioUnitHandle();
+                const UInt32 on = 1;
+                AudioUnitSetProperty(unit, kAudioUnitProperty_OfflineRender, kAudioUnitScope_Global, 0, &on, sizeof on);
+            }
+#endif
         b->prepareToPlay(rate, block);
     });
     const auto t0 = std::chrono::steady_clock::now();
     auto bounce = play(*b, rate, block, 4.0, 0.5, 3.5, true);
     const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     b->setNonRealtime(false);
+#if JUCE_PLUGINHOST_AU && JUCE_MAC
+    if (path.endsWithIgnoreCase(".component"))
+        if (auto* client = b->getAudioUnitClient(); client != nullptr && client->getAudioUnitHandle() != nullptr) {
+            const auto unit = client->getAudioUnitHandle();
+            const UInt32 off = 0;
+            AudioUnitSetProperty(unit, kAudioUnitProperty_OfflineRender, kAudioUnitScope_Global, 0, &off, sizeof off);
+        }
+#endif
     std::cout << "  (4 s rendered in " << took << " s; output peak " << peak(bounce, 0, bounce.size()) << ")" << std::endl;
     {
         std::size_t run = 0, best = 0, end = 0;
