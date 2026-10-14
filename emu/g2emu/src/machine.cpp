@@ -960,6 +960,7 @@ struct Machine::Impl final : coldfire::Bus {
             workers.emplace_back([this, w, n, ringSlack, mine = parts[std::size_t(w)]] {
                 auto& my = worker[std::size_t(w)].time;
                 if(opt.realtimeThreads) makeThreadRealtime(0.001, 0.0005);
+                RealtimeBreath breath;
                 std::uint64_t done = my.load(), frames = 0;
                 auto limit = [&] {
                     std::uint64_t l = horizon.load(std::memory_order_acquire);
@@ -982,7 +983,11 @@ struct Machine::Impl final : coldfire::Bus {
                     for(int k : mine) dsps[std::size_t(k)]->runTo(target);
                     done = target;
                     my.store(done, std::memory_order_release);
-                    if((++frames & 63) == 0) worker[std::size_t(w)].cpuNs.store(threadCpuNs(), std::memory_order_relaxed);
+                    if((++frames & 63) == 0)
+                    {
+                        worker[std::size_t(w)].cpuNs.store(threadCpuNs(), std::memory_order_relaxed);
+                        if(opt.realtimeThreads) breath();
+                    }
                     std::uint64_t slowest = done;
                     for(int v = 0; v < n; ++v) slowest = std::min(slowest, worker[std::size_t(v)].time.load(std::memory_order_acquire));
                     // dspTime only grows: a lagging worker may publish an older minimum than another just did

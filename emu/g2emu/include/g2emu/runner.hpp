@@ -7,10 +7,11 @@
 // two to three times real time, and rests. Its ring holds, when full,
 //   the reserve (bufferMs): never touched while the machine keeps pace; what a stall of its threads may take
 //   + the reader's largest block (setReadSize), or the machine's stretch (stretchMs) if that is longer: with
-//     small blocks the machine does not start for each one (its threads would sleep and wake a thousand times a
-//     second, and lose half their speed to it), it lets a stretch's worth go and makes it up in one run.
-// That sum is latencyFrames(): the machine is never further ahead of the reader, which is what makes MIDI and the
-// inputs land at a fixed time.
+//     small blocks the machine does not start for each one (its threads would sleep and wake thousands of times a
+//     second: with 64-frame blocks the slowest 1 % of its chunks ran at half the speed they had with 512, measured
+//     on a busy computer), it lets a stretch's worth go and makes it up in one run.
+// That sum (and a tenth of a millisecond: the DSPs run a few frames ahead of the ColdFire) is latencyFrames(): the
+// machine is never further ahead of the reader, which is what makes MIDI and the inputs land at a fixed time.
 //
 // The audio is the G2's own: 96 kHz, 4 words per frame as Machine::run() gives them (outputs 1, 3, 2, 4). Resampling
 // to the host's rate is the caller's job. The audio inputs go the other way (write()), on the reader's timeline.
@@ -92,6 +93,9 @@ public:
         std::uint64_t inputMissing = 0;
         double speed = 0;  // emulated seconds per wall second while the machine runs (its rests left out), recently
         double longestChunkMs = 0;  // the longest wall time one chunk took (a stall of the machine's threads shows here)
+        // the machine's thread has the computer's real-time priority (Machine::Options::realtimeThreads asked for it
+        // and the system gave it: macOS only)
+        bool realtime = false;
     };
 
     explicit Runner(const Firmware& firmware);
@@ -155,6 +159,10 @@ public:
 
 private:
     void loop();
+    // The DACs may have sent this many frames more than the machine was asked for: the DSPs run up to dspLead ahead
+    // of the ColdFire, and a run's frames come out on the DSPs' serial clock, one more or less. Part of
+    // latencyFrames(): 10 frames, 0.1 ms.
+    std::uint32_t dacLead() const { return options_.machine.dspLead / Machine::ClocksPerFrame + 2; }
     // The ADCs take their frames this much later than latencyFrames(): A6 may run that far ahead of the frames the
     // machine was asked for (Machine::Options::dspLead), and its input must have been written by then.
     std::uint32_t inputLead() const { return options_.machine.dspLead / Machine::ClocksPerFrame + 8; }
@@ -176,7 +184,7 @@ private:
     std::atomic<std::uint64_t> midiHead_{0}, midiTail_{0};
     std::atomic<std::uint64_t> missing_{0};
     std::atomic<double> speed_{0}, longestChunk_{0};
-    std::atomic<bool> quit_{false};
+    std::atomic<bool> quit_{false}, realtime_{false};
     std::atomic<std::uint32_t> readSize_{0}, buffer_{0};
     std::uint32_t stretch_ = 0;  // frames
     std::atomic<std::uint64_t> shortReads_{0};

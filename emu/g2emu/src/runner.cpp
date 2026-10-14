@@ -130,26 +130,31 @@ void InputQueue::adcFrame(std::uint64_t clock, std::int32_t words[4])
 void Runner::loop()
 {
     using Clock = std::chrono::steady_clock;
-    if(options_.machine.realtimeThreads) makeThreadRealtime(0.001, 0.0005);
+    if(options_.machine.realtimeThreads) realtime_.store(makeThreadRealtime(0.001, 0.0005), std::memory_order_relaxed);
     std::vector<float> chunk;
     // the speed while running (the rests left out), over about the last tenth of a second of running
     double busyWall = 0;
     std::uint64_t busyFrames = 0;
     bool woke = false, filling = true;
+    RealtimeBreath breath;
     while(!quit_.load(std::memory_order_relaxed))
     {
+        if(options_.machine.realtimeThreads) breath();
         // The machine fills the ring up to `high` and rests; it starts again when the reader's next block would
-        // reach into the reserve (`low`: at once after a block that is longer than the stretch).
+        // reach into the reserve (`low`: at once after a block that is longer than the stretch). A few frames short
+        // of a mark count as there: the machine does not start for a frame or two (the DACs hand a run's last frame
+        // out with the next one). So at rest the ring may hold `slack` frames (0.08 ms) less than the reserve asks.
+        constexpr std::size_t slack = 8;
         const std::size_t reserve = buffer_.load(std::memory_order_relaxed), block = readSize_.load(std::memory_order_relaxed);
         const std::size_t low = reserve + block, high = reserve + std::max<std::size_t>(block, stretch_);
         const auto level = available();
-        if(level >= high) filling = false;
-        else if(level < low) filling = true;
+        if(level + slack >= high) filling = false;
+        else if(level + slack < low) filling = true;
         if(!filling)
         {
             // wait until the reader takes some (it wakes this thread)
             const auto seen = consumed_.load(std::memory_order_acquire);
-            if(available() >= low && !quit_.load(std::memory_order_relaxed))
+            if(available() + slack >= low && !quit_.load(std::memory_order_relaxed))
             {
                 consumed_.wait(seen, std::memory_order_acquire);
                 woke = true;
@@ -201,8 +206,8 @@ void Runner::loop()
 std::uint32_t Runner::latencyFrames() const
 {
     // the reader takes frame R while the machine makes at most R + the reserve + the read size (or the stretch): it
-    // runs until it is exactly that far ahead
-    return buffer_.load(std::memory_order_relaxed) + std::max(readSize_.load(std::memory_order_relaxed), stretch_);
+    // runs until it is exactly that far ahead, and its DACs may be a little further (dacLead)
+    return buffer_.load(std::memory_order_relaxed) + std::max(readSize_.load(std::memory_order_relaxed), stretch_) + dacLead();
 }
 
 void Runner::midiInAt(std::span<const std::uint8_t> bytes, std::uint32_t offset)
@@ -232,6 +237,7 @@ Runner::Stats Runner::stats() const
     s.inputMissing = input_.missing();
     s.speed = speed_.load();
     s.longestChunkMs = longestChunk_.load() * 1e3;
+    s.realtime = realtime_.load();
     return s;
 }
 
