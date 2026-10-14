@@ -22,6 +22,10 @@ still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2
 4. Live editing over USB: structural edits re-upload the whole patch; the patch name, performance settings and name
    are never sent; knob-map notices and store errors are ignored. (B)
 5. Emulated G2X has a G2's polyphony: the expansion board's 4 DSPs are stubs (measured: 3 voices where 32 are asked). (A)
+   **Closed in the emulator 2026-10-13, open in the plugin:** the board is emulated (eight DSPs; the OS finds it by
+   itself through one input of the parallel port), and the bench pack's voice patches get the G2X's 32, 24 and 7
+   (+ FX) voices, the manual's figures (g2-hardware-and-emulation.md §3.12). The plugin's G2X still runs without it
+   (a flagged deviation in the README) until eight DSPs are measured in real time on a quiet M1 (§3.12.5).
 6. The emulated G2 starts from an erased memory, not a factory G2: MIDI Ctrl off (CC7 and assigned CCs ignored), all
    slots on channel 1, program change off, memory protect off, no factory patches. (A)
    **Closed 2026-10-11, except the factory patches:** the zeros came from the unmodelled EEPROM, which also made the
@@ -91,7 +95,7 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 
 | # | Gap | Severity | Evidence |
 |---|---|---|---|
-| 1 | **Polyphony is a G2's, not a G2X's.** We present a G2X, but the expansion board's 4 DSPs are stubs, so the OS uses 4 DSPs. A heavy patch gets 3 voices where a G2X gives 7. | **High** | [Measured] `voices.cpp`: `bigsynth.pch2` requesting 32 voices gets "03 (32)" on both the G2X and G2 models; [M p.121]: "minimum polyphony is three voices plus effects or seven voices plus effects in an expanded or G2X model" |
+| 1 | **Polyphony is a G2's, not a G2X's.** We present a G2X, but the expansion board's 4 DSPs are stubs, so the OS uses 4 DSPs. A heavy patch gets 3 voices where a G2X gives 7. **Emulated since 2026-10-13** (`Machine::Options::expansion`, 7 voices measured); the plugin keeps 4 DSPs until real time is measured (§3.12.5 of the hardware notes) | **High** | [Measured] `voices.cpp`: `bigsynth.pch2` requesting 32 voices gets "03 (32)" on both the G2X and G2 models; [M p.121]: "minimum polyphony is three voices plus effects or seven voices plus effects in an expanded or G2X model" |
 | 2 | **An erased flash gives non-factory system settings.** MIDI Ctrl is Off, so CC7, CC11 and every assigned CC from the DAW are ignored. Slot channels are 1/1/1/1 and the Global channel is 1, so multitimbral use is impossible. Program Change is Off. There are **no factory patches**. | **High** | [Measured] `sysmenu.sh`, `probe`: CC7=0 has no effect with the OS default, and drops the level with Ctrl on. Factory values: [M p.126] Global channel Off, [M p.39/49] Memory Protect On, [M p.21] factory sounds |
 | 3 | **Downsampling 96 kHz to the host rate uses Lagrange interpolation with no anti-alias filter.** Content above the host's Nyquist folds into the audible band; a real G2 recorded at 48 kHz does not alias that way. | **High** for bright, FM or distorted patches | [Code] `EmulatedSoundEngine.h:86`, `.cpp:137-138`. [Inferred] from the algorithm: at 96→48 kHz a 4-point Lagrange returns every second input sample, i.e. plain decimation. Not measured |
 | 4 | **Audio inputs are absent.** There is no input bus, the ADCs read silence, and the Mic Level knob is decorative. Patches using 2-In/4-In (effects, vocoders) are silent. **Closed 2026-10-11** ([Notes §3.11]; section 2 below) | **High** for those patches | [Code] `PluginProcessor.cpp:38-40` (outputs only), [Notes §3.9.6], `LiveView.cpp:311`; [M p.26, p.53] |
@@ -189,7 +193,7 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 | Patch mode | Perf.Mode LED off = Patch mode [M p.35] | After the upload: Perf.Mode off, slot A active, keyboard on A [Measured LEDs 49 and 177 lit, 17 off] | Matches | – | – |
 | Boot time | Unknown for a real G2 ([M] gives no figure) | About 1.6 s emulated boot, USB at 2 s, sync 74 ms, then the upload [Notes §3.9] | n/a. An **offline bounce** right after a project opens renders the boot silence, and notes sent before the upload are lost | Low-medium | In offline mode, wait until synced and the patch is sent (small); later, the snapshot |
 | One emulated G2 per host | Each track would be its own G2 | Only the first instance auto-starts (`PluginProcessor.cpp:209-212`); others stay silent until started | Deliberate, in the README (line 40). A project's sound depends on instance order | Medium | Show a clear "not started" state on the track; see the shared-G2 plan |
-| Polyphony | G2X = 8 DSPs; "four more voices"; minimum 7 + FX [M p.19, p.121] | Expansion DSPs are stubs (`machine.cpp:61-75`), so the OS uses 4 DSPs [Measured: bigsynth 3 voices on "G2X"] | **Half of a G2X's resources** | High | Emulate the expansion board: 4 more DSPs and their links. Their topology needs reverse-engineering; about +1 core of CPU (large). Until then, say "polyphony of a G2 without expansion" in the UI |
+| Polyphony | G2X = 8 DSPs; "four more voices"; minimum 7 + FX [M p.19, p.121] | Expansion DSPs are stubs (`machine.cpp:61-75`), so the OS uses 4 DSPs [Measured: bigsynth 3 voices on "G2X"]. **2026-10-13:** emulated (§3.12: B13 7 + FX, B12 24, B11 32 voices); the plugin's G2X runs `Expansion::Without` | **Half of a G2X's resources** in the plugin | High | Measure eight DSPs in real time on a quiet M1 (`g2emubench.py --expansion off,on`, §3.12.5), then decide the plugin's default; say "polyphony of a G2 without expansion" in the UI meanwhile (the README says it) |
 | DSP timing | Real cycles at about 147 MHz | Instructions counted as clocks (1536 per frame) [Notes §3.6.4, §3.7.7] | Patches near 100 % load may behave differently | Low | – |
 | ColdFire speed | MCF5407 V4 | V2 cycle tables, about 2/3 of the real throughput [Notes §3.9.2] | Background only (meters, upload time) | Low | – |
 
@@ -239,7 +243,7 @@ the Mic Level knob's pop-up menu; the resampler is still the outputs'.)
 - The JIT, the thread priorities and NoAppNap's equivalent need checking under Windows hosts.
 
 **Implied by the gaps above.**
-- **Expansion board** (true G2X polyphony).
+- **Expansion board** (true G2X polyphony): emulated since 2026-10-13; the plugin's default waits for a speed measurement.
 - **Factory initialisation** of system settings, plus optional factory banks from the user's own downloads.
 - **MIDI OUT**: notes from the Live keyboard (a real G2 acts as a master keyboard [M p.27]), CCs, clock, sysex.
 - **Two-handed panel gestures**.

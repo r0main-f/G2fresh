@@ -148,12 +148,13 @@ def one_patch(tool, fw, entry, renders):
                       facts=facts, summary=summary, note=INPUT_NOTE)
         return result
     if kind == "controls":
-        # B14 on the emulated G2X: the tone with each control at rest and at the top of its ADC range
+        # B14 on the emulated G2X (four DSPs, as the plugin runs it): the tone with each control at rest and at the top
+        # of its ADC range
         runs = {"rest": [], "pitch_stick_high": ["--analog", "stick=1"], "pitch_stick_low": ["--analog", "stick=0"],
                 "g_wheel_1_high": ["--analog", "wheel1=1"], "g_wheel_2_high": ["--analog", "wheel2=1"]}
         facts = {}
         for name, extra in runs.items():
-            wav, info = render(tool, fw, entry, renders, ["--model", "g2x", *extra], "." + name)
+            wav, info = render(tool, fw, entry, renders, ["--model", "g2x", "--expansion", "off", *extra], "." + name)
             rate, ch = ba.read_wav(wav)
             x = ba.part(ch[0], rate, 0.1, 0.5)
             low = bf.tone_facts(x, rate, entry["tone_hz"])
@@ -167,9 +168,15 @@ def one_patch(tool, fw, entry, renders):
     wav, info = render(tool, fw, entry, renders)
     result["emulator"] = emulator_facts(info)
     if kind == "voices":
+        # and on a G2X as built: eight DSPs, the voice expansion board's four with the main board's
+        _, g2x = render(tool, fw, entry, renders, ["--model", "g2x"], ".g2x")
         result.update(status="ok", facts={"requested_voices": info["requested_voices"], "voices": info["voices"][0],
-                                          "display_knobs_1_2": info.get("display_knobs_1_2")},
-                      note="The emulated G2 has four DSPs (a G2 without the expansion board), whatever model it says it is.")
+                                          "display_knobs_1_2": info.get("display_knobs_1_2"),
+                                          "g2x": {"voices": g2x["voices"][0], "display_knobs_1_2": g2x.get("display_knobs_1_2"),
+                                                  "load_va": g2x.get("load_va"), "load_fx": g2x.get("load_fx")}},
+                      note="'facts' is a G2 or a G2 Engine without the voice expansion board (four DSPs); 'facts.g2x' a G2X, or "
+                           "any G2 with the board (eight DSPs). The plugin's emulated G2X runs without the board: its voices "
+                           "are the first figure.")
         return result
     rate, channels = ba.read_wav(wav)
     facts = bf.measure(entry, rate, channels)

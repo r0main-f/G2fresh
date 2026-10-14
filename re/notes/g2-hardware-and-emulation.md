@@ -98,6 +98,15 @@ extraction tool `tools/firmware/g2os.py` and this note. No Clavia bytes are comm
   while the OS reprogrammed it: the way from the ADCs to the DACs (and of every sound to the DACs) went from 50
   to 150 frames over four patch uploads. It is 19 to 21 frames now, always.
 
+**Update (§3.12, 2026-10-13): the voice expansion board.**
+* The OS finds the board by one input of the parallel port (PADAT bit 9 low) and then drives eight DSPs, the
+  board's four between A6 and A5 on the serial chain and ring. The emulator has it (a G2X as built; a G2 or an
+  Engine as an option): the bench pack's voice patches get 32, 24 and 7 + FX voices against 16, 12 and 3 + FX, as
+  the manual says. The plugin keeps four DSPs until eight are measured in real time on a quiet computer.
+* With DSP threads, a status read could find a DSP behind the host's writes, and the OS's interrupt-time save of
+  the host ports then put a word too many into the stream: the cause of the DSPs that strayed with 2-4 threads
+  (§3.9.6). A status read now waits until the DSP has taken what was written.
+
 ## 1. Hardware (Part A)
 
 ### 1.1 Summary table
@@ -977,6 +986,7 @@ What dominates:
   would overrun, or the other way round.
 * The ADCs feed silence; there is no test signal input yet. (The C++ emulator has them since: §3.11.)
 * The expansion board's four DSPs (A7–A10) are stubs; with them the chain would run A6, A10…A7, A5, A4, A3.
+  (Emulated since, in that order: §3.12.)
 * Speed: about 0.15–0.6 × real time here. Next: run the four DSPs' links without per-frame thread hand-offs (larger
   batches, or all four on one thread with the JIT), port the host to C++ (§3.6.7), fix the JIT.
 
@@ -1270,7 +1280,8 @@ there, but it is the same code.
 * **Single thread** (`threads = 0`, deterministic): per quantum (1 frame) the ColdFire runs to the end of the
   quantum, then the DSPs in chain order (A6, A5, A4, A3). Whenever the ColdFire touches a DSP's host port, that DSP and
   the ones upstream of it are first run up to the ColdFire's time, so host commands are taken and answered within the
-  emulated microseconds the chip would need. **Poll skipping:** when the ColdFire reads the same status register of
+  emulated microseconds the chip would need. (Since 2026-10-14 a status read also has the DSP run on until it has
+  taken what was written: §3.9.6.) **Poll skipping:** when the ColdFire reads the same status register of
   one DSP from the same instruction and gets the same value (a wait for a host command to be taken, or for data), the
   DSPs run ahead until it changes (at most a frame) and the ColdFire's clock moves on by as much: 18-38 % of the
   ColdFire's time was such loops.
@@ -1290,6 +1301,8 @@ there, but it is the same code.
   before the host writes its next word, and the OS relies on it: it sends `$AE` (echo, which reads the host port)
   without writing a word first. Delivered at once from the ColdFire's thread, such a command could take the word
   meant for the next command. The ColdFire reads only the library's thread-safe parts (the transmit queue, HF2/HF3).
+  (2026-10-14: `$AE` does read a word, one the OS has seen waiting in HORX; and with DSP threads a status read now
+  waits until the DSP has taken what was written before it: §3.9.6.)
 * **Links:** frame queues as in §3.7.4, non-blocking, with 2 frames of prefill per chain hop and **16 on the ring**
   (A3 → A6). The prefills add to the latency of an inter-slot bus (one ring turn, §3.7.2): 16 frames for the ring
   plus 2 per hop, on top of the frames the DSPs hold themselves (the board's own figure is not known; the community
@@ -1359,13 +1372,74 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
   benchmark and real-time runs of §3.9.7 (each with a performance upload): no DSP strayed (`dspsWild` 0), no run lost
   its sync. The cause of the old failure is still not known; if it comes back, the trap stops the DSP and the plugin
   has to restart the machine. 3 and 4 threads stay experimental (and are no faster).
+  **2026-10-14: the cause, and the fix.** A status read could find the DSP behind the host. The DSP threads take
+  what the ColdFire writes when they run (§3.9.4), and they may be frames behind it, or ahead of it and stopped at
+  the horizon until the ColdFire's quantum ends; meanwhile the ColdFire's reads of ISR showed the host port as it
+  was before those writes. The OS cannot cope with that in one place. An interrupt that wants the host ports
+  saves what the interrupted code left in them, DSP by DSP, interrupts masked [C `0x30050488`, called at the start
+  of some 30 routines from `0x3004D73A` on, indexed by the interrupt level]: an answer waiting in RX (RXDF) is read
+  and kept; else, if TRDY is 0, a word the DSP has yet to read is in HORX, and the OS waits for HC = 0, sends `$D7`
+  (host command P:`$AE`, the echo: HOTX = HORX), and keeps what comes back; then it saves r0 (`$D6`, P:`$AC`) and
+  EP (`$DB`, P:`$B6`). `0x30050656` puts it all back, the kept word by writing it to the host port again. The OS's
+  usual sender (`0x30059086`: wait TRDY, write the word, wait HC = 0, write the command that reads it, return)
+  does not wait for the command to run. So when the interrupt came just after it and the DSP's thread had not
+  taken word and command yet, TRDY said a word was waiting; the save waited for HC = 0, by which time the command
+  had taken the word, and `$AE` read an empty HORX (the library gives 0 and logs "Empty read"). The OS kept that 0,
+  wrote it back on restore: one word too many in the stream, every later word went to the command after its own,
+  and a DSP wrote its program's addresses at P:0 ("Undefined opcode … at 000000"), then jumped to P:`$040000`.
+  (The `$AE` of §3.9.4, taken then for a ping that reads without a word, is this echo: it reads a word the OS
+  knows is there. Its empty reads, filtered out of the log as harmless, were the fault's first sign.)
+  The fix (`Machine::Options::hostTakenOnRead`, on): before a status read with threads, if the DSP has yet to take
+  something the ColdFire wrote (`Dsp::hostPending()`: a queued word, flag or command, or a command not run yet),
+  the ColdFire waits (wall time) while the DSP's worker runs that DSP on, a few instructions at a time, until it
+  has taken it (`Dsp::takeHost`), up to one frame past its upstream DSP (so the lines keep their frames). A worker
+  held by the horizon says so, and the ColdFire moves the horizon a frame further, at most 5 frames past `dspLead`
+  (within the Runner's input lead of `dspLead` + 8 frames); after that it reads the status as it is
+  (`Stats::statusStale`, for a DSP that takes nothing more: one that strayed). No deadlock: the ColdFire waits only
+  for that DSP to take what was written or for its worker to report the horizon, and a worker that is held only
+  by the workers upstream of it tries again when they move, which they can (all workers held at once means all
+  are at the horizon, as the ring's slack, `ringPrefill` > 3, keeps the first worker from waiting on the last).
+  The invariant: a status read finds the DSP past everything the ColdFire wrote before it. With threads the
+  backlog was up to `dspLead` + `skew`, 10 frames; now there is none.
+  **One thread had the same fault, rarer** (found through a MIDI clock by the MIDI OUT work, 2026-10-14): the
+  single-threaded machine runs the DSP up to the ColdFire's time before a read, but a DSP may already be past the
+  time of the writes (the JIT runs whole blocks, an idle DSP skips to its next serial slot), and a DSP in its frame
+  program takes no host command (the library takes no interrupt during a long one). Each MIDI clock byte (F8) has the
+  OS's interrupt save the host ports; within a second of clock at 120 BPM a DSP read its host port without a word
+  (A6, at its clock 502432805, every time: one thread is deterministic) and from then on notes were silent; the
+  next upload could send a DSP into P memory without code. Now one thread follows the same rule: before a status
+  read the DSP runs on until it has taken what was written (up to a frame past the DSP before it, then the DSPs up
+  to it together, up to 5 frames). With a MIDI clock: one thread and two DSP threads play after 96 clock bytes; with
+  the rule off both go silent with an empty read (test "notes still sound after it has followed an external MIDI
+  clock"). This changes when the DSPs take host writes on one thread, so 9 of the bench pack's 17 single-threaded
+  renders are not the same samples as before: the same sound shifted by a few to a few hundred frames (when an
+  upload ends, against a patch's own sequencer and oscillator phases); every measured fact is as committed
+  (`expected.py --check`).
+  On the board: a real G2 follows a MIDI clock without going silent, so there a host command does not wait long
+  enough for the OS's save to see it pending; whether because the host port's interrupt priority is above the
+  frame program's (stage 1's IPRP = `$431` [C] would have to be read against the DSP56367 manual's register layout:
+  not done) or the chip's timing leaves no such window, is inferred, not verified. The emulator's DSPs take no
+  interrupt during the frame program (the library has no interrupt levels): a known deviation, which the rule
+  covers for the host port.
+  Proof [emulated, 2026-10-14, bigsynth, a note, threads 2, M1 loaded 6-11]: with `--host-lag 16` (the DSPs take
+  host writes only in every 16th frame of theirs: `Options::hostLagFrames`, for tests) and the wait off
+  (`--no-host-taken`), 1 run of 3 went out of step during the boot ("DSP 3 read its host port without a word",
+  then an undefined opcode at P:0, no sync; with a lag of 4, 0 of 6); with the wait on, 3 of 3 synced and played,
+  0 empty reads, `statusStale` 0; also 2 threads, 3 threads with eight DSPs, lags 0, 4 and 8: no fault. The test
+  "a status read finds the DSP past what the host wrote before it" checks the invariant itself, which does not
+  depend on timing: with a lag of 4 the OS meets a DSP behind it thousands of times per boot (`statusBehind`);
+  with the wait none of those reads returns early and the chord plays, without it every one does.
+  Cost: in these runs 5,000-12,000 status reads per emulated second waited (of some 300,000-750,000 host-port
+  reads; most are the OS's own polls just after a command); its effect on speed is not measured on a quiet
+  computer.
 * The OS's DSP code runs the undefined opcode `$000040`: harmless (dsp56300 runs it as ILLEGAL; its vector is empty),
   logged by the library when it compiles such a block; g2emu filters that line.
 * The core counts V2 cycles (§3.9.2): the emulated CPU is probably slower than the real one; nothing seen depends on it
   beyond background throughput.
 * The DSP clock still counts instructions, not cycles (§3.7.7).
 * Stubs: the I2C ADC (the boot's calibration takes about 1 s against a constant 0x80), the analogue inputs
-  (silence), the expansion board's DSPs. The panel is modelled since (§3.10), the analogue inputs too (§3.11).
+  (silence), the expansion board's DSPs. The panel is modelled since (§3.10), the analogue inputs too (§3.11), the
+  expansion board too (§3.12).
 * The flash is erased at power-on unless the caller loads an image (`Machine::loadMemory`, `g2emurun --flash`: the
   flash, then the EEPROM, §3.10.5); with one, the OS does not format it again; the boot still takes about 1.6 s (the
   calibration).
@@ -1901,6 +1975,121 @@ three; −0.15 lights −20; In 2-4 at 0.95 light none.
 * The G2X's goose-neck microphone and the Engine's missing XLR are not told apart: the option is there on every
   model.
 * `emu/dspbridge` and the Python tools keep silent ADCs.
+
+## 3.12 The voice expansion board (2026-10-13)
+
+**Result.** The emulator has the expansion board: four more DSPs (chip selects A7-A10), eight in all, found by the
+user's OS 1.62 by itself. A G2X has it as built; a G2 keyboard or a G2 Engine gets it with
+`Machine::Options::expansion = Expansion::With`. The bench pack's voice patches get 32, 24 and 7 voices where four
+DSPs give 16, 12 and 3: the manual's figures (below). The plugin's emulated G2X keeps four DSPs for now (§3.12.5).
+
+### 3.12.1 How the OS finds the board [C]
+
+* **One input of the parallel port.** `0x30037F64` reads PADAT (MBAR + `$248`) and returns true when bit 9 is
+  **low**. Nothing else is asked: no DSP is probed, no chip select tried. The board's connector presumably pulls the
+  line down (inferred: the bit and what it means are [C], the wiring is not documented). The OS reads it:
+  * at power-on, `0x300383FC`: the result goes to `0x300391E8`, which fills the host-port table at `0x30116970`
+    (§2.6: 8 ports A6, A10, A9, A8, A7, A5, A4, A3 and the broadcast `0x11000000`, or 4 ports and broadcast
+    `0x11000780`), and `0x30038414` sets the OS's DSP count `0x302AA5D4` to 8 or 4 (175 places read it);
+  * for the boot display, `0x3001B882`: a G2 keyboard or a G2 Engine with the board shows "Version 1.62 Exp"
+    (`0x300E9FEE`; a G2X, model byte 3 at `0x30119848`, skips it);
+  * for the version reply over USB, `0x3001C606`: byte 34 of the reply (`$22` in its body) is 1 with the board, 2
+    without.
+* **The emulator** drives PADAT bit 9 low when the board is fitted (`machine.cpp`, `gpioChanged`); without it the bit
+  reads high, as the OS's own earlier write left it, so nothing changes for four DSPs.
+* Service manual (§1.1): the error codes name "Mnb U16-U20" and "Exp U5-U8": the main board's and the expansion
+  board's DSPs. Nord's installation sheet: the board plugs into two sockets and needs nothing else. Neither says how
+  it is detected; the above is from the OS's code alone.
+
+### 3.12.2 Boot, programs and wiring [C, emulated]
+
+* **The same boot as four DSPs, over eight ports.** The OS resets, boots and loads the eight DSPs with the routines of
+  §3.6.3, looping over its DSP count. Its first DSP (A6) gets A6's stage-1 program, its last (A3) A3's, and the six
+  between them the program A5 and A4 get without the board (test "finds the expansion board": stage 1 and the
+  empty frame program, P:`$0`-`$2BF`, compared word for word). The tables (§3.6.3, step 6) go to all eight.
+* **So the expansion DSPs are pass-through DSPs in the middle of the chain**, like A5 and A4: slaves on A6's frame
+  clock (their TCCR/RCCR are the slave settings of §3.7.1), receiving on ESAI and ESAI_1 from the DSP before them
+  and sending to the one after. The order is the OS's numbering: **A6 → A10 → A9 → A8 → A7 → A5 → A4 → A3** on the
+  ESAI chain and the ESAI_1 ring (back from A3 to A6). That the board's lines run this way through its connector,
+  between A6 and A5, is inferred from the numbering (§3.7.3): no schematic or manual shows it. Medium.
+* **Clocking:** one frame clock from A6 for all eight, as for four (inferred, as §3.7.3).
+* **The FX area and the buses** use the same slots as with four DSPs (§3.7.2): a bus goes once around the ring of
+  eight, an FX send down the ESAI_1 chain, the ADCs' words down the ESAI chain (test "buses, the FX area and the
+  audio inputs cross eight DSPs": tones exact to 1 %, no frame lost). The way from the ADCs to the DACs is **42.2
+  frames** against 20.4 with four DSPs: about 5.5 frames per DSP in the emulator (2 in the DSP, §3.7.1, and its line's
+  2 frames of delay, which the board's wires do not have). On a G2X it is shorter by the lines' share; not measured.
+
+### 3.12.3 Voices and the FX area on eight DSPs [emulated]
+
+The OS spreads the voices over its DSP count; the editor's Patch Load stays one voice's share of one DSP (the
+counters of `72` are byte for byte the same with and without the board). The bench pack's patches, 32 voices asked
+(`bench/hardware-pack/expected/B11-B13*.json`, `facts` and `facts.g2x`):
+
+| Patch | Load per voice | Four DSPs | Eight DSPs | Manual (p.19, p.121) |
+|---|---|---|---|---|
+| B11 Voices Light | 21 % | 16 | 32 | as many voices as fit whole in a DSP, per DSP: 4 x 4, 4 x 8 |
+| B12 Voices Mid | 31 % | 12 | 24 | its example of a 33 % share: "12 voices or 24 voices on an expanded system or on the G2X" |
+| B13 Voices Heavy, Hall reverb in the FX area | 79 %, FX 31 % | 3 + FX | 7 + FX | "three voices plus effects or seven voices plus effects in an expanded or G2X model" |
+
+And the manual, p.19: an expansion board "will double the computational resources and allows four more voices".
+A chord of one heavy voice per DSP (test "a chord spread over the eight DSPs"): three voices land on three DSPs with
+four and with eight, and play the same amplitudes to 1e-4; seven voices land on seven DSPs, at least three of them on
+the board, each note at full level, no click (the third difference of the output stays at the tones' own).
+Where the code lands (B13 on eight DSPs, instructions per frame by chip select: `g2benchrender --model g2x`, its
+`dsp_instructions_per_frame`): the FX area's reverb alone on A3, the last DSP (360-365), one voice on each of the
+other seven (969, A6 1011-1022 with its ADC work); B11 and B12 put four and three voices on every DSP (1033-1075,
+1117-1161). (The counts move by a few instructions with the host port's timing, so the bench pack's JSON does not
+keep them.)
+
+### 3.12.4 In the emulator
+
+* `Machine::Options::expansion`: `AsBuilt` (the default: a G2X with the board, a G2 keyboard and a G2 Engine
+  without), `With`, `Without`. `Machine::hasExpansion(options)` says what a machine gets. `Without` on a G2X is
+  not an instrument Clavia sold: a deliberate deviation, for a computer that cannot run eight DSPs.
+* `Stats::dsps` is 8 with the board; the per-DSP statistics and `dspMemory()` index DSPs by chip select (0-3 A3-A6,
+  4-7 A7-A10).
+* Without the board A7-A10 are the old stub ports (INIT, host commands taken at once, HF0 echoed): the OS never
+  selects them then.
+* `g2emurun --expansion on|off`, `g2benchrender --expansion on|off`; `--model g2x` is a G2X as built.
+* Nothing changes for four DSPs: the bench pack's renders are the same samples (`python3 tools/benchpack/expected.py
+  --check`).
+* Idle expansion DSPs: on a G2X they run the empty frame program every frame (it passes the buffers on) and spin in
+  stage 1's background loop. The emulator runs the frame program and skips the background loop (§3.7.4), the same as
+  for the main board's DSPs: nothing cheaper is faithful, since every DSP's frame program carries the chain's audio.
+  What an idle DSP costs is mostly the library's per-slot work (§3.9.7: about 1.5 us per DSP and frame).
+
+### 3.12.5 Threads and CPU [measured, provisional]
+
+* `Options::threads` takes 1-8 DSP threads; each runs a stretch of the chain of eight. `threads = -1`
+  (`Machine::autoThreads(8)`): 3 where there are at least 6 performance cores, else as for four DSPs (2 with 4
+  performance cores, else 1).
+* **Not measured yet on a quiet computer.** Every run of 2026-10-13/14 shared the M1 with other emulators and builds
+  (load average 6 to 350), so no speed figure here decides whether eight DSPs hold real time in a DAW on an M1. The
+  plugin keeps four DSPs (its G2X runs `Expansion::Without`, flagged in the README) until that is measured. The
+  measurement, one command (it records the load average with every run and warns above 2):
+
+  ```sh
+  python3 tools/firmware/g2emubench.py --threads 2,3 --expansion off,on --seconds 5 --repeat 3 \
+    --chord 48,55,60,64,67,72,76 \
+    --patches original/firmware/g2emu-tests/kbd_sine.pch2,original/firmware/g2emu-tests/bigsynth.pch2,"bench/hardware-pack/patches/B13 Voices Heavy.pch2" \
+    --json speed-4-vs-8.json -- --fw "$G2_FIRMWARE"
+  ```
+
+  Seven notes: B13 then plays three voices on four DSPs and seven on eight. Real time in a DAW is "x real time" above
+  about 1.5 with two DSP threads (§3.9.7); `--realtime 20` instead of `--seconds` counts the frames missing.
+* As a rough guide only (provisional: one run of 0.3 emulated s each, load average 2.1-2.7, the script's smoke
+  test): B13 with the seven-note chord, two DSP threads, four DSPs (3 voices) 2.0 x real time, 1.5 CPU s per
+  emulated s; eight DSPs (7 voices) 0.77 x, 3.9 CPU s, the two DSP threads 1.1-1.3 s busy each; three DSP threads
+  1.06 x (3.7 CPU s), four 0.74 x. If the quiet measurement agrees, a heavy patch on eight DSPs does not hold real
+  time on an M1's four performance cores, and the unexpanded default stays.
+
+### 3.12.6 Not known, not done
+
+* The board's own wiring (the order of A7-A10 on the lines, whether its lines add delay), its clock distribution,
+  and what a G2X's ADC-to-DAC delay is: a G2X or the board's schematic.
+* Voice counts on a real G2X: the bench pack asks friends for B11-B13 (`bench/hardware-pack/NOTES.md`).
+* No UI chooses the board: the plugin's G2X has four DSPs, and a G2 or Engine model is not offered there.
+* The speed figures of §3.12.5.
 
 ## 4. Open questions
 1. **DSP part number and clock.** The firmware is consistent with a 56367 at about 150 MHz, but the DSP EXTAL source

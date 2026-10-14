@@ -1,7 +1,7 @@
 // A Nord Modular G2 in software: the user's own firmware (OS 1.62) on an emulated ColdFire (Gearmulator's ColdFire
-// core) with the board's hardware, driving four emulated DSP56367s (Gearmulator's dsp56300, JIT) through their host
-// ports, their serial audio links between them, the USB chip our protocol client talks to, and MIDI IN on the
-// ColdFire's UART (re/notes/g2-hardware-and-emulation.md §3.9).
+// core) with the board's hardware, driving four emulated DSP56367s (Gearmulator's dsp56300, JIT), or eight with the
+// voice expansion board, through their host ports, their serial audio links between them, the USB chip our protocol
+// client talks to, and MIDI IN on the ColdFire's UART (re/notes/g2-hardware-and-emulation.md §3.9, §3.12).
 //
 // Time: one master clock, the DSPs' frame clock. A frame is one 96 kHz sample, 1536 DSP clocks [C]; per frame the
 // ColdFire runs 1687.5 of its cycles (162 MHz) and its timers 562.5 bus clocks (54 MHz) (§3.9.2).
@@ -33,10 +33,19 @@ public:
     virtual void adcFrame(std::uint64_t clock, std::int32_t words[4]) = 0;
 };
 
+// The voice expansion board (re/notes §3.12): four more DSPs, eight in all. Every G2X has it; a G2 keyboard and a
+// G2 Engine may have it fitted. The OS finds it by itself at power-on and spreads the voices over eight DSPs.
+enum class Expansion : std::uint8_t {
+    AsBuilt,  // as the model left the factory: a G2X with it, a G2 keyboard and a G2 Engine without
+    Without,  // four DSPs (a G2X without its board does not exist: a deliberate deviation, half the DSPs to emulate)
+    With,     // eight DSPs
+};
+
 class Machine {
 public:
     static constexpr std::uint32_t FrameRate = 96000;  // as the OS's pitch tables assume (§3.7.1)
     static constexpr std::uint32_t ClocksPerFrame = 1536;  // DSP clocks per frame [C] (§3.7.1)
+    static constexpr int MaxDsps = 8;  // the main board's four and the expansion board's four
 
     struct Options {
         bool jit = true;               // the DSPs on dsp56300's JIT (the interpreter cannot be stepped: debugging)
@@ -63,6 +72,13 @@ public:
         // threads > 0: a status read of a DSP's host port waits (wall time) until that DSP has reached the ColdFire's
         // time. Off: it cost 15-25 % of speed and no failure needed it once the host port was ordered (§3.9.6)
         bool causalReads = false;
+        // A read of a DSP's status register finds the DSP past what the ColdFire wrote before it (with threads the
+        // ColdFire waits, on one thread it runs that DSP on), as on the board, where the two run at once: the OS
+        // counts on it (§3.9.6). Off: as it was before 2026-10-14, for the tests that show what it is for.
+        bool hostTakenOnRead = true;
+        // Testing, threads > 0: the DSPs take what the host wrote only in every that many frames of theirs (0: as soon
+        // as they run), as when their threads get little time; a status read still has them take it at once.
+        std::uint32_t hostLagFrames = 0;
         double usbAfter = 2.0;         // plugUsb() takes effect once the OS has run this long (seconds): it boots in 1.6
         // The panel's master volume knob, 0..1 (read by the OS through the panel ADC, 128 steps). At 1, a signal of 1.0
         // into an Out module (patch Level 127, no pad) gives DAC words of about -0.125 (inverted): -18 dBFS.
@@ -70,32 +86,47 @@ public:
         // The instrument the panel says it is (read by the OS at boot): the G2 keyboard, the G2X (adds the two global
         // wheels, 61 keys) or the G2 Engine (rack).
         PanelModel model = PanelModel::G2;
+        // The voice expansion board: see Expansion. hasExpansion() says what a model and this setting give.
+        Expansion expansion = Expansion::AsBuilt;
         bool trace = false;            // log unusual events (unmapped accesses, exceptions) to stderr
     };
 
     struct Stats {
         std::uint64_t frames = 0;              // DAC frames produced
         std::uint64_t cfInstructions = 0, cfCycles = 0, cfSkipped = 0, cfPollSkipped = 0;
-        std::uint64_t dspExecuted[4] = {}, dspSkipped[4] = {};
+        // per DSP, by chip select: 0-3 the main board's A3..A6 (A3: the DACs, A6: the ADCs), 4-7 the expansion
+        // board's A7..A10 (zero without it)
+        std::uint64_t dspExecuted[MaxDsps] = {}, dspSkipped[MaxDsps] = {};
         std::uint64_t linkUnderruns = 0, linkOverruns = 0;
         std::uint64_t unmapped = 0, exceptions = 0, midiOverruns = 0;
         int dspsWild = 0;  // DSPs that jumped into P memory without code (stopped there: the machine needs a restart)
         std::uint32_t cfPc = 0;
-        std::uint32_t dspPc[4] = {};
+        std::uint32_t dspPc[MaxDsps] = {};
         std::uint64_t hostCommands = 0, hostReads = 0, dspSyncs = 0;
+        // The host port out of step: the OS read a DSP's answer where there was none, a DSP read a word from the OS
+        // where there was none (other than for the OS's pings). Both stay 0 while all is well.
+        std::uint64_t hostEmptyReads = 0, dspEmptyReads = 0;
+        // Reads of a DSP's status register that found something the ColdFire wrote before still on its way to the
+        // DSP (`statusBehind`), and how many of them returned before the DSP had taken it (`statusStale`: all of them
+        // with Options::hostTakenOnRead off; with it, those where the DSP could not take it within the frames it may
+        // run ahead: one that takes nothing more). statusStale stays 0 while all is well.
+        std::uint64_t statusBehind = 0, statusStale = 0;
         // threads > 0: each DSP thread's CPU time (as of its last wait) and the time it spent waiting (spinning or
         // yielding: the waits count as CPU time too)
-        std::uint64_t dspThreadCpuNs[4] = {}, dspThreadWaitNs[4] = {};
+        std::uint64_t dspThreadCpuNs[MaxDsps] = {}, dspThreadWaitNs[MaxDsps] = {};
         // threads > 0: the wall time the ColdFire's thread (the caller of run()) spent waiting for the DSP threads
         std::uint64_t cfWaitNs = 0;
         int dspThreads = 0;  // Options::threads as resolved (-1: autoThreads())
+        int dsps = 4;        // 8 with the expansion board
     };
 
     // The number of DSP threads for Options::threads = -1: 2 on a computer with at least 4 performance cores (or
     // 6 hardware threads where the cores' kinds are not known), else 1. Two threads were faster than one for every
     // patch measured, light ones included, at the same CPU time per emulated second (§3.9.7); they need three
-    // cores at once.
-    static int autoThreads();
+    // cores at once. With eight DSPs (`dsps`), 3 where there are at least 6 performance cores (provisional, §3.12.5).
+    static int autoThreads(int dsps = 4);
+    // Whether a machine with these options has the expansion board (eight DSPs).
+    static bool hasExpansion(const Options& options);
 
     explicit Machine(const Firmware& firmware);
     Machine(const Firmware& firmware, Options options);
