@@ -46,6 +46,11 @@ public:
     // the settings, not in the project.
     virtual int emulatorBuffer() const { return 0; }
     virtual void setEmulatorBuffer(int buffer) { juce::ignoreUnused(buffer); }
+    // Whether it has the voice expansion board: eight DSPs, as every G2X, instead of four (the default, a deliberate
+    // deviation: a heavy patch on eight runs below real time on an M1). The user's choice for this computer, kept in
+    // the settings; a running emulated G2 restarts to take it (its OS finds the board at power-on).
+    virtual bool emulatorExpansion() const { return false; }
+    virtual void setEmulatorExpansion(bool on) { juce::ignoreUnused(on); }
     // The latency from MIDI or an input to the output with that buffer, as the host runs it now, in milliseconds
     // (0: not running).
     virtual double emulatorLatencyMs(int buffer) const

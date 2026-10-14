@@ -66,6 +66,8 @@ public:
     int emulatorsInHost() const override;
     int emulatorBuffer() const override;
     void setEmulatorBuffer(int buffer) override;
+    bool emulatorExpansion() const override;
+    void setEmulatorExpansion(bool on) override;
     double emulatorLatencyMs(int buffer) const override;
     int emulatorDropouts() const override;
     bool hostClock() const override { return hostClockOn_; }
@@ -105,6 +107,7 @@ private:
     std::vector<std::uint8_t> startingFlash() const;
     // The running emulated G2 takes the buffer the settings ask for, and the host learns the new latency.
     void applyBuffer();
+    juce::File emulatorFirmware_; // the G2 OS the running emulated G2 started from (for a restart)
     int dropoutsShown_ = 0; // as the editor last heard of them
 #endif
 

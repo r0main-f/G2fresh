@@ -31,7 +31,7 @@ enum MenuId {
     kSynthSettings,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
-    kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34,
+    kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34, kEmulatorExpansion,
     kEmulatorBufferBase = 740, // + buffer (EmulatorHost::emulatorBuffer)
     // Opt-in deviations from the original editor (View menu).
     kWheelEditsKnobs = 800, kDoubleClickMorph, kDoubleClickReset, kDoubleClickNothing, kShowLoadEstimate,
@@ -392,6 +392,8 @@ juce::PopupMenu MainView::synthMenu()
         for (int b = 0; b < 3; ++b)
             buffer.addItem(item(kEmulatorBufferBase + b, emulatorBufferName(b), {}, true, emulator_->emulatorBuffer() == b));
         m.addSubMenu("Emulated G2 Buffer (latency)", buffer);
+        m.addItem(item(kEmulatorExpansion, "Emulated G2 Voice Expansion Board (8 DSPs: twice the voices and the CPU)", {},
+                       true, emulator_->emulatorExpansion()));
     }
     m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
     m.addSeparator();
@@ -577,6 +579,16 @@ void MainView::menuItemSelected(int id, int)
         emulator_->setEmulatorBuffer(id - kEmulatorBufferBase);
         setStatus("Emulated G2 buffer: " + emulatorBufferName(id - kEmulatorBufferBase)
                   + ". A smaller buffer plays sooner; if you hear clicks or gaps, choose a larger one");
+        updateSynthStatus();
+        menuItemsChanged();
+        return;
+    }
+    if (id == kEmulatorExpansion && emulator_ != nullptr) {
+        const bool on = !emulator_->emulatorExpansion();
+        emulator_->setEmulatorExpansion(on);
+        setStatus(on ? juce::String("Voice expansion board fitted: eight DSPs, as a G2X. Twice the voices and twice the CPU: "
+                                    "on a computer with four performance cores (an M1) a heavy patch loses audio")
+                     : juce::String("Voice expansion board removed: four DSPs, a G2's voices"));
         updateSynthStatus();
         menuItemsChanged();
         return;

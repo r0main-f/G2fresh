@@ -15,6 +15,7 @@
 #include "g2/patch.hpp"
 #include "g2/proto/client.hpp"
 #include "g2/proto/frame.hpp"
+#include "EmulatedMachine.h"
 #include "SynthSettingsForm.h"
 #include "g2/uprate.hpp"
 #include "g2emu/firmware.hpp"
@@ -2820,6 +2821,29 @@ TEST_CASE("Expansion board: a G2X has it, a G2 and a G2 Engine when fitted", "[g
     CHECK(Machine::hasExpansion(o));
     o.expansion = Expansion::Without;  // no such instrument: for a computer that cannot run eight DSPs
     CHECK_FALSE(Machine::hasExpansion(o));
+}
+
+TEST_CASE("The plugin's G2X: without its expansion board unless the user fits it", "[g2emu]")
+{
+    // Every G2X has the board (re/notes §3.12); the plugin leaves it out by default because a heavy patch on eight
+    // DSPs runs below real time on an M1 (§3.12.5), a deliberate deviation listed in the README.
+    Machine::Options o;
+    g2io::pluginMachine(o);
+    CHECK(o.model == PanelModel::G2X);
+    CHECK_FALSE(Machine::hasExpansion(o));
+    g2io::pluginMachine(o, true);
+    CHECK(o.model == PanelModel::G2X);
+    CHECK(Machine::hasExpansion(o));
+    g2io::pluginMachine(o, false);
+    CHECK_FALSE(Machine::hasExpansion(o));
+
+    // The user's choice in the settings file, and back; anything else is the default, without.
+    CHECK(g2io::expansionKey(true) == "on");
+    CHECK(g2io::expansionKey(false) == "off");
+    CHECK(g2io::expansionFromKey("on"));
+    CHECK_FALSE(g2io::expansionFromKey("off"));
+    CHECK_FALSE(g2io::expansionFromKey(""));
+    CHECK_FALSE(g2io::expansionFromKey("yes"));
 }
 
 TEST_CASE("The user's G2 OS finds the expansion board: eight DSPs booted, Exp on its display and in its version reply",

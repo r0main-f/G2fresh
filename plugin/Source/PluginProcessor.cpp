@@ -6,6 +6,7 @@
 #include "Skin.h"
 
 #if G2FRESH_EMULATOR
+#include "EmulatedMachine.h"
 #include "EmulatedSoundEngine.h"
 #include "g2emu/transport.hpp"
 #endif
@@ -201,7 +202,33 @@ g2io::Buffer chosenBuffer()
     return g2io::bufferFromKey(key.toStdString(), g2io::kDefaultBuffer);
 }
 
+// Whether the user fitted the voice expansion board (Synth > Emulated G2 Voice Expansion Board), from the settings
+// every instance shares: a choice for this computer, which must run twice the DSPs. G2FRESH_EMULATOR_EXPANSION (on or
+// off) goes first: for tests, which do not touch the user's settings.
+bool chosenExpansion()
+{
+    const auto env = juce::SystemStats::getEnvironmentVariable("G2FRESH_EMULATOR_EXPANSION", {});
+    const auto key = env.isNotEmpty() ? env : g2ui::userSettings().getValue("emulatorExpansion");
+    return g2io::expansionFromKey(key.toStdString());
+}
+
 } // namespace
+
+bool G2EditorProcessor::emulatorExpansion() const
+{
+    return chosenExpansion();
+}
+
+void G2EditorProcessor::setEmulatorExpansion(bool on)
+{
+    const auto key = g2io::expansionKey(on);
+    g2ui::userSettings().setValue("emulatorExpansion", juce::String(key.data(), key.size()));
+    // The OS finds the board at power-on only (re/notes §3.12): the running emulated G2 restarts, its memory kept.
+    // Other instances take the choice when they next start.
+    if (emulated_ != nullptr && static_cast<EmulatedSoundEngine&>(*emulated_).expansion() != on)
+        if (const auto error = startEmulator(emulatorFirmware_); error.isNotEmpty())
+            DBG("G2fresh: " << error);
+}
 
 int G2EditorProcessor::emulatorBuffer() const
 {
@@ -359,10 +386,11 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
         const auto saveTo = wrapperType == wrapperType_Standalone ? EmulatedSoundEngine::defaultFlashFile() : juce::File();
         auto flash = startingFlash();
         emulatedFresh_ = g2emu::newMemory(flash);
-        engine = std::make_unique<EmulatedSoundEngine>(fw, std::move(flash), saveTo);
+        engine = std::make_unique<EmulatedSoundEngine>(fw, std::move(flash), saveTo, chosenExpansion());
     } catch (const std::exception& e) {
         return juce::String("the emulated G2 cannot start: ") + e.what();
     }
+    emulatorFirmware_ = firmware;
     engine->setBuffer(chosenBuffer());
     engine->prepare(sampleRate_ > 0 ? sampleRate_ : 48000.0, blockSize_);
     engine->setMixOut34(mixOut34_);
