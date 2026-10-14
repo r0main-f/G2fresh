@@ -1290,6 +1290,8 @@ there, but it is the same code.
   before the host writes its next word, and the OS relies on it: it sends `$AE` (echo, which reads the host port)
   without writing a word first. Delivered at once from the ColdFire's thread, such a command could take the word
   meant for the next command. The ColdFire reads only the library's thread-safe parts (the transmit queue, HF2/HF3).
+  (2026-10-14: `$AE` does read a word, one the OS has seen waiting in HORX; and with DSP threads a status read now
+  waits until the DSP has taken what was written before it: §3.9.6.)
 * **Links:** frame queues as in §3.7.4, non-blocking, with 2 frames of prefill per chain hop and **16 on the ring**
   (A3 → A6). The prefills add to the latency of an inter-slot bus (one ring turn, §3.7.2): 16 frames for the ring
   plus 2 per hop, on top of the frames the DSPs hold themselves (the board's own figure is not known; the community
@@ -1359,13 +1361,57 @@ MIDI the same chord releases. So a sound engine sends its notes as MIDI (UART0),
   benchmark and real-time runs of §3.9.7 (each with a performance upload): no DSP strayed (`dspsWild` 0), no run lost
   its sync. The cause of the old failure is still not known; if it comes back, the trap stops the DSP and the plugin
   has to restart the machine. 3 and 4 threads stay experimental (and are no faster).
+  **2026-10-14: the cause, and the fix.** A status read could find the DSP behind the host. The DSP threads take
+  what the ColdFire writes when they run (§3.9.4), and they may be frames behind it, or ahead of it and stopped at
+  the horizon until the ColdFire's quantum ends; meanwhile the ColdFire's reads of ISR showed the host port as it
+  was before those writes. The OS cannot cope with that in one place. An interrupt that wants the host ports
+  saves what the interrupted code left in them, DSP by DSP, interrupts masked [C `0x30050488`, called at the start
+  of some 30 routines from `0x3004D73A` on, indexed by the interrupt level]: an answer waiting in RX (RXDF) is read
+  and kept; else, if TRDY is 0, a word the DSP has yet to read is in HORX, and the OS waits for HC = 0, sends `$D7`
+  (host command P:`$AE`, the echo: HOTX = HORX), and keeps what comes back; then it saves r0 (`$D6`, P:`$AC`) and
+  EP (`$DB`, P:`$B6`). `0x30050656` puts it all back, the kept word by writing it to the host port again. The OS's
+  usual sender (`0x30059086`: wait TRDY, write the word, wait HC = 0, write the command that reads it, return)
+  does not wait for the command to run. So when the interrupt came just after it and the DSP's thread had not
+  taken word and command yet, TRDY said a word was waiting; the save waited for HC = 0, by which time the command
+  had taken the word, and `$AE` read an empty HORX (the library gives 0 and logs "Empty read"). The OS kept that 0,
+  wrote it back on restore: one word too many in the stream, every later word went to the command after its own,
+  and a DSP wrote its program's addresses at P:0 ("Undefined opcode … at 000000"), then jumped to P:`$040000`.
+  (The `$AE` of §3.9.4, taken then for a ping that reads without a word, is this echo: it reads a word the OS
+  knows is there. Its empty reads, filtered out of the log as harmless, were the fault's first sign.)
+  The fix (`Machine::Options::hostTakenOnRead`, on): before a status read with threads, if the DSP has yet to take
+  something the ColdFire wrote (`Dsp::hostPending()`: a queued word, flag or command, or a command not run yet),
+  the ColdFire waits (wall time) while the DSP's worker runs that DSP on, a few instructions at a time, until it
+  has taken it (`Dsp::takeHost`), up to one frame past its upstream DSP (so the lines keep their frames). A worker
+  held by the horizon says so, and the ColdFire moves the horizon a frame further, at most 5 frames past `dspLead`
+  (within the Runner's input lead of `dspLead` + 8 frames); after that it reads the status as it is
+  (`Stats::statusStale`, for a DSP that takes nothing more: one that strayed). No deadlock: the ColdFire waits only
+  for that DSP to take what was written or for its worker to report the horizon, and a worker that is held only
+  by the workers upstream of it tries again when they move, which they can (all workers held at once means all
+  are at the horizon, as the ring's slack, `ringPrefill` > 3, keeps the first worker from waiting on the last).
+  The invariant: a status read finds the DSP past everything the ColdFire wrote before it. One thread gives that up
+  to the DSP's own latency (a command waits for the end of a frame program: the library takes no interrupt during
+  a long one, and on the chip the host port's priority, IPRP = `$431` [C], would have to be read against the
+  DSP56367 manual's register layout, not done); the board, where the two chips run at once, the same. With
+  threads the backlog was up to `dspLead` + `skew`, 10 frames; now there is none.
+  Proof [emulated, 2026-10-14, bigsynth, a note, threads 2, M1 loaded 6-11]: with `--host-lag 16` (the DSPs take
+  host writes only in every 16th frame of theirs: `Options::hostLagFrames`, for tests) and the wait off
+  (`--no-host-taken`), 1 run of 3 went out of step during the boot ("DSP 3 read its host port without a word",
+  then an undefined opcode at P:0, no sync; with a lag of 4, 0 of 6); with the wait on, 3 of 3 synced and played,
+  0 empty reads, `statusStale` 0; also 2 threads, 3 threads with eight DSPs, lags 0, 4 and 8: no fault. The test
+  "a status read finds the DSP past what the host wrote before it" checks the invariant itself, which does not
+  depend on timing: with a lag of 4 the OS meets a DSP behind it thousands of times per boot (`statusBehind`);
+  with the wait none of those reads returns early and the chord plays, without it every one does.
+  Cost: in these runs 5,000-12,000 status reads per emulated second waited (of some 300,000-750,000 host-port
+  reads; most are the OS's own polls just after a command); its effect on speed is not measured on a quiet
+  computer.
 * The OS's DSP code runs the undefined opcode `$000040`: harmless (dsp56300 runs it as ILLEGAL; its vector is empty),
   logged by the library when it compiles such a block; g2emu filters that line.
 * The core counts V2 cycles (§3.9.2): the emulated CPU is probably slower than the real one; nothing seen depends on it
   beyond background throughput.
 * The DSP clock still counts instructions, not cycles (§3.7.7).
 * Stubs: the I2C ADC (the boot's calibration takes about 1 s against a constant 0x80), the analogue inputs
-  (silence), the expansion board's DSPs. The panel is modelled since (§3.10), the analogue inputs too (§3.11).
+  (silence), the expansion board's DSPs. The panel is modelled since (§3.10), the analogue inputs too (§3.11), the
+  expansion board too (§3.12).
 * The flash is erased at power-on unless the caller loads an image (`Machine::loadMemory`, `g2emurun --flash`: the
   flash, then the EEPROM, §3.10.5); with one, the OS does not format it again; the boot still takes about 1.6 s (the
   calibration).

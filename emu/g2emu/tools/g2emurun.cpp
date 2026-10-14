@@ -4,7 +4,12 @@
 //            [--note N@ON-OFF ...] [--midi N@ON-OFF[:CH] ...] [--wav OUT.wav] [--json OUT.json]
 //            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0..8|-1] [--model g2|g2x|engine] [--expansion on|off] [--skew N] [--dsp-lead N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
 //            [--no-usb] [--panel] [--panel-at T] [--press RAW@T[-T2]] [--turn RAW:N@T] [--adc POS:V@T] [--key K@T-T2[:MS]] [--var V@T]
-//            [--in N:HZ[:LEVEL] ...]
+//            [--in N:HZ[:LEVEL] ...] [--causal-reads] [--host-lag N] [--no-host-taken]
+//
+// The DSP threads' host port (re/notes §3.9.6): --host-lag N has the DSPs take what the OS writes only in every Nth
+// frame of theirs, as when their threads get little time; --no-host-taken lets the OS read a DSP's status before the
+// DSP has taken what it wrote (as before 2026-10-14): the two together show the fault the default prevents (a DSP
+// that reads its host port without a word, "WARNING: the host port out of step", then a DSP that strays).
 //
 // The audio inputs (re/notes §3.11): --in puts a sine of HZ on input N (1-4), LEVEL of the ADCs' full scale (0.25
 // unless given: a signal of 1.0 in the patch), all along (not with --realtime).
@@ -536,6 +541,8 @@ int main(int argc, char** argv)
         else if(a == "--no-idle-skip") opt.idleSkip = false;
         else if(a == "--no-poll-skip") opt.pollSkip = false;
         else if(a == "--causal-reads") opt.causalReads = true;
+        else if(a == "--no-host-taken") opt.hostTakenOnRead = false;
+        else if(a == "--host-lag") opt.hostLagFrames = std::uint32_t(std::stoul(next()));
         else if(a == "--trace") opt.trace = true;
         else if(a == "--panel") g_panelPrint = true;
         else if(a == "--var")
@@ -763,6 +770,9 @@ int main(int argc, char** argv)
     const auto s = m.stats();
     const double emulated = double(frames) / g2emu::Machine::FrameRate;
     if(s.dspsWild) std::printf("WARNING: %d DSP(s) ran into P memory without code\n", s.dspsWild);
+    if(s.hostEmptyReads || s.dspEmptyReads)
+        std::printf("WARNING: the host port out of step: %llu answers read by the OS that were not there, %llu words read by a DSP that were not there\n",
+                    (unsigned long long)s.hostEmptyReads, (unsigned long long)s.dspEmptyReads);
     std::printf("speed: %.3f emulated s in %.3f wall s = %.2fx real time, %.2f CPU s per emulated s\n", emulated,
                 recWall, emulated / recWall, recCpu / emulated);
     std::printf("per thread: ColdFire (and the caller) %.2f CPU s per emulated s", recCfCpu / emulated);
@@ -780,6 +790,9 @@ int main(int argc, char** argv)
     std::printf("host port: %.0f reads/s, %.0f commands/s, %.0f DSP syncs/s; ColdFire time in skipped polls %.1f%%\n",
                 double(s.hostReads) / m.seconds(), double(s.hostCommands) / m.seconds(), double(s.dspSyncs) / m.seconds(),
                 100.0 * double(s.cfPollSkipped) / double(s.cfCycles));
+    if(opt.threads)
+        std::printf("host port: %llu status reads found the DSP behind the host, %llu of them read it before it had caught up\n",
+                    (unsigned long long)s.statusBehind, (unsigned long long)s.statusStale);
     std::printf("whole run: %.1f emulated s, %.1f wall s, %.1f CPU s; cf %llu instr (%.1f M/s emulated); midi overruns %llu\n",
                 m.seconds(), std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count(),
                 cpuSeconds() - cpu0, (unsigned long long)s.cfInstructions, double(s.cfInstructions) / m.seconds() / 1e6,

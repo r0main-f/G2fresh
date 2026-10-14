@@ -44,13 +44,21 @@ inline void put32(std::uint8_t* p, std::uint32_t v) { p[0] = std::uint8_t(v >> 2
 // The library logs every ESAI control register write and each transmit underrun; drop those and repeats.
 void quietLog(const std::string& s)
 {
+    // What the log says of the DSP that runs on this thread and should not happen goes to that DSP, which reports it
+    // with what it took from its host port before (Dsp::report)
+    if(auto* dsp = Dsp::running())
+    {
+        if(s.find("Empty read") != std::string::npos) dsp->onEmptyRead();
+        else if(s.find("Undefined opcode") != std::string::npos && s.find("Undefined opcode 000040") == std::string::npos)
+            dsp->report("ran an undefined opcode");
+    }
     static std::mutex m;
     static std::string last;
     std::lock_guard lock(m);
     if(s.find("Write ESAI") != std::string::npos || s.find("Write Timer") != std::string::npos ||
        s.find("HPCR") != std::string::npos || s.find("underrun") != std::string::npos || s.find("DSP Boot") != std::string::npos ||
        s.find("Clock speed") != std::string::npos ||
-       s.find("Empty read") != std::string::npos ||  // the OS's $AE pings read the host port without a word first
+       s.find("Empty read") != std::string::npos ||  // counted and reported by the DSP (above)
        s.find("Undefined opcode 000040") != std::string::npos)  // in the OS's DSP code, harmless (an empty vector)
         return;
     if(s == last) return;
@@ -125,6 +133,12 @@ struct Machine::Impl final : coldfire::Bus {
     struct alignas(128) Worker {
         std::atomic<std::uint64_t> time{0};
         std::atomic<std::uint64_t> cpuNs{0}, waitNs{0};  // CPU time, time spent waiting
+        // The DSP (a bit, by chip select) whose status the ColdFire is about to read while it has yet to take what
+        // the ColdFire wrote: the worker runs it on until it has (takeHosts, syncDsps). `asked` numbers the
+        // ColdFire's requests; `stuck` is the last one the worker could not serve because its DSPs had reached the
+        // horizon.
+        std::atomic<std::uint32_t> takeHost{0};
+        std::atomic<std::uint64_t> asked{0}, stuck{0};
     };
     std::array<Worker, MaxDsps> worker{};
     std::array<int, MaxDsps> dspWorker{};  // which DSP thread runs DSP n
@@ -331,6 +345,7 @@ struct Machine::Impl final : coldfire::Bus {
         Dsp::Options dopt;
         dopt.jit = opt.jit;
         dopt.idleSkip = opt.idleSkip;
+        dopt.hostLagFrames = opt.threads ? opt.hostLagFrames : 0;
         for(int n : chain) dsps[std::size_t(n)] = std::make_unique<Dsp>(n, dopt);
         wire();
         cpu.setFastMemory(sdram.data(), SdramBase, SdramSize);
@@ -396,15 +411,60 @@ struct Machine::Impl final : coldfire::Bus {
     std::uint64_t dspTimeOfCf(std::uint64_t cf) const { return std::uint64_t(double(cf) / cfPerDsp); }
     std::uint64_t cfTimeOfDsp(std::uint64_t d) const { return std::uint64_t(double(d) * cfPerDsp); }
 
-    // Catches the DSPs up to the ColdFire's time, in chain order up to DSP n (each needs its upstream's frames).
-    void syncDsps(int n)
+    // Catches the DSPs up to the ColdFire's time, in chain order up to DSP n (each needs its upstream's frames),
+    // before the ColdFire reads register `reg` of DSP n's host port or writes to it (reg < 0).
+    // How many frames beyond dspLead the ColdFire lets the DSPs run so that one of them takes what the host wrote
+    // (with the frame takeHosts() adds and the JIT's overshoot: under the 8 frames of the Runner's input lead)
+    static constexpr std::uint64_t HorizonStretch = 5;
+    void syncDsps(int n, int reg = -1)
     {
         if(opt.threads)
         {
-            // The DSPs run on their own threads, usually ahead of the ColdFire. If this one is behind it, the
-            // ColdFire waits (wall time) until it has caught up, so that a status it reads is the DSP's as of now:
-            // the OS counts some of its waits in loop iterations, and on the chip the DSP answers within
-            // microseconds (§3.9.4)
+            // A read of the status register finds the DSP past everything the ColdFire wrote before it: its words
+            // in HORX, its host commands run, its flag changes seen. On the board the two chips run at once and the
+            // DSP takes a command as soon as it may (at the latest when the frame program it is in ends); one thread
+            // runs the DSP up to the ColdFire's time before the read. A DSP thread may be frames behind, or held at
+            // the horizon with the writes still in its queue, and the OS cannot tell: an interrupt that wants the
+            // host ports saves what the interrupted code left in them, and takes TRDY = 0 for a word the DSP has yet
+            // to read [C 0x30050488]. When the command that reads that word was still on its way, the OS fetched the
+            // word with $AE after the command had taken it, got nothing, and later wrote that nothing back: one word
+            // too many, every word after it went to the command after its own, and the DSP wrote its program's
+            // addresses at P:0 and strayed (re/notes §3.9.6). So the DSP's worker runs it on until it has taken them,
+            // past the horizon if it must.
+            if(reg == 2 && !workers.empty() && dsps[std::size_t(n)]->hostPending())
+            {
+                auto& d = *dsps[std::size_t(n)];
+                ++st.statusBehind;
+                if(!opt.hostTakenOnRead) ++st.statusStale;
+                else
+                {
+                    auto& w = worker[std::size_t(dspWorker[std::size_t(n)])];
+                    const auto w0 = clockNs();
+                    w.takeHost.store(1u << n, std::memory_order_release);
+                    for(;;)
+                    {
+                        const auto ask = w.asked.load(std::memory_order_relaxed) + 1;
+                        w.asked.store(ask, std::memory_order_release);
+                        progress.ring();
+                        progress.wait([&] {
+                            return !d.hostPending() || w.stuck.load(std::memory_order_acquire) == ask || quit.load(std::memory_order_relaxed);
+                        });
+                        if(!d.hostPending() || quit.load(std::memory_order_relaxed)) break;
+                        // The DSPs have reached the horizon and this one is not there yet (in its frame program, or
+                        // its host port is paced behind a flag change it has yet to see): they may all run a frame
+                        // further, a few times. After that the status is read as it is (a DSP that no longer takes
+                        // anything: it strayed, or its program does not read the host port).
+                        if(horizon.load(std::memory_order_relaxed) >= t + opt.dspLead + HorizonStretch * Dsp::CyclesPerFrame)
+                        {
+                            ++st.statusStale;
+                            break;
+                        }
+                        horizon.fetch_add(Dsp::CyclesPerFrame, std::memory_order_release);
+                    }
+                    w.takeHost.store(0, std::memory_order_release);
+                    st.cfWaitNs += clockNs() - w0;
+                }
+            }
             if(!workers.empty() && opt.causalReads)
             {
                 const auto target = std::min(dspTimeOfCf(cfNow()), horizon.load(std::memory_order_acquire));
@@ -580,7 +640,7 @@ struct Machine::Impl final : coldfire::Bus {
             if(!(sel & (1u << n))) continue;
             if(auto* d = dsps[std::size_t(n)].get())
             {
-                if(d->hostReadDependsOnDsp(reg)) syncDsps(n);
+                if(d->hostReadDependsOnDsp(reg)) syncDsps(n, reg);
                 ++st.hostReads;
                 v &= d->hostRead(reg);
             }
@@ -919,7 +979,8 @@ struct Machine::Impl final : coldfire::Bus {
                     if(timing) { ++cfWaits; cfWaitHist[dw < 1000 ? 0 : dw < 10000 ? 1 : dw < 100000 ? 2 : 3]++; }
                 }
                 runCf(q);
-                horizon.store(q + opt.dspLead, std::memory_order_release);
+                // (it only moves on: a status read may have moved it past this, see syncDsps)
+                if(q + opt.dspLead > horizon.load(std::memory_order_relaxed)) horizon.store(q + opt.dspLead, std::memory_order_release);
                 progress.ring();
             }
             else
@@ -955,8 +1016,13 @@ struct Machine::Impl final : coldfire::Bus {
 
 
     // Each worker runs its DSPs one frame at a time. A worker never runs past the one upstream of it (its DSPs need
-    // that one's frames; the chain links hold chainPrefill frames of slack), and the first one never more than the ring's
-    // prefill past the last one (A6 needs A3's frames from around the ring). The ColdFire's thread moves `horizon`.
+    // that one's frames; the chain links hold chainPrefill frames of slack), and the first one never more than the
+    // ring's prefill past the last one (A6 needs A3's frames from around the ring). The ColdFire's thread moves
+    // `horizon`.
+    // takeHosts(): a DSP the ColdFire waits for (syncDsps) runs on by itself, a few instructions at a time, until it
+    // has taken what the ColdFire wrote, up to a frame further than its upstream: the worker's limit for its first
+    // DSP, the whole frames the DSP before it has run for the others. A receiver that far ahead of its sender still
+    // finds its frames: it takes the one sent chainPrefill = 2 frames before its own starts.
     void startWorkers()
     {
         const int n = std::clamp(opt.threads, 1, int(chain.size()));
@@ -969,10 +1035,12 @@ struct Machine::Impl final : coldfire::Bus {
         horizon.store(t + opt.dspLead);
         dspTime.store(t);
         for(int w = 0; w < n; ++w) worker[std::size_t(w)].time.store(t);
-        const std::uint64_t ringSlack = opt.ringPrefill > 2 ? std::uint64_t(opt.ringPrefill - 2) * Dsp::CyclesPerFrame : 0;
+        // (2 frames of the ring's prefill for the JIT's overshoot, as on the chain, and one for takeHosts())
+        const std::uint64_t ringSlack = opt.ringPrefill > 3 ? std::uint64_t(opt.ringPrefill - 3) * Dsp::CyclesPerFrame : 0;
         for(int w = 0; w < n; ++w)
             workers.emplace_back([this, w, n, ringSlack, mine = parts[std::size_t(w)]] {
-                auto& my = worker[std::size_t(w)].time;
+                auto& me = worker[std::size_t(w)];
+                auto& my = me.time;
                 std::uint64_t done = my.load(), frames = 0;
                 auto limit = [&] {
                     std::uint64_t l = horizon.load(std::memory_order_acquire);
@@ -980,22 +1048,60 @@ struct Machine::Impl final : coldfire::Bus {
                     else if(n > 1) l = std::min(l, worker[std::size_t(n - 1)].time.load(std::memory_order_acquire) + ringSlack);
                     return l;
                 };
+                // The request takeHosts() tried last, with which limit, how far the worker had got and after how
+                // many runs of a DSP: it tries again when one of them has moved on.
+                std::uint64_t served = 0, triedLimit = 0, triedDone = 0, runs = 0, triedRuns = 0;
+                auto takeHosts = [&] {
+                    const auto bits = me.takeHost.load(std::memory_order_acquire);
+                    if(!bits) return;
+                    const auto ask = me.asked.load(std::memory_order_acquire);
+                    const auto l = limit();
+                    if(ask == served && l <= triedLimit && done == triedDone && runs == triedRuns) return;
+                    served = ask;
+                    triedLimit = l;
+                    triedDone = done;
+                    triedRuns = runs;
+                    bool taken = true;
+                    std::uint64_t up = l;
+                    for(int k : mine)
+                    {
+                        auto& d = *dsps[std::size_t(k)];
+                        if(bits & (1u << k)) taken = d.takeHost(up + Dsp::CyclesPerFrame) && taken;
+                        up = std::min(l, d.clock() / Dsp::CyclesPerFrame * Dsp::CyclesPerFrame);
+                    }
+                    // Held back by the horizon (the worker has run up to it): the ColdFire may move it. Otherwise the
+                    // worker runs on, or the workers upstream do (they have room), and it tries again then.
+                    if(!taken && done >= l && l >= horizon.load(std::memory_order_acquire)) me.stuck.store(ask, std::memory_order_release);
+                    progress.ring();
+                };
                 while(!quit.load(std::memory_order_relaxed))
                 {
+                    takeHosts();
                     const auto l = limit();
                     if(done >= l)
                     {
                         const auto w0 = clockNs();
-                        progress.wait([&] { return quit.load(std::memory_order_relaxed) || limit() > done; });
-                        worker[std::size_t(w)].waitNs += clockNs() - w0;
-                        worker[std::size_t(w)].cpuNs.store(threadCpuNs(), std::memory_order_relaxed);
+                        progress.wait([&] {
+                            return quit.load(std::memory_order_relaxed) || limit() > done ||
+                                   (me.takeHost.load(std::memory_order_acquire) && me.asked.load(std::memory_order_acquire) != served);
+                        });
+                        const auto waited = clockNs() - w0;
+                        me.waitNs += waited;
+                        // (the thread's CPU time is a system call: not after the short waits that end with a host
+                        // port to serve, thousands a second)
+                        if(waited > 20000) me.cpuNs.store(threadCpuNs(), std::memory_order_relaxed);
                         continue;
                     }
                     const auto target = std::min(l, done + Dsp::CyclesPerFrame);
-                    for(int k : mine) dsps[std::size_t(k)]->runTo(target);
+                    for(int k : mine)
+                    {
+                        dsps[std::size_t(k)]->runTo(target);
+                        ++runs;
+                        takeHosts();
+                    }
                     done = target;
                     my.store(done, std::memory_order_release);
-                    if((++frames & 63) == 0) worker[std::size_t(w)].cpuNs.store(threadCpuNs(), std::memory_order_relaxed);
+                    if((++frames & 63) == 0) me.cpuNs.store(threadCpuNs(), std::memory_order_relaxed);
                     std::uint64_t slowest = done;
                     for(int v = 0; v < n; ++v) slowest = std::min(slowest, worker[std::size_t(v)].time.load(std::memory_order_acquire));
                     // dspTime only grows: a lagging worker may publish an older minimum than another just did
@@ -1029,6 +1135,8 @@ struct Machine::Impl final : coldfire::Bus {
             s.dspSkipped[n] = dsps[std::size_t(n)]->skipped();
             s.dspPc[n] = dsps[std::size_t(n)]->pc();
             if(dsps[std::size_t(n)]->wild()) ++s.dspsWild;
+            s.hostEmptyReads += dsps[std::size_t(n)]->hostEmptyReads();
+            s.dspEmptyReads += dsps[std::size_t(n)]->dspEmptyReads();
         }
         for(const auto& l : links)
             if(l) { s.linkUnderruns += l->underruns; s.linkOverruns += l->overruns; }

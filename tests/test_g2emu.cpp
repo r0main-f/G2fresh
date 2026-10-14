@@ -2075,7 +2075,7 @@ struct InputRig {
         m.setAdcSource(&source);
         m.run(Machine::FrameRate * 2);
         m.plugUsb();
-        while(!client.synced() && m.seconds() < 4) step();
+        while(!client.synced() && m.seconds() < options.usbAfter + 2) step();
     }
     void step()
     {
@@ -2984,4 +2984,62 @@ TEST_CASE("The user's G2 OS with the expansion board: buses, the FX area and the
     CHECK_THAT(std::fmod(delay, 48.0), Catch::Matchers::WithinAbs(InputRig::delayOf(right.phase, 2000), 0.01));
     CHECK(g2.m.stats().exceptions == 0);
     CHECK(g2.m.stats().dspsWild == 0);
+}
+
+TEST_CASE("The user's G2 OS with DSP threads: a status read finds the DSP past what the host wrote before it",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // The DSPs take what the OS writes only in every 4th frame of theirs, as when their threads get little time: the
+    // OS then reads their status while its writes are still on their way, thousands of times over a boot and an
+    // upload (statusBehind). With Options::hostTakenOnRead the DSP takes them first (statusStale stays 0), the host
+    // port stays in step, and the chord plays. Without it each of those reads saw a DSP behind the host, the state
+    // in which the OS's interrupts save and restore the host ports wrongly (re/notes §3.9.6): whether that then
+    // happens depends on the threads' timing (it did in some runs: a DSP read its host port without a word, strayed,
+    // the upload failed), so only the reads are checked there.
+    struct Case {
+        const char* name;
+        int threads;
+        bool expanded, taken;
+    };
+    for(const Case c : {Case{"two threads", 2, false, true}, Case{"two threads, without the wait", 2, false, false},
+                        Case{"eight DSPs on three threads", 3, true, true}})
+    {
+        INFO(c.name);
+        Machine::Options o;
+        o.threads = c.threads;
+        o.hostLagFrames = 4;
+        o.hostTakenOnRead = c.taken;
+        o.expansion = c.expanded ? Expansion::With : Expansion::Without;
+        InputRig g2(fw, o);
+        if(!c.taken)
+        {
+            if(g2.client.synced()) g2.upload(heavyPolySine(3, 8));
+            const auto s = g2.m.stats();
+            INFO("out of step: " << s.dspEmptyReads << " empty reads by a DSP, " << s.dspsWild << " DSP(s) strayed");
+            CHECK(s.statusBehind > 0);
+            CHECK(s.statusStale == s.statusBehind);
+            continue;
+        }
+        REQUIRE(g2.client.synced());
+        REQUIRE(g2.upload(heavyPolySine(3, 8)));
+        CHECK(int(g2.client.state().voices[0]) == 3);
+        const auto chord = playChord(g2, {57, 64, 72});
+        const auto s = g2.m.stats();
+        CHECK(s.statusBehind > 0);
+        CHECK(s.statusStale == 0);
+        CHECK(s.dspEmptyReads == 0);
+        CHECK(s.hostEmptyReads == 0);
+        CHECK(s.dspsWild == 0);
+        CHECK(s.exceptions == 0);
+        for(const double a : chord.amplitude) CHECK_THAT(a, Catch::Matchers::WithinRel(0.1247, 0.01));
+    }
 }

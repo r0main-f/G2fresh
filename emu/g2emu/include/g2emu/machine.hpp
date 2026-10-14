@@ -72,6 +72,13 @@ public:
         // threads > 0: a status read of a DSP's host port waits (wall time) until that DSP has reached the ColdFire's
         // time. Off: it cost 15-25 % of speed and no failure needed it once the host port was ordered (§3.9.6)
         bool causalReads = false;
+        // threads > 0: a read of a DSP's status register waits until the DSP has taken what the ColdFire wrote before
+        // it, as one thread gives (the DSP runs up to the ColdFire's time first) and the board (the two run at once):
+        // the OS counts on it (§3.9.6). Off: as it was before 2026-10-14, for the test that shows what it is for.
+        bool hostTakenOnRead = true;
+        // Testing, threads > 0: the DSPs take what the host wrote only in every that many frames of theirs (0: as soon
+        // as they run), as when their threads get little time; a status read still has them take it at once.
+        std::uint32_t hostLagFrames = 0;
         double usbAfter = 2.0;         // plugUsb() takes effect once the OS has run this long (seconds): it boots in 1.6
         // The panel's master volume knob, 0..1 (read by the OS through the panel ADC, 128 steps). At 1, a signal of 1.0
         // into an Out module (patch Level 127, no pad) gives DAC words of about -0.125 (inverted): -18 dBFS.
@@ -96,6 +103,14 @@ public:
         std::uint32_t cfPc = 0;
         std::uint32_t dspPc[MaxDsps] = {};
         std::uint64_t hostCommands = 0, hostReads = 0, dspSyncs = 0;
+        // The host port out of step: the OS read a DSP's answer where there was none, a DSP read a word from the OS
+        // where there was none (other than for the OS's pings). Both stay 0 while all is well.
+        std::uint64_t hostEmptyReads = 0, dspEmptyReads = 0;
+        // threads > 0: reads of a DSP's status register that found something the ColdFire wrote before still on its
+        // way to the DSP (`statusBehind`), and how many of them returned before the DSP had taken it (`statusStale`:
+        // all of them with Options::hostTakenOnRead off; with it, those the wait gave up on, for a DSP that takes
+        // nothing more). statusStale stays 0 while all is well.
+        std::uint64_t statusBehind = 0, statusStale = 0;
         // threads > 0: each DSP thread's CPU time (as of its last wait) and the time it spent waiting (spinning or
         // yielding: the waits count as CPU time too)
         std::uint64_t dspThreadCpuNs[MaxDsps] = {}, dspThreadWaitNs[MaxDsps] = {};

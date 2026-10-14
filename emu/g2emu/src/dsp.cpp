@@ -72,6 +72,34 @@ Dsp::Dsp(int index, Options options) : index_(index), options_(options)
 
 Dsp::~Dsp() = default;
 
+namespace {
+thread_local Dsp* t_running = nullptr;
+}
+
+Dsp* Dsp::running() { return t_running; }
+
+void Dsp::onEmptyRead()
+{
+    trace(Traced::EmptyRead, lastCommand_);
+    if(booting_) return;  // the boot ROM's emulation asks before it looks
+    dspEmptyReads_.fetch_add(1, std::memory_order_relaxed);
+    report("read its host port without a word from the host");
+}
+
+void Dsp::report(const char* what)
+{
+    if(reports_++ >= 2) return;
+    static const char* const names[] = {"data", "command P:", "flags", "taken P:", "flags seen", "EMPTY READ after P:"};
+    std::fprintf(stderr, "g2emu: DSP %d %s, at its clock %llu, pc %06x. The last host events it took:\n", index_, what,
+                 (unsigned long long)clock(), dsp_.getPC().toWord());
+    const std::uint32_t n = std::min<std::uint32_t>(tracedCount_, std::uint32_t(traced_.size()));
+    for(std::uint32_t k = tracedCount_ - n; k != tracedCount_; ++k)
+    {
+        const auto& e = traced_[k % traced_.size()];
+        std::fprintf(stderr, "g2emu:   %llu %s%06x\n", (unsigned long long)e.clock, names[e.kind], e.value);
+    }
+}
+
 void Dsp::setDividers(std::uint32_t tx0, std::uint32_t rx0, std::uint32_t tx1, std::uint32_t rx1)
 {
     auto& clock = periphX_.getEsaiClock();
@@ -122,7 +150,11 @@ std::uint8_t Dsp::hostRead(int reg)
         }
         {
             const std::uint8_t v = (icr_ & 0x20) ? rx_[2 - (reg - 5)] : rx_[reg - 5];
-            if(reg == 7) rxLatched_ = false;
+            if(reg == 7)
+            {
+                if(!rxLatched_) hostEmptyReads_.fetch_add(1, std::memory_order_relaxed);  // the word before, again
+                rxLatched_ = false;
+            }
             return v;
         }
     default: return 0;
@@ -167,16 +199,19 @@ void Dsp::hostWrite(int reg, std::uint8_t v)
 // was loaded with the wrong word (seen with the DSPs on their own threads). [§3.9.4]
 void Dsp::pumpHost()
 {
+    if(options_.hostLagFrames && !takingHost_ && !booting_ && (clock() / CyclesPerFrame) % options_.hostLagFrames) return;
     if(awaitingCommand_)
     {
         if(dsp_.hasPendingInterrupts()) return;  // queued, or being served
         awaitingCommand_ = false;
+        trace(Traced::Taken, lastCommand_);
         commandsOutstanding_.fetch_sub(1, std::memory_order_release);
     }
     if(awaitingFlags_)
     {
         if(hdi_.hasPendingHostFlags01()) return;  // the DSP has not read its status register since
         awaitingFlags_ = false;
+        trace(Traced::FlagsSeen, 0);
     }
     const auto t0 = hostTail_.load(std::memory_order_relaxed);
     const auto h = hostHead_.load(std::memory_order_acquire);
@@ -189,11 +224,14 @@ void Dsp::pumpHost()
         {
             if(hdi_.dataRXFull()) break;
             hdi_.writeRX(&e.value, 1);
+            trace(Traced::Data, e.value);
         }
         else if(e.kind == HostEvent::Command)
         {
             if(hdi_.hostCommandsFull()) break;
             hdi_.injectHostCommand(e.value);
+            lastCommand_ = e.value;
+            trace(Traced::Command, e.value);
             awaitingCommand_ = true;
             ++t;
             break;
@@ -201,6 +239,7 @@ void Dsp::pumpHost()
         else
         {
             hdi_.setPendingHostFlags01(e.value);
+            trace(Traced::Flags, e.value);
             ++t;
             if(booting_) continue;  // the boot ROM does not look at the flags (an INIT at reset writes them)
             awaitingFlags_ = true;
@@ -233,6 +272,10 @@ void Dsp::feedBootRom()
 
 void Dsp::runTo(std::uint64_t target)
 {
+    struct Running {
+        explicit Running(Dsp* d) { t_running = d; }
+        ~Running() { t_running = nullptr; }
+    } running(this);
     pumpHost();
     while(dsp_.getInstructionCounter() < target)
     {
@@ -253,6 +296,8 @@ void Dsp::runTo(std::uint64_t target)
         {
             wild_ = true;
             std::fprintf(stderr, "g2emu: DSP %d jumped to P:%06x, where there is no code\n", index_, dsp_.getPC().toWord());
+            reports_ = 0;
+            report("strayed");
         }
         if(dsp_.getPC().toWord() >= 0xff0000)  // a jump into the boot ROM: it loads P again
         {
@@ -262,6 +307,23 @@ void Dsp::runTo(std::uint64_t target)
     }
 }
 
+bool Dsp::takeHost(std::uint64_t limit)
+{
+    takingHost_ = true;
+    bool taken = true;
+    while(hostPending())
+    {
+        if(clock() >= limit || wild_)
+        {
+            taken = false;
+            break;
+        }
+        runTo(std::min(limit, clock() + 8));
+    }
+    takingHost_ = false;
+    return taken;
+}
+
 std::uint32_t Dsp::onPeripherals()
 {
     pumpHost();
@@ -269,6 +331,7 @@ std::uint32_t Dsp::onPeripherals()
     // `limit`, no interrupt pending, HF0 clear - nothing it does can change until the next serial slot, so its clock
     // moves on to that slot instead of running the loop. The loop only reads; skipping it changes no state.
     if(!options_.idleSkip) return std::numeric_limits<std::uint32_t>::max();
+    if(takingHost_) return 8;
     const TWord pc = dsp_.getPC().toWord();
     if(pc < idle_.first || pc > idle_.last) return 64;
     if(std::int32_t(mem_.get(MemArea_X, idle_.counter) << 8) >> 8 > std::int32_t(idle_.limit)) return 64;
