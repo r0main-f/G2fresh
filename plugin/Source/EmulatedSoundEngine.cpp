@@ -116,6 +116,44 @@ void EmulatedSoundEngine::prepare(double sampleRate, int maxBlock)
     }
     in96_.reserve(room);
     inFrames_.reserve(room * 4);
+    // MIDI OUT bytes still waiting belong to the old timeline: they go out with the first block of the new one
+    // (a message on its way in the assembler goes on)
+    for (auto t = outTail_; t != outHead_; ++t)
+        outBytes_[t % outBytes_.size()].frame = 0;
+    framesRead_ = 0;
+    rendered_ = 0;
+    lastBlock_ = 0;
+}
+
+void EmulatedSoundEngine::collectMidiOut(std::size_t framesRead)
+{
+    // the bytes the G2 sent during the frames just read, each at its frame in them
+    g2emu::Runner::MidiOut sent[64];
+    while (const auto n = runner_->midiOut(sent)) {
+        for (std::size_t k = 0; k < n; ++k) {
+            if (outHead_ - outTail_ == outBytes_.size())
+                ++outTail_; // takeMidiOut() is not called: the oldest goes
+            outBytes_[outHead_++ % outBytes_.size()] = {framesRead_ + sent[k].offset, sent[k].byte};
+        }
+    }
+    framesRead_ += framesRead;
+}
+
+void EmulatedSoundEngine::takeMidiOut(juce::MidiBuffer& out)
+{
+    // 96 kHz frame f (counted as read from the runner) is in the output at host sample (f + the resampler's delay)
+    // / ratio, counted as rendered: the bytes whose sample is in the block just rendered, at their place in it. A
+    // byte from before the block (the machine was late with it) goes at its start.
+    const double ratio = g2emu::Machine::FrameRate / hostRate_;
+    const auto start = static_cast<std::int64_t>(rendered_) - lastBlock_;
+    for (; outTail_ != outHead_; ++outTail_) {
+        const auto& e = outBytes_[outTail_ % outBytes_.size()];
+        const auto sample = static_cast<std::int64_t>(std::floor((static_cast<double>(e.frame) + kOutputDelayFrames) / ratio));
+        if (sample >= static_cast<std::int64_t>(rendered_))
+            break; // a later block's
+        midiOut_.push(e.byte, static_cast<int>(std::max<std::int64_t>(0, sample - start)),
+                      [&out](int at, const std::uint8_t* data, std::size_t size) { out.addEvent(data, static_cast<int>(size), at); });
+    }
 }
 
 juce::String EmulatedSoundEngine::status() const
@@ -151,10 +189,10 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
     // The track's MIDI to the G2's MIDI IN, at its place in the block: 96 kHz frames after the next frame read
     // (the samples already read come first), plus the runner's fixed latency.
     const auto have = static_cast<double>(render96_[0].size());
+    // System Exclusive too (patch and performance dumps, requests [manual p.131]): the emulated cable carries a
+    // long message at its 3125 bytes a second, real-time bytes of this block between its bytes.
     for (const auto meta : midi) {
         const auto m = meta.getMessage();
-        if (m.isSysEx())
-            continue;
         const auto at = std::max(0.0, std::round(meta.samplePosition * ratio - have));
         runner_->midiInAt({m.getRawData(), static_cast<std::size_t>(m.getRawDataSize())}, static_cast<std::uint32_t>(at));
     }
@@ -182,6 +220,7 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         runner_->write(inFrames_.data(), more);
         frames_.resize(more * 4);
         runner_->read(frames_.data(), more); // silence for what is not there yet (booting, too slow)
+        collectMidiOut(more);
         // Words: Out 1, Out 3, Out 2, Out 4 (Machine::run). With the volume knob all the way up, a signal of 1.0 into
         // an Out module gives a word of about -0.125: scaled back to signal units.
         constexpr float toSignal = -8.0f;
@@ -212,4 +251,6 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
     }
     for (auto& r : render96_)
         r.erase(r.begin(), r.begin() + static_cast<std::ptrdiff_t>(std::min<std::size_t>(static_cast<std::size_t>(used), r.size())));
+    rendered_ += static_cast<std::uint64_t>(frames); // for takeMidiOut()
+    lastBlock_ = frames;
 }

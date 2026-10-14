@@ -3,6 +3,14 @@ if(APPLE)
   list(APPEND G2_PLUGIN_FORMATS AU)
 endif()
 
+# The plugin's MIDI output is the emulated G2's MIDI OUT; a build without the emulator has none. The Audio Unit stays
+# a music device (aumu) under the same codes, so projects keep loading: JUCE gives it the MIDI output callback
+# properties, which is all an Audio Unit needs to send MIDI to a host that asks for it.
+set(G2_PLUGIN_MIDI_OUTPUT FALSE)
+if(TARGET g2emu)
+  set(G2_PLUGIN_MIDI_OUTPUT TRUE)
+endif()
+
 juce_add_plugin(G2Editor
   PRODUCT_NAME "G2fresh"
   COMPANY_NAME "G2fresh"
@@ -17,7 +25,7 @@ juce_add_plugin(G2Editor
   MICROPHONE_PERMISSION_TEXT "G2fresh plays the audio inputs through the emulated Nord Modular G2's IN 1-4 (vocoders, effects)."
   IS_SYNTH TRUE
   NEEDS_MIDI_INPUT TRUE
-  NEEDS_MIDI_OUTPUT FALSE
+  NEEDS_MIDI_OUTPUT ${G2_PLUGIN_MIDI_OUTPUT}
   IS_MIDI_EFFECT FALSE
   EDITOR_WANTS_KEYBOARD_FOCUS TRUE
   COPY_PLUGIN_AFTER_BUILD FALSE

@@ -10,6 +10,7 @@ list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 add_executable(g2tests
   test_bitstream.cpp
   test_hostclock.cpp
+  test_midi_assembler.cpp
   test_audio_io.cpp
   test_edit.cpp
   test_cables.cpp

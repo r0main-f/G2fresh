@@ -17,7 +17,8 @@
 // port into a G2 (MidiForwarder); and holds the editor's connection to a G2
 // (SynthSync). Its audio output is the emulated G2's, while the editor is
 // connected to it; otherwise silence (a G2 makes its own sound). Its audio
-// inputs are the emulated G2's IN 1-4 (the buses and levels: AudioIo.h).
+// inputs are the emulated G2's IN 1-4 (the buses and levels: AudioIo.h), its
+// MIDI output the emulated G2's MIDI OUT.
 class G2EditorProcessor final : public juce::AudioProcessor,
                                 public g2ui::EmulatorHost,
                                 private juce::ChangeListener,
@@ -36,7 +37,9 @@ public:
 
     const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return true; }
-    bool producesMidi() const override { return false; }
+    // The emulated G2's MIDI OUT (notes from the Live view's keyboard, controllers, clock, dumps, MIDI modules);
+    // a build without the emulator sends nothing.
+    bool producesMidi() const override { return JucePlugin_ProducesMidiOutput; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
 

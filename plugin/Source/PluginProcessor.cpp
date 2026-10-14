@@ -618,7 +618,10 @@ void G2EditorProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         emulated.render(out, *toG2, &inputs_);
         for (int c = outs; c < buffer.getNumChannels(); ++c)
             buffer.clear(c, 0, samples);
+        // The plugin's MIDI output is the G2's MIDI OUT, nothing else: what came in is not passed on (a G2 has a
+        // MIDI THRU jack for that, which a host does itself).
         midi.clear();
+        emulated.takeMidiOut(midi);
         if (capturing_.load(std::memory_order_acquire)) {
             const auto at = captured_.load(std::memory_order_relaxed);
             const auto n = std::min<std::size_t>(static_cast<std::size_t>(buffer.getNumSamples()), capture_.size() / 2 - at);
