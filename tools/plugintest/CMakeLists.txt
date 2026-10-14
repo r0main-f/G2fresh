@@ -2,7 +2,8 @@
 # starting by itself, its latency, sound from MIDI, the synth memory in the state, offline rendering; with
 # --outputs and --inputs its output and input buses, each with a patch: see the usage in main.cpp). Needs the
 # user's G2 OS set up once (Synth > Connect to Emulated G2), as the plugin does. An Audio Unit is found by the
-# system, not by its path: a .component given here must be the one installed.
+# system, not by its path: the tool registers the .component it is given in its own process, under a subtype of
+# its own, so that a build is tested and not the one installed (G2TEST_AU_INSTALLED=1: the installed one).
 # A GUI app without a window: the plugin needs a running message loop (a console app has none on macOS).
 juce_add_gui_app(g2plugintest PRODUCT_NAME "g2plugintest")
 target_sources(g2plugintest PRIVATE main.cpp)

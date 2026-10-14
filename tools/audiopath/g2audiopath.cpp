@@ -9,6 +9,9 @@
 //   g2audiopath response
 //       The converter's response each way at the usual rates, measured with tones: the pass band's flatness, the
 //       stop band's attenuation, what else comes out (a Markdown table).
+//   g2audiopath burn THREADS [rt]
+//       Other work for the measurements, until killed: THREADS threads that compute without a pause at an
+//       application's priority, or (rt) as a host's audio worker threads, 60 % of every 2.9 ms at the audio priority.
 //   g2audiopath runner [--fw PATH] [--patch FILE.pch2] [--slots N] [--chord 57,60,64] [--buffer-ms MS]
 //                      [--stretch-ms MS] [--block FRAMES] [--threads N] [--rt 0|1] [--seconds S] [--settle S]
 //                      [--inputs] [--name TEXT]
@@ -19,9 +22,11 @@
 //       frames missing, how far the buffer was drawn down at each callback (the reserve it took), the machine's
 //       speed chunk by chunk, how long its thread took to wake, how late the callbacks came.
 //       --buffer-ms and --block are the Runner's reserve and the host's block, --stretch-ms the least the machine
-//       makes in one run, --rt whether its threads have real-time priority (default: the Runner's own for each);
+//       makes in one run, --rt whether its threads have real-time priority (default: as the plugin runs it, real-time
+//       threads and a stretch of plugin/Source/AudioIo.h's kStretchMs; --rt 0 --stretch-ms 0: as 0.10.2 did);
 //       --inputs also writes input frames.
 //       On macOS run it under `taskpolicy -a` (an application's scheduling, as in a DAW: tools/audiopath/sweep.py).
+#include "AudioIo.h"
 #include "Resampler.h"
 
 #include <algorithm>
@@ -32,6 +37,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
@@ -52,6 +58,7 @@
 #include <mach/mach_time.h>
 #include <mach/thread_policy.h>
 #include <pthread.h>
+#include <pthread/qos.h>
 #endif
 
 namespace {
@@ -230,10 +237,13 @@ int response()
     return 0;
 }
 
-// Four channels of noise each way between 96 kHz and each host rate, 256-sample host blocks, 20 s of audio.
+// Four channels of noise each way between 96 kHz and each host rate, 256-sample host blocks, 20 s of audio. The
+// time is this thread's CPU time, not the wall's: other programs beside it do not count.
 int cpu()
 {
-    using Clock = std::chrono::steady_clock;
+    struct Clock {
+        static double now() { return static_cast<double>(std::clock()) / CLOCKS_PER_SEC; }
+    };
     std::printf("%-10s %-22s %-22s %s\n", "host rate", "96 kHz -> host", "host -> 96 kHz", "both, 4 channels each");
     for (const double host : {44100.0, 48000.0, 88200.0, 96000.0, 176400.0, 192000.0, 47999.0}) {
         constexpr std::size_t block = 256;
@@ -270,7 +280,7 @@ int cpu()
                     sink += toG2[0];
                 }
             }
-            seconds[pass] = std::chrono::duration<double>(Clock::now() - t0).count();
+            seconds[pass] = Clock::now() - t0;
         }
         std::printf("%-10.0f %5zu taps %6.2f %%      %5zu taps %6.2f %%      %6.2f %% of one core%s\n", host, down.taps(),
                     100.0 * seconds[0] / 20.0, up.taps(), 100.0 * seconds[1] / 20.0, 100.0 * (seconds[0] + seconds[1]) / 20.0,
@@ -278,8 +288,6 @@ int cpu()
     }
     return 0;
 }
-
-#if G2AUDIOPATH_EMU
 
 // This thread as a host's audio thread (as tools/plugintest): real-time scheduling on macOS.
 void makeRealtime(double period)
@@ -299,6 +307,40 @@ void makeRealtime(double period)
     (void) period;
 #endif
 }
+
+// Other work beside the emulated G2, for the measurements: `threads` threads that compute until the process is
+// killed. Plain: without a pause, at the priority of an application's own threads (macOS: the user-interactive
+// class, as another emulator's or a busy program's threads). Real-time: as a host's audio worker threads, 60 % of
+// every 2.9 ms (128 samples at 44.1 kHz) at the audio priority.
+int burn(int threads, bool realtime)
+{
+    std::vector<std::thread> all;
+    for (int t = 0; t < threads; ++t)
+        all.emplace_back([realtime] {
+            using Clock = std::chrono::steady_clock;
+            constexpr double period = 128.0 / 44100.0;
+#ifdef __APPLE__
+            pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+#endif
+            if (realtime)
+                makeRealtime(period);
+            volatile double x = 1.0;
+            auto next = Clock::now();
+            for (;;) {
+                const auto until = next + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(0.6 * period));
+                while (!realtime || Clock::now() < until)
+                    for (int i = 0; i < 1000; ++i)
+                        x = x * 1.0000001 + 1e-9;
+                next += std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(period));
+                std::this_thread::sleep_until(next);
+            }
+        });
+    for (auto& t : all)
+        t.join();
+    return 0;
+}
+
+#if G2AUDIOPATH_EMU
 
 // The value below which `share` of the sorted values lie.
 double quantile(const std::vector<double>& sorted, double share)
@@ -327,9 +369,9 @@ struct RunnerArgs {
     std::string fw, patch, name;
     std::vector<int> chord;
     int slots = 1, threads = -1;
-    double bufferMs = 20, stretchMs = -1, seconds = 20, settle = 3;
+    double bufferMs = 20, stretchMs = g2io::kStretchMs, seconds = 20, settle = 3;  // the plugin's stretch
     std::uint32_t block = 512;
-    int realtime = -1;
+    int realtime = 1;  // as the plugin runs it
     bool inputs = false;
 };
 
@@ -430,7 +472,11 @@ int runner(const RunnerArgs& a)
         const auto before = r.stats();
         r.resetLongestChunk();
         keep = true;
+        const auto cpu0 = std::clock();
+        const auto wall0 = Clock::now();
         run(a.seconds, [] { return false; });
+        // the CPU time of all the threads of this process, in cores
+        const double cores = static_cast<double>(std::clock() - cpu0) / CLOCKS_PER_SEC / std::chrono::duration<double>(Clock::now() - wall0).count();
         keep = false;
         const auto after = r.stats();
         const auto machine = r.machine().stats();
@@ -479,14 +525,14 @@ int runner(const RunnerArgs& a)
         std::printf("{\"name\": \"%s\", \"buffer_ms\": %.2f, \"stretch_ms\": %.2f, \"realtime\": %s, \"latency_ms\": %.3f, "
                     "\"block\": %u, \"block_ms\": %.3f, \"threads\": %d, \"slots\": %d, "
                     "\"inputs\": %s, \"seconds\": %.1f, \"callbacks\": %zu, \"frames_missing\": %llu, \"short_reads\": %zu, "
-                    "\"input_missing\": %llu, \"speed_now\": %.2f, \"longest_chunk_ms\": %.2f, \"link_underruns\": %llu,\n"
+                    "\"input_missing\": %llu, \"speed_now\": %.2f, \"longest_chunk_ms\": %.2f, \"link_underruns\": %llu, \"cpu_cores\": %.2f,\n"
                     " \"reserve_taken_ms\": %s,\n \"callback_late_ms\": %s,\n \"callback_interval_ms\": %s,\n"
                     " \"chunk_speed\": %s,\n \"chunk_ms\": %s,\n \"refill_speed\": %s,\n \"refill_ms\": %s,\n \"wake_ms\": %s}\n",
-                    a.name.c_str(), a.bufferMs, stretchMs, realtime ? "true" : "false", r.latencyFrames() / 96.0, a.block,
+                    a.name.c_str(), a.bufferMs, stretchMs, realtime && after.realtime ? "true" : realtime ? "\"refused\"" : "false", r.latencyFrames() / 96.0, a.block,
                     period * 1000.0, r.machine().dspThreads(), a.slots, a.inputs ? "true" : "false",
                     a.seconds, callbacks.size(), static_cast<unsigned long long>(after.framesMissing - before.framesMissing), shortReads,
                     static_cast<unsigned long long>(after.inputMissing - before.inputMissing), after.speed, after.longestChunkMs,
-                    static_cast<unsigned long long>(machine.linkUnderruns),
+                    static_cast<unsigned long long>(machine.linkUnderruns), cores,
                     spread(dip).c_str(), spread(late).c_str(), spread(interval).c_str(), spread(speed, "%.2f").c_str(),
                     spread(chunkMs).c_str(), spread(refill, "%.2f").c_str(), spread(refillMs).c_str(), spread(wake).c_str());
         return 0;
@@ -510,6 +556,8 @@ int main(int argc, char** argv)
             return cpu();
         if (mode == "response")
             return response();
+        if (mode == "burn" && argc >= 3)
+            return burn(std::atoi(argv[2]), argc > 3 && std::string(argv[3]) == "rt");
 #if G2AUDIOPATH_EMU
         if (mode == "runner") {
             RunnerArgs a;
@@ -561,7 +609,7 @@ int main(int argc, char** argv)
             return runner(a);
         }
 #endif
-        std::fprintf(stderr, "usage: g2audiopath resample IN.wav OUT.wav RATE | cpu | response | runner [options]   (see the source header)\n");
+        std::fprintf(stderr, "usage: g2audiopath resample IN.wav OUT.wav RATE | cpu | response | burn THREADS [rt] | runner [options]   (see the source header)\n");
         return 2;
     } catch (const std::exception& e) {
         std::fprintf(stderr, "error: %s\n", e.what());

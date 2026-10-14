@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #if JUCE_MAC
+#include <AudioToolbox/AudioToolbox.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -34,15 +35,60 @@ auto onMessageThread(F&& f)
     return juce::MessageManager::callSync(std::forward<F>(f));
 }
 
-std::unique_ptr<juce::AudioPluginInstance> load(const juce::String& path, double rate, int block)
+#if JUCE_PLUGINHOST_AU && JUCE_MAC
+// An Audio Unit is found by the system, not by its path: a .component's path gives the one that is installed under
+// that name. To test the one at `path` (a build that is not installed), its bundle is loaded here and its factory
+// registered in this process under a subtype of its own. Returns the identifier JUCE finds it by ("" if it cannot).
+juce::String registerAudioUnit(const juce::String& path)
+{
+    static juce::String registered, registeredPath;
+    if (registeredPath == path)
+        return registered;
+    registeredPath = path;
+    registered = {};
+    const auto url = CFURLCreateWithFileSystemPath(nullptr, path.toCFString(), kCFURLPOSIXPathStyle, true);
+    const auto bundle = CFBundleCreate(nullptr, url); // stays loaded
+    CFRelease(url);
+    if (bundle == nullptr)
+        return {};
+    juce::String factoryName = "G2freshAUFactory";
+    if (const auto list = static_cast<CFArrayRef>(CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("AudioComponents")));
+        list != nullptr && CFGetTypeID(list) == CFArrayGetTypeID() && CFArrayGetCount(list) > 0)
+        if (const auto first = static_cast<CFDictionaryRef>(CFArrayGetValueAtIndex(list, 0)); CFGetTypeID(first) == CFDictionaryGetTypeID())
+            if (const auto name = static_cast<CFStringRef>(CFDictionaryGetValue(first, CFSTR("factoryFunction"))))
+                factoryName = juce::String::fromCFString(name);
+    const auto factory = reinterpret_cast<AudioComponentFactoryFunction>(CFBundleGetFunctionPointerForName(bundle, factoryName.toCFString()));
+    if (factory == nullptr)
+        return {};
+    AudioComponentDescription d{};
+    d.componentType = 'aumu';
+    d.componentSubType = 'G2te';
+    d.componentManufacturer = 'G2fr';
+    if (AudioComponentRegister(&d, CFSTR("G2fresh: G2fresh (the build under test)"), 1, factory) == nullptr)
+        return {};
+    registered = "AudioUnit:Synths/aumu,G2te,G2fr";
+    return registered;
+}
+#endif
+
+std::unique_ptr<juce::AudioPluginInstance> load(const juce::String& file, double rate, int block)
 {
     return *onMessageThread([&]() -> std::unique_ptr<juce::AudioPluginInstance> {
         // a .component is an Audio Unit (as Live uses it), anything else a VST3
         std::unique_ptr<juce::AudioPluginFormat> format;
+        juce::String path = file;
 #if JUCE_PLUGINHOST_AU && JUCE_MAC
-        if (path.endsWithIgnoreCase(".component"))
+        if (path.endsWithIgnoreCase(".component")) {
             format = std::make_unique<juce::AudioUnitPluginFormat>();
-        else
+            // the bundle at that path, unless it is an installed one (G2TEST_AU_INSTALLED=1: the system's)
+            if (juce::SystemStats::getEnvironmentVariable("G2TEST_AU_INSTALLED", {}).isEmpty()) {
+                path = registerAudioUnit(file);
+                if (path.isEmpty()) {
+                    std::cout << "  cannot register the Audio Unit at " << file << std::endl;
+                    return nullptr;
+                }
+            }
+        } else
 #endif
             format = std::make_unique<juce::VST3PluginFormat>();
         juce::OwnedArray<juce::PluginDescription> types;
