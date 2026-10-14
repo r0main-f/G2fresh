@@ -1,4 +1,4 @@
-// Where the editor's "MIDI Output to G2" menu sends its choice. The G2's USB
+// Where the editor's "Forward MIDI to a Hardware G2" menu sends its choice. The G2's USB
 // protocol carries no MIDI (re/notes/usb-protocol.md §12), so the plugin
 // forwards its track's MIDI (the stand-alone app, its MIDI input) to a
 // hardware MIDI port wired to the synth's MIDI IN. Implemented by the plugin

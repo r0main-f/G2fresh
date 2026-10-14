@@ -1,6 +1,8 @@
 // The stand-alone app: one native window with the editor, the menu bar for
 // File/Edit/View/Options (instead of JUCE's in-window "Options" strip), and
-// the last session's patch restored at startup.
+// the last session's patch restored at startup. Audio/MIDI Settings chooses
+// the audio device, the MIDI inputs into the emulated G2's MIDI IN and the
+// MIDI output its MIDI OUT goes to.
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
@@ -46,7 +48,7 @@ private:
     juce::StandalonePluginHolder& holder_;
 };
 
-class G2App final : public juce::JUCEApplication {
+class G2App final : public juce::JUCEApplication, private juce::ChangeListener {
 public:
     G2App()
     {
@@ -67,6 +69,16 @@ public:
         // The holder runs the (silent) processor and restores the last
         // session's patch from the settings.
         holder_ = std::make_unique<juce::StandalonePluginHolder>(properties_.getUserSettings(), false);
+        // The emulated G2's MIDI OUT goes to the MIDI output chosen in Audio/MIDI Settings (JUCE shows the choice
+        // because the processor produces MIDI). The dialog's own label says "MIDI Output:"; here it names the
+        // jack, so that it is not taken for Options > Forward MIDI to a Hardware G2, which sends the incoming MIDI
+        // to a real G2 instead.
+        if (holder_->processor != nullptr && holder_->processor->producesMidi()) {
+            juce::LocalisedStrings::setCurrentMappings(
+                new juce::LocalisedStrings("language: English\n\n\"MIDI Output:\" = \"G2 MIDI OUT to:\"\n", false));
+            holder_->deviceManager.addChangeListener(this);
+            changeListenerCallback(nullptr);
+        }
         // The audio device's inputs 1-4 are the G2's IN 1-4 (Audio Settings chooses them). JUCE mutes a plugin's
         // inputs until the user says otherwise, against feedback through an effect, and has saved that default since
         // before G2fresh had inputs. A G2 plays its inputs only where a patch has an In module, so they are live from
@@ -91,6 +103,8 @@ public:
 
     void shutdown() override
     {
+        if (holder_)
+            holder_->deviceManager.removeChangeListener(this);
         if (holder_)
             holder_->savePluginState();
         window_ = nullptr;
@@ -119,6 +133,17 @@ public:
     }
 
 private:
+    // The MIDI output device changed (or the app starts): its sender thread runs, so that JUCE's player sends each
+    // message of a block at its own time (MidiOutput::sendBlockOfMessages) instead of all of them at once when the
+    // block is made. They leave when the block is computed: ahead of its sound by the audio device's output latency.
+    void changeListenerCallback(juce::ChangeBroadcaster*) override
+    {
+        if (holder_ == nullptr)
+            return;
+        if (auto* out = holder_->deviceManager.getDefaultMidiOutput(); out != nullptr && !out->isBackgroundThreadRunning())
+            out->startBackgroundThread();
+    }
+
     juce::ApplicationProperties properties_;
     std::unique_ptr<juce::StandalonePluginHolder> holder_;
     std::unique_ptr<MainWindow> window_;

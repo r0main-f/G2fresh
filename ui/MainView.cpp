@@ -494,7 +494,9 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             m.addItem(item(kAudioSettings, "Audio/MIDI Settings..."));
         if (midiOut_ != nullptr) {
             // The G2's USB connection carries no notes: MIDI goes to the
-            // synth through a MIDI interface.
+            // synth through a MIDI interface. (Not the emulated G2's MIDI
+            // OUT, which is the plugin's MIDI output: Audio/MIDI Settings
+            // in the stand-alone app.)
             juce::PopupMenu out;
             const auto current = midiOut_->deviceIdentifier();
             out.addItem(item(kMidiOutOff, "Off", {}, true, current.isEmpty()));
@@ -509,7 +511,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             for (int c = 1; c <= 16; ++c)
                 channels.addItem(item(kMidiChannelBase + c, "Channel " + juce::String(c), {}, true, midiOut_->channel() == c));
             out.addSubMenu("Channel", channels, current.isNotEmpty());
-            m.addSubMenu("MIDI Output to G2", out);
+            m.addSubMenu("Forward MIDI to a Hardware G2", out);
         }
     }
     return m;
@@ -611,8 +613,8 @@ void MainView::menuItemSelected(int id, int)
         const auto devices = midiOut_->availableDevices();
         const int i = id - kMidiOutBase;
         midiOut_->setDevice(juce::isPositiveAndBelow(i, devices.size()) ? devices[i].identifier : juce::String());
-        setStatus(midiOut_->deviceIdentifier().isEmpty() ? juce::String("MIDI output to the G2: off")
-                                                         : "MIDI output to the G2: " + devices[i].name);
+        setStatus(midiOut_->deviceIdentifier().isEmpty() ? juce::String("MIDI forwarded to a hardware G2: off")
+                                                         : "MIDI forwarded to a hardware G2 through " + devices[i].name);
         return;
     }
     if (midiOut_ != nullptr && id >= kMidiChannelBase && id <= kMidiChannelBase + 16) {

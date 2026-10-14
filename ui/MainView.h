@@ -36,7 +36,7 @@ public:
 
     // Stand-alone app only: opens the audio/MIDI device settings.
     std::function<void()> onAudioSettings;
-    // Where Options > MIDI Output to G2 sends the MIDI (nullptr: no such menu).
+    // Where Options > Forward MIDI to a Hardware G2 sends the MIDI (nullptr: no such menu).
     void setMidiOutput(MidiOutputTarget* target)
     {
         midiOut_ = target;
