@@ -18,6 +18,8 @@ corpus-external/
 
 # Claude Code worktrees
 .claude/worktrees/
+# clangd's index (the clangd plugin)
+.cache/
 
 
 # Other G2 editors cloned for bench testing (see re/notes/references.md), never committed
