@@ -2196,10 +2196,10 @@ dump, it keeps its turn (Song Position then Continue, a note then Stop: their or
   sends none), System Common, System Exclusive put together across blocks (up to 4096 bytes; the G2's blocks are
   below 512), real-time bytes passed at once. A message has the time of its last byte. A System Exclusive message
   cut short by another status byte is dropped.
-* **Alignment.** The engine reads 96 kHz frames from the runner and resamples them; a byte of frame f is at host
-  sample (f + 2) / ratio, the 2 being the output interpolator's delay (as in `latencySamples()`; **if the
-  resampler changes, `kOutputDelayFrames` must follow**). So a message sits in the block at the sample where the
-  sound the G2 made at that instant sits. Both are the reported latency late against the plugin's input; a host
+* **Alignment.** The engine reads 96 kHz frames from the runner and converts them to the host's rate; a byte of
+  frame f is at host sample (f + d) / ratio, d being the output converter's delay in 96 kHz frames
+  (`Resampler::delay()`: 40 at 48 kHz, 0 at 96 kHz; the same figure `midiLatencySamples()` reports). So a message
+  sits in the block at the sample where the sound the G2 made at that instant sits. Both are the reported latency late against the plugin's input; a host
   that compensates the audio shifts the MIDI with it or not, as it does for any instrument.
 * **Formats.** `producesMidi()` is true in builds with the emulator. The Audio Unit stays `aumu` with its codes:
   JUCE adds the MIDI output callback properties. The VST3 gets an event output bus; **VST3 has no event for MIDI
@@ -2210,19 +2210,24 @@ dump, it keeps its turn (Song Position then Continue, a note then Stop: their or
   is computed, ahead of the block's sound by the audio device's output latency. (Built, not run with a device.)
 * **In a test host** (`g2plugintest <plugin> --midi <patch>`, JUCE's hosting code, 48 kHz, blocks of 256, the
   patch of §3.13.3's MIDI modules with a sine on the same gate; the Audio Unit registered in the process from the
-  build's bundle, without installing it):
+  build's bundle, without installing it). With the band-limited converter and the Safe buffer (2026-10-14, the
+  integration of the four branches; load average 4-10, so real-time results are unverified):
 
   | | VST3 | Audio Unit |
   |---|---|---|
   | A note in → `91 48 5A`, `B2 15 63`, `C3 05` out | yes | yes |
-  | The Note On against the note in | 29.3 ms: the reported latency (27.0 ms) + 2.3 ms | 29.9 ms (the block's start, see below) |
-  | The sound's first sample against the Note On out | 1.4 ms before it | 2.1 ms before it |
+  | The Note On against the note in | the reported latency (27.65 ms) + 3.23 ms | + 2.27 ms (the block's start, see below) |
+  | The sound's first sample against the Note On out | 2.73 ms before it | 1.77 ms before it (to the block) |
   | Note off in → `81 48 5A` | yes | yes |
   | Patch request → the dump | 3 messages of 512, 512 and 254 bytes, checksums right; the last two 245.1 ms after the first (their 766 bytes at 320 µs) | the same, 245.3 ms |
   | The dump back in | loads; the patch plays and sends | the same |
 
-  The G2 answers the note within 3 ms: 0.96 ms for its bytes to come in, the sound 1.4 ms after their first
-  byte, NoteSend's message complete 1.4 ms after the sound. JUCE's Audio Unit *host* ignores the packets' sample
+  The same with Follows the Host's Tempo on (`--midi-tempo`): + 2.96 ms and 2.46 ms (VST3). Before the converter
+  (2026-10-13, the old interpolator, a reported latency of 27.0 ms) the Note On came + 2.3 to 2.9 ms after the
+  latency and the sound 1.4 to 2.0 ms before it: these figures move by about a millisecond from run to run, with
+  where the note falls against the OS's ticks; not studied further. The G2 answers the note within 3 ms: 0.96 ms
+  for its bytes to come in, the sound 1.4 ms after their first byte, NoteSend's message complete 1.4 ms after the
+  sound (2026-10-13). JUCE's Audio Unit *host* ignores the packets' sample
   offsets (the wrapper sets them) and puts every message at its block's start: the Audio Unit's timing inside a
   block is not checked by this host, and `g2plugintest` checks it to the block (one run gave the Note On 2.4 ms
   *before* the latency: its block's start). MIDI clock through either format: not checked (the test cannot switch
@@ -2237,9 +2242,10 @@ dump, it keeps its turn (Song Position then Continue, a note then Stop: their or
 it). Every clock byte (F8) on MIDI IN has the OS's interrupt save and restore the host ports, which made that fault
 certain within a second of clock, on one thread as with DSP threads. Tests: "notes still sound after it followed an
 external MIDI clock, and a patch loads after it" in `tests/test_midi_out.cpp` (fails on f7c5667: peak 0 after the
-clock), and "notes still sound after it has followed an external MIDI clock" in `tests/test_g2emu.cpp` (the rule off:
-it fails). `g2plugintest <plugin> --midi-tempo <patch>` passes as a VST3 and as an Audio Unit (2026-10-14, a busy
-computer: real-time checks unverified).
+clock), and "notes still sound after it has followed an external MIDI clock" in `tests/test_g2emu.cpp` (the rule
+off: the host ports go out of step, `dspEmptyReads` > 0). No test switches the rule off and finds the notes silent:
+the cause rests on the first test failing before the fix and passing with it. `g2plugintest <plugin> --midi-tempo
+<patch>` passes as a VST3 and as an Audio Unit (2026-10-14, a busy computer: real-time checks unverified).
 
 What it was, as found: **once the OS had followed an external MIDI clock (a few quarter notes of F8 at 100 BPM,
 "Ext 99" on its display), new notes were silent**, on MIDI IN and from the panel's keys (which still sent their
