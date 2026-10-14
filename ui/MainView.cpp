@@ -31,6 +31,7 @@ enum MenuId {
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
     kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34,
+    kEmulatorBufferBase = 740, // + buffer (EmulatorHost::emulatorBuffer)
     // Opt-in deviations from the original editor (View menu).
     kWheelEditsKnobs = 800, kDoubleClickMorph, kDoubleClickReset, kDoubleClickNothing, kShowLoadEstimate,
     kMorphGroupColours,
@@ -275,6 +276,16 @@ void MainView::updateLoad()
                                                                : juce::Colour(0xffa8adb6));
 }
 
+// "Low (9 ms)": a buffer of the emulated G2 with the latency it gives in this host now.
+juce::String MainView::emulatorBufferName(int buffer) const
+{
+    static const char* const names[] = {"Low", "Normal", "Safe"};
+    juce::String text = names[juce::jlimit(0, 2, buffer)];
+    if (const double ms = emulator_ != nullptr ? emulator_->emulatorLatencyMs(buffer) : 0.0; ms > 0)
+        text << " (" << juce::String(ms, 1) << " ms)";
+    return text;
+}
+
 void MainView::updateSynthStatus()
 {
     if (synth_ == nullptr)
@@ -287,6 +298,10 @@ void MainView::updateSynthStatus()
                    "more, about 1.5 cores each)";
         else if (emulator_->emulatorRunning() && others > 0)
             text << "  |  " << (others + 1) << " Emulated G2s run in this host: heavy on the CPU";
+        // the emulated G2 was late for the host: heard as clicks or gaps, and for the user to know
+        if (const int dropouts = emulator_->emulatorRunning() ? emulator_->emulatorDropouts() : 0; dropouts > 0)
+            text << "  |  " << dropouts << (dropouts == 1 ? " dropout" : " dropouts")
+                 << (emulator_->emulatorBuffer() < 2 ? ": try Synth > Emulated G2 Buffer" : ": the computer is too busy for the Emulated G2");
     }
     if (synth_->boundSlot() >= 0)
         text << "  |  live: slot " << juce::String::charToString(static_cast<juce::juce_wchar>('A' + synth_->boundSlot()));
@@ -370,6 +385,10 @@ juce::PopupMenu MainView::synthMenu()
         m.addItem(item(kHostClock, "Emulated G2 Follows the Host's Tempo (MIDI Clock)", {}, true, emulator_->hostClock()));
         m.addItem(item(kMixOut34, "Mix Out 3/4 into Out 1/2 (when the Out 3/4 output is not used)", {}, true,
                        emulator_->mixOut34()));
+        juce::PopupMenu buffer;
+        for (int b = 0; b < 3; ++b)
+            buffer.addItem(item(kEmulatorBufferBase + b, emulatorBufferName(b), {}, true, emulator_->emulatorBuffer() == b));
+        m.addSubMenu("Emulated G2 Buffer (latency)", buffer);
     }
     m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
     m.addSeparator();
@@ -545,6 +564,14 @@ void MainView::menuItemSelected(int id, int)
     if (id == kShowLoadEstimate) {
         setShowLoadEstimate(!showLoadEstimate());
         updateLoad();
+        menuItemsChanged();
+        return;
+    }
+    if (id >= kEmulatorBufferBase && id < kEmulatorBufferBase + 3 && emulator_ != nullptr) {
+        emulator_->setEmulatorBuffer(id - kEmulatorBufferBase);
+        setStatus("Emulated G2 buffer: " + emulatorBufferName(id - kEmulatorBufferBase)
+                  + ". A smaller buffer plays sooner; if you hear clicks or gaps, choose a larger one");
+        updateSynthStatus();
         menuItemsChanged();
         return;
     }

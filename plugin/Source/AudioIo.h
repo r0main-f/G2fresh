@@ -16,12 +16,18 @@
 // is the microphone; then the knob's gain applies to it, before the ADC. The gain's range is not in the manual:
 // 0 to +40 dB is an assumption (what brings a dynamic microphone to line level).
 //
+// The buffer. The emulated G2 runs on threads of its own, ahead of the host: it keeps a reserve of audio ready, so
+// that a moment in which the computer gives it no time is not heard (re/notes/audio-path.md). The reserve is part
+// of the latency, and how much it takes depends on the computer and on what else runs: the user chooses (Synth >
+// Emulated G2 Buffer), for the computer, not for the project.
+//
 // Plain C++ (no JUCE).
 #pragma once
 
 #include <algorithm>
 #include <cmath>
 #include <span>
+#include <string_view>
 
 namespace g2io {
 
@@ -52,6 +58,44 @@ inline int inputOf(int bus, int channel)
 
 // The ADC word (1.0: full scale) of an input sample of 1.0.
 inline constexpr float kAdcPerUnit = 0.25f;
+
+// The emulated G2's buffer, smallest first. Safe keeps at least what G2fresh kept before there was a choice: up to
+// 0.10.2 the reserve was 20 ms and the machine ran up to a millisecond past it (it ran in whole chunks); it now
+// stops exactly at its mark, so Safe's mark is 21 ms. Its latency is then no lower than 0.10.2's (27.6 ms against
+// 27.0 at 48 kHz with 256-sample blocks).
+enum class Buffer { Low = 0, Normal = 1, Safe = 2 };
+inline constexpr int kBuffers = 3;
+inline constexpr double kReserveLowMs = 2.0, kReserveNormalMs = 6.0, kReserveSafeMs = 21.0;
+// Where nothing else is chosen: Safe. PROVISIONAL, as are Low's and Normal's reserves: they were only measured on a
+// computer that other work kept busy (re/notes/audio-path.md, part 3); the default and the reserves follow from
+// tools/audiopath/sweep.py on a quiet one.
+inline constexpr Buffer kDefaultBuffer = Buffer::Safe;
+// The least the emulated G2 computes in one run, in milliseconds: with a host block shorter than this it takes the
+// block's place in the latency (g2emu::Runner::Options::stretchMs). One millisecond: only blocks of fewer than 48
+// samples at 48 kHz are shorter.
+inline constexpr double kStretchMs = 1.0;
+
+inline Buffer bufferOf(int index) { return static_cast<Buffer>(std::clamp(index, 0, kBuffers - 1)); }
+
+// The reserve in milliseconds: the audio kept ready beyond the host's next block.
+inline constexpr double reserveMs(Buffer b)
+{
+    return b == Buffer::Low ? kReserveLowMs : b == Buffer::Normal ? kReserveNormalMs : kReserveSafeMs;
+}
+
+// The setting's name in the user's settings file, and back (anything else: `fallback`).
+inline constexpr std::string_view bufferKey(Buffer b)
+{
+    return b == Buffer::Low ? "low" : b == Buffer::Normal ? "normal" : "safe";
+}
+
+inline Buffer bufferFromKey(std::string_view key, Buffer fallback)
+{
+    for (int i = 0; i < kBuffers; ++i)
+        if (key == bufferKey(bufferOf(i)))
+            return bufferOf(i);
+    return fallback;
+}
 
 // The microphone preamp's gain with the Mic Level knob at `level` (0 .. 1).
 inline constexpr float kMicGainDb = 40.0f;

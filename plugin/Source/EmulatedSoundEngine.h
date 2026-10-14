@@ -22,6 +22,7 @@
 // render() on the audio thread.
 #pragma once
 
+#include "AudioIo.h"
 #include "Resampler.h"
 #include "SoundEngine.h"
 
@@ -51,6 +52,14 @@ public:
     std::vector<std::uint8_t> flashSnapshot() const { return runner_->machine().memorySnapshot(); }
     // 96 kHz frames the audio thread asked for that the machine had not produced yet (heard as dropouts).
     std::uint64_t framesMissing() const { return runner_->stats().framesMissing; }
+    // Blocks the machine did not have all the frames for, since it first kept up with the host (any thread).
+    std::uint64_t dropouts() const;
+    // The buffer: how much audio the machine keeps ready beyond the host's next block (AudioIo.h). On the message
+    // thread, also while it plays: latencySamples() changes with it.
+    void setBuffer(g2io::Buffer buffer);
+    g2io::Buffer buffer() const { return buffer_; }
+    // latencySamples() if the buffer were `buffer`.
+    int latencySamples(g2io::Buffer buffer) const;
     // For diagnostics: the runner's speed while running, its longest chunk, the DSP threads in use.
     juce::String diagnostics() const;
     // What the plugin reports to the host, in host samples: from an input sample to what the G2 makes of it at the
@@ -62,7 +71,9 @@ public:
     // The emulated G2's way from the ADCs to the DACs through an In and an Out module, in 96 kHz frames: 19 to 21,
     // set when the DSPs start [emulated: tests/test_g2emu.cpp]. The board's own figure is not known.
     static constexpr int kAdcToDacFrames = 20;
-    // 96 kHz frames the ADCs took as silence because their input was late (none, by construction: a check).
+    // 96 kHz frames the ADCs took as silence because their input was not there (none while a patch plays, by
+    // construction: a check. While the OS reprograms the DSPs for an upload the DACs stop for a millisecond or two
+    // and the ADCs do not: those frames count here).
     std::uint64_t inputMissing() const { return runner_->stats().inputMissing; }
     // In 1 as the XLR microphone input, through its preamp at the Mic Level knob's gain (`level` 0 .. 1), instead of
     // the IN 1 jack (any thread).
@@ -95,6 +106,9 @@ private:
     NoAppNap noAppNap_; // while it runs, the process is not throttled
 #endif
 
+    g2io::Buffer buffer_ = g2io::kDefaultBuffer;
+    std::atomic<bool> playing_{false};          // the machine had a whole block ready once: dropouts count from there
+    std::atomic<std::uint64_t> shortBefore_{0}; // the runner's short reads until then
     std::atomic<bool> mixOut34_{false};
     std::atomic<float> in1Gain_{1.0f}; // the microphone preamp's gain while In 1 is the microphone, else 1
 

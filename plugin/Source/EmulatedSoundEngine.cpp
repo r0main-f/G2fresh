@@ -17,6 +17,13 @@ g2emu::Runner::Options runnerOptions(std::vector<std::uint8_t> flash)
     // The DSPs on two threads of their own where the computer has 4 performance cores, else one
     // (Machine::autoThreads): two were faster for every patch measured, at the same CPU time
     o.machine.threads = -1;
+    // Its threads at the priority of the host's audio threads (macOS: elsewhere nothing changes), and no less than a
+    // stretch of audio per run (AudioIo.h). Beside other busy programs this was the difference between losing all
+    // of the audio and losing none (re/notes/audio-path.md §3.4). G2FRESH_EMULATOR_REALTIME=0 leaves them as they
+    // were up to 0.10.2 (a user-interactive class), to tell whether it is the cause of a problem.
+    o.machine.realtimeThreads = juce::SystemStats::getEnvironmentVariable("G2FRESH_EMULATOR_REALTIME", "1") != "0";
+    o.stretchMs = g2io::kStretchMs;
+    o.bufferMs = g2io::reserveMs(g2io::kDefaultBuffer);
     return o;
 }
 
@@ -53,10 +60,31 @@ juce::String EmulatedSoundEngine::diagnostics() const
     const auto s = runner_->stats();
     return "emulator speed while running " + juce::String(s.speed, 2) + "x, longest chunk "
          + juce::String(s.longestChunkMs, 1) + " ms, DSP threads " + juce::String(runner_->machine().stats().dspThreads)
+         + (s.realtime ? " (real-time)" : "") + ", buffer " + juce::String(runner_->bufferMs(), 0) + " ms, "
+         + juce::String(static_cast<juce::int64>(dropouts())) + " dropouts"
          + ", buffered " + juce::String(static_cast<int>(runner_->available())) + " frames, input frames late "
          + juce::String(static_cast<juce::int64>(s.inputMissing))
          + "\nMaster Clock display: '" + juce::String(runner_->machine().panel().displays[1].text(0)) + "' / '"
          + juce::String(runner_->machine().panel().displays[1].text(1)) + "'";
+}
+
+std::uint64_t EmulatedSoundEngine::dropouts() const
+{
+    if (!playing_.load(std::memory_order_acquire))
+        return 0;
+    return runner_->stats().shortReads - shortBefore_.load(std::memory_order_relaxed);
+}
+
+void EmulatedSoundEngine::setBuffer(g2io::Buffer buffer)
+{
+    buffer_ = buffer;
+    runner_->setBufferMs(g2io::reserveMs(buffer));
+}
+
+int EmulatedSoundEngine::latencySamples(g2io::Buffer buffer) const
+{
+    const double more = (g2io::reserveMs(buffer) - g2io::reserveMs(buffer_)) * hostRate_ / 1000.0;
+    return latencySamples() + static_cast<int>(std::lround(more));
 }
 
 int EmulatedSoundEngine::midiLatencySamples() const
@@ -173,7 +201,11 @@ void EmulatedSoundEngine::render(juce::AudioBuffer<float>& out, const juce::Midi
         up_.advance(more);
         runner_->write(inFrames_.data(), more);
         frames_.resize(more * 4);
-        runner_->read(frames_.data(), more); // silence for what is not there yet (booting, too slow)
+        const auto got = runner_->read(frames_.data(), more); // silence for what is not there yet (booting, too slow)
+        if (got == more && !playing_.load(std::memory_order_relaxed)) {
+            shortBefore_.store(runner_->stats().shortReads, std::memory_order_relaxed);
+            playing_.store(true, std::memory_order_release);
+        }
     }
     if (outs_.getNumSamples() < frames)
         outs_.setSize(4, frames, false, false, true);
