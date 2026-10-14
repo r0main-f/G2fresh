@@ -2064,10 +2064,29 @@ keep them.)
 * `Options::threads` takes 1-8 DSP threads; each runs a stretch of the chain of eight. `threads = -1`
   (`Machine::autoThreads(8)`): 3 where there are at least 6 performance cores, else as for four DSPs (2 with 4
   performance cores, else 1).
-* **Not measured yet on a quiet computer.** Every run of 2026-10-13/14 shared the M1 with other emulators and builds
-  (load average 6 to 350), so no speed figure here decides whether eight DSPs hold real time in a DAW on an M1. The
-  plugin keeps four DSPs (its G2X runs `Expansion::Without`, flagged in the README) until that is measured. The
-  measurement, one command (it records the load average with every run and warns above 2):
+* **In real time as the plugin runs it, on an M1 (2026-10-14): a heavy patch on eight DSPs does not hold.**
+  `tools/audiopath/sweep.py` ran eight DSPs that day by mistake (`g2audiopath` asked for a G2X as built; it now runs
+  the plugin's machine, `--expansion` for eight), two DSP threads (`autoThreads(8)` on four performance cores),
+  real-time threads, 21 ms reserve, 60 s per run. B13 with a three-note chord lost all of its audio at every block
+  from 32 to 2048 frames, in the runs that started quiet too (load average 1.9 to 2.0: blocks of 32, 64, 256 and
+  1024 frames): chunk speed p50 0.78 to 0.81 x, 3.0 CPU cores busy. B12 in four slots likewise (p50 0.70 to 0.73,
+  load 2.0 to 2.4), and the light patch (B01) with one DSP thread (p50 0.75, load 2.1). The light patch with two
+  DSP threads held: none missing, chunk speed p1 1.24 to 1.45, load 1.8 to 2.0.
+* The same day's speed test (the command below, fastest of three 5 s runs; load average 2.0 to 5.2, raised by the
+  test's own back-to-back runs, so provisional): busy CPU per emulated second of the busiest DSP thread, which must
+  stay below 1 for real time.
+
+  | Patch (seven notes) | Four DSPs, 2 threads | Eight DSPs, 2 threads | Eight DSPs, 3 threads |
+  |---|---|---|---|
+  | kbd_sine | 2.42 x, 0.41 | 1.59 x, 0.63 | 2.13 x, 0.47 |
+  | bigsynth | 2.24 x, 0.45 | 0.96 x, 1.04 | 1.40 x, 0.71 |
+  | B13 | 2.01 x, 0.50 | 0.82 x, 1.23 | 1.20 x, 0.83 |
+
+  Three DSP threads bring the heavy patches above real time, but only by 1.2 to 1.4 x, with the ColdFire's thread
+  on the fourth performance core: no room for a host's own work. The plugin keeps four DSPs (its G2X runs
+  `Expansion::Without`, flagged in the README). Not measured: a computer with more performance cores, and eight DSPs
+  on three threads in the real-time harness (`g2audiopath runner --expansion --threads 3`). The speed test, one
+  command (it records the load average with every run and warns above 2):
 
   ```sh
   python3 tools/firmware/g2emubench.py --threads 2,3 --expansion off,on --seconds 5 --repeat 3 \
@@ -2078,11 +2097,6 @@ keep them.)
 
   Seven notes: B13 then plays three voices on four DSPs and seven on eight. Real time in a DAW is "x real time" above
   about 1.5 with two DSP threads (§3.9.7); `--realtime 20` instead of `--seconds` counts the frames missing.
-* As a rough guide only (provisional: one run of 0.3 emulated s each, load average 2.1-2.7, the script's smoke
-  test): B13 with the seven-note chord, two DSP threads, four DSPs (3 voices) 2.0 x real time, 1.5 CPU s per
-  emulated s; eight DSPs (7 voices) 0.77 x, 3.9 CPU s, the two DSP threads 1.1-1.3 s busy each; three DSP threads
-  1.06 x (3.7 CPU s), four 0.74 x. If the quiet measurement agrees, a heavy patch on eight DSPs does not hold real
-  time on an M1's four performance cores, and the unexpanded default stays.
 
 ### 3.12.6 Not known, not done
 

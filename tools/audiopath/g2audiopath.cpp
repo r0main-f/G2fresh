@@ -14,7 +14,7 @@
 //       application's priority, or (rt) as a host's audio worker threads, 60 % of every 2.9 ms at the audio priority.
 //   g2audiopath runner [--fw PATH] [--patch FILE.pch2] [--slots N] [--chord 57,60,64] [--buffer-ms MS]
 //                      [--stretch-ms MS] [--block FRAMES] [--threads N] [--rt 0|1] [--seconds S] [--settle S]
-//                      [--inputs] [--name TEXT]
+//                      [--inputs] [--expansion] [--name TEXT]
 //       (with -DG2_BUILD_EMU=ON) The emulated G2 in real time behind an audio callback, as the plugin runs it
 //       (g2emu::Runner): a thread with a host's real-time scheduling takes --block frames (96 kHz) every
 //       block/96000 s, while another one is the editor (the link's ticks). --patch goes to slot A (to slots A-D
@@ -24,7 +24,8 @@
 //       --buffer-ms and --block are the Runner's reserve and the host's block, --stretch-ms the least the machine
 //       makes in one run, --rt whether its threads have real-time priority (default: as the plugin runs it, real-time
 //       threads and a stretch of plugin/Source/AudioIo.h's kStretchMs; --rt 0 --stretch-ms 0: as 0.10.2 did);
-//       --inputs also writes input frames.
+//       --inputs also writes input frames. The machine is the plugin's (plugin/Source/EmulatedMachine.h: a G2X
+//       without its voice expansion board, four DSPs); --expansion adds the board (eight DSPs, a G2X as built).
 //       On macOS run it under `taskpolicy -a` (an application's scheduling, as in a DAW: tools/audiopath/sweep.py).
 #include "AudioIo.h"
 #include "Resampler.h"
@@ -46,6 +47,7 @@
 #include <vector>
 
 #if G2AUDIOPATH_EMU
+#include "EmulatedMachine.h"
 #include "g2/file.hpp"
 #include "g2/patch.hpp"
 #include "g2emu/firmware.hpp"
@@ -373,6 +375,7 @@ struct RunnerArgs {
     std::uint32_t block = 512;
     int realtime = 1;  // as the plugin runs it
     bool inputs = false;
+    bool expansion = false;  // the voice expansion board: eight DSPs, a G2X as built (the plugin runs four)
 };
 
 int runner(const RunnerArgs& a)
@@ -381,8 +384,10 @@ int runner(const RunnerArgs& a)
     using namespace g2;
     const auto fw = g2emu::Firmware::load(a.fw);
     g2emu::Runner::Options options;
+    g2io::pluginMachine(options.machine);
     options.machine.threads = a.threads;
-    options.machine.model = g2emu::PanelModel::G2X;
+    if (a.expansion)
+        options.machine.expansion = g2emu::Expansion::With;
     options.bufferMs = a.bufferMs;
     if (a.stretchMs >= 0)
         options.stretchMs = a.stretchMs;
@@ -523,13 +528,13 @@ int runner(const RunnerArgs& a)
             burstWall = std::chrono::duration<double>(chunks[i].end - burstStart).count();
         }
         std::printf("{\"name\": \"%s\", \"buffer_ms\": %.2f, \"stretch_ms\": %.2f, \"realtime\": %s, \"latency_ms\": %.3f, "
-                    "\"block\": %u, \"block_ms\": %.3f, \"threads\": %d, \"slots\": %d, "
+                    "\"block\": %u, \"block_ms\": %.3f, \"dsps\": %d, \"threads\": %d, \"slots\": %d, "
                     "\"inputs\": %s, \"seconds\": %.1f, \"callbacks\": %zu, \"frames_missing\": %llu, \"short_reads\": %zu, "
                     "\"input_missing\": %llu, \"speed_now\": %.2f, \"longest_chunk_ms\": %.2f, \"link_underruns\": %llu, \"cpu_cores\": %.2f,\n"
                     " \"reserve_taken_ms\": %s,\n \"callback_late_ms\": %s,\n \"callback_interval_ms\": %s,\n"
                     " \"chunk_speed\": %s,\n \"chunk_ms\": %s,\n \"refill_speed\": %s,\n \"refill_ms\": %s,\n \"wake_ms\": %s}\n",
                     a.name.c_str(), a.bufferMs, stretchMs, realtime && after.realtime ? "true" : realtime ? "\"refused\"" : "false", r.latencyFrames() / 96.0, a.block,
-                    period * 1000.0, r.machine().dspThreads(), a.slots, a.inputs ? "true" : "false",
+                    period * 1000.0, machine.dsps, r.machine().dspThreads(), a.slots, a.inputs ? "true" : "false",
                     a.seconds, callbacks.size(), static_cast<unsigned long long>(after.framesMissing - before.framesMissing), shortReads,
                     static_cast<unsigned long long>(after.inputMissing - before.inputMissing), after.speed, after.longestChunkMs,
                     static_cast<unsigned long long>(machine.linkUnderruns), cores,
@@ -594,6 +599,8 @@ int main(int argc, char** argv)
                     a.settle = std::stod(next());
                 else if (o == "--inputs")
                     a.inputs = true;
+                else if (o == "--expansion")
+                    a.expansion = true;
                 else if (o == "--chord") {
                     const std::string list = next();
                     for (std::size_t at = 0; at < list.size();) {

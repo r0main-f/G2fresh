@@ -129,3 +129,10 @@ if(TARGET g2emu)
   target_compile_definitions(g2emutests PRIVATE G2_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
   catch_discover_tests(g2emutests)
 endif()
+
+# The audio path's measurements (tools/audiopath) run the emulated G2 the plugin runs: four DSPs. Needs G2_FIRMWARE.
+if(TARGET g2emu AND Python3_FOUND)
+  add_test(NAME audiopath_runner_is_the_plugins_machine
+    COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/audiopath/runner_check.py --tool $<TARGET_FILE:g2audiopath>)
+  set_tests_properties(audiopath_runner_is_the_plugins_machine PROPERTIES SKIP_RETURN_CODE 77)
+endif()
