@@ -8,6 +8,8 @@
 #if G2FRESH_EMULATOR
 #include "EmulatedMachine.h"
 #include "EmulatedSoundEngine.h"
+#include "G2BenchData.h"
+#include "g2emu/speedtest.hpp"
 #include "g2emu/transport.hpp"
 #endif
 
@@ -99,6 +101,11 @@ G2EditorProcessor::~G2EditorProcessor()
     synth_.removeChangeListener(this);
     document_.removeChangeListener(this);
     synth_.disconnect(); // the emulated G2's link, before the emulator goes
+#if G2FRESH_EMULATOR
+    stopExpansionTest_ = true;
+    if (expansionTest_.joinable())
+        expansionTest_.join();
+#endif
 }
 
 void G2EditorProcessor::setEmulated(std::unique_ptr<SoundEngine> engine)
@@ -212,6 +219,13 @@ bool chosenExpansion()
     return g2io::expansionFromKey(key.toStdString());
 }
 
+// The DSP threads the computer test found fastest with the board, for this computer (-1, never tested:
+// Machine::autoThreads).
+int chosenExpansionThreads()
+{
+    return g2ui::userSettings().getIntValue("emulatorExpansionThreads", -1);
+}
+
 } // namespace
 
 bool G2EditorProcessor::emulatorExpansion() const
@@ -228,6 +242,73 @@ void G2EditorProcessor::setEmulatorExpansion(bool on)
     if (emulated_ != nullptr && static_cast<EmulatedSoundEngine&>(*emulated_).expansion() != on)
         if (const auto error = startEmulator(emulatorFirmware_); error.isNotEmpty())
             DBG("G2fresh: " << error);
+}
+
+bool G2EditorProcessor::testExpansion(std::function<void(const g2ui::ExpansionTest&)> done)
+{
+    if (testingExpansion_)
+        return false;
+    if (expansionTest_.joinable())
+        expansionTest_.join(); // the last one's thread, done
+    const juce::File firmware = emulatorFirmware_ != juce::File() ? emulatorFirmware_
+                                                                 : juce::File(g2ui::userSettings().getValue("emulatorFirmware"));
+    if (!firmware.exists())
+        return false;
+    // The running emulated G2 would take the CPU the test measures: it stops (its memory kept) and starts again after
+    const bool wasRunning = emulated_ != nullptr;
+    if (wasRunning) {
+        captureFlash();
+        synth_.disconnect();
+        setEmulated(nullptr);
+    }
+    testingExpansion_ = true;
+    stopExpansionTest_ = false;
+    expansionTest_ = std::thread([this, firmware, wasRunning, done = std::move(done), alive = std::weak_ptr<int>(alive_)] {
+        g2ui::ExpansionTest t;
+        std::vector<std::pair<int, double>> tried;
+        try {
+            const auto fw = g2emu::Firmware::load(firmware.getFullPathName().toStdString());
+            const auto* data = reinterpret_cast<const std::uint8_t*>(G2BenchData::B13_Voices_Heavy_pch2);
+            const auto patch = std::get<g2::Patch>(
+                g2::load(std::span(data, static_cast<std::size_t>(G2BenchData::B13_Voices_Heavy_pch2Size))).content);
+            for (const int threads : g2io::kExpansionTestThreads) {
+                g2emu::Machine::Options o;
+                g2io::pluginMachine(o, true, threads);
+                const auto r = g2emu::measureSpeed(fw, o, patch, g2io::kExpansionTestNotes, g2io::kExpansionTestSeconds,
+                                                   &stopExpansionTest_);
+                if (!r.error.empty()) {
+                    t.error = r.error;
+                    break;
+                }
+                tried.emplace_back(r.threads, r.speed);
+                if (r.speed > t.speed) {
+                    t.speed = r.speed;
+                    t.voices = r.voices;
+                }
+            }
+        } catch (const std::exception& e) {
+            t.error = e.what();
+        }
+        t.threads = g2io::fastestThreads(tried);
+        const auto advice = g2io::expansionAdvice(t.speed);
+        t.advice = advice == g2io::ExpansionAdvice::Holds       ? g2ui::ExpansionTest::Holds
+                 : advice == g2io::ExpansionAdvice::QuietOnly   ? g2ui::ExpansionTest::QuietOnly
+                                                                 : g2ui::ExpansionTest::TooSlow;
+        t.othersRunning = EmulatedSoundEngine::running();
+        juce::MessageManager::callAsync([this, t, firmware, wasRunning, done, alive] {
+            if (!alive.lock())
+                return;
+            testingExpansion_ = false;
+            if (t.error.isEmpty())
+                g2ui::userSettings().setValue("emulatorExpansionThreads", t.threads);
+            if (wasRunning && emulated_ == nullptr)
+                if (const auto error = startEmulator(firmware); error.isNotEmpty())
+                    DBG("G2fresh: " << error);
+            if (done)
+                done(t);
+        });
+    });
+    return true;
 }
 
 int G2EditorProcessor::emulatorBuffer() const
@@ -354,8 +435,8 @@ void G2EditorProcessor::timerCallback()
 
 void G2EditorProcessor::autoStartEmulator()
 {
-    if (!emulatorWanted_ || emulated_ != nullptr)
-        return;
+    if (!emulatorWanted_ || emulated_ != nullptr || testingExpansion_)
+        return; // (the computer test stopped it and starts it again)
     if (emulated_ == nullptr && synth_.kind() != g2ui::SynthSync::Kind::None)
         return; // the editor talks to another synth
     const juce::File firmware{g2ui::userSettings().getValue("emulatorFirmware")};
@@ -386,7 +467,8 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
         const auto saveTo = wrapperType == wrapperType_Standalone ? EmulatedSoundEngine::defaultFlashFile() : juce::File();
         auto flash = startingFlash();
         emulatedFresh_ = g2emu::newMemory(flash);
-        engine = std::make_unique<EmulatedSoundEngine>(fw, std::move(flash), saveTo, chosenExpansion());
+        engine = std::make_unique<EmulatedSoundEngine>(fw, std::move(flash), saveTo, chosenExpansion(),
+                                                       chosenExpansionThreads());
     } catch (const std::exception& e) {
         return juce::String("the emulated G2 cannot start: ") + e.what();
     }

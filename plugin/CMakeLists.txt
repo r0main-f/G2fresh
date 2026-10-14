@@ -67,6 +67,10 @@ if(TARGET g2emu)
   endif()
   target_link_libraries(G2Editor PRIVATE g2emu)
   target_compile_definitions(G2Editor PRIVATE G2FRESH_EMULATOR=1)
+  # The computer test before the voice expansion board is fitted plays the bench pack's heaviest patch (our own file)
+  juce_add_binary_data(G2BenchData HEADER_NAME G2BenchData.h NAMESPACE G2BenchData
+    SOURCES "${PROJECT_SOURCE_DIR}/bench/hardware-pack/patches/B13 Voices Heavy.pch2")
+  target_link_libraries(G2Editor PRIVATE G2BenchData)
 endif()
 
 # The g2bridge executable goes with the app (next to its executable) and in

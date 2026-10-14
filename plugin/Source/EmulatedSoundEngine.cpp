@@ -10,11 +10,11 @@
 
 namespace {
 
-g2emu::Runner::Options runnerOptions(std::vector<std::uint8_t> flash, bool expansion)
+g2emu::Runner::Options runnerOptions(std::vector<std::uint8_t> flash, bool expansion, int expansionThreads)
 {
     g2emu::Runner::Options o;
     o.flash = std::move(flash);
-    g2io::pluginMachine(o.machine, expansion); // a G2X, its expansion board as the user chose, the DSPs on threads
+    g2io::pluginMachine(o.machine, expansion, expansionThreads); // a G2X, its expansion board as the user chose
     // Its threads at the priority of the host's audio threads (macOS: elsewhere nothing changes), and no less than a
     // stretch of audio per run (AudioIo.h). Beside other busy programs this was the difference between losing all
     // of the audio and losing none (re/notes/audio-path.md §3.4). G2FRESH_EMULATOR_REALTIME=0 leaves them as they
@@ -47,9 +47,9 @@ juce::File EmulatedSoundEngine::defaultFlashFile()
 }
 
 EmulatedSoundEngine::EmulatedSoundEngine(const g2emu::Firmware& firmware, std::vector<std::uint8_t> flash, juce::File saveTo,
-                                         bool expansion)
+                                         bool expansion, int expansionThreads)
     : saveTo_(std::move(saveTo)), savedFlash_(std::move(flash)),
-      runner_(std::make_unique<g2emu::Runner>(firmware, runnerOptions(savedFlash_, expansion)))
+      runner_(std::make_unique<g2emu::Runner>(firmware, runnerOptions(savedFlash_, expansion, expansionThreads)))
 {
     expansion_ = expansion;
     ++running_;

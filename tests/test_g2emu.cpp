@@ -21,6 +21,7 @@
 #include "g2emu/firmware.hpp"
 #include "g2emu/machine.hpp"
 #include "g2emu/runner.hpp"
+#include "g2emu/speedtest.hpp"
 #include "g2emu/transport.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -2846,6 +2847,33 @@ TEST_CASE("The plugin's G2X: without its expansion board unless the user fits it
     CHECK_FALSE(g2io::expansionFromKey("yes"));
 }
 
+TEST_CASE("The computer test's advice from the speed of a heavy patch on eight DSPs", "[g2emu]")
+{
+    using g2io::ExpansionAdvice;
+    // Real time in a host wants about 1.5 x off-line (re/notes §3.9.7); below 1 it cannot keep up at all: on 2026-10-14
+    // eight DSPs at 0.82 x lost all of the audio in real time, four at 2.0 x lost none (§3.12.5, audio-path.md §3).
+    CHECK(g2io::expansionAdvice(0.82) == ExpansionAdvice::TooSlow);
+    CHECK(g2io::expansionAdvice(0.99) == ExpansionAdvice::TooSlow);
+    CHECK(g2io::expansionAdvice(1.0) == ExpansionAdvice::QuietOnly);
+    CHECK(g2io::expansionAdvice(1.2) == ExpansionAdvice::QuietOnly);
+    CHECK(g2io::expansionAdvice(1.49) == ExpansionAdvice::QuietOnly);
+    CHECK(g2io::expansionAdvice(1.5) == ExpansionAdvice::Holds);
+    CHECK(g2io::expansionAdvice(2.0) == ExpansionAdvice::Holds);
+    // The threads to keep: the faster of those tried
+    const std::vector<std::pair<int, double>> tried = {{2, 0.82}, {3, 1.20}};
+    CHECK(g2io::fastestThreads(tried) == 3);
+    const std::vector<std::pair<int, double>> twoFaster = {{2, 1.6}, {3, 1.4}};
+    CHECK(g2io::fastestThreads(twoFaster) == 2);
+    // ...which the machine then runs with the board, and only with it (without: as before, Machine::autoThreads)
+    Machine::Options o;
+    g2io::pluginMachine(o, true, 3);
+    CHECK(o.threads == 3);
+    g2io::pluginMachine(o, true);
+    CHECK(o.threads == -1);
+    g2io::pluginMachine(o, false, 3);
+    CHECK(o.threads == -1);
+}
+
 TEST_CASE("The user's G2 OS finds the expansion board: eight DSPs booted, Exp on its display and in its version reply",
           "[g2emu][firmware]")
 {
@@ -2964,6 +2992,46 @@ TEST_CASE("The user's G2 OS: with the expansion board a heavy patch gets a G2X's
         CHECK(g2.m.stats().exceptions == 0);
         CHECK(g2.m.stats().dspsWild == 0);
     }
+}
+
+TEST_CASE("The speed test: how fast this computer runs a heavy patch, on four DSPs and on eight", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    std::ifstream f(std::filesystem::path(G2_SOURCE_DIR) / "bench" / "hardware-pack" / "patches" / "B13 Voices Heavy.pch2", std::ios::binary);
+    REQUIRE(f);
+    const Bytes bytes{std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};
+    const auto patch = std::get<g2::Patch>(g2::load(bytes).content);
+    const std::vector<int> chord = {48, 55, 60, 64, 67, 72, 76};
+    // What it reports holds on any computer: the machine it ran, the voices the OS gave (the manual's three and seven
+    // plus effects, as in the test above), that the patch sounded; the speed itself is only above zero.
+    for(const bool board : {false, true})
+    {
+        INFO((board ? "eight DSPs" : "four DSPs"));
+        Machine::Options o;
+        g2io::pluginMachine(o, board);
+        o.threads = 2;
+        const auto r = measureSpeed(fw, o, patch, chord, 0.3);
+        CHECK(r.error.empty());
+        CHECK(r.dsps == (board ? 8 : 4));
+        CHECK(r.threads == 2);
+        CHECK(r.voices == (board ? 7 : 3));
+        CHECK(r.peak > 0.01f);
+        CHECK(r.speed > 0.0);
+        CHECK(r.busiestDspThread > 0.0);
+    }
+    // Asked to stop (the user closed the window), it stops before it boots
+    std::atomic<bool> stop{true};
+    Machine::Options o;
+    g2io::pluginMachine(o, true);
+    CHECK(measureSpeed(fw, o, patch, chord, 0.3, &stop).error == "stopped");
 }
 
 TEST_CASE("The user's G2 OS: a chord spread over the eight DSPs sounds as on four, without a click", "[g2emu][firmware]")

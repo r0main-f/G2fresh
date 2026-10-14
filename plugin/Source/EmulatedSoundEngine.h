@@ -46,10 +46,11 @@ class EmulatedSoundEngine final : public SoundEngine {
 public:
     // Powers the machine on with the memory `flash` (empty: a new G2);
     // `saveTo`: where the destructor saves a changed memory (none: nowhere);
-    // `expansion`: with the voice expansion board (eight DSPs, EmulatedMachine.h).
+    // `expansion`: with the voice expansion board (eight DSPs, EmulatedMachine.h), on `expansionThreads` DSP
+    // threads (-1: Machine::autoThreads).
     // Throws std::exception when the emulator cannot start.
     EmulatedSoundEngine(const g2emu::Firmware& firmware, std::vector<std::uint8_t> flash, juce::File saveTo,
-                        bool expansion = false);
+                        bool expansion = false, int expansionThreads = -1);
     // Stops the machine (and saves its flash to `saveTo`).
     ~EmulatedSoundEngine() override;
 

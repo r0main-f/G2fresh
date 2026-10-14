@@ -10,6 +10,11 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <thread>
+
 // The patch editor as a plugin (and the stand-alone app). It owns the patch
 // being edited and stores it in the host's project, so the patch is recalled
 // with the project; exposes the patch's knobs, morph dials and variation as
@@ -68,6 +73,7 @@ public:
     void setEmulatorBuffer(int buffer) override;
     bool emulatorExpansion() const override;
     void setEmulatorExpansion(bool on) override;
+    bool testExpansion(std::function<void(const g2ui::ExpansionTest&)> done) override;
     double emulatorLatencyMs(int buffer) const override;
     int emulatorDropouts() const override;
     bool hostClock() const override { return hostClockOn_; }
@@ -108,6 +114,10 @@ private:
     // The running emulated G2 takes the buffer the settings ask for, and the host learns the new latency.
     void applyBuffer();
     juce::File emulatorFirmware_; // the G2 OS the running emulated G2 started from (for a restart)
+    // The computer test (testExpansion): its thread, asked to stop and joined when the processor goes.
+    std::thread expansionTest_;
+    std::atomic<bool> stopExpansionTest_{false};
+    bool testingExpansion_ = false;
     int dropoutsShown_ = 0; // as the editor last heard of them
 #endif
 
