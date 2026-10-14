@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #if JUCE_MAC
+#include <AudioToolbox/AudioToolbox.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -34,19 +35,78 @@ auto onMessageThread(F&& f)
     return juce::MessageManager::callSync(std::forward<F>(f));
 }
 
+#if JUCE_PLUGINHOST_AU && JUCE_MAC
+// The Audio Unit in the bundle at `path`, registered for this process under the subtype 'G2t!' (the system finds
+// Audio Units by their codes, among the installed ones; this one need not be installed, and an installed G2fresh
+// keeps its own code). Returns what JUCE's Audio Unit format takes as a plugin's identifier, or nothing.
+juce::String registerAudioUnit(const juce::String& path)
+{
+    static juce::String registered;
+    if (registered.isNotEmpty())
+        return registered;
+    const auto url = CFURLCreateFromFileSystemRepresentation(nullptr, reinterpret_cast<const UInt8*>(path.toRawUTF8()),
+                                                             static_cast<CFIndex>(path.getNumBytesAsUTF8()), true);
+    const auto bundle = url != nullptr ? CFBundleCreate(nullptr, url) : nullptr; // kept loaded: its code runs from now on
+    if (url != nullptr)
+        CFRelease(url);
+    if (bundle == nullptr)
+        return {};
+    const auto components = static_cast<CFArrayRef>(CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("AudioComponents")));
+    if (components == nullptr || CFGetTypeID(components) != CFArrayGetTypeID() || CFArrayGetCount(components) < 1)
+        return {};
+    const auto info = static_cast<CFDictionaryRef>(CFArrayGetValueAtIndex(components, 0));
+    const auto text = [&](CFStringRef key) {
+        const auto v = static_cast<CFStringRef>(CFDictionaryGetValue(info, key));
+        return v != nullptr ? juce::String::fromCFString(v) : juce::String();
+    };
+    const auto code = [](const juce::String& s) {
+        return s.length() == 4 ? static_cast<OSType>((static_cast<juce::uint32>(s[0]) << 24) | (static_cast<juce::uint32>(s[1]) << 16)
+                                                       | (static_cast<juce::uint32>(s[2]) << 8) | static_cast<juce::uint32>(s[3]))
+                               : OSType(0);
+    };
+    const auto factoryName = text(CFSTR("factoryFunction")).toCFString();
+    const auto factory = reinterpret_cast<AudioComponentFactoryFunction>(CFBundleGetFunctionPointerForName(bundle, factoryName));
+    CFRelease(factoryName);
+    if (factory == nullptr)
+        return {};
+    std::cout << "  the Audio Unit in the bundle: type " << text(CFSTR("type")) << ", subtype " << text(CFSTR("subtype"))
+              << ", manufacturer " << text(CFSTR("manufacturer")) << " (\"" << text(CFSTR("name")) << "\")" << std::endl;
+    AudioComponentDescription desc{};
+    desc.componentType = code(text(CFSTR("type")));
+    desc.componentSubType = 'G2t!';
+    desc.componentManufacturer = code(text(CFSTR("manufacturer")));
+    const auto name = juce::String("G2fresh: G2fresh under test").toCFString();
+    const auto component = AudioComponentRegister(&desc, name, 0x10000, factory);
+    CFRelease(name);
+    if (component == nullptr)
+        return {};
+    registered = "AudioUnit:Synths/" + text(CFSTR("type")) + ",G2t!," + text(CFSTR("manufacturer"));
+    return registered;
+}
+#endif
+
 std::unique_ptr<juce::AudioPluginInstance> load(const juce::String& path, double rate, int block)
 {
     return *onMessageThread([&]() -> std::unique_ptr<juce::AudioPluginInstance> {
         // a .component is an Audio Unit (as Live uses it), anything else a VST3
         std::unique_ptr<juce::AudioPluginFormat> format;
+        juce::OwnedArray<juce::PluginDescription> types;
 #if JUCE_PLUGINHOST_AU && JUCE_MAC
-        if (path.endsWithIgnoreCase(".component"))
+        if (path.endsWithIgnoreCase(".component")) {
             format = std::make_unique<juce::AudioUnitPluginFormat>();
-        else
+            if (const auto identifier = registerAudioUnit(path); identifier.isNotEmpty()) {
+                auto d = std::make_unique<juce::PluginDescription>();
+                d->pluginFormatName = "AudioUnit";
+                d->fileOrIdentifier = identifier;
+                d->name = "G2fresh";
+                d->isInstrument = true;
+                types.add(d.release());
+            }
+        } else
 #endif
             format = std::make_unique<juce::VST3PluginFormat>();
-        juce::OwnedArray<juce::PluginDescription> types;
-        format->findAllTypesForFile(types, path);
+        if (types.isEmpty())
+            format->findAllTypesForFile(types, path);
         if (types.isEmpty())
             return nullptr;
         juce::String error;
@@ -490,6 +550,163 @@ struct Transport final : juce::AudioPlayHead {
     }
 };
 
+// The plugin's MIDI output, the emulated G2's MIDI OUT: a patch whose Keyboard gate plays a sine and sets off a
+// NoteSend (note 72, velocity 90, channel 2), a CtrlSend (controller 21 = 99, channel 3) and a PCSend (program 6,
+// channel 4). A note into the plugin comes back as those three messages, at the samples of the sound it made; a
+// System Exclusive patch request is answered with the patch's dump, whole messages at the pace of a MIDI cable; the
+// dump goes back in. With `followTempo`, the same while the G2 follows the host's tempo (Synth > Emulated G2 Follows
+// the Host's Tempo: MIDI clock into its MIDI IN, from a transport playing at 100 BPM).
+void midiOutput(const juce::String& path, const juce::File& patch, bool followTempo)
+{
+    const double rate = juce::SystemStats::getEnvironmentVariable("G2TEST_RATE", "48000").getDoubleValue();
+    const int block = juce::SystemStats::getEnvironmentVariable("G2TEST_BLOCK", "256").getIntValue();
+    const bool au = path.endsWithIgnoreCase(".component");
+    auto p = load(path, rate, block);
+    check(p != nullptr, "the plugin loads");
+    if (p == nullptr)
+        return;
+    check(p->producesMidi(), "it says it produces MIDI");
+    check(p->acceptsMidi(), "and accepts it");
+    Transport transport;
+    transport.rate = rate;
+    onMessageThread([&] {
+        juce::MemoryBlock data;
+        patch.loadFileAsData(data);
+        const auto wrapped = projectState(*p, au, [&](juce::ValueTree& s) {
+            s.setProperty("data", data.toBase64Encoding(), nullptr);
+            s.setProperty("hostClock", followTempo, nullptr);
+        });
+        if (wrapped.getSize() == 0)
+            std::cout << "  (cannot wrap the patch into the host's state)" << std::endl;
+        p->setStateInformation(wrapped.getData(), static_cast<int>(wrapped.getSize()));
+        if (followTempo)
+            p->setPlayHead(&transport);
+        p->prepareToPlay(rate, block);
+    });
+
+    struct Event {
+        std::int64_t sample; // from the first block played
+        juce::MidiMessage message;
+    };
+    std::vector<Event> out;
+    std::vector<float> audio;
+    std::int64_t played = 0;
+    juce::AudioBuffer<float> buffer(std::max(p->getTotalNumInputChannels(), p->getTotalNumOutputChannels()), block);
+    makeRealtime(block / rate);
+    auto next = std::chrono::steady_clock::now();
+    // `seconds` of blocks; `in`, if given, goes into the first of them at sample 100 (or its last)
+    const auto run = [&](double seconds, const std::vector<juce::MidiMessage>& in = {}) {
+        const auto from = played;
+        for (int b = 0; b < static_cast<int>(seconds * rate / block); ++b) {
+            juce::MidiBuffer midi;
+            if (b == 0)
+                for (const auto& m : in)
+                    midi.addEvent(m, std::min(100, block - 1));
+            buffer.clear();
+            {
+                const juce::ScopedLock lock(p->getCallbackLock());
+                p->processBlock(buffer, midi);
+            }
+            for (const auto meta : midi)
+                out.push_back({played + meta.samplePosition, meta.getMessage()});
+            audio.insert(audio.end(), buffer.getReadPointer(0), buffer.getReadPointer(0) + block);
+            played += block;
+            transport.sample += block;
+            next += std::chrono::microseconds(static_cast<long long>(1e6 * block / rate));
+            std::this_thread::sleep_until(next);
+        }
+        return from + std::min(100, block - 1); // where `in` went
+    };
+    const auto ms = [&](std::int64_t samples) { return juce::String(static_cast<double>(samples) * 1000.0 / rate, 2) + " ms"; };
+    const auto hex = [](const juce::MidiMessage& m) { return juce::String::toHexString(m.getRawData(), std::min(m.getRawDataSize(), 24)); };
+
+    std::cout << (followTempo ? "The emulated G2 starts and follows the host's tempo, 100 BPM (10 s)" : "The emulated G2 starts (6 s)") << std::endl;
+    run(followTempo ? 10.0 : 6.0);
+    for (const auto& e : out)
+        std::cout << "  (MIDI out while it started: " << hex(e.message) << ")" << std::endl;
+    const int latency = p->getLatencySamples();
+    std::cout << "  latency reported: " << latency << " samples (" << ms(latency) << ")" << std::endl;
+
+    std::cout << "A note in: the patch's MIDI modules answer" << std::endl;
+    out.clear();
+    const auto noteIn = run(0.5, {juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100))});
+    for (const auto& e : out)
+        std::cout << "  MIDI out " << ms(e.sample - noteIn) << " after the note went in: " << hex(e.message) << std::endl;
+    check(out.size() == 3, "three messages come out");
+    if (out.size() == 3) {
+        const auto &n = out[0].message, &c = out[1].message, &g = out[2].message;
+        check(n.isNoteOn() && n.getChannel() == 2 && n.getNoteNumber() == 72 && n.getVelocity() == 90, "NoteSend's Note On: channel 2, note 72, velocity 90");
+        check(c.isController() && c.getChannel() == 3 && c.getControllerNumber() == 21 && c.getControllerValue() == 99,
+              "CtrlSend's controller: channel 3, number 21, value 99");
+        check(g.isProgramChange() && g.getChannel() == 4 && g.getProgramChangeNumber() == 5, "PCSend's program change: channel 4, program 6");
+        // the note's three bytes reach the G2 0.96 ms after the latency, the OS answers within milliseconds, and the
+        // answer's three bytes take 0.96 ms more. JUCE's Audio Unit host drops the sample offsets of an Audio Unit's
+        // MIDI output (every message is at its block's start): there the message may be up to a block early.
+        const auto early = au ? static_cast<std::int64_t>(block) : 0;
+        const auto after = out[0].sample - noteIn - latency;
+        check(after > static_cast<std::int64_t>(0.0015 * rate) - early && after < static_cast<std::int64_t>(0.012 * rate),
+              "the Note On comes out " + ms(after) + " after the plugin's latency" + (au ? " (to the block)" : ""));
+        // the sound the note made: the sine's first sample (it starts from zero: where it reaches the threshold)
+        std::size_t onset = static_cast<std::size_t>(noteIn);
+        while (onset < audio.size() && std::abs(audio[onset]) < 0.002f)
+            ++onset;
+        check(onset < audio.size(), "the note sounds");
+        const auto apart = static_cast<std::int64_t>(onset) - out[0].sample;
+        check(apart > -static_cast<std::int64_t>(0.005 * rate) && apart < static_cast<std::int64_t>(0.005 * rate) + early,
+              "MIDI OUT and the sound are on one timeline: the sound starts " + ms(apart) + " after the Note On came out"
+                  + (au ? " (to the block)" : ""));
+    }
+    out.clear();
+    run(0.5, {juce::MidiMessage::noteOff(1, 60)});
+    check(out.size() == 1 && out[0].message.isNoteOff() && out[0].message.getChannel() == 2 && out[0].message.getNoteNumber() == 72,
+          "the note off in ends NoteSend's note" + (out.empty() ? juce::String() : ": " + hex(out[0].message)));
+
+    std::cout << "A System Exclusive patch request in (slot A): the dump comes out" << std::endl;
+    out.clear();
+    const std::uint8_t request[] = {0xF0, 0x33, 0x7F, 0x0A, 0x30, 0x00, 0x00, 0xF7};
+    const auto requestIn = run(1.5, {juce::MidiMessage(request, static_cast<int>(sizeof request))});
+    std::vector<juce::MidiMessage> dump;
+    std::size_t bytes = 0;
+    bool whole = !out.empty();
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        const auto& m = out[i].message;
+        const auto* d = m.getRawData();
+        const int n = m.getRawDataSize();
+        std::cout << "  " << ms(out[i].sample - requestIn - latency) << " after the request (and the latency): " << n << " bytes, " << hex(m) << " ..."
+                  << std::endl;
+        // F0 33 <id> 0A 20 00 <slot> 00 <block: 2> <count: 2> <name: 16> 00 <data> <checksum> F7 [manual p.133]
+        bool ok = m.isSysEx() && n > 31 && d[0] == 0xF0 && d[1] == 0x33 && d[3] == 0x0A && d[4] == 0x20 && d[n - 1] == 0xF7
+               && static_cast<std::size_t>((d[8] << 7) | d[9]) == i && static_cast<std::size_t>((d[10] << 7) | d[11]) == out.size();
+        unsigned sum = 0;
+        for (int k = 0; k < n - 2; ++k)
+            sum += d[k];
+        ok = ok && (sum & 0x7f) == d[n - 2];
+        whole = whole && ok;
+        bytes += static_cast<std::size_t>(n);
+        dump.push_back(m);
+    }
+    check(whole, "whole blocks, numbered, with their checksums: " + juce::String(static_cast<int>(out.size())) + " blocks, "
+                     + juce::String(static_cast<int>(bytes)) + " bytes");
+    if (whole && out.size() > 1) {
+        // a block is there when its last byte is: from the first block's end to the last one's, the other blocks' bytes
+        // at 320 us each (an Audio Unit's to the block: see above)
+        const double expected = static_cast<double>(bytes - static_cast<std::size_t>(out[0].message.getRawDataSize())) * 0.00032;
+        const double took = static_cast<double>(out.back().sample - out.front().sample) / rate;
+        check(std::abs(took - expected) < 0.002 + (au ? block / rate : 0.0), "at the pace of a MIDI cable: the blocks after the first take " + juce::String(took * 1000.0, 1)
+                                                     + " ms (" + juce::String(expected * 1000.0, 1) + " ms for their bytes)");
+    }
+
+    std::cout << "The dump back in, then a note" << std::endl;
+    out.clear();
+    run(2.0, dump);
+    check(out.empty(), "a dump is not answered");
+    run(0.5, {juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100))});
+    check(out.size() == 3 && out[0].message.isNoteOn() && out[0].message.getNoteNumber() == 72,
+          "the patch it loaded plays and sends: " + juce::String(static_cast<int>(out.size())) + " messages");
+    run(0.3, {juce::MidiMessage::noteOff(1, 60)});
+    onMessageThread([&] { p.reset(); });
+}
+
 // The host's tempo drives the emulated G2's master clock: 100 BPM, playing; the G2's Master Clock display then says
 // so (read from the capture's report).
 void clock(const juce::String& path)
@@ -647,7 +864,13 @@ public:
                          "       g2plugintest <plugin> --outputs <patch with 440 Hz on Out 1/2 and 659 Hz on Out 3/4>\n"
                          "       g2plugintest <plugin> --inputs <patch that passes In 1-4 to Out 1-4>, e.g. from\n"
                          "           g2mkpatch in.pch2 in=4-In out=4-Out 'in.0>out.0' 'in.1>out.1' 'in.2>out.2' 'in.3>out.3' gain=127\n"
-                         "       g2plugintest <plugin> --clock\n";
+                         "       g2plugintest <plugin> --clock\n"
+                         "       g2plugintest <plugin> --midi | --midi-tempo <patch whose Keyboard gate plays and sends MIDI>, from\n"
+                         "           g2mkpatch midi.pch2 kbd=Keyboard osc=OscA osc.Wave=0 env=EnvADSR env.Attack=0 env.Sustain=127 out=2-Out\n"
+                         "             'osc.0>env.0' 'kbd.1>env.1' 'env.1>out.0' 'env.1>out.1' gain=127 note=NoteSend note.Note=72 note.Vel=90\n"
+                         "             note.Channel=1 ctrl=CtrlSend ctrl.Control=21 ctrl.Value=99 ctrl.Channel=2 pc=PCSend pc.Program=5\n"
+                         "             pc.Channel=3 'kbd.1>note.0' 'kbd.1>ctrl.0' 'kbd.1>pc.0'\n"
+                         "           (--midi-tempo: the same while the G2 follows the host's tempo)\n";
             setApplicationReturnValue(2);
             quit();
             return;
@@ -665,11 +888,13 @@ public:
             });
             return;
         }
-        if (args.size() > 2 && (args[1] == "--outputs" || args[1] == "--inputs")) {
+        if (args.size() > 2 && (args[1] == "--outputs" || args[1] == "--inputs" || args[1] == "--midi" || args[1] == "--midi-tempo")) {
             const juce::String path(args[0]);
             const auto patch = juce::File::getCurrentWorkingDirectory().getChildFile(args[2]);
-            test_ = std::thread([this, path, patch, in = args[1] == "--inputs"] {
-                if (in)
+            test_ = std::thread([this, path, patch, mode = args[1]] {
+                if (mode == "--midi" || mode == "--midi-tempo")
+                    midiOutput(path, patch, mode == "--midi-tempo");
+                else if (mode == "--inputs")
                     inputs(path, patch);
                 else
                     outputs(path, patch);
