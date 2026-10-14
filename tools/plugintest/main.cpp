@@ -143,7 +143,9 @@ std::vector<float> play(juce::AudioPluginInstance& p, double rate, int block, do
                         double noteOff, bool offline, std::vector<int> notes = {69})
 {
     std::vector<float> out;
-    juce::AudioBuffer<float> buffer(2, block);
+    // a channel for each input and output (JUCE's Audio Unit host reads the inputs from the buffer: one too few
+    // crashes it)
+    juce::AudioBuffer<float> buffer(std::max({2, p.getTotalNumInputChannels(), p.getTotalNumOutputChannels()}), block);
     const auto blocks = static_cast<int>(seconds * rate / block);
     if (!offline)
         makeRealtime(block / rate);
@@ -289,7 +291,27 @@ juce::MemoryBlock withAuPluginState(const juce::MemoryBlock& hostState, const st
     CFRelease(plist);
     return result;
 }
+
+// G2fresh's tree in a JUCE AU host's state (none: invalid).
+juce::ValueTree auPluginState(const juce::MemoryBlock& hostState)
+{
+    juce::ValueTree tree;
+    withAuPluginState(hostState, [&](juce::ValueTree& t) { tree = t; });
+    return tree;
+}
 #endif
+
+// G2fresh's tree in the state a host stores, for a VST3 or (`au`) an Audio Unit.
+juce::ValueTree pluginState(const juce::MemoryBlock& hostState, bool au)
+{
+#if JUCE_MAC
+    if (au)
+        return auPluginState(hostState);
+#else
+    juce::ignoreUnused(au);
+#endif
+    return pluginState(hostState);
+}
 
 // The state a host would have saved for `p` with G2fresh's own tree changed by `edit` (a project with this patch).
 juce::MemoryBlock projectState(juce::AudioPluginInstance& p, bool au, const std::function<void(juce::ValueTree&)>& edit)
@@ -757,6 +779,7 @@ void run(const juce::String& path, const juce::File& patch)
 {
     constexpr double rate = 48000;
     constexpr int block = 256;
+    const bool au = path.endsWithIgnoreCase(".component");
 
     std::cout << "A new instance" << std::endl;
     auto a = load(path, rate, block);
@@ -767,12 +790,10 @@ void run(const juce::String& path, const juce::File& patch)
         // a project with this patch (a drone: it sounds without notes), in the host's wrapping of the state
         juce::MemoryBlock data;
         if (patch.loadFileAsData(data)) {
-            juce::MemoryBlock empty;
-            a->getStateInformation(empty);
-            auto s = pluginState(empty);
-            s.setProperty("name", patch.getFileNameWithoutExtension(), nullptr);
-            s.setProperty("data", data.toBase64Encoding(), nullptr);
-            const auto wrapped = withPluginState(empty, s);
+            const auto wrapped = projectState(*a, au, [&](juce::ValueTree& s) {
+                s.setProperty("name", patch.getFileNameWithoutExtension(), nullptr);
+                s.setProperty("data", data.toBase64Encoding(), nullptr);
+            });
             if (wrapped.getSize() == 0)
                 std::cout << "  (cannot wrap the patch into the host's state)" << std::endl;
             a->setStateInformation(wrapped.getData(), static_cast<int>(wrapped.getSize()));
@@ -794,7 +815,7 @@ void run(const juce::String& path, const juce::File& patch)
     waitMs(2500); // the flash goes into the state once quiet for a second (the timer ticks every second)
     juce::MemoryBlock state;
     onMessageThread([&] { a->getStateInformation(state); });
-    const auto tree = pluginState(state);
+    const auto tree = pluginState(state, au);
     check(tree.hasType("G2fresh"), "the state is G2fresh's (" + juce::String(state.getSize()) + " bytes)");
     check(static_cast<bool>(tree.getProperty("emulated", false)), "it says the emulated G2 runs");
     const auto flash = tree["emulatorFlash"].toString();
@@ -814,7 +835,7 @@ void run(const juce::String& path, const juce::File& patch)
     waitMs(2500);
     juce::MemoryBlock stateB;
     onMessageThread([&] { b->getStateInformation(stateB); });
-    const auto treeB = pluginState(stateB);
+    const auto treeB = pluginState(stateB, au);
     check(static_cast<bool>(treeB.getProperty("emulated", false)), "its emulated G2 runs again");
     check(b->getLatencySamples() > 0, "and reports its latency");
     check(treeB["emulatorFlash"].toString() == flash, "with the project's synth memory");
@@ -823,6 +844,14 @@ void run(const juce::String& path, const juce::File& patch)
     // as a host does for a bounce: offline, then a new set-up (the VST3 process mode reaches the plugin there)
     onMessageThread([&] {
         b->setNonRealtime(true);
+#if JUCE_PLUGINHOST_AU && JUCE_MAC
+        // JUCE's Audio Unit host does not tell the unit (Logic does, with this property, for a bounce)
+        if (const auto* client = b->getAudioUnitClient()) {
+            const UInt32 offline = 1;
+            AudioUnitSetProperty(client->getAudioUnitHandle(), kAudioUnitProperty_OfflineRender, kAudioUnitScope_Global, 0, &offline,
+                                 sizeof offline);
+        }
+#endif
         b->prepareToPlay(rate, block);
     });
     const auto t0 = std::chrono::steady_clock::now();
