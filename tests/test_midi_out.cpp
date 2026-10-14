@@ -828,13 +828,14 @@ TEST_CASE("The user's G2 OS in real time: MIDI OUT reaches the audio thread with
     CHECK(runner.machine().stats().exceptions == 0);
 }
 
-// Found while testing MIDI clock through a dump, not fixed (it is not MIDI OUT's): once the OS has followed an
-// external MIDI clock, new notes are silent (a note held from before goes on sounding), and the next patch load can
-// send a DSP into P memory without code, after which the OS hangs. The same with the transmitter as it was before
-// (always ready), with one thread or two, G2 or G2X, with or without a MIDI Start. A G2 slaved to a sequencer's clock
-// plays, so this is the emulator's fault. Hidden: run it with "[.clock-silence]".
-TEST_CASE("The user's G2 OS: notes still sound after it followed an external MIDI clock (fails: an open emulator fault)",
-          "[.clock-silence]")
+// Found while testing MIDI clock through a dump: once the OS had followed an external MIDI clock, new notes were
+// silent (a note held from before went on sounding), and the next patch load could send a DSP into P memory without
+// code, after which the OS hung; with one thread or two, G2 or G2X, with or without a MIDI Start. A G2 slaved to a
+// sequencer's clock plays. The cause was the host ports: a status read before the DSP had taken what the OS wrote
+// (re/notes §3.9.6; the fix's own test, with the rule off, is in test_g2emu.cpp). This one fails on f7c5667 and
+// adds what comes after the clock: the OS's own clock again, then a patch load.
+TEST_CASE("The user's G2 OS: notes still sound after it followed an external MIDI clock, and a patch loads after it",
+          "[g2emu][firmware]")
 {
     const auto fw = firmware();
     if(!fw) SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
@@ -868,11 +869,11 @@ TEST_CASE("The user's G2 OS: notes still sound after it followed an external MID
         while(r.m.frame() < from + std::uint64_t(i + 1) * 2400) r.step();
     }
     CHECK(r.display(1, 0).find("Ext") != std::string::npos);
-    CHECK(peak() > 0.1f);  // 0 as of 2026-10-13
+    CHECK(peak() > 0.1f);  // 0 on f7c5667
     r.run(3.0);
     CHECK(peak() > 0.1f);  // also once the OS is back on its own clock
     r.client.sendPerformance(g2::Performance::playing(keyboardSine(), "Again"), "Again");
     r.run(2.0);
-    CHECK(r.m.stats().dspsWild == 0);  // 1, in some runs
+    CHECK(r.m.stats().dspsWild == 0);  // 1 in some runs on f7c5667
     CHECK(r.display(0, 1).rfind("Again", 0) == 0);
 }

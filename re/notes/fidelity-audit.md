@@ -54,11 +54,11 @@ still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2
     MIDI IN takes System Exclusive (g2-hardware-and-emulation.md §3.13, with what the OS sends, measured). Left:
     a VST3 host gets no MIDI clock, Start or Stop (the format has none); not tried in a DAW; the Program Changes
     of a load from memory and Dump CC from the panel not measured.
-    **Found on the way, open (High):** after the OS has followed an external MIDI clock, new notes are silent and a
-    later patch load can crash a DSP (§3.13.6). Older than the MIDI OUT work (the same on f7c5667), and it shows
-    in the plugin: with "Emulated G2 Follows the Host's Tempo" on, a patch's MIDI modules fire garbage, notes and
-    dumps fail, a DSP crashes (VST3 and Audio Unit, `g2plugintest --midi-tempo`). The option must stay off until
-    this is fixed.
+    **Found on the way, fixed 2026-10-14 (was High):** after the OS had followed an external MIDI clock, new notes
+    were silent and a later patch load could crash a DSP; in the plugin, "Emulated G2 Follows the Host's Tempo"
+    was unusable (§3.13.6). Older than the MIDI OUT work (the same on f7c5667). The cause was the host ports' fault
+    of §3.9.6, which every clock byte made certain; its fix cures it (tests on both sides, `g2plugintest
+    --midi-tempo` passes as a VST3 and an Audio Unit).
 17. Output level convention (x8) unverified against hardware; latency 26-32 ms against about 2 ms on a G2.
     (Until 2026-10-11 the emulated lines between the DSPs added to it with every patch upload, up to 8 ms over a
     session: fixed, g2-hardware-and-emulation.md §3.11.4.)
@@ -194,7 +194,7 @@ Date: 2026-10-11, at commit 775fc55. Nothing in the repository was changed.
 | Sysex in | Patch and performance dumps over MIDI IN [M p.131-]; studios store sounds this way [M p.16] | **Since 2026-10-13** passed to the G2's MIDI IN at the cable's rate; a dump loads, the requests are answered [Measured, Notes §3.12.3] | Matches. Three dumps without a pause did not all load [emulated]: whether a G2 needs the pause is not known | Low | Check on a G2 |
 | Real-time bytes in | One cable: a sequencer or merger sends clock between the bytes of a dump | The host's clock and the track's MIDI are merged onto the emulated cable; a tick due during a System Exclusive message goes between its bytes [Notes §3.12.4] | A deliberate model of the merger (README, deviations) | – | – |
 | Active Sensing | Not sent [Measured]; FE and FF ignored on input [C 0x30011F5E] | Passed to the OS, which ignores it | Matches | – | – |
-| **Notes after an external MIDI clock** | A G2 slaved to a sequencer's clock plays | [Measured 2026-10-13] once the OS has followed an external clock, **new notes are silent** (held ones go on), also after the clock ended; a patch load after that can send DSP A6 into P memory without code and hang the OS. With 1 or 2 threads, G2 or G2X, with the old transmitter too, and on the code before the MIDI OUT work (f7c5667) [Notes §3.12.6]. [Measured 2026-10-14, test host] in the plugin with "Follows the Host's Tempo" on: the patch's MIDI modules fire by themselves with garbage values, notes and dump requests fail, DSP 3 crashes (VST3 and Audio Unit) | **An emulator fault**, found while testing sysex through a clock: "Follows the Host's Tempo" is unusable | **High** | Find what the OS sends the DSPs on an external tick and why it breaks (hidden test `[.clock-silence]`, `g2plugintest --midi-tempo`); until then keep the option off |
+| **Notes after an external MIDI clock** | A G2 slaved to a sequencer's clock plays | [Measured 2026-10-13] once the OS has followed an external clock, **new notes are silent** (held ones go on), also after the clock ended; a patch load after that can send DSP A6 into P memory without code and hang the OS. With 1 or 2 threads, G2 or G2X, with the old transmitter too, and on the code before the MIDI OUT work (f7c5667) [Notes §3.13.6]. [Measured 2026-10-14, test host] in the plugin with "Follows the Host's Tempo" on: the patch's MIDI modules fire by themselves with garbage values, notes and dump requests fail, DSP 3 crashes (VST3 and Audio Unit). **Fixed 2026-10-14** with the host ports' fault (§3.9.6): notes sound after the clock, a patch loads after it [Emulated: tests in test_midi_out.cpp and test_g2emu.cpp, failing on f7c5667], `g2plugintest --midi-tempo` passes as a VST3 and an Audio Unit | **Closed**: an emulator fault, found while testing sysex through a clock | — | A slaved real G2 to compare with, when one is available |
 | MIDI LED | Long blink for used messages, short for ignored ones [M p.26] | OS-driven (`PluginProcessor.cpp:318`) | Matches | – | – |
 
 ### 6. Memory, startup, performance and slots

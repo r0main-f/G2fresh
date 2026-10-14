@@ -2231,31 +2231,25 @@ dump, it keeps its turn (Song Position then Continue, a note then Stop: their or
   (32 kB, more than a performance dump given in one block); a message that does not fit whole is dropped whole,
   so the G2 never gets the start of a block without its end.
 
-### 3.13.6 Open: an external MIDI clock breaks the emulated G2
+### 3.13.6 Fixed: an external MIDI clock broke the emulated G2
 
-Found while sending a dump through a running clock; not MIDI OUT's, not fixed. **Once the OS has followed an
-external MIDI clock (a few quarter notes of F8 at 100 BPM, "Ext 99" on its display), new notes are silent**: on
-MIDI IN and from the panel's keys (which still send their notes on MIDI OUT). A note held from before the clock
-goes on sounding. It stays so after the clock has ended and the OS is back on its own tempo. A patch load after
-that (over USB, or a dump) sometimes sends DSP A6 to P:$040000, where there is no code, and the OS then hangs (it
-stops reading its UART). The same with the transmitter as it was before this work, with one thread and with two,
-as a G2 and as a G2X, with and without a MIDI Start first. A real G2 slaved to a sequencer plays, so this is the
-emulator's: something the OS sends its DSPs with every tick of an external clock goes wrong (the host port's
-ordering under the UART's interrupt, at level 4 above the tick's?). Reproduction: the hidden test case
-`[.clock-silence]` in `tests/test_midi_out.cpp`.
+**Fixed 2026-10-14 by the host ports' rule of §3.9.6** (a status read finds the DSP past what the host wrote before
+it). Every clock byte (F8) on MIDI IN has the OS's interrupt save and restore the host ports, which made that fault
+certain within a second of clock, on one thread as with DSP threads. Tests: "notes still sound after it followed an
+external MIDI clock, and a patch loads after it" in `tests/test_midi_out.cpp` (fails on f7c5667: peak 0 after the
+clock), and "notes still sound after it has followed an external MIDI clock" in `tests/test_g2emu.cpp` (the rule off:
+it fails). `g2plugintest <plugin> --midi-tempo <patch>` passes as a VST3 and as an Audio Unit (2026-10-14, a busy
+computer: real-time checks unverified).
 
-**Older than the MIDI OUT work** (checked 2026-10-14): the same case built from the code before it (f7c5667, the
-transmitter always ready, no merge of real-time bytes into System Exclusive) gives a peak of 0.1247 before the
-clock, "Ext  99" on the display, then 0.0000 after the clock and 0.0000 three seconds later.
-
-**It shows in the plugin: Emulated G2 Follows the Host's Tempo is unusable.** `g2plugintest <plugin>
---midi-tempo <patch>` (the `--midi` checks with the option on and a transport at 100 BPM): as a VST3, the patch's
-MIDI modules fire by themselves from the first seconds, with values nobody set (`81 00 00`, `B2 15 03`, `C3 03`,
-`91 00 67`, `B2 15 59`, `C3 59`: 3602 messages in 10 s, a full cable), a note in no longer gives NoteSend's
-message, a patch request gives fragments instead of a dump, and after the dump went back in DSP 3 jumped to
-P:$040000. As an Audio Unit, DSP 3 jumped there while the G2 was starting, and nothing came out at all. Without the
-option (`--midi`) the same patch passes every check. The option is off by default; until this is found, it should
-stay off (README).
+What it was, as found: **once the OS had followed an external MIDI clock (a few quarter notes of F8 at 100 BPM,
+"Ext 99" on its display), new notes were silent**, on MIDI IN and from the panel's keys (which still sent their
+notes on MIDI OUT). A note held from before the clock went on sounding, and it stayed so after the clock had ended.
+A patch load after that sometimes sent DSP A6 to P:$040000, where there is no code, and the OS then hung. The same
+with one thread and two, as a G2 and as a G2X, with and without a MIDI Start first, and on the code before the MIDI
+OUT work (f7c5667: a peak of 0.1247 before the clock, 0.0000 after it and three seconds later). In the plugin, with
+Emulated G2 Follows the Host's Tempo on, the patch's MIDI modules fired by themselves with values nobody set
+(`81 00 00`, `B2 15 03`, `C3 03`...: 3602 messages in 10 s), a note in no longer gave NoteSend's message, a patch
+request gave fragments, and DSP 3 jumped to P:$040000 (as an Audio Unit, while the G2 was starting).
 
 ### 3.13.7 Not done, not known
 
