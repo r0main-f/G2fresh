@@ -1,6 +1,7 @@
 #include "AreaView.h"
 
 #include "AssignMenus.h"
+#include "IncDec.h"
 #include "ModernIcons.h"
 #include "ModuleBrowser.h"
 #include "SpecialControls.h"
@@ -20,6 +21,15 @@ const juce::String kModuleDragPrefix = "g2module:";
 bool isEditable(const PanelElement& e)
 {
     return ModulePainter::isControl(e) || SpecialControls::isSpecial(e);
+}
+
+// Whether a point of a module is in a knob's control: its sprite, or the inc/dec pair below it.
+bool inKnobControl(const PanelElement& e, juce::Point<int> local)
+{
+    if (e.kind != "Knob")
+        return false;
+    const auto k = incDecKnob(e.type.toStdString());
+    return k && incDecControlSize(*k).contains(local.x - e.x, local.y - e.y);
 }
 
 // The parameter a control focuses: knobs, sliders and buttons do (CPnlKnobSliderABC::OnClick @000cb9b0,
@@ -113,10 +123,16 @@ AreaView::AreaView(PatchDocument& doc, g2::Location location)
     doc_.addChangeListener(this);
     updateSize();
     settingsChanged();
+    // Held, the inc/dec pair steps again after 400 ms, then every 70 ms (CPnlControl::UpDownIdleHandler @000c8ae4).
+    incDecRepeat_.onTick = [this] {
+        incDecRepeat_.startTimer(kIncDecRepeatMs);
+        stepIncDec();
+    };
 }
 
 AreaView::~AreaView()
 {
+    incDecRepeat_.stopTimer();
     stopTimer();
     doc_.removeChangeListener(this);
 }
@@ -232,7 +248,10 @@ ModuleContext AreaView::context(const g2::Module& m) const
 {
     const auto f = doc_.focus();
     return {doc_.patch(), location_, m, doc_.focusedVariation(), ModulePainter::panelFor(m), currentLook(),
-            doc_.focusedMorphGroup(), f.location == location_ && f.module == m.index ? f.param : -1};
+            doc_.focusedMorphGroup(), f.location == location_ && f.module == m.index ? f.param : -1,
+            incDec_ && incDec_->module == m.index && f.location == location_ && f.module == m.index && f.param == incDec_->param
+                ? incDec_->delta
+                : 0};
 }
 
 juce::Point<int> AreaView::gridCell(juce::Point<int> p) const
@@ -252,7 +271,7 @@ AreaView::Hit AreaView::hitAt(juce::Point<int> p) const
         if (const auto* panel = ModulePainter::panelFor(*it))
             for (const auto& e : panel->elements)
                 if ((ModulePainter::isJack(e) || isEditable(e) || e.kind == "TextField")
-                    && ModulePainter::elementBounds(e).expanded(1).contains(h.local)) {
+                    && (ModulePainter::elementBounds(e).expanded(1).contains(h.local) || inKnobControl(e, h.local))) {
                     h.element = &e;
                     break;
                 }
@@ -846,6 +865,16 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
             selectFocused(dragHit_.module);
         }
         const auto* m = doc_.patch().area(location_).find(dragHit_.module);
+        // The inc/dec pair under a knob: a step on mouse-down, then again while held; Option steps the morph range
+        // (CPnlControl::UpDownOnClickHandler @000c8970).
+        if (const auto k = dragHit_.element->kind == "Knob" ? incDecKnob(dragHit_.element->type.toStdString()) : std::nullopt;
+            m && k && !e.mods.isCommandDown()) {
+            const auto part = incDecAt(*k, dragHit_.local.x - dragHit_.element->x, dragHit_.local.y - dragHit_.element->y);
+            if (part != IncDecPart::None) {
+                startIncDec(dragHit_, part == IncDecPart::Inc ? +1 : -1, e.mods.isAltDown());
+                return;
+            }
+        }
         dragStartValue_ = m ? ModulePainter::value(context(*m), *dragHit_.element).value_or(0) : 0;
         drag_ = dragHit_.element->kind == "Knob" ? Drag::Value : Drag::None;
         // A push button (sequencer Clr/Rnd, momentary switches): 1 while
@@ -1017,8 +1046,41 @@ void AreaView::mouseDrag(const juce::MouseEvent& e)
     }
 }
 
+void AreaView::startIncDec(const Hit& h, int delta, bool morph)
+{
+    incDec_ = {h.module, static_cast<std::uint8_t>(h.element->codeRef), delta, morph, ++incDecPresses_};
+    stepIncDec();
+    incDecRepeat_.startTimer(kIncDecFirstRepeatMs);
+}
+
+void AreaView::stepIncDec()
+{
+    if (!incDec_)
+        return;
+    const auto press = *incDec_;
+    const g2::focus::Focus f{location_, press.module, press.param};
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    const auto group = static_cast<std::uint8_t>(doc_.focusedMorphGroup());
+    // One press, held or not, is one undo step (CPanel::CtrlClick then CtrlRelease record one pair).
+    doc_.performCoalesced("Inc/dec " + juce::String(press.id), [&](g2::Patch& p) {
+        if (!(press.morph ? g2::focus::stepMorph(p, f, variation, group, press.delta)
+                          : g2::focus::stepValue(p, f, variation, press.delta)))
+            throw std::invalid_argument("at the end of its range");
+    });
+    if (const auto* m = doc_.patch().area(location_).find(press.module); m && dragHit_.element)
+        status(describe(dragHit_));
+    repaintModules();
+}
+
 void AreaView::mouseUp(const juce::MouseEvent& e)
 {
+    if (incDec_) {
+        incDec_.reset();
+        incDecRepeat_.stopTimer();
+        doc_.endCoalescing();
+        repaintModules();
+        return;
+    }
     const Drag drag = std::exchange(drag_, Drag::None);
     doc_.endCoalescing();
     // A held jack's chain is lit only while it is held (CPanel::HoleRelease).

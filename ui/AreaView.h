@@ -199,6 +199,23 @@ private:
     std::vector<g2::Cable> chain_;
     // While a jack is held: its serial chain, light blue (CPatchBackground::CableHighLight).
     std::vector<g2::Cable> heldChain_;
+    // A knob's inc/dec pair held: which parameter, which way, whether Option made it a morph step, and the press's
+    // number (each press is one undo step).
+    struct IncDecPress {
+        std::uint8_t module = 0, param = 0;
+        int delta = 0;
+        bool morph = false;
+        int id = 0;
+    };
+    void startIncDec(const Hit& h, int delta, bool morph);
+    void stepIncDec();
+    std::optional<IncDecPress> incDec_;
+    int incDecPresses_ = 0;
+    struct Repeat : juce::Timer {
+        std::function<void()> onTick;
+        void timerCallback() override { onTick(); }
+    };
+    Repeat incDecRepeat_;
     const LiveLeds* liveLeds_ = nullptr;
     std::uint32_t ledGeneration_ = 0;
     juce::Rectangle<int> cableBounds_; // what the cables covered at the last paint
