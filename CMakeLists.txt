@@ -5,7 +5,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 # Windows: the C++ runtime inside the binaries, so they need no Visual C++
 # redistributable on the user's machine (for every target, the fetched ones too).
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-project(G2fresh VERSION 0.10.2 LANGUAGES C CXX)
+project(G2fresh VERSION 0.11.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
