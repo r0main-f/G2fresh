@@ -25,6 +25,7 @@ struct ModuleContext {
     const PanelDef* panel = nullptr; // nullptr: draw a plain box
     Look look = Look::Modern;
     int morphGroup = 0; // the focused morph group (PatchDocument::focusedMorphGroup)
+    int focusedParam = -1; // the module's parameter that has the patch's focus (PatchDocument::focus), or -1
 };
 
 // How a parameter's morphs show: the group whose colour (and knob sprite
@@ -71,6 +72,7 @@ public:
     static const std::array<int, kModuleColours>& moduleColourMenuOrder();
 
 private:
+    static void paintFocus(juce::Graphics& g, const ModuleContext& c);
     static void paintElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted);
     static void paintModern(juce::Graphics& g, const ModuleContext& c, const PanelElement* highlighted);
     static void paintModernElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted);

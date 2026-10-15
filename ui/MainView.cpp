@@ -161,6 +161,7 @@ MainView::MainView(PatchDocument& doc, bool standalone)
             menuItemsChanged();
         };
         area->onZoom = [this, area](float factor, juce::Point<int> where) { setZoom(zoom_ * factor, area, where); };
+        area->onArrowKey = [this](const juce::KeyPress& key) { return keyPressed(key); };
     }
     vaPort_.setViewedComponent(&vaZoom_, false);
     fxPort_.setViewedComponent(&fxZoom_, false);
@@ -1105,6 +1106,23 @@ void MainView::resized()
 
 bool MainView::keyPressed(const juce::KeyPress& key)
 {
+    const int code = key.getKeyCode();
+    if (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey || code == juce::KeyPress::leftKey
+        || code == juce::KeyPress::rightKey) {
+        const auto arrow = code == juce::KeyPress::upKey     ? Arrow::Up
+                         : code == juce::KeyPress::downKey   ? Arrow::Down
+                         : code == juce::KeyPress::leftKey   ? Arrow::Left
+                                                             : Arrow::Right;
+        const auto m = key.getModifiers();
+#if JUCE_MAC
+        const FocusMods mods{m.isShiftDown(), m.isAltDown(), m.isCommandDown() || m.isCtrlDown()};
+#else
+        const FocusMods mods{m.isShiftDown(), m.isCtrlDown(), m.isAltDown()}; // the manual's Ctrl (p115)
+#endif
+        const bool repeat = heldArrow_ == code;
+        heldArrow_ = code;
+        return focusKeyPressed(focusKey(arrow, mods, repeat, mutator_ && mutator_->isVisible()));
+    }
     const auto cmd = juce::ModifierKeys::commandModifier;
     if (key == juce::KeyPress('z', cmd, 0))
         return doc_.undo(), true;
@@ -1152,6 +1170,90 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         if (key == juce::KeyPress('1' + i, cmd, 0))
             return doc_.setVariation(i), true;
     return false;
+}
+
+bool MainView::keyStateChanged(bool)
+{
+    if (heldArrow_ != 0 && !juce::KeyPress::isKeyCurrentlyDown(heldArrow_)) {
+        heldArrow_ = 0;
+        // Releasing the key releases a push button Up pressed (CPatchView::KeyRelParamValue @000f8474 ->
+        // CPanel::CtrlRelease @000c0794).
+        if (const auto f = std::exchange(heldButton_, std::nullopt)) {
+            const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+            doc_.performMomentary([f = *f, variation](g2::Patch& p) {
+                g2::edit::setParam(p, f.location, f.module, f.param, variation, 0);
+            });
+        }
+    }
+    return false;
+}
+
+bool MainView::focusKeyPressed(FocusKey key)
+{
+    using Action = FocusKey::Action;
+    const auto f = doc_.focus();
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    const auto name = [&] { return juce::String(f.location == g2::Location::Settings ? 0 : static_cast<int>(f.location)) + ":"
+                                   + juce::String(f.module) + ":" + juce::String(f.param); };
+    switch (key.action) {
+    case Action::None:
+        return false;
+    case Action::StepValue:
+        if (f.location != g2::Location::Settings && g2::edit::isMomentary(doc_.patch(), f.location, f.module, f.param)) {
+            // A push button: Up presses it until the key is released; Down, at 0, does nothing.
+            if (key.delta > 0 && !heldButton_) {
+                heldButton_ = f;
+                doc_.performMomentary([f, variation](g2::Patch& p) {
+                    g2::edit::setParam(p, f.location, f.module, f.param, variation, 1);
+                });
+            }
+            return true;
+        }
+        // The original records no undo step for the arrow keys; G2fresh makes the steps on one parameter one undo
+        // step (a deliberate deviation, README).
+        doc_.performCoalesced("Key value " + name(), [&](g2::Patch& p) {
+            if (!g2::focus::stepValue(p, f, variation, key.delta))
+                throw std::invalid_argument("at the end of its range");
+        });
+        break;
+    case Action::NextParam:
+        doc_.setFocus(key.delta > 0 ? g2::focus::nextParam(doc_.patch(), f) : g2::focus::previousParam(doc_.patch(), f));
+        break;
+    case Action::NavModule:
+        doc_.setFocus(g2::focus::navModule(doc_.patch(), f, key.direction));
+        break;
+    case Action::StepMorph: {
+        const auto group = static_cast<std::uint8_t>(doc_.focusedMorphGroup());
+        doc_.performCoalesced("Key morph " + name(), [&](g2::Patch& p) {
+            if (!g2::focus::stepMorph(p, f, variation, group, key.delta))
+                throw std::invalid_argument("no morph step");
+        });
+        break;
+    }
+    }
+    showFocus();
+    return true;
+}
+
+void MainView::showFocus()
+{
+    const auto f = doc_.focus();
+    if (f.location != g2::Location::Settings) {
+        auto& area = f.location == g2::Location::Va ? va_ : fx_;
+        if (!area.selection().empty() && area.selection() == std::vector<std::uint8_t>{f.module})
+            return showFocusStatus();
+        (&area == &va_ ? fx_ : va_).clearSelection(); // one selection for the patch
+        area.selectFocused(f.module);
+    }
+    showFocusStatus();
+}
+
+void MainView::showFocusStatus()
+{
+    const auto f = doc_.focus();
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    setStatus(juce::String(g2::edit::targetName(doc_.patch(), f)) + ": "
+              + juce::String(g2::edit::targetText(doc_.patch(), f, variation)));
 }
 
 // ---- Synth ----------------------------------------------------------------------

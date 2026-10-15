@@ -464,6 +464,17 @@ void SynthSync::patchEdited(int slot, const g2::live::Edit* edit, bool undo)
     push(slot, edit, undo);
 }
 
+void SynthSync::paramFocused(int slot, const g2::focus::Focus& focus)
+{
+    // A realtime 2F (CPatch::InternalSetFocus @000d5bfa), only when the focus moves.
+    if (!bound() || !ready() || (binding_ == Binding::Patch) == doc_.isPerformance())
+        return;
+    const int synthSlot = synthSlotFor(slot);
+    if (synthSlot < 0 || !live_[static_cast<std::size_t>(synthSlot)])
+        return;
+    link_->selectParam(synthSlot, focus.location, focus.module, focus.param);
+}
+
 void SynthSync::send(int synthSlot, const std::vector<g2::proto::Outgoing>& out)
 {
     using namespace g2::proto;

@@ -40,6 +40,8 @@ public:
     void deleteHighlightedCable();
     const std::vector<std::uint8_t>& selection() const { return selection_; }
     void selectAll();
+    // The module the parameter focus moved to: selected alone unless it is selected already.
+    void selectFocused(std::uint8_t module);
     void clearSelection();
     void deleteSelected();
     g2::edit::Clipboard copySelection() const;
@@ -54,6 +56,8 @@ public:
     }
     // Called when the user clicks in this area (it becomes the paste target).
     std::function<void(AreaView*)> onActivated;
+    // The arrow keys, for the patch window's parameter focus (its viewport would scroll with them).
+    std::function<bool(const juce::KeyPress&)> onArrowKey;
     // Adds a module at the first free row of the first column, or at `where`.
     void addModule(std::uint8_t type, std::optional<juce::Point<int>> where = std::nullopt);
     // Adds a module from the module bar (double-click or Return), where the

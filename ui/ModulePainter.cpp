@@ -437,6 +437,23 @@ void ModulePainter::paint(juce::Graphics& g, const ModuleContext& c, const Panel
     if (c.panel)
         for (const auto& e : c.panel->elements)
             paintElement(g, c, e, &e == highlighted);
+    paintFocus(g, c);
+}
+
+void ModulePainter::paintFocus(juce::Graphics& g, const ModuleContext& c)
+{
+    // The focused parameter's control in the focused frame colour, kBtnFrameFocused = RGB(255,255,255): the
+    // original frames a focused button so, and shows a focused knob's inc/dec pair in it (CABCKnobGUI::
+    // DrawKnobUpDowns @0007bfee). Until G2fresh draws that pair, knobs and sliders take the frame too.
+    if (c.focusedParam < 0 || !c.panel)
+        return;
+    for (const auto& e : c.panel->elements)
+        if (e.codeRef == c.focusedParam && e.kind != "PartSelector" && e.kind != "TextField"
+            && (isControl(e) || SpecialControls::isSpecial(e))) {
+            g.setColour(juce::Colours::white);
+            g.drawRect(elementBounds(e).expanded(1), 1);
+            return;
+        }
 }
 
 void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted)
@@ -697,6 +714,7 @@ void ModulePainter::paintModern(juce::Graphics& g, const ModuleContext& c, const
     for (const auto& e : c.panel->elements)
         if (e.kind != "Text" && e.kind != "Line" && e.kind != "Symbol" && e.kind != "Bitmap")
             paintModernElement(g, c, e, &e == highlighted);
+    paintFocus(g, c);
 }
 
 void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e,

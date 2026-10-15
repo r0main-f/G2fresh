@@ -144,7 +144,12 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - Morphed sliders in the Classic look and morphed increment/decrement buttons show no morph colour (the original colours them).
 - The morph dial's pop-up has no Global Assign (no global knobs yet).
 - Additions with no original equivalent: zoom; a click on a cord highlights its chain, and Delete removes that chain; a cord's pop-up menu (Chain Colour, Delete Chain, bend points); cable bend points (saved next to the patch, never in it); USB log redaction; Options > Forward MIDI to a Hardware G2 (the MIDI the plugin gets, sent to a MIDI port into a real G2; not the Emulated G2's MIDI OUT, which is the plugin's MIDI output).
-- The morph range shows in the status line while dragging. There are no F5/F7 overlays, no hint box, and no Ctrl+Up/Down range keys.
+- The morph range shows in the status line while dragging. There are no F5/F7 overlays and no hint box.
+- The parameter focus and its keys are the original's: a click on a control focuses it and selects its module; Up/Down step the value, Left/Right walk the module's parameters, Shift with the arrows goes to the neighbouring module, Option (Ctrl on Windows and Linux) with Up/Down steps the morph range in the focused group. What differs:
+  - The arrow keys' steps on one parameter are one undo step; the original records none for them.
+  - The focused control has a white frame. The original shows a focused knob's or slider's inc/dec buttons instead, which G2fresh does not draw yet.
+  - While the Patch Mutator's window is open, the plain arrows do nothing: the original gives them to its Mutator, and G2fresh's Mutator has no use for them yet.
+  - A focus change the synth sends (2F) is not shown yet.
 - The parameter pop-up's Morph Assign item names the group it acts on.
 - The Reverb's room type reads Small, Medium, Large or Hall everywhere, as on its panel and in the manual. The original's value text says Room, Hall, Plate or Gate.
 - Synth Settings has the original's fields, texts and behaviour in G2fresh's look. Its five Global Octave Shift buttons are labelled -2 to +2 (the original's dialog resource gives them no text).

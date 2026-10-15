@@ -4,12 +4,14 @@
 #pragma once
 
 #include "g2/edit.hpp"
+#include "g2/focus.hpp"
 #include "g2/live.hpp"
 #include "g2/patch.hpp"
 
 #include <juce_data_structures/juce_data_structures.h>
 #include <juce_events/juce_events.h>
 
+#include <array>
 #include <functional>
 #include <optional>
 
@@ -28,6 +30,8 @@ public:
     public:
         virtual ~EditListener() = default;
         virtual void patchEdited(int slot, const g2::live::Edit* edit, bool undo) = 0;
+        // The slot's parameter focus moved (the original sends it as a realtime 2F, CMParamFocusDump).
+        virtual void paramFocused(int /*slot*/, const g2::focus::Focus& /*focus*/) {}
     };
     void setEditListener(EditListener* l) { editListener_ = l; }
 
@@ -85,6 +89,11 @@ public:
     // saved; group 1 at start.
     int focusedMorphGroup() const { return morphGroup_; }
     void setFocusedMorphGroup(int group);
+    // The parameter focus of the patch being edited (g2/focus.hpp): one per patch, shared by its areas and
+    // settings, Morph dial 1 at first and after a load. Not an undo step and not saved. A focus whose module
+    // goes back to Morph dial 1 without a message, as the original's CPatch::RemoveFocusFrom @000da8bc.
+    g2::focus::Focus focus() const { return focus_[static_cast<std::size_t>(perf_ ? slot_ : 0)]; }
+    void setFocus(const g2::focus::Focus& f);
 
     // File handling. load* replace the document and clear the undo history.
     void newPatch();
@@ -185,6 +194,8 @@ private:
     Step* lastStep_ = nullptr; // the step a coalesced edit extends
     int variation_ = 0;
     int morphGroup_ = 0;
+    std::array<g2::focus::Focus, 4> focus_{g2::focus::kDefault, g2::focus::kDefault, g2::focus::kDefault,
+                                           g2::focus::kDefault};
     juce::File file_;
     juce::String name_ = "New patch"; // patch name (performances use slot names)
     juce::String perfName_ = "Performance";

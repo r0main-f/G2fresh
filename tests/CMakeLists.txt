@@ -40,6 +40,7 @@ add_executable(g2tests
   test_clavia.cpp
   test_synth_settings.cpp
   test_live_show.cpp
+  test_focus_keys.cpp
   test_benchpack.cpp
 )
 target_link_libraries(g2tests PRIVATE g2bridgelib g2engine g2clavia Catch2::Catch2WithMain) # g2proto and g2core come with it
