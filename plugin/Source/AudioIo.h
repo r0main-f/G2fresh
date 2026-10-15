@@ -66,10 +66,11 @@ inline constexpr float kAdcPerUnit = 0.25f;
 enum class Buffer { Low = 0, Normal = 1, Safe = 2 };
 inline constexpr int kBuffers = 3;
 inline constexpr double kReserveLowMs = 2.0, kReserveNormalMs = 6.0, kReserveSafeMs = 21.0;
-// Where nothing else is chosen: Safe. PROVISIONAL, as are Low's and Normal's reserves: they were only measured on a
-// computer that other work kept busy (re/notes/audio-path.md, part 3); the default and the reserves follow from
-// tools/audiopath/sweep.py on a quiet one.
-inline constexpr Buffer kDefaultBuffer = Buffer::Safe;
+// Where nothing else is chosen: Normal. tools/audiopath/sweep.py on an M1 (2026-10-14, re/notes/audio-path.md §3.6):
+// no quiet run took more than 2.67 ms of its reserve, none beside six busy programs more than 0.08 ms; beside a host's
+// busy audio threads or a second emulated G2 all of the audio was lost with Safe's 21 ms as well, so Safe's extra
+// 15 ms bought nothing measured. Low took more than its 2 ms once (2.67 ms: a heavy patch, 32-frame blocks).
+inline constexpr Buffer kDefaultBuffer = Buffer::Normal;
 // The least the emulated G2 computes in one run, in milliseconds: with a host block shorter than this it takes the
 // block's place in the latency (g2emu::Runner::Options::stretchMs). One millisecond: only blocks of fewer than 48
 // samples at 48 kHz are shorter.
