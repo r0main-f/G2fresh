@@ -170,6 +170,7 @@ private:
     void showFocus();
     void showFocusStatus();
     int heldArrow_ = 0;
+    int heldKey_ = 0; // the last key pressed and still held, to tell its auto-repeat
     std::optional<g2::focus::Focus> heldButton_;
     AreaView va_, fx_;
     ZoomHolder vaZoom_{va_}, fxZoom_{fx_};
