@@ -9,6 +9,7 @@
 #include "LiveShow.h"
 #include "PatchLibrary.h"
 #include "SynthSettingsWindow.h"
+#include "ZoomFit.h"
 
 #include "g2/patch_load.hpp"
 
@@ -22,7 +23,7 @@ enum MenuId {
     kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
-    kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables,
+    kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -561,6 +562,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kZoomIn, "Zoom In", kCmd + "+", zoom_ < kMaxZoom));
         m.addItem(item(kZoomOut, "Zoom Out", kCmd + "-", zoom_ > kMinZoom));
         m.addItem(item(kZoomReset, "Actual Size", kCmd + "0"));
+        m.addItem(item(kZoomFit, "Zoom to Fit", kShift + kCmd + "0"));
         m.addSeparator();
         m.addItem(item(kShowSettings, "Show Patch Settings", {}, true, !settings_.isCollapsed()));
         juce::PopupMenu cables;
@@ -818,6 +820,7 @@ void MainView::menuItemSelected(int id, int)
     case kZoomIn: setZoom(zoom_ * 1.25f); break;
     case kZoomOut: setZoom(zoom_ / 1.25f); break;
     case kZoomReset: setZoom(1.0f); break;
+    case kZoomFit: zoomToFit(); break;
     case kShowSettings: settings_.setCollapsed(!settings_.isCollapsed()); break;
     case kClassicLook: setLook(currentLook() == Look::Classic ? Look::Modern : Look::Classic); break;
     case kAnimateCables: setAnimation(!cableAnimation()); break;
@@ -931,6 +934,19 @@ void MainView::setAnimation(bool on)
 }
 
 // ---- Zoom ----------------------------------------------------------------------
+
+void MainView::zoomToFit()
+{
+    // G2fresh's own (ZoomFit.h): the largest zoom at which both areas' modules fit their panes, from their tops.
+    std::vector<FitArea> areas;
+    for (auto [view, port] : {std::pair<AreaView*, juce::Viewport*>{&va_, &vaPort_}, {&fx_, &fxPort_}}) {
+        const auto extent = view->contentExtent();
+        areas.push_back({extent.x, extent.y, port->getViewWidth(), port->getViewHeight()});
+    }
+    setZoom(fitZoom(areas, kMinZoom, kMaxZoom, 12));
+    vaPort_.setViewPosition(0, 0);
+    fxPort_.setViewPosition(0, 0);
+}
 
 void MainView::setZoom(float zoom, const AreaView* area, std::optional<juce::Point<int>> anchor, bool remember)
 {
@@ -1215,6 +1231,8 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return setZoom(zoom_ / 1.25f), true;
     if (key == juce::KeyPress('0', cmd, 0))
         return setZoom(1.0f), true;
+    if (key == juce::KeyPress('0', cmd | juce::ModifierKeys::shiftModifier, 0) || key == juce::KeyPress(')', cmd | juce::ModifierKeys::shiftModifier, 0))
+        return zoomToFit(), true;
     for (int i = 0; i < g2::kUserVariations; ++i)
         if (key == juce::KeyPress('1' + i, cmd, 0))
             return doc_.setVariation(i), true;

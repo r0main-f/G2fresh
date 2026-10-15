@@ -230,6 +230,16 @@ void AreaView::updateSize()
     setSize(std::max(cols * kModuleWidth, minWidth_), std::max(rows * kRowHeight, minHeight_));
 }
 
+juce::Point<int> AreaView::contentExtent() const
+{
+    juce::Point<int> extent;
+    for (const auto& m : doc_.patch().area(location_).modules) {
+        const auto b = ModulePainter::moduleBounds(m);
+        extent = {std::max(extent.x, b.getRight()), std::max(extent.y, b.getBottom())};
+    }
+    return extent;
+}
+
 std::optional<juce::Point<int>> AreaView::focusPoint() const
 {
     if (const auto* m = touched_ ? doc_.patch().area(location_).find(touched_) : nullptr)
