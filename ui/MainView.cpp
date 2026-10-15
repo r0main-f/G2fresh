@@ -22,10 +22,11 @@ enum MenuId {
     kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
-    kAudioSettings, kRemoveBendPoints, kLiveMode,
+    kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
+    kCableStyleBase = 310,    // + CableStyle
     kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
     kMidiChannelBase = 600,   // + channel (0: as played)
     kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog,
@@ -567,6 +568,14 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         for (int c = 0; c < 7; ++c)
             cables.addItem(item(kCablesBase + c, names[c], {}, true, doc_.patch().header.cablesVisible[static_cast<std::size_t>(c)]));
         m.addSubMenu("Show Cables", cables);
+        // The original's H and S buttons and their keys (Space, Control+Space).
+        m.addItem(item(kHideAllCables, "Hide All Cables", "Space", true, !doc_.cablesShown()));
+        m.addItem(item(kShakeCables, "Shake Cables", "Ctrl+Space", isCurved(cableStyle())));
+        juce::PopupMenu styles;
+        static const char* const styleNames[4] = {"Straight 3D", "Curved 3D", "Straight Thin", "Curved Thin"};
+        for (int s = 0; s < 4; ++s)
+            styles.addItem(item(kCableStyleBase + s, styleNames[s], {}, true, static_cast<int>(cableStyle()) == s));
+        m.addSubMenu("Cable Style", styles);
         m.addItem(item(kRemoveBendPoints, "Remove All Bend Points", {}, g2::edit::hasCableBends(doc_.patch())));
         m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic));
         m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation()));
@@ -741,6 +750,13 @@ void MainView::menuItemSelected(int id, int)
         midiOut_->setChannel(id - kMidiChannelBase);
         return;
     }
+    if (id >= kCableStyleBase && id < kCableStyleBase + 4) {
+        setCableStyle(cableStyleFromSetting(id - kCableStyleBase));
+        va_.settingsChanged();
+        fx_.settingsChanged();
+        menuItemsChanged();
+        return;
+    }
     if (id >= kCablesBase && id < kCablesBase + 7) {
         const auto colour = static_cast<g2::CableColor>(id - kCablesBase);
         const bool visible = !doc_.patch().header.cablesVisible[static_cast<std::size_t>(colour)];
@@ -805,6 +821,11 @@ void MainView::menuItemSelected(int id, int)
     case kShowSettings: settings_.setCollapsed(!settings_.isCollapsed()); break;
     case kClassicLook: setLook(currentLook() == Look::Classic ? Look::Modern : Look::Classic); break;
     case kAnimateCables: setAnimation(!cableAnimation()); break;
+    case kHideAllCables: doc_.toggleCablesShown(); break;
+    case kShakeCables:
+        va_.shakeCables();
+        fx_.shakeCables();
+        break;
     case kAudioSettings:
         if (onAudioSettings)
             onAudioSettings();
@@ -1113,6 +1134,26 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     // @000f93d4 -> CTBWindow::RouteKeySpec).
     if (!liveMode_ && browser_.routeKey(key, repeat))
         return true;
+    if (code == juce::KeyPress::spaceKey && !liveMode_ && !repeat) {
+        const auto m = key.getModifiers();
+#if JUCE_MAC
+        const SpaceMods mods{m.isCtrlDown(), m.isShiftDown(), m.isAltDown(), m.isCommandDown()};
+#else
+        const SpaceMods mods{m.isCtrlDown(), m.isShiftDown(), m.isAltDown(), false};
+#endif
+        switch (spaceKey(mods)) {
+        case SpaceAction::HideAll:
+            doc_.toggleCablesShown();
+            setStatus(doc_.cablesShown() ? "Cables shown" : "All cables hidden (Space shows them)");
+            return true;
+        case SpaceAction::Shake:
+            va_.shakeCables();
+            fx_.shakeCables();
+            return true;
+        case SpaceAction::None:
+            break;
+        }
+    }
     if (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey || code == juce::KeyPress::leftKey
         || code == juce::KeyPress::rightKey) {
         const auto arrow = code == juce::KeyPress::upKey     ? Arrow::Up

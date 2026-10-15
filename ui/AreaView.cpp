@@ -499,6 +499,10 @@ juce::Path AreaView::cablePath(juce::Point<float> a, juce::Point<float> b, std::
         path.cubicTo(m + t * tangent, b + (m - b) * 0.3f + juce::Point<float>(0.0f, std::min(25.0f, 0.2f * hb)), b);
         return path;
     }
+    if (!isCurved(cableStyle())) {
+        path.lineTo(b); // the straight styles: one segment between the jack centres
+        return path;
+    }
     if (currentLook() == Look::Classic) {
         // The original's cable: no gravity, its arms along the jack line, twisted by the area's seed and the jacks'
         // places, drawn as the points it samples (CRenderSnakeABC, ui/CableCurve.h).
@@ -519,9 +523,8 @@ juce::Path AreaView::cablePath(juce::Point<float> a, juce::Point<float> b, std::
 
 std::optional<g2::Cable> AreaView::cableAt(juce::Point<int> p) const
 {
-    const auto& header = doc_.patch().header;
     for (auto it = doc_.patch().area(location_).cables.rbegin(); it != doc_.patch().area(location_).cables.rend(); ++it) {
-        if (!header.cablesVisible[static_cast<std::size_t>(it->color)])
+        if (!showsCable(*it))
             continue;
         const auto a = jackCentre({it->fromModule, it->fromConn, it->fromIsOutput});
         const auto b = jackCentre({it->toModule, it->toConn, false});
@@ -552,16 +555,29 @@ std::optional<juce::Point<float>> AreaView::bendPoint(const g2::Cable& c) const
     return (ends->first + ends->second) * 0.5f + juce::Point<float>(c.bend->dx, c.bend->dy);
 }
 
+bool AreaView::showsCable(const g2::Cable& c) const
+{
+    return cableShown(doc_.cablesShown(), doc_.patch().header.cablesVisible[static_cast<std::size_t>(c.color)], false);
+}
+
+void AreaView::shakeCables()
+{
+    // CCableRenderer::Shake @0001a8ec: a new seed, in the curved styles only; nothing in the patch changes.
+    if (!isCurved(cableStyle()))
+        return;
+    cableSeed_ = juce::Random::getSystemRandom().nextInt(256);
+    overlay_->repaint();
+}
+
 std::optional<g2::Cable> AreaView::bendPointAt(juce::Point<int> p) const
 {
-    const auto& visible = doc_.patch().header.cablesVisible;
     const auto& cables = doc_.patch().area(location_).cables;
     // The highlighted cable's point first, then the topmost.
     if (const auto h = highlightedCable())
         if (const auto b = bendPoint(*h); b && b->getDistanceFrom(p.toFloat()) <= 8.0f)
             return h;
     for (auto it = cables.rbegin(); it != cables.rend(); ++it)
-        if (visible[static_cast<std::size_t>(it->color)])
+        if (showsCable(*it))
             if (const auto b = bendPoint(*it); b && b->getDistanceFrom(p.toFloat()) <= 6.0f)
                 return *it;
     return std::nullopt;
@@ -589,7 +605,12 @@ void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<f
                           std::optional<g2::CableBend> bend)
 {
     juce::Path path = cablePath(a, b, bend);
-    if (currentLook() == Look::Classic) {
+    if (cableWidth(cableStyle()) < 2.0f) {
+        // The thin styles: a flat line in the cable's colour (CRenderSlimSegmentABC).
+        g.setColour(c);
+        g.strokePath(path, juce::PathStrokeType(currentLook() == Look::Classic ? 1.01f : 1.4f, juce::PathStrokeType::curved,
+                                                juce::PathStrokeType::rounded));
+    } else if (currentLook() == Look::Classic) {
         // The original editor's style: a simple sagging curve with an outline.
         g.setColour(juce::Colours::black.withAlpha(0.6f));
         g.strokePath(path, juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
@@ -636,7 +657,6 @@ void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<f
 void AreaView::paintCables(juce::Graphics& g)
 {
     const bool flowing = cableAnimation();
-    const auto& visible = doc_.patch().header.cablesVisible;
     juce::Rectangle<float> covered;
     // With a highlighted chain, the other cables are dimmed and it is drawn last.
     const bool dimmed = highlighted_.has_value() || !heldChain_.empty();
@@ -645,8 +665,8 @@ void AreaView::paintCables(juce::Graphics& g)
     for (const auto& cable : doc_.patch().area(location_).cables) {
         if (listHas(heldChain_, cable) || listHas(chain_, cable) || (highlighted_ && sameEnds(cable, *highlighted_)))
             continue; // drawn on top below, even in a hidden colour
-        if (!visible[static_cast<std::size_t>(cable.color)])
-            continue; // hidden colour (View > Cables)
+        if (!showsCable(cable))
+            continue; // hidden: all cables (Space), or its colour (View > Show Cables)
         // Signals flow from the "from" end (an output, or the first input of
         // a link) to the input at the "to" end.
         const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});

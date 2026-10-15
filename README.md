@@ -139,6 +139,10 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 **Editor: what it shows**
 - G2fresh's own look: colours, an amber load threshold, the settings bar (its morph dials are focused by a click on their card), the drum preset menu.
 - The Classic look needs your copy of Clavia's download (see "The Classic look"); the original has its graphics built in. Without it, G2fresh shows its Modern look only.
+- Cables follow the original's Options > Cable Style (View > Cable Style: Straight 3D, Curved 3D, the default, Straight Thin, Curved Thin), Space hides or shows all cables (per patch, not saved, as the original's H button) and Control+Space shakes them (a new twist, curved styles only). What differs:
+  - They are View menu items, not the original's H and S buttons next to the colour buttons.
+  - Curved cables in the Classic look have the original's shape (no gravity, a seeded twist); the Modern look keeps its own hanging cables. Cables with bend points keep their shape.
+  - On macOS, Control+Space is the system's shortcut for the input source unless it is turned off: then View > Shake Cables is the way.
 - Animated cables: on by default (a choice made for G2fresh; the original's cables don't move). View > Animate Cables turns them off, and the choice is kept.
 - While a jack is held, its chain is highlighted as in the original, and the other cables are dimmed. What a drop will do is shown in the status line, not by the original's cursor shapes.
 - Morphed sliders in the Classic look and morphed increment/decrement buttons show no morph colour (the original colours them).

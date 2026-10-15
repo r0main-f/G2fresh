@@ -61,6 +61,7 @@ void PatchDocument::replace(int slot, const g2::Patch& p, const g2::live::Edit* 
 void PatchDocument::resetHistory()
 {
     focus_.fill(g2::focus::kDefault); // a new or loaded document (CPatch::CPatch @000d96d4)
+    cablesShown_.fill(true);
     undo_.clearUndoHistory();
     endCoalescing();
     lastStep_ = nullptr;
@@ -236,6 +237,13 @@ void PatchDocument::setFocus(const g2::focus::Focus& f)
     now = f;
     if (editListener_)
         editListener_->paramFocused(slot, f);
+    sendChangeMessage();
+}
+
+void PatchDocument::toggleCablesShown()
+{
+    auto& shown = cablesShown_[static_cast<std::size_t>(perf_ ? slot_ : 0)];
+    shown = !shown;
     sendChangeMessage();
 }
 

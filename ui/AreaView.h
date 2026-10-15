@@ -42,6 +42,8 @@ public:
     void selectAll();
     // The module the parameter focus moved to: selected alone unless it is selected already.
     void selectFocused(std::uint8_t module);
+    // Shake (Control+Space): a new twist for the area's curved cables.
+    void shakeCables();
     void clearSelection();
     void deleteSelected();
     g2::edit::Clipboard copySelection() const;
@@ -218,6 +220,7 @@ private:
     Repeat incDecRepeat_;
     // The area's cable twist (CCableRenderer+0x13): rand() & 0xFF when the area is made, never saved.
     int cableSeed_ = juce::Random::getSystemRandom().nextInt(256);
+    bool showsCable(const g2::Cable& c) const;
     const LiveLeds* liveLeds_ = nullptr;
     std::uint32_t ledGeneration_ = 0;
     juce::Rectangle<int> cableBounds_; // what the cables covered at the last paint
