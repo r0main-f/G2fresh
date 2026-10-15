@@ -74,6 +74,8 @@ public:
 
 private:
     static void paintFocus(juce::Graphics& g, const ModuleContext& c, const PanelElement* highlighted);
+    static void paintPlug(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, juce::Rectangle<float> r,
+                          juce::Colour colour);
     static void paintIncDec(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool focused);
     static void paintElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted);
     static void paintModern(juce::Graphics& g, const ModuleContext& c, const PanelElement* highlighted);

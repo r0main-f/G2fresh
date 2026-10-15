@@ -221,6 +221,7 @@ private:
     // The area's cable twist (CCableRenderer+0x13): rand() & 0xFF when the area is made, never saved.
     int cableSeed_ = juce::Random::getSystemRandom().nextInt(256);
     bool showsCable(const g2::Cable& c) const;
+    static juce::Colour cableColour(g2::CableColor c);
     const LiveLeds* liveLeds_ = nullptr;
     std::uint32_t ledGeneration_ = 0;
     juce::Rectangle<int> cableBounds_; // what the cables covered at the last paint

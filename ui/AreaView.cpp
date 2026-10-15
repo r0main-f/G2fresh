@@ -1,6 +1,7 @@
 #include "AreaView.h"
 
 #include "AssignMenus.h"
+#include "CableColours.h"
 #include "CableCurve.h"
 #include "IncDec.h"
 #include "ModernIcons.h"
@@ -555,6 +556,15 @@ std::optional<juce::Point<float>> AreaView::bendPoint(const g2::Cable& c) const
     return (ends->first + ends->second) * 0.5f + juce::Point<float>(c.bend->dx, c.bend->dy);
 }
 
+juce::Colour AreaView::cableColour(g2::CableColor c)
+{
+    // The Classic look in the original's colours (CableColours.h); the Modern look in its own.
+    if (currentLook() != Look::Classic)
+        return ModulePainter::cableColour(c);
+    const auto rgb = originalCableRgb(c);
+    return juce::Colour(rgb.r, rgb.g, rgb.b);
+}
+
 bool AreaView::showsCable(const g2::Cable& c) const
 {
     return cableShown(doc_.cablesShown(), doc_.patch().header.cablesVisible[static_cast<std::size_t>(c.color)], false);
@@ -611,11 +621,14 @@ void AreaView::paintCable(juce::Graphics& g, juce::Point<float> a, juce::Point<f
         g.strokePath(path, juce::PathStrokeType(currentLook() == Look::Classic ? 1.01f : 1.4f, juce::PathStrokeType::curved,
                                                 juce::PathStrokeType::rounded));
     } else if (currentLook() == Look::Classic) {
-        // The original editor's style: a simple sagging curve with an outline.
-        g.setColour(juce::Colours::black.withAlpha(0.6f));
-        g.strokePath(path, juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        // The original's 3D cable, 3 px: darker at its edges (78/255 of the colour), the colour itself along a
+        // highlight a little off its middle (CRender3DSegmentABC::BuildProfile @0001ea08). Drawn here as two strokes,
+        // not the original's per-pixel profile.
+        g.setColour(c.withMultipliedBrightness(0.45f));
+        g.strokePath(path, juce::PathStrokeType(3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         g.setColour(c);
-        g.strokePath(path, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.strokePath(path, juce::PathStrokeType(1.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
+                     juce::AffineTransform::translation(-0.3f, -0.3f));
     } else {
         // Modern: a hanging cable (cubic curve with gravity), soft shadow, a
         // glossy tube and plugs.
@@ -672,7 +685,7 @@ void AreaView::paintCables(juce::Graphics& g)
         const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});
         const auto b = jackCentre({cable.toModule, cable.toConn, false});
         if (a && b) {
-            paintCable(g, *a, *b, ModulePainter::cableColour(cable.color), flowing, cable.bend);
+            paintCable(g, *a, *b, cableColour(cable.color), flowing, cable.bend);
             // The animation repaints only this area (shadow and plugs included).
             const auto r = cablePath(*a, *b, cable.bend).getBounds().expanded(8.0f);
             covered = covered.isEmpty() ? r : covered.getUnion(r);
@@ -692,12 +705,15 @@ void AreaView::paintCables(juce::Graphics& g)
             paintCable(g, *a, *b, colour, flowing, cable.bend);
         };
         // A held jack's chain turns light blue (manual p83).
+        const auto held = currentLook() == Look::Classic
+            ? juce::Colour(kOriginalHighlightRgb.r, kOriginalHighlightRgb.g, kOriginalHighlightRgb.b)
+            : juce::Colour(0xff8fd3ff);
         for (const auto& cable : heldChain_)
-            paintGlowing(cable, juce::Colour(0xff8fd3ff));
+            paintGlowing(cable, held);
         if (heldChain_.empty()) {
             for (const auto& cable : chain_)
                 if (!(highlighted_ && sameEnds(cable, *highlighted_)))
-                    paintGlowing(cable, ModulePainter::cableColour(cable.color));
+                    paintGlowing(cable, cableColour(cable.color));
             if (const auto current = highlightedCable())
                 paintHighlight(g, *current);
         }
@@ -713,7 +729,7 @@ void AreaView::paintHighlight(juce::Graphics& g, const g2::Cable& cable)
     const auto b = jackCentre({cable.toModule, cable.toConn, false});
     if (!a || !b)
         return;
-    const auto colour = ModulePainter::cableColour(cable.color);
+    const auto colour = cableColour(cable.color);
     // A soft glow under the cable, then the cable itself.
     const auto path = cablePath(*a, *b, cable.bend);
     g.setColour(colour.withAlpha(0.35f));

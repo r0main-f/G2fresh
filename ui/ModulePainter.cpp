@@ -335,6 +335,23 @@ juce::String ModulePainter::valueText(const ModuleContext& c, const PanelElement
     return g2::db::formatParam(*def, static_cast<std::size_t>(ref), *p, c.module.modes);
 }
 
+void ModulePainter::paintPlug(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, juce::Rectangle<float> r,
+                              juce::Colour colour)
+{
+    // A jack with a cable shows a plug in it, in the jack's own colour and lit from the top left, whether its cables
+    // are shown or hidden (the hole bitmap's second frame: CPnlInHole::Draw @000ca5aa, CPnlOutHole::Draw @000c9f12,
+    // set by CPnlHole::UpdateGraphics @000c97c6 from IsInTree).
+    if (e.codeRef < 0 || c.location == g2::Location::Settings
+        || !g2::edit::isCabled(c.patch, c.location, {c.module.index, static_cast<std::uint8_t>(e.codeRef), e.kind == "Output"}))
+        return;
+    juce::ColourGradient shade(colour.brighter(0.6f), r.getX() + r.getWidth() * 0.3f, r.getY() + r.getHeight() * 0.3f,
+                               colour.darker(0.45f), r.getRight(), r.getBottom(), true);
+    g.setGradientFill(shade);
+    g.fillEllipse(r);
+    g.setColour(juce::Colours::black.withAlpha(0.5f));
+    g.drawEllipse(r, 0.8f);
+}
+
 juce::Colour ModulePainter::jackColour(const ModuleContext& c, const PanelElement& e)
 {
     const auto* def = c.module.def();
@@ -548,6 +565,7 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
             g.drawEllipse(rf.reduced(0.5f), 1.0f);
         g.setColour(juce::Colour(0xff202020));
         g.fillEllipse(rf.reduced(4.0f));
+        paintPlug(g, c, e, rf.reduced(2.5f), colour);
         if (highlighted) {
             g.setColour(juce::Colours::white);
             g.drawEllipse(rf.expanded(1.5f), 1.5f);
@@ -867,6 +885,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
         }
         g.setColour(juce::Colour(0xff1d1f24));
         g.fillEllipse(jr.reduced(3.5f));
+        paintPlug(g, c, e, jr.reduced(2.5f), colour);
         if (highlighted) {
             g.setColour(kHighlight);
             if (e.kind == "Output")

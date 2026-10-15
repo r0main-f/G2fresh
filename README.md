@@ -143,6 +143,8 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
   - They are View menu items, not the original's H and S buttons next to the colour buttons.
   - Curved cables in the Classic look have the original's shape (no gravity, a seeded twist); the Modern look keeps its own hanging cables. Cables with bend points keep their shape.
   - On macOS, Control+Space is the system's shortcut for the input source unless it is turned off: then View > Shake Cables is the way.
+- A jack with a cable shows a plug in it, in the jack's colour, whether its cables are shown or hidden, as the original's hole bitmaps do; G2fresh draws it itself in both looks.
+- The Classic look draws cables in the original's colours (red FF5A5A, blue 6464FF, yellow E6E650, orange FFC050, green 50D250, purple C800E6, white) and a held jack's chain in its light cyan (9BFFFF). Its 3D cable is drawn as a darker 3 px stroke under the colour, not the original's per-pixel shading.
 - Animated cables: on by default (a choice made for G2fresh; the original's cables don't move). View > Animate Cables turns them off, and the choice is kept.
 - While a jack is held, its chain is highlighted as in the original, and the other cables are dimmed. What a drop will do is shown in the status line, not by the original's cursor shapes.
 - Morphed sliders in the Classic look and morphed increment/decrement buttons show no morph colour (the original colours them).
