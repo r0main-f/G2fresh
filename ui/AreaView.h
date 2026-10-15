@@ -70,6 +70,8 @@ public:
     // The module last added, moved, selected or edited here, and when (for
     // zooming onto it). nullopt if none, or if it was deleted.
     std::optional<juce::Point<int>> focusPoint() const;
+    // How far the modules reach from the top-left corner, at 100% (0, 0 without modules).
+    juce::Point<int> contentExtent() const;
     juce::uint32 lastTouchTime() const { return touchTime_; }
 
     void paint(juce::Graphics&) override;

@@ -168,6 +168,7 @@ private:
     // press; the push button an Up holds down until the key is released (CPatchView::KeyRelParamValue).
     bool focusKeyPressed(g2ui::FocusKey key);
     void showFocus();
+    void zoomToFit();
     void showFocusStatus();
     int heldArrow_ = 0;
     int heldKey_ = 0; // the last key pressed and still held, to tell its auto-repeat
