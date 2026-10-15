@@ -42,6 +42,7 @@ add_executable(g2tests
   test_live_show.cpp
   test_focus_keys.cpp
   test_inc_dec.cpp
+  test_module_bar_keys.cpp
   test_cable_curve.cpp
   test_benchpack.cpp
 )

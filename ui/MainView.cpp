@@ -1107,6 +1107,12 @@ void MainView::resized()
 bool MainView::keyPressed(const juce::KeyPress& key)
 {
     const int code = key.getKeyCode();
+    const bool repeat = heldKey_ == code;
+    heldKey_ = code;
+    // The module bar first, as the original hands every key to its toolbar first (CPatchView::HandleKeyDownUp
+    // @000f93d4 -> CTBWindow::RouteKeySpec).
+    if (!liveMode_ && browser_.routeKey(key, repeat))
+        return true;
     if (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey || code == juce::KeyPress::leftKey
         || code == juce::KeyPress::rightKey) {
         const auto arrow = code == juce::KeyPress::upKey     ? Arrow::Up
@@ -1119,7 +1125,6 @@ bool MainView::keyPressed(const juce::KeyPress& key)
 #else
         const FocusMods mods{m.isShiftDown(), m.isCtrlDown(), m.isAltDown()}; // the manual's Ctrl (p115)
 #endif
-        const bool repeat = heldArrow_ == code;
         heldArrow_ = code;
         return focusKeyPressed(focusKey(arrow, mods, repeat, mutator_ && mutator_->isVisible()));
     }
@@ -1174,6 +1179,8 @@ bool MainView::keyPressed(const juce::KeyPress& key)
 
 bool MainView::keyStateChanged(bool)
 {
+    if (heldKey_ != 0 && !juce::KeyPress::isKeyCurrentlyDown(heldKey_))
+        heldKey_ = 0;
     if (heldArrow_ != 0 && !juce::KeyPress::isKeyCurrentlyDown(heldArrow_)) {
         heldArrow_ = 0;
         // Releasing the key releases a push button Up pressed (CPatchView::KeyRelParamValue @000f8474 ->
