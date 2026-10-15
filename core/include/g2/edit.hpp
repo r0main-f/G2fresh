@@ -355,6 +355,7 @@ std::string morphLabel(const Patch& patch, int group);
 struct Target {
     Location location = Location::Va;
     u8 module = 0, param = 0;
+    bool operator==(const Target&) const = default;
 };
 // The target's range (0..max), value in a variation and display text, or
 // nullopt / 0 / "" when it does not exist.

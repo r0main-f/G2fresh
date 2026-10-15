@@ -15,6 +15,7 @@ add_executable(g2tests
   test_resampler.cpp
   test_edit.cpp
   test_cables.cpp
+  test_focus.cpp
   test_morph.cpp
   test_file.cpp
   test_patch.cpp

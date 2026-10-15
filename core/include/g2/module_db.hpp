@@ -82,6 +82,9 @@ struct ModuleDef {
     const char* description; // G2fresh's short summary (data/module_help.json), or nullptr
     std::uint8_t browserOrder; // position in its category's toolbar in the original editor (255: none)
     std::span<const LabelDef> labels; // label controls, in panel order
+    // The parameters in the order the arrow keys walk them (the module type's ParamEditOrder,
+    // CBuildModule::GetNextParamFrom @000a9f6c): a permutation of the parameter indices.
+    std::span<const std::uint8_t> editOrder;
 };
 
 struct CategoryDef {

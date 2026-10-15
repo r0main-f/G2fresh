@@ -158,6 +158,11 @@ def generate():
                              f"{'true' if p.get('momentary') else 'false'}, "
                              f"{'false' if p.get('midiAssignable') is False else 'true'}}},")
             lines.append("};")
+        order = m.get("editOrder") or []
+        if order:
+            # The order the arrow keys walk the parameters in (SModuleInfo ParamEditOrder,
+            # CBuildModule::GetNextParamFrom @000a9f6c).
+            lines.append(f"const std::uint8_t kEditOrder{t}[] = {{{', '.join(str(i) for i in order)}}};")
         modes = m.get("modes") or []
         if modes:
             lines.append(f"const ModeDef kModes{t}[] = {{")
@@ -186,7 +191,7 @@ def generate():
             f"{span('Inputs', 'inputs')}, {span('Outputs', 'outputs')}, "
             f"{span('Params', 'params')}, {span('Modes', 'modes')}, {cstr(descriptions.get(m['shortName']) if m['kind'] == 'module' else None)}, "
             f"{m['toolbarSlot'] if m.get('toolbarSlot') is not None else 255}, "
-            f"{('kLabels' + str(t)) if t in labels else '{}'}}},")
+            f"{('kLabels' + str(t)) if t in labels else '{}'}, {span('EditOrder', 'editOrder')}}},")
     lines += ["};", "", "const CategoryDef kCategories[] = {"]
     for c in mdb["categories"]:
         r, g, b = c["color"]
