@@ -1,10 +1,12 @@
 // The plugin's audio buses and its inputs' levels (plugin/Source/AudioIo.h).
 #include "AudioIo.h"
+#include "StandaloneAudio.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <initializer_list>
+#include <string>
 #include <vector>
 
 namespace {
@@ -123,4 +125,36 @@ TEST_CASE("Mic Level: the preamp's gain from 0 to +40 dB", "[audioio]")
     // the knob has ends
     CHECK_THAT(g2io::micGain(-1.0f), Catch::Matchers::WithinRel(1.0f, 1e-5f));
     CHECK_THAT(g2io::micGain(2.0f), Catch::Matchers::WithinRel(100.0f, 1e-4f));
+}
+
+TEST_CASE("The stand-alone app opens no audio input until the user chooses one", "[audioio]")
+{
+    // Opening an input is not free: a Bluetooth headset's microphone switches the headset to its call profile, which
+    // changes the sound of every application (heard 2026-10-15: AirPods, YouTube's level jumped when G2fresh started).
+    // A G2 plays its IN 1-4 only where a patch has an In module, so the app starts on its output alone.
+    const std::vector<std::string> outputs = {"AirPods", "MacBook Pro Speakers"};
+    // never set up: the system's output, no input
+    auto start = g2io::standaloneStart(nullptr, outputs, "AirPods");
+    REQUIRE(start.has_value());
+    CHECK(start->output == "AirPods");
+    // set up with an input: the user's choice stays as saved
+    const g2io::SavedAudioSetup withInput{"MacBook Pro Microphone", "MacBook Pro Speakers"};
+    CHECK_FALSE(g2io::standaloneStart(&withInput, outputs, "AirPods").has_value());
+    // set up without an input: its output, still no input
+    const g2io::SavedAudioSetup outputOnly{"", "MacBook Pro Speakers"};
+    start = g2io::standaloneStart(&outputOnly, outputs, "AirPods");
+    REQUIRE(start.has_value());
+    CHECK(start->output == "MacBook Pro Speakers");
+    // ...whose output has gone (the headphones are off): the system's output, not JUCE's fallback, which would open
+    // the default input again
+    const g2io::SavedAudioSetup gone{"", "Studio Display Speakers"};
+    start = g2io::standaloneStart(&gone, outputs, "AirPods");
+    REQUIRE(start.has_value());
+    CHECK(start->output == "AirPods");
+    // ...written by G2fresh itself at an earlier start, not chosen: it follows the system's output, as JUCE does when
+    // nothing was chosen
+    const g2io::SavedAudioSetup ours{"", "MacBook Pro Speakers", true};
+    start = g2io::standaloneStart(&ours, outputs, "AirPods");
+    REQUIRE(start.has_value());
+    CHECK(start->output == "AirPods");
 }
