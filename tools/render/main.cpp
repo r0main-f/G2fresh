@@ -189,7 +189,7 @@ int renderLive(const juce::File& out, bool live)
         }
     } host;
     host.on = live;
-    g2ui::LiveView view(&host, {});
+    g2ui::LiveView view(&host);
     view.setSize(1400, 700);
     view.setHost(&host); // takes the snapshot
     writePng(view.createComponentSnapshot(view.getLocalBounds(), true, 1.0f), out);

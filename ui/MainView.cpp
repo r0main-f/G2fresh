@@ -6,6 +6,7 @@
 #include "CableLayout.h"
 
 #include "Dialogs.h"
+#include "LiveShow.h"
 #include "PatchLibrary.h"
 #include "SynthSettingsWindow.h"
 
@@ -397,6 +398,31 @@ void MainView::chooseClaviaDownload(const juce::String& title, std::function<voi
                           });
 }
 
+void MainView::startForLive()
+{
+    const bool otherSynth = synth_ != nullptr && synth_->kind() != SynthSync::Kind::None
+                         && synth_->kind() != SynthSync::Kind::Emulated;
+    const bool available = emulator_ != nullptr && emulator_->emulatorAvailable();
+    switch (liveShow(available, available && emulator_->emulatorRunning(), otherSynth,
+                     available ? emulator_->emulatorsInHost() : 0)) {
+    case LiveShow::Start:
+        startEmulator(false); // asks for the G2 OS the first time
+        break;
+    case LiveShow::Nothing:
+        break;
+    case LiveShow::NoEmulator:
+        setStatus("This build of G2fresh has no Emulated G2: the Live panel plays nothing");
+        break;
+    case LiveShow::OtherSynth:
+        setStatus("The Live panel plays the Emulated G2: Synth > Connect to Emulated G2 to play it");
+        break;
+    case LiveShow::OtherInstance:
+        setStatus("Another G2fresh in this host runs an Emulated G2: Synth > Connect to Emulated G2 starts this "
+                  "one too (two at once can drop out)");
+        break;
+    }
+}
+
 void MainView::setLiveMode(bool live)
 {
     liveMode_ = live;
@@ -405,8 +431,10 @@ void MainView::setLiveMode(bool live)
         c->setVisible(!live);
     live_.setVisible(live);
     resized();
-    if (live)
+    if (live) {
         live_.focusKeyboard();
+        startForLive();
+    }
     menuItemsChanged();
 }
 

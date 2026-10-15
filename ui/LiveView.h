@@ -17,8 +17,8 @@ namespace g2ui {
 
 class LiveView : public juce::Component, private juce::Timer, private juce::MidiKeyboardState::Listener {
 public:
-    // `startEmulator`: what the "Start the Emulated G2" button does.
-    LiveView(EmulatorHost* host, std::function<void()> startEmulator);
+    // Showing it starts the emulated G2 (MainView::setLiveMode, ui/LiveShow.h).
+    explicit LiveView(EmulatorHost* host);
     ~LiveView() override;
 
     void setHost(EmulatorHost* host);
@@ -33,9 +33,6 @@ private:
     class Panel;
     class Controllers;
     class Keyboard;
-    struct Backdrop : juce::Component {
-        void paint(juce::Graphics&) override;
-    };
 
     void timerCallback() override;
     void handleNoteOn(juce::MidiKeyboardState*, int channel, int note, float velocity) override;
@@ -48,9 +45,6 @@ private:
     std::unique_ptr<Panel> panel_;
     std::unique_ptr<Controllers> controllers_;
     std::unique_ptr<Keyboard> keyboard_;
-    juce::TextButton start_{"Start the Emulated G2"};
-    Backdrop backdrop_;
-    juce::Label hint_;
 };
 
 } // namespace g2ui

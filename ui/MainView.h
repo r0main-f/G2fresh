@@ -151,9 +151,11 @@ private:
     void chooseClaviaDownload(const juce::String& title, std::function<void(const juce::File&)> chosen);
     // Edit (the patch's modules and cables) or Live (the emulated G2's panel and keyboard).
     void setLiveMode(bool live);
+    // Showing the Live view starts the emulated G2, or says why not (LiveShow.h).
+    void startForLive();
     bool liveMode_ = false;
     juce::TextButton editButton_{"Edit"}, liveButton_{"Live"};
-    LiveView live_{nullptr, [this] { startEmulator(false); }};
+    LiveView live_{nullptr};
     void updateLoad();
     juce::PopupMenu synthMenu();
     void showMutator();
