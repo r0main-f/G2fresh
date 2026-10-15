@@ -147,7 +147,7 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - The morph range shows in the status line while dragging. There are no F5/F7 overlays and no hint box.
 - The parameter focus and its keys are the original's: a click on a control focuses it and selects its module; Up/Down step the value, Left/Right walk the module's parameters, Shift with the arrows goes to the neighbouring module, Option (Ctrl on Windows and Linux) with Up/Down steps the morph range in the focused group. What differs:
   - The arrow keys' steps on one parameter are one undo step; the original records none for them.
-  - The focused control has a white frame. The original shows a focused knob's or slider's inc/dec buttons instead, which G2fresh does not draw yet.
+  - Knobs show the original's inc/dec pair while hovered or focused (a click steps, holding repeats, Option steps the morph range); in the Modern look its arrows are G2fresh's own. Sliders do not have their pair yet: a focused slider, like a focused button, has a white frame.
   - While the Patch Mutator's window is open, the plain arrows do nothing: the original gives them to its Mutator, and G2fresh's Mutator has no use for them yet.
   - A focus change the synth sends (2F) is not shown yet.
 - The parameter pop-up's Morph Assign item names the group it acts on.

@@ -1,5 +1,6 @@
 #include "ModulePainter.h"
 
+#include "IncDec.h"
 #include "ModernIcons.h"
 #include "PatchDocument.h"
 #include "SpecialControls.h"
@@ -437,23 +438,64 @@ void ModulePainter::paint(juce::Graphics& g, const ModuleContext& c, const Panel
     if (c.panel)
         for (const auto& e : c.panel->elements)
             paintElement(g, c, e, &e == highlighted);
-    paintFocus(g, c);
+    paintFocus(g, c, highlighted);
 }
 
-void ModulePainter::paintFocus(juce::Graphics& g, const ModuleContext& c)
+void ModulePainter::paintFocus(juce::Graphics& g, const ModuleContext& c, const PanelElement* highlighted)
 {
-    // The focused parameter's control in the focused frame colour, kBtnFrameFocused = RGB(255,255,255): the
-    // original frames a focused button so, and shows a focused knob's inc/dec pair in it (CABCKnobGUI::
-    // DrawKnobUpDowns @0007bfee). Until G2fresh draws that pair, knobs and sliders take the frame too.
-    if (c.focusedParam < 0 || !c.panel)
+    if (!c.panel)
+        return;
+    // A knob shows its inc/dec pair while hovered or focused (CABCKnobGUI::DrawKnobUpDowns @0007bfee).
+    for (const auto& e : c.panel->elements)
+        if (e.kind == "Knob" && incDecKnob(e.type.toStdString())) {
+            const bool focused = e.codeRef == c.focusedParam;
+            if (focused || &e == highlighted)
+                paintIncDec(g, c, e, focused);
+        }
+    // Any other focused control in the focused frame colour, kBtnFrameFocused = RGB(255,255,255), as the
+    // original frames a focused button (CModularButtonGUI::SetFocused). The sliders' own pair is not drawn yet:
+    // they take the frame too.
+    if (c.focusedParam < 0)
         return;
     for (const auto& e : c.panel->elements)
         if (e.codeRef == c.focusedParam && e.kind != "PartSelector" && e.kind != "TextField"
             && (isControl(e) || SpecialControls::isSpecial(e))) {
+            if (e.kind == "Knob" && incDecKnob(e.type.toStdString()))
+                return;
             g.setColour(juce::Colours::white);
             g.drawRect(elementBounds(e).expanded(1), 1);
             return;
         }
+}
+
+void ModulePainter::paintIncDec(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool focused)
+{
+    // Faces RGB(202,202,202), the half held RGB(0,255,222); the frame kBtnFrameFocused (white) on the focused knob,
+    // kBtnFrame RGB(100,100,100) otherwise; dec's glyph on the left (bitmap 0x217), inc's on the right (0x218).
+    const auto pair = incDecPair(*incDecKnob(e.type.toStdString()));
+    const int pressed = focused ? c.incDecPressed : 0;
+    for (const int side : {-1, +1}) {
+        const auto& h = side < 0 ? pair.dec : pair.inc;
+        const juce::Rectangle<int> r{e.x + h.x, e.y + h.y, h.w, h.h};
+        g.setColour(pressed == side ? juce::Colour(0, 255, 222) : juce::Colour(202, 202, 202));
+        g.fillRect(r);
+        g.setColour(focused ? juce::Colours::white : juce::Colour(100, 100, 100));
+        g.drawRect(r, 1);
+        const auto glyph = c.look == Look::Classic ? Skin::get().cbmp(side < 0 ? 0x217 : 0x218) : juce::Image();
+        if (glyph.isValid()) {
+            g.drawImageAt(glyph, r.getCentreX() - glyph.getWidth() / 2, r.getCentreY() - glyph.getHeight() / 2);
+            continue;
+        }
+        // G2fresh's own glyph: a small triangle pointing down (dec) or up (inc).
+        const auto m = r.toFloat().getCentre();
+        juce::Path t;
+        if (side < 0)
+            t.addTriangle(m.x - 2.5f, m.y - 1.5f, m.x + 2.5f, m.y - 1.5f, m.x, m.y + 1.5f);
+        else
+            t.addTriangle(m.x - 2.5f, m.y + 1.5f, m.x + 2.5f, m.y + 1.5f, m.x, m.y - 1.5f);
+        g.setColour(juce::Colour(0xff202020));
+        g.fillPath(t);
+    }
 }
 
 void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted)
@@ -714,7 +756,7 @@ void ModulePainter::paintModern(juce::Graphics& g, const ModuleContext& c, const
     for (const auto& e : c.panel->elements)
         if (e.kind != "Text" && e.kind != "Line" && e.kind != "Symbol" && e.kind != "Bitmap")
             paintModernElement(g, c, e, &e == highlighted);
-    paintFocus(g, c);
+    paintFocus(g, c, highlighted);
 }
 
 void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e,
