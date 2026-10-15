@@ -216,6 +216,8 @@ private:
         void timerCallback() override { onTick(); }
     };
     Repeat incDecRepeat_;
+    // The area's cable twist (CCableRenderer+0x13): rand() & 0xFF when the area is made, never saved.
+    int cableSeed_ = juce::Random::getSystemRandom().nextInt(256);
     const LiveLeds* liveLeds_ = nullptr;
     std::uint32_t ledGeneration_ = 0;
     juce::Rectangle<int> cableBounds_; // what the cables covered at the last paint
