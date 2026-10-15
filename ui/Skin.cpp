@@ -417,6 +417,16 @@ void setCableAnimation(bool on)
     userSettings().setValue("cableAnimation", on);
 }
 
+CableStyle cableStyle()
+{
+    return cableStyleFromSetting(userSettings().getIntValue("cableStyle", static_cast<int>(kDefaultCableStyle)));
+}
+
+void setCableStyle(CableStyle style)
+{
+    userSettings().setValue("cableStyle", static_cast<int>(style));
+}
+
 bool wheelEditsKnobs()
 {
     return userSettings().getBoolValue("wheelEditsKnobs", false);

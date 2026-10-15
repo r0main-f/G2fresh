@@ -94,6 +94,11 @@ public:
     // goes back to Morph dial 1 without a message, as the original's CPatch::RemoveFocusFrom @000da8bc.
     g2::focus::Focus focus() const { return focus_[static_cast<std::size_t>(perf_ ? slot_ : 0)]; }
     void setFocus(const g2::focus::Focus& f);
+    // Hide All (the H button, Space): whether the patch's cables are shown, over its colours' own flags. Per patch, in
+    // memory only: not saved, not an undo step, not an edit, shown again after a load (CPatchHeaderData_11 byte 0xd,
+    // CPatch::ToggleShowCables @000d6382).
+    bool cablesShown() const { return cablesShown_[static_cast<std::size_t>(perf_ ? slot_ : 0)]; }
+    void toggleCablesShown();
 
     // File handling. load* replace the document and clear the undo history.
     void newPatch();
@@ -194,6 +199,7 @@ private:
     Step* lastStep_ = nullptr; // the step a coalesced edit extends
     int variation_ = 0;
     int morphGroup_ = 0;
+    std::array<bool, 4> cablesShown_{true, true, true, true};
     std::array<g2::focus::Focus, 4> focus_{g2::focus::kDefault, g2::focus::kDefault, g2::focus::kDefault,
                                            g2::focus::kDefault};
     juce::File file_;

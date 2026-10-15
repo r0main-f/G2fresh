@@ -5,6 +5,7 @@
 // time (clavia/) and cached in the user's settings folder.
 #pragma once
 
+#include "CableView.h"
 #include <juce_data_structures/juce_data_structures.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -54,6 +55,10 @@ juce::PropertiesFile& userSettings();
 // deviation kept on by default; the user's choice is saved).
 bool cableAnimation();
 void setCableAnimation(bool on);
+
+// Options > Cable Style (CableView.h): the user's, for every patch; Curved 3D at first, as the original.
+CableStyle cableStyle();
+void setCableStyle(CableStyle style);
 
 // Deliberate deviations from the original editor, off by default (stored in
 // the user's settings; the View menu changes them).
