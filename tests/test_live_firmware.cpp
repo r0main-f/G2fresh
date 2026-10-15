@@ -420,6 +420,14 @@ TEST_CASE("Live editing on the user's G2 OS: modules, as the original sends them
     const auto clip = g2::edit::copyModules(e.doc, Location::Va, {lfo, osc, env});
     e.roundTrip("paste with cables and morphs", [&](g2::Patch& x) { g2::edit::pasteModules(x, Location::Va, clip, 5, 0); });
     e.roundTrip("paste into the other area", [&](g2::Patch& x) { g2::edit::pasteModules(x, Location::Fx, clip, 0, 6); });
+    // A copy without OscA, through which the LFO's chain ran (spliced), and without the envelope, which fed 2-Out
+    // (left white).
+    e.edit([&](g2::Patch& x) { g2::edit::connect(x, Location::Va, {osc, 1, false}, {mix, 0, false}); });
+    const auto spliced = g2::edit::copyModules(e.doc, Location::Va, {lfo, mix, find(p, Location::Va, "2-Out")});
+    CHECK(spliced.cables.size() == 2);
+    e.roundTrip("paste with a chain spliced and a chain left white", [&](g2::Patch& x) {
+        g2::edit::pasteModules(x, Location::Va, spliced, 6, 0);
+    });
     e.roundTrip("replace (OscA -> OscB, cables, knob, controller and morphs follow)", [&](g2::Patch& x) {
         g2::replace::replaceModule(x, Location::Va, osc, moduleNamed("OscB").typeId);
     });

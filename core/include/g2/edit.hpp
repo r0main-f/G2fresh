@@ -324,7 +324,8 @@ std::pair<u8, u8> insertPosition(const Patch& patch, Location loc, const std::ve
 
 // ---- Clipboard -----------------------------------------------------------------
 
-// Modules copied with the cables between them, their morph assignments (all
+// Modules copied with the cables between them (a chain through a module left out closes up, one that lost its
+// output stays linked, white: CPatchData::AdaptForMergingWith @000e9cfc), their morph assignments (all
 // variations), labels and names. Positions are relative to the group's top-left.
 // Pasting adds the morphs while the variation has room: each pasted
 // assignment counts one, and none is added once the count passes 25
