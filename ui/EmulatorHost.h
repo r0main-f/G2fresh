@@ -9,9 +9,20 @@
 #include <juce_core/juce_core.h>
 
 #include <cstdint>
+#include <functional>
 #include <span>
 
 namespace g2ui {
+
+// What the computer test found (EmulatorHost::testExpansion).
+struct ExpansionTest {
+    juce::String error;      // why it did not measure; empty when it did
+    double speed = 0;        // a heavy patch on eight DSPs, x real time (off-line), on the fastest threads tried
+    int threads = 0;         // those threads, which the emulated G2 then uses with the board
+    int voices = 0;          // the voices the G2 OS gave that patch (7 on eight DSPs, as the manual says)
+    enum Advice { Holds, QuietOnly, TooSlow } advice = TooSlow;
+    int othersRunning = 0;   // other emulated G2s in this host while it measured (they slow it down)
+};
 
 class EmulatorHost {
 public:
@@ -46,6 +57,19 @@ public:
     // the settings, not in the project.
     virtual int emulatorBuffer() const { return 0; }
     virtual void setEmulatorBuffer(int buffer) { juce::ignoreUnused(buffer); }
+    // Whether it has the voice expansion board: eight DSPs, as every G2X, instead of four (the default, a deliberate
+    // deviation: a heavy patch on eight runs below real time on an M1). The user's choice for this computer, kept in
+    // the settings; a running emulated G2 restarts to take it (its OS finds the board at power-on).
+    virtual bool emulatorExpansion() const { return false; }
+    virtual void setEmulatorExpansion(bool on) { juce::ignoreUnused(on); }
+    // Measures how fast this computer runs a heavy patch on eight DSPs (about 20 s, off the message thread; the running
+    // emulated G2 stops meanwhile and starts again after), then calls `done` on the message thread. Keeps the fastest
+    // DSP threads for the board. False when it cannot start (no emulator, no G2 OS, a test already running).
+    virtual bool testExpansion(std::function<void(const ExpansionTest&)> done)
+    {
+        juce::ignoreUnused(done);
+        return false;
+    }
     // The latency from MIDI or an input to the output with that buffer, as the host runs it now, in milliseconds
     // (0: not running).
     virtual double emulatorLatencyMs(int buffer) const

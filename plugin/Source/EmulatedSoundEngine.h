@@ -45,9 +45,12 @@
 class EmulatedSoundEngine final : public SoundEngine {
 public:
     // Powers the machine on with the memory `flash` (empty: a new G2);
-    // `saveTo`: where the destructor saves a changed memory (none: nowhere).
+    // `saveTo`: where the destructor saves a changed memory (none: nowhere);
+    // `expansion`: with the voice expansion board (eight DSPs, EmulatedMachine.h), on `expansionThreads` DSP
+    // threads (-1: Machine::autoThreads).
     // Throws std::exception when the emulator cannot start.
-    EmulatedSoundEngine(const g2emu::Firmware& firmware, std::vector<std::uint8_t> flash, juce::File saveTo);
+    EmulatedSoundEngine(const g2emu::Firmware& firmware, std::vector<std::uint8_t> flash, juce::File saveTo,
+                        bool expansion = false, int expansionThreads = -1);
     // Stops the machine (and saves its flash to `saveTo`).
     ~EmulatedSoundEngine() override;
 
@@ -62,6 +65,8 @@ public:
     // thread, also while it plays: latencySamples() changes with it.
     void setBuffer(g2io::Buffer buffer);
     g2io::Buffer buffer() const { return buffer_; }
+    // Whether it runs with the voice expansion board (eight DSPs): fixed at power-on, as the OS finds it then.
+    bool expansion() const { return expansion_; }
     // latencySamples() if the buffer were `buffer`.
     int latencySamples(g2io::Buffer buffer) const;
     // For diagnostics: the runner's speed while running, its longest chunk, the DSP threads in use.
@@ -118,6 +123,7 @@ private:
 #endif
 
     g2io::Buffer buffer_ = g2io::kDefaultBuffer;
+    bool expansion_ = false;
     std::atomic<bool> playing_{false};          // the machine had a whole block ready once: dropouts count from there
     std::atomic<std::uint64_t> shortBefore_{0}; // the runner's short reads until then
     std::atomic<bool> mixOut34_{false};

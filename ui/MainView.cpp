@@ -31,7 +31,7 @@ enum MenuId {
     kSynthSettings,
     kSendPatchBase = 710,     // + slot
     kGetPatchBase = 720,      // + slot
-    kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34,
+    kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34, kEmulatorExpansion,
     kEmulatorBufferBase = 740, // + buffer (EmulatorHost::emulatorBuffer)
     // Opt-in deviations from the original editor (View menu).
     kWheelEditsKnobs = 800, kDoubleClickMorph, kDoubleClickReset, kDoubleClickNothing, kShowLoadEstimate,
@@ -280,6 +280,44 @@ void MainView::updateLoad()
 }
 
 // "Low (9 ms)": a buffer of the emulated G2 with the latency it gives in this host now.
+void MainView::offerExpansion(const ExpansionTest& t)
+{
+    updateSynthStatus();
+    if (t.error.isNotEmpty()) {
+        setStatus("The computer test did not finish (" + t.error + "): the voice expansion board is not fitted");
+        return;
+    }
+    const auto speed = juce::String(t.speed, 1) + " x real time";
+    juce::String text = "This computer ran a heavy patch on eight DSPs (" + juce::String(t.voices) + " voices) at " + speed
+                      + ", on " + juce::String(t.threads) + " DSP threads.\n\n";
+    if (t.advice == ExpansionTest::Holds)
+        text << "That is enough for a host: heavy patches should play without clicks or gaps.";
+    else if (t.advice == ExpansionTest::QuietOnly)
+        text << "That is enough on a quiet computer only: in a busy project, heavy patches will click or drop out. "
+                "Light patches play.";
+    else
+        text << "That is slower than real time: heavy patches will lose their audio. Light patches may play.";
+    if (t.othersRunning > 0)
+        text << "\n\n" << t.othersRunning << " other Emulated G2(s) ran meanwhile, which slowed the test down.";
+    text << "\n\nFit the voice expansion board (twice the voices, twice the CPU)? You can remove it again in the Synth menu.";
+    juce::Component::SafePointer<MainView> self(this);
+    juce::AlertWindow::showOkCancelBox(
+        t.advice == ExpansionTest::Holds ? juce::MessageBoxIconType::QuestionIcon : juce::MessageBoxIconType::WarningIcon,
+        "Voice Expansion Board", text, "Fit the Board", "Keep Four DSPs", this,
+        juce::ModalCallbackFunction::create([self](int fit) {
+            if (self == nullptr || self->emulator_ == nullptr)
+                return;
+            if (fit != 0) {
+                self->emulator_->setEmulatorExpansion(true);
+                self->setStatus("Voice expansion board fitted: eight DSPs, as a G2X");
+            } else {
+                self->setStatus("Four DSPs kept");
+            }
+            self->updateSynthStatus();
+            self->menuItemsChanged();
+        }));
+}
+
 juce::String MainView::emulatorBufferName(int buffer) const
 {
     static const char* const names[] = {"Low", "Normal", "Safe"};
@@ -392,6 +430,8 @@ juce::PopupMenu MainView::synthMenu()
         for (int b = 0; b < 3; ++b)
             buffer.addItem(item(kEmulatorBufferBase + b, emulatorBufferName(b), {}, true, emulator_->emulatorBuffer() == b));
         m.addSubMenu("Emulated G2 Buffer (latency)", buffer);
+        m.addItem(item(kEmulatorExpansion, "Emulated G2 Voice Expansion Board (8 DSPs: twice the voices and the CPU)", {},
+                       true, emulator_->emulatorExpansion()));
     }
     m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
     m.addSeparator();
@@ -579,6 +619,26 @@ void MainView::menuItemSelected(int id, int)
                   + ". A smaller buffer plays sooner; if you hear clicks or gaps, choose a larger one");
         updateSynthStatus();
         menuItemsChanged();
+        return;
+    }
+    if (id == kEmulatorExpansion && emulator_ != nullptr) {
+        if (emulator_->emulatorExpansion()) {
+            emulator_->setEmulatorExpansion(false);
+            setStatus("Voice expansion board removed: four DSPs, a G2's voices");
+            updateSynthStatus();
+            menuItemsChanged();
+            return;
+        }
+        // Before fitting it: how fast this computer runs a heavy patch on eight DSPs, and the user decides
+        juce::Component::SafePointer<MainView> self(this);
+        if (!emulator_->testExpansion([self](const ExpansionTest& t) {
+                if (self != nullptr)
+                    self->offerExpansion(t);
+            })) {
+            setStatus("The computer test cannot start: choose the G2 OS first (Synth > Choose the G2 OS for the Emulated G2...)");
+            return;
+        }
+        setStatus("Testing this computer with eight DSPs (about 20 s; the Emulated G2 stops meanwhile)...");
         return;
     }
     if (id == kMixOut34 && emulator_ != nullptr) {
