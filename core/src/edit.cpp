@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
+#include <cmath>
 #include <stdexcept>
 #include <tuple>
 
@@ -827,6 +829,125 @@ std::string targetText(const Patch& patch, Target t, u8 variation)
         return settingDef(static_cast<Setting>(t.module)) ? settingText(patch, static_cast<Setting>(t.module), t.param, variation)
                                                           : std::string();
     return paramText(patch, t.location, t.module, t.param, variation);
+}
+
+namespace {
+
+std::string lowerTrim(const std::string& s)
+{
+    std::string out;
+    for (const char c : s)
+        if (!(std::isspace(static_cast<unsigned char>(c)) && (out.empty() || out.back() == ' ')))
+            out += std::isspace(static_cast<unsigned char>(c)) ? ' ' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    while (!out.empty() && out.back() == ' ')
+        out.pop_back();
+    return out;
+}
+
+// A text's first number and the unit after it: "0.5m" is 0.5 ms, "1.02s" 1.02 s, "-24   +0" -24.
+struct Quantity {
+    double value = 0, scale = 1;
+    bool unit = false;
+};
+std::optional<Quantity> leadingQuantity(const std::string& text)
+{
+    const auto s = lowerTrim(text);
+    std::size_t i = 0;
+    std::string number;
+    if (i < s.size() && (s[i] == '+' || s[i] == '-'))
+        number += s[i++];
+    while (i < s.size() && s[i] == ' ')
+        ++i;
+    bool digits = false;
+    while (i < s.size() && (std::isdigit(static_cast<unsigned char>(s[i])) || s[i] == '.')) {
+        digits = digits || std::isdigit(static_cast<unsigned char>(s[i]));
+        number += s[i++];
+    }
+    if (!digits)
+        return std::nullopt;
+    Quantity q;
+    try {
+        q.value = std::stod(number);
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+    while (i < s.size() && s[i] == ' ')
+        ++i;
+    std::string unit;
+    while (i < s.size() && std::isalpha(static_cast<unsigned char>(s[i])))
+        unit += s[i++];
+    if (unit == "m" || unit == "ms")
+        q = {q.value, 0.001, true};
+    else if (unit == "s" || unit == "sec")
+        q = {q.value, 1, true};
+    else if (unit == "hz")
+        q = {q.value, 1, true};
+    else if (unit == "k" || unit == "khz")
+        q = {q.value, 1000, true};
+    return q;
+}
+
+} // namespace
+
+std::optional<u8> targetFromText(const Patch& patch, Target t, u8 variation, const std::string& text)
+{
+    const db::ModuleDef* def = nullptr;
+    std::vector<u8> values;
+    std::vector<u8> modes;
+    if (t.location == Location::Settings) {
+        def = settingDef(static_cast<Setting>(t.module));
+        for (const auto& m : patch.settings)
+            if (m.index == t.module && variation < m.params.size())
+                values = m.params[variation];
+    } else if (const Module* m = patch.area(t.location).find(t.module); m && variation < m->params.size()) {
+        def = m->def();
+        values = m->params[variation];
+        modes = m->modes;
+    }
+    if (!def || t.param >= def->params.size() || t.param >= values.size())
+        return std::nullopt;
+    const auto& p = def->params[t.param];
+    const auto typed = lowerTrim(text);
+    if (typed.empty())
+        return std::nullopt;
+    if (typed.front() == '#') {
+        try {
+            return static_cast<u8>(std::clamp(std::stoi(typed.substr(1)), static_cast<int>(p.min), static_cast<int>(p.max)));
+        } catch (const std::exception&) {
+            return std::nullopt;
+        }
+    }
+    std::vector<std::string> shown;
+    for (int v = p.min; v <= p.max; ++v) {
+        values[t.param] = static_cast<u8>(v);
+        shown.push_back(lowerTrim(db::formatParam(*def, t.param, values, modes)));
+    }
+    for (std::size_t i = 0; i < shown.size(); ++i)
+        if (shown[i] == typed)
+            return static_cast<u8>(p.min + i);
+    if (std::none_of(typed.begin(), typed.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); })) {
+        for (std::size_t i = 0; i < shown.size(); ++i)
+            if (shown[i].rfind(typed, 0) == 0)
+                return static_cast<u8>(p.min + i);
+        return std::nullopt;
+    }
+    const auto want = leadingQuantity(typed);
+    if (!want)
+        return std::nullopt;
+    std::optional<u8> best;
+    double bestDiff = 0;
+    for (std::size_t i = 0; i < shown.size(); ++i) {
+        const auto q = leadingQuantity(shown[i]);
+        if (!q)
+            continue;
+        const double diff = want->unit && q->unit ? std::abs(want->value * want->scale - q->value * q->scale)
+                                                  : std::abs(want->value - q->value);
+        if (!best || diff < bestDiff) {
+            best = static_cast<u8>(p.min + i);
+            bestDiff = diff;
+        }
+    }
+    return best;
 }
 
 std::string targetName(const Patch& patch, Target t)

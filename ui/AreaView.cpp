@@ -1586,7 +1586,7 @@ void AreaView::showControlMenu(const Hit& h)
     const auto& patch = doc_.patch();
     const auto loc = location_;
     namespace am = assignmenus;
-    enum { kMorphAssign = 1, kLabel = 4, kDefault = 5 };
+    enum { kMorphAssign = 1, kLabel = 4, kDefault = 5, kTypeValue = 6 };
 
     // Morph assign: in the focused group of the current variation, checked
     // when the parameter is in it; offered for morphable parameters, and
@@ -1615,6 +1615,7 @@ void AreaView::showControlMenu(const Hit& h)
     if (!labels.empty())
         menu.addItem(kLabel, labels.size() > 1 ? "Rename Button..." : "Rename Button Label...");
     menu.addItem(kDefault, "Default Value");
+    menu.addItem(kTypeValue, "Type a Value..."); // G2fresh's own (the original steps values only)
     // The radio button under the mouse, for its caption.
     int button = 0;
     if (labels.size() > 1) {
@@ -1640,6 +1641,27 @@ void AreaView::showControlMenu(const Hit& h)
             const auto* mod = doc.patch().area(loc).find(module);
             if (mod && mod->def())
                 safe->setValue(h, mod->def()->params[param].defaultValue, false);
+        } else if (r == kTypeValue) {
+            // The value whose display reads as typed (g2::edit::targetFromText): always one of the parameter's steps.
+            const g2::edit::Target target{loc, module, param};
+            const auto name = juce::String(g2::edit::targetName(doc.patch(), target));
+            auto* w = new juce::AlertWindow("Type a Value", name + " (as displayed: a name, a number with or without its unit, "
+                                                                   "or #n for the raw value):",
+                                            juce::MessageBoxIconType::NoIcon);
+            w->addTextEditor("value", juce::String(g2::edit::targetText(doc.patch(), target, variation)).trim());
+            w->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
+            w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+            w->enterModalState(true, juce::ModalCallbackFunction::create([safe, h, target, variation, name, w](int res) {
+                if (!safe || res != 1)
+                    return;
+                const auto typed = w->getTextEditorContents("value");
+                if (const auto v = g2::edit::targetFromText(safe->doc_.patch(), target, variation, typed.toStdString())) {
+                    safe->setValue(h, *v, false);
+                    safe->status(safe->describe(h));
+                } else {
+                    safe->status(name + ": no value reads \"" + typed + "\"");
+                }
+            }), true);
         } else if (r == kLabel) {
             const auto captions = g2::edit::paramLabels(doc.patch(), loc, module, param);
             if (captions.empty())

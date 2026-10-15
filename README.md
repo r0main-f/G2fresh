@@ -159,6 +159,7 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
   - While the Patch Mutator's window is open, the plain arrows do nothing: the original gives them to its Mutator, and G2fresh's Mutator has no use for them yet.
   - A focus change the synth sends (2F) is not shown yet.
 - The parameter pop-up's Morph Assign item names the group it acts on.
+- The parameter pop-up has Type a Value..., an addition (the original only steps values): the text is matched against what the parameter displays (a name or its start, the nearest number, with its unit if typed: 126m, 1.02s), or #n for the raw value, so the value is always one of the parameter's steps.
 - The Reverb's room type reads Small, Medium, Large or Hall everywhere, as on its panel and in the manual. The original's value text says Room, Hall, Plate or Gate.
 - Synth Settings has the original's fields, texts and behaviour in G2fresh's look. Its five Global Octave Shift buttons are labelled -2 to +2 (the original's dialog resource gives them no text).
 

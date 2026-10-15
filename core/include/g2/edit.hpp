@@ -362,6 +362,12 @@ struct Target {
 std::optional<u8> targetValue(const Patch& patch, Target t, u8 variation);
 int targetMax(const Patch& patch, Target t);
 std::string targetText(const Patch& patch, Target t, u8 variation);
+// The value whose display text is the one typed (G2fresh's own: the original has no text entry for parameters).
+// "#n" is the raw value n. Otherwise, in this order: the text displayed, case aside; the start of a name displayed (a
+// text without digits); the number displayed nearest to the one typed, comparing quantities when both have a unit
+// (m or ms, s, Hz, kHz), the numbers as written otherwise. A value of the parameter's range, or nullopt when nothing
+// matches.
+std::optional<u8> targetFromText(const Patch& patch, Target t, u8 variation, const std::string& text);
 // "Osc1 Pitch", "Morph Wheel", "Glide Rate".
 std::string targetName(const Patch& patch, Target t);
 void setTargetValue(Patch& patch, Target t, u8 variation, u8 value); // clamped to the range
