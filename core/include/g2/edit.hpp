@@ -340,6 +340,16 @@ struct Clipboard {
 Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& indices);
 // Pastes at (col, row), giving the modules new indices; returns them.
 std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 row);
+// A selection saved as a patch file (G2fresh's own: the original has no such command; its CClipboardFilePort
+// Save/Load @0006c730/@0006c736 are empty): a new patch holding copies of the modules, from its area's top-left
+// corner, with what Copy keeps of their cables and their morphs.
+Patch selectionPatch(const Patch& patch, Location loc, const std::vector<u8>& indices);
+// Inserts a patch file's modules: its voice area's into the voice area, its FX area's into the FX area, each below
+// the modules already there, as one paste per area. Returns the new modules' indices.
+struct Inserted {
+    std::vector<u8> va, fx;
+};
+Inserted insertPatch(Patch& patch, const Patch& file);
 // Deletes several modules as one selection (delete, cut), splicing as removeModule.
 void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices);
 void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow);

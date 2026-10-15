@@ -188,6 +188,7 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
   - Clear Group and Copy To in a morph dial's pop-up send one morph message per parameter, not acknowledged; what the original sends there is not known.
   - A slot's patch name edited in Performance Settings (a field the original does not have) is sent to that slot as a rename.
 - In the plugin, host automation during a Patch Mutator audition edits your variation.
+- Edit > Save Selection as Patch... and Insert Patch File... are additions (the original has no such commands; its unused CClipboardFilePort suggests it was planned): the selection is saved as an ordinary .pch2 holding only those modules, with their cables and morphs, from its area's top left; inserting a patch file adds its voice modules to the voice area and its FX modules to the FX area, below the modules there, as one undo step.
 - Paste drops the copy below the selection and renames default-named modules. The original places it with the mouse and keeps names. Which modules make room for a moved, added or pasted one follows G2fresh's own rule; the synth gets those moves as the original sends its own.
 - Patches read from the synth are not repaired as files are, so G2fresh never sends deassignments back.
 - Files from older editor versions (12 to 22) are converted on opening exactly as the original converts them, and saving asks first, as the original does. G2fresh also says "converted from version N" in the status line when the file opens; the original says nothing until you save.
