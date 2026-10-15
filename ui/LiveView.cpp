@@ -738,7 +738,7 @@ private:
 
 // ---- LiveView ----------------------------------------------------------------------------------------------------
 
-LiveView::LiveView(EmulatorHost* host, std::function<void()> startEmulator) : host_(host)
+LiveView::LiveView(EmulatorHost* host) : host_(host)
 {
     panel_ = std::make_unique<Panel>(*this);
     controllers_ = std::make_unique<Controllers>(*this);
@@ -747,17 +747,6 @@ LiveView::LiveView(EmulatorHost* host, std::function<void()> startEmulator) : ho
     addAndMakeVisible(*controllers_);
     addAndMakeVisible(*keyboard_);
     keyState_.addListener(this);
-    start_.onClick = [startEmulator] {
-        if (startEmulator)
-            startEmulator();
-    };
-    hint_.setJustificationType(juce::Justification::centred);
-    hint_.setColour(juce::Label::textColourId, juce::Colours::white);
-    hint_.setFont(juce::FontOptions(15.0f));
-    backdrop_.setInterceptsMouseClicks(false, false);
-    addChildComponent(backdrop_); // under the message, over the panel
-    addChildComponent(start_);
-    addChildComponent(hint_);
     startTimerHz(30);
 }
 
@@ -795,12 +784,6 @@ void LiveView::paint(juce::Graphics& g)
     g.fillRoundedRectangle(body.toFloat(), 6);
 }
 
-void LiveView::Backdrop::paint(juce::Graphics& g)
-{
-    g.setColour(juce::Colour(0xe0202024));
-    g.fillRoundedRectangle(getLocalBounds().toFloat(), 10);
-}
-
 void LiveView::resized()
 {
     auto r = getLocalBounds().reduced(8);
@@ -817,10 +800,6 @@ void LiveView::resized()
     controllers_->setBounds(bottom.removeFromLeft(std::max(120, bottom.getHeight())));
     keyboard_->setBounds(bottom);
     keyboard_->setKeyWidth(static_cast<float>(bottom.getWidth()) / 36.0f); // 36 white keys
-    const auto p = panel_->getBounds();
-    start_.setBounds(p.getCentreX() - 110, p.getCentreY() - 4, 220, 32);
-    hint_.setBounds(p.getCentreX() - 300, p.getCentreY() - 34, 600, 24);
-    backdrop_.setBounds(hint_.getBounds().getUnion(start_.getBounds()).expanded(14, 10));
 }
 
 void LiveView::timerCallback()
@@ -835,19 +814,9 @@ void LiveView::timerCallback()
         panel_->repaint();
     }
     const bool changed = s.live != snapshot_.live || s.generation != snapshot_.generation;
-    const bool running = host_ != nullptr && host_->emulatorRunning();
     snapshot_ = s;
     if (changed)
         panel_->repaint();
-    // Offer to start the emulated G2 while it does not run.
-    const bool available = host_ != nullptr && host_->emulatorAvailable();
-    start_.setVisible(available && !running);
-    hint_.setVisible(!running || !s.live);
-    backdrop_.setVisible(hint_.isVisible());
-    hint_.setText(!available ? "This build of G2fresh has no emulated G2."
-                  : !running ? "The Live panel plays the Emulated G2, running Clavia's G2 OS."
-                             : "The Emulated G2 is starting...",
-                  juce::dontSendNotification);
 }
 
 void LiveView::midi(std::initializer_list<std::uint8_t> bytes)
