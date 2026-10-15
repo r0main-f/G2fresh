@@ -15,6 +15,8 @@ juce_add_plugin(G2Editor
   PRODUCT_NAME "G2fresh"
   COMPANY_NAME "G2fresh"
   BUNDLE_ID "org.g2fresh.editor"
+  # The app's icon (macOS .icns, Windows .ico), made by JUCE from the PNG; its source is icon/G2fresh.svg.
+  ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/icon/G2fresh.png"
   PLUGIN_MANUFACTURER_CODE G2fr
   PLUGIN_CODE G2ed
   FORMATS ${G2_PLUGIN_FORMATS}

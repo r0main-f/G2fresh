@@ -132,6 +132,12 @@ if(TARGET g2emu)
   catch_discover_tests(g2emutests)
 endif()
 
+# The stand-alone app has G2fresh's icon (macOS: the bundle's .icns, which JUCE makes from plugin/icon/G2fresh.png).
+if(APPLE AND TARGET G2Editor_Standalone AND Python3_FOUND)
+  add_test(NAME app_has_its_icon
+    COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tests/app_icon_check.py --app $<TARGET_BUNDLE_DIR:G2Editor_Standalone>)
+endif()
+
 # The audio path's measurements (tools/audiopath) run the emulated G2 the plugin runs: four DSPs. Needs G2_FIRMWARE.
 if(TARGET g2emu AND Python3_FOUND)
   add_test(NAME audiopath_runner_is_the_plugins_machine
