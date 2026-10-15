@@ -5,6 +5,8 @@
 
 #include "CableView.h"
 
+#include <array>
+
 using namespace g2ui;
 
 TEST_CASE("cable style: four styles, Curved 3D unless a valid other one is stored")
@@ -53,4 +55,16 @@ TEST_CASE("space hides or shows all cables; Control with it shakes them")
     CHECK(spaceKey({.option = true}) == SpaceAction::None);
     CHECK(spaceKey({.shift = true}) == SpaceAction::None);
     CHECK(spaceKey({.control = true, .shift = true}) == SpaceAction::HideAll);
+}
+
+TEST_CASE("cable opacity: G2fresh's own setting, opaque unless one of its steps is chosen")
+{
+    // An addition: the original draws its cables opaque (CCableRenderer::Render @0001a1ce).
+    CHECK(kCableOpacities == std::array<int, 4>{100, 75, 50, 25});
+    CHECK(cableOpacityFromSetting(100) == 100);
+    CHECK(cableOpacityFromSetting(50) == 50);
+    CHECK(cableOpacityFromSetting(60) == 100);
+    CHECK(cableOpacityFromSetting(0) == 100);
+    CHECK(cableAlpha(25) == Catch::Approx(0.25f));
+    CHECK(cableAlpha(100) == Catch::Approx(1.0f));
 }

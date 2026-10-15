@@ -59,6 +59,9 @@ void setCableAnimation(bool on);
 // Options > Cable Style (CableView.h): the user's, for every patch; Curved 3D at first, as the original.
 CableStyle cableStyle();
 void setCableStyle(CableStyle style);
+// View > Cable Opacity (CableView.h), G2fresh's own, in percent: 100 at first.
+int cableOpacity();
+void setCableOpacity(int percent);
 
 // Deliberate deviations from the original editor, off by default (stored in
 // the user's settings; the View menu changes them).
