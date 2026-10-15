@@ -1948,6 +1948,31 @@ std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, 
     return added;
 }
 
+Patch selectionPatch(const Patch& patch, Location loc, const std::vector<u8>& indices)
+{
+    Patch out = Patch::makeDefault();
+    pasteModules(out, loc, copyModules(patch, loc, indices), 0, 0);
+    return out;
+}
+
+Inserted insertPatch(Patch& patch, const Patch& file)
+{
+    Inserted added;
+    for (const Location loc : {Location::Va, Location::Fx}) {
+        std::vector<u8> all;
+        for (const auto& m : file.area(loc).modules)
+            all.push_back(m.index);
+        if (all.empty())
+            continue;
+        int below = 0;
+        for (const auto& m : patch.area(loc).modules)
+            below = std::max(below, m.row + heightOf(m));
+        auto& out = loc == Location::Va ? added.va : added.fx;
+        out = pasteModules(patch, loc, copyModules(file, loc, all), 0, static_cast<u8>(std::min(below, 127)));
+    }
+    return added;
+}
+
 void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices)
 {
     // CPatch::InternalDeleteSelection @000d7e16, in the original's order:

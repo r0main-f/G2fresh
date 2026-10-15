@@ -23,7 +23,7 @@ enum MenuId {
     kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
-    kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit,
+    kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -545,6 +545,10 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kDelete, "Delete", "Delete", selected || va_.hasHighlightedCable() || fx_.hasHighlightedCable()));
         m.addItem(item(kSelectAll, "Select All", kCmd + "A"));
         m.addSeparator();
+        // G2fresh's own: a selection as a patch file, and a patch file's modules into this patch.
+        m.addItem(item(kSaveSelection, "Save Selection as Patch...", {}, selected));
+        m.addItem(item(kInsertPatch, "Insert Patch File..."));
+        m.addSeparator();
         juce::PopupMenu variations;
         for (int v = 0; v < g2::kFileVariations; ++v)
             variations.addItem(item(kCopyVariationBase + v, v < g2::kUserVariations ? "Variation " + juce::String(v + 1) : juce::String("Init"),
@@ -804,6 +808,8 @@ void MainView::menuItemSelected(int id, int)
             a->duplicateSelection();
         break;
     case kSelectAll: activeArea().selectAll(); break;
+    case kSaveSelection: saveSelection(); break;
+    case kInsertPatch: insertPatchFile(); break;
     case kRemoveBendPoints:
         doc_.perform("Remove all bend points", [](g2::Patch& p) { g2::edit::clearCableBends(p); });
         break;
@@ -1566,6 +1572,67 @@ void MainView::save(bool saveAs)
                               if (f == juce::File())
                                   return;
                               saveTo(f.hasFileExtension(ext) ? f : f.withFileExtension(ext));
+                          });
+}
+
+void MainView::saveSelection()
+{
+    auto* area = areaWithSelection();
+    if (!area)
+        return;
+    const auto part = g2::edit::selectionPatch(doc_.patch(), area->location(), area->selection());
+    const auto folder = doc_.file() != juce::File() ? doc_.file().getParentDirectory()
+                                                    : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+    chooser_ = std::make_unique<juce::FileChooser>("Save the selection as a G2 patch", folder.getChildFile("Selection.pch2"),
+                                                   "*.pch2");
+    chooser_->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this, part](const juce::FileChooser& fc) {
+                              auto f = fc.getResult();
+                              if (f == juce::File())
+                                  return;
+                              f = f.hasFileExtension(".pch2") ? f : f.withFileExtension(".pch2");
+                              const auto bytes = g2::savePatch(part);
+                              if (f.replaceWithData(bytes.data(), bytes.size()))
+                                  setStatus("Saved " + juce::String(part.va.modules.size() + part.fx.modules.size())
+                                            + " modules to " + f.getFileName());
+                              else
+                                  setStatus("Could not write " + f.getFullPathName());
+                          });
+}
+
+void MainView::insertPatchFile()
+{
+    chooser_ = std::make_unique<juce::FileChooser>("Insert the modules of a G2 patch", doc_.file(), "*.pch2");
+    chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [this](const juce::FileChooser& fc) {
+                              const auto f = fc.getResult();
+                              if (f == juce::File())
+                                  return;
+                              juce::MemoryBlock mb;
+                              if (!f.loadFileAsData(mb)) {
+                                  setStatus("Could not read " + f.getFullPathName());
+                                  return;
+                              }
+                              g2::Patch file;
+                              try {
+                                  const auto* data = static_cast<const std::uint8_t*>(mb.getData());
+                                  auto loaded = g2::load(std::span<const std::uint8_t>(data, mb.getSize()));
+                                  if (loaded.isPerformance()) {
+                                      setStatus("A performance's modules cannot be inserted: open one of its patches");
+                                      return;
+                                  }
+                                  file = std::get<g2::Patch>(std::move(loaded.content));
+                              } catch (const std::exception& e) {
+                                  setStatus(f.getFileName() + ": " + e.what());
+                                  return;
+                              }
+                              juce::String error;
+                              if (doc_.perform("Insert " + f.getFileNameWithoutExtension(),
+                                               [&](g2::Patch& p) { g2::edit::insertPatch(p, file); }, &error))
+                                  setStatus("Inserted the modules of " + f.getFileName());
+                              else
+                                  setStatus("Cannot insert " + f.getFileName() + ": " + error);
                           });
 }
 

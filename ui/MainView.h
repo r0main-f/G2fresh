@@ -169,6 +169,8 @@ private:
     bool focusKeyPressed(g2ui::FocusKey key);
     void showFocus();
     void zoomToFit();
+    void saveSelection();
+    void insertPatchFile();
     void showFocusStatus();
     int heldArrow_ = 0;
     int heldKey_ = 0; // the last key pressed and still held, to tell its auto-repeat
