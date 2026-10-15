@@ -33,6 +33,8 @@ public:
     // The module bar's keys, which the patch window hands here first (ModuleBarKeys.h): Tab and Shift+Tab, < > , .
     // and Return or Enter. `repeat`: the key's auto-repeat. Returns whether the key was the bar's.
     bool routeKey(const juce::KeyPress& key, bool repeat);
+    // The search field (G2fresh's own, ModuleSearch.h): takes the keyboard, its text selected.
+    void focusSearch();
 
 private:
     class ModuleButton;
@@ -41,6 +43,8 @@ private:
     // The defs of a category's modules, in the original toolbar's order.
     static std::vector<const g2::db::ModuleDef*> categoryModules(int index);
     void showFocused();
+    void showSearch(const juce::String& query);
+    bool searching() const { return search_.getText().trim().isNotEmpty(); }
     void focusButton(const ModuleButton* b);
 
     juce::TabbedButtonBar tabs_{juce::TabbedButtonBar::TabsAtTop};
@@ -49,6 +53,7 @@ private:
     juce::Component stripContent_;
     juce::OwnedArray<ModuleButton> buttons_;
     ModuleBarKeys keys_;
+    juce::TextEditor search_;
 };
 
 } // namespace g2ui

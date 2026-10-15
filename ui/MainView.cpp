@@ -1143,6 +1143,9 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return newPatch(), true;
     if (key == juce::KeyPress('b', cmd, 0))
         return showLibrary(), true;
+    // Find a module (an addition; the original's Command+F is Parameter Pages, so Shift is added).
+    if (key == juce::KeyPress('f', cmd | juce::ModifierKeys::shiftModifier, 0) && !liveMode_)
+        return browser_.focusSearch(), true;
     if (key == juce::KeyPress('c', cmd, 0))
         return copySelection(false), true;
     if (key == juce::KeyPress('x', cmd, 0))
