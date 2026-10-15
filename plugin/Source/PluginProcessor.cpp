@@ -486,6 +486,11 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
     dropoutsShown_ = 0;
     setLatencySamples(engine->latencySamples());
     setEmulated(std::move(engine));
+    // A new instance that started from the stand-alone app's memory keeps it in the project from now on, so that the
+    // project reopens with it and not with what the stand-alone app holds by then. (A new G2's empty memory goes in
+    // once it has its factory settings: checkFlash.)
+    if (wrapperType != wrapperType_Standalone && !emulatedFresh_ && flashGz_.getSize() == 0)
+        captureFlash();
     refreshState();
     return {};
 }
