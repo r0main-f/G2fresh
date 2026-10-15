@@ -96,11 +96,14 @@ TEST_CASE("The emulated G2's buffer: three reserves, named in the settings", "[a
 {
     using g2io::Buffer;
     // smallest first; Safe keeps at least what G2fresh kept before there was a choice (20 ms, and up to 1 ms more:
-    // the machine ran in 1 ms chunks past its mark), and it is the default until a quiet computer's sweep says more
+    // the machine ran in 1 ms chunks past its mark). The default is Normal: in the sweep of 2026-10-14 on an M1
+    // (re/notes/audio-path.md §3.6) no run that started quiet, nor any beside programs at an application's priority,
+    // took more than 2.67 ms of its reserve; the runs that lost audio lost it with Safe's 21 ms too.
     CHECK(g2io::reserveMs(Buffer::Low) < g2io::reserveMs(Buffer::Normal));
     CHECK(g2io::reserveMs(Buffer::Normal) < g2io::reserveMs(Buffer::Safe));
     CHECK(g2io::reserveMs(Buffer::Safe) >= 20.0 + 1.0);
-    CHECK(g2io::kDefaultBuffer == Buffer::Safe);
+    CHECK(g2io::reserveMs(Buffer::Normal) >= 2 * 2.67);  // twice the most a quiet run took
+    CHECK(g2io::kDefaultBuffer == Buffer::Normal);
     // the menu's index and the settings file's word
     for (int i = 0; i < g2io::kBuffers; ++i)
         CHECK(g2io::bufferFromKey(g2io::bufferKey(g2io::bufferOf(i)), Buffer::Safe) == g2io::bufferOf(i));

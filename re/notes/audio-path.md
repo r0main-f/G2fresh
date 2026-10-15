@@ -15,8 +15,8 @@ in g2emu; **[M]** the manual; **[inferred]** a deduction, not checked.
 | 96 kHz to the host's rate | JUCE's 5-point Lagrange interpolator, no filter: at 48 kHz every second sample. Everything the G2 plays above the host's Nyquist frequency folds into the audible band at full level: a sawtooth's aliases at −41 to −19 dB of the audible signal, white noise's at −4 dB, a 31.6 kHz sine as a 16.4 kHz tone at 0 dB | A Kaiser-windowed sinc, linear phase (`plugin/Source/Resampler.h`): flat within 0.0001 dB up to 20 kHz, 100 dB down from 28 kHz (48 kHz host) or 24.1 kHz (44.1 kHz host). The same sounds: aliases at −129 dB or less |
 | The host's rate to 96 kHz (inputs) | The same interpolator: −2.5 dB at 20 kHz (48 kHz), −4.4 dB (44.1 kHz), and an image of every input partial above the host's Nyquist frequency (−10 dB for a 20 kHz partial) | The same filter the other way: flat, images 99 dB down |
 | At a 96 kHz host | Through the interpolator (exact, 2 samples late) | Nothing is computed: the samples as they are |
-| Latency, 48 kHz, 256-sample blocks | 1297 samples, 27.0 ms | **Safe (the default) 1327 (27.6 ms)**, Normal 607 (12.6 ms), Low 415 (8.6 ms): Synth > Emulated G2 Buffer (part 3.2; Normal's and Low's reserves are provisional) |
-| Latency, 48 kHz, 64-sample blocks | 1105 samples, 23.0 ms [inferred from the code, not measured] | **Safe 1135 (23.6 ms)**, Normal 415 (8.6 ms), Low 223 (4.6 ms) |
+| Latency, 48 kHz, 256-sample blocks | 1297 samples, 27.0 ms | **Normal (the default) 607 (12.6 ms)**, Low 415 (8.6 ms), Safe 1327 (27.6 ms): Synth > Emulated G2 Buffer (part 3.2; the default from the sweep of part 3.6) |
+| Latency, 48 kHz, 64-sample blocks | 1105 samples, 23.0 ms [inferred from the code, not measured] | **Normal 415 (8.6 ms)**, Low 223 (4.6 ms), Safe 1135 (23.6 ms) |
 | Beside other busy programs (provisional: a shared computer) | Dropouts: its threads gave way to other programs' (heavy patch, 20 ms reserve, 64 to 256-frame blocks: 1 to 50 % of the audio missing at a load average of 10 to 16; all of it at 63 to 178) | On macOS its threads have the audio threads' priority: none missing in the same comparisons, also with a 5 ms reserve (part 3.4) |
 | Dropouts | Counted, shown only in the capture diagnostics | Counted, shown in the editor's status line |
 
@@ -248,16 +248,16 @@ what is on its way keeps its place (one step in time). The menu shows each setti
 
 | Setting | Reserve | 48 kHz, 256 | 48 kHz, 64 | 48 kHz, 512 | 44.1 kHz, 512 | 96 kHz, 256 |
 |---|---|---|---|---|---|---|
-| Safe (the default) | 21 ms | 1327 (27.6 ms) | 1135 (23.6 ms) | 1583 (33.0 ms) | 1530 (34.7 ms) | 2318 (24.1 ms) |
-| Normal | 6 ms | 607 (12.6 ms) | 415 (8.6 ms) | 863 (18.0 ms) | 869 (19.7 ms) | 878 (9.1 ms) |
+| Safe | 21 ms | 1327 (27.6 ms) | 1135 (23.6 ms) | 1583 (33.0 ms) | 1530 (34.7 ms) | 2318 (24.1 ms) |
+| Normal (the default) | 6 ms | 607 (12.6 ms) | 415 (8.6 ms) | 863 (18.0 ms) | 869 (19.7 ms) | 878 (9.1 ms) |
 | Low | 2 ms | 415 (8.6 ms) | 223 (4.6 ms) | 671 (14.0 ms) | 692 (15.7 ms) | 494 (5.1 ms) |
 
 (From the formula of part 3.1; the README has the first, second and fourth columns.) A real G2: 1.5 to 2 ms from a
 MIDI note to its output.
 
-**Provisional.** Safe is the default because it keeps what 0.10.2 kept, not because a measurement chose it. Low's
-2 ms and Normal's 6 ms come from runs on the shared computer (part 3.4) in which the real-time machine never took
-more than 0.7 ms of its reserve; they are guesses with a margin, to be set from a quiet computer's sweep. Dropouts
+Normal is the default since the sweep of 2026-10-14 (part 3.6): no quiet run took more than 2.67 ms of its reserve,
+and the runs that lost audio lost it with Safe's 21 ms too. Up to then Safe was, because it keeps what 0.10.2 kept.
+Low's 2 ms and Normal's 6 ms were chosen from runs on the shared computer (part 3.4); the sweep kept them. Dropouts
 are counted from the first block the machine had ready (`EmulatedSoundEngine::dropouts`: the reads that came
 short) and shown in the editor's status line ("3 dropouts: try Synth > Emulated G2 Buffer"): a smaller buffer is
 never traded silently for latency.
@@ -376,5 +376,30 @@ it before each run, records the 1, 5 and 15-minute load averages before and afte
 setting's reserve). Its plans: quiet (three patches, blocks of 32 to 2048 frames), one DSP thread, beside busy
 threads (it starts them itself: `g2audiopath burn`), beside real-time ones, two emulators at once, Low's and
 Normal's reserves as they are, and 0.10.2's way. The runs use the plugin's configuration (real-time threads, the
-1 ms stretch) and Safe's reserve. Then: the default and the reserves from `table.md`, and this part rewritten
-without "provisional".
+1 ms stretch) and Safe's reserve.
+
+**2026-10-14, MacBook Pro M1 (4 performance cores), on power, 60 s per run, four DSPs** (the plugin's machine; a
+first sweep that day ran eight by mistake, see g2-hardware-and-emulation.md §3.12.5). 57 runs, 10 of them started
+above a load average of 2 (marked, and counted apart below); one run that a sleep of the computer cut through was
+run again. Reserve taken: how far the buffer was drawn down at a callback, so what each smaller reserve would have
+left.
+
+| Plan | Runs | Audio lost | Most reserve taken | Chunk speed p1 / p50 |
+|---|---|---|---|---|
+| quiet: light, heavy (B13, a chord), four slots (B12 x 4); blocks 32 to 2048 frames | 21 | none | 2.67 ms (heavy, 32 frames); light 2.66 and 1.38 ms at 256 and 512 frames; the others 0.75 ms or less | 0.98 to 1.73 / 1.30 to 2.09 |
+| one DSP thread, light | 2 | none | 0.03 ms | 1.38 to 1.65 / 1.51 to 1.78 |
+| beside 6 threads computing at an application's priority | 8 | none | 0.08 ms | 1.79 to 1.95 / 1.97 to 2.13 |
+| Low's 2 ms and Normal's 6 ms as they are, quiet and beside the 6 threads, heavy | 12 | none | 0.08 ms | 1.27 to 1.94 / 1.44 to 2.12 |
+| beside 4 threads working as a host's audio workers (60 % of every 2.9 ms at the audio priority) | 2 | **all** | 21.67 to 26.33 ms (all of it) | 0.44 / 1.97 to 1.99, 1.5 cores instead of 2 |
+| two emulated G2s at once, heavy | 4 | **all** | all of it | 0.17 to 0.18 / 0.40 to 0.43 |
+| 0.10.2's way (ordinary priority, no stretch), quiet | 4 | none | 1.39 ms | 1.50 to 1.69 / 1.74 to 1.84 |
+| 0.10.2's way beside the 6 threads | 4 | none | 9.68 ms (heavy, 64 frames) | 0.80 to 1.89 / 1.99 to 2.13 |
+
+Per setting (sweep.py's verdict): with Normal's or Safe's reserve no quiet run would have dropped out (0 of 23 and
+0 of 20); with Low's, one (the heavy patch at 32 frames, 2.67 ms). Beside other work, or started above a load average
+of 2: six with Normal's or Safe's (the two "all" plans' six runs, which drop out with any reserve: the machine was
+slower than real time), seven with Low's (and the light patch at 256 frames, 2.66 ms, load 2.0). 0.10.2's way is
+left out of the verdict; with it a heavy patch beside the 6 threads took 9.68 ms, more than Normal has.
+So the default is Normal. What the sweep does not say: whether a real host's audio threads (Live with a heavy
+project) starve the machine as the stand-in did, and why two machines fall to 0.4 x where one makes 2 x (a guess:
+six real-time threads on four performance cores, DSP threads waiting for each other); the next measurements.
