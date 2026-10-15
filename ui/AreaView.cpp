@@ -1,6 +1,7 @@
 #include "AreaView.h"
 
 #include "AssignMenus.h"
+#include "CableCurve.h"
 #include "IncDec.h"
 #include "ModernIcons.h"
 #include "ModuleBrowser.h"
@@ -499,7 +500,16 @@ juce::Path AreaView::cablePath(juce::Point<float> a, juce::Point<float> b, std::
         return path;
     }
     if (currentLook() == Look::Classic) {
-        path.quadraticTo((a + b) * 0.5f + juce::Point<float>(0.0f, 10.0f + 0.25f * distance), b);
+        // The original's cable: no gravity, its arms along the jack line, twisted by the area's seed and the jacks'
+        // places, drawn as the points it samples (CRenderSnakeABC, ui/CableCurve.h).
+        const cablecurve::Pt p0{std::round(a.x), std::round(a.y)}, p1{std::round(b.x), std::round(b.y)};
+        auto points = cablecurve::polyline(p0, p1, cableSeed_);
+        std::reverse(points.begin(), points.end()); // it samples from the far jack: draw from `a`
+        path.clear();
+        path.startNewSubPath(a);
+        for (std::size_t i = 1; i + 1 < points.size(); ++i)
+            path.lineTo(points[i].x, points[i].y);
+        path.lineTo(b);
     } else {
         const float sag = std::min(90.0f, 12.0f + 0.22f * distance);
         path.cubicTo(a + juce::Point<float>((b.x - a.x) * 0.15f, sag), b + juce::Point<float>((a.x - b.x) * 0.15f, sag), b);
