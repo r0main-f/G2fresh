@@ -22,6 +22,15 @@ bool isEditable(const PanelElement& e)
     return ModulePainter::isControl(e) || SpecialControls::isSpecial(e);
 }
 
+// The parameter a control focuses: knobs, sliders and buttons do (CPnlKnobSliderABC::OnClick @000cb9b0,
+// CPnlButtonABC::OnClick @000c3520 -> CPanel::CtrlClick @000bfda8); mode selectors never do.
+std::optional<std::uint8_t> focusParam(const PanelElement& e)
+{
+    if (!isEditable(e) || e.kind == "PartSelector" || e.kind == "TextField" || e.codeRef < 0)
+        return std::nullopt;
+    return static_cast<std::uint8_t>(e.codeRef);
+}
+
 // The editor's generator for the special controls' "Rnd" (seeded once, as the
 // original seeds Rnd_GetC at start-up).
 g2::special::EditorRandom& editorRandom()
@@ -221,8 +230,9 @@ void AreaView::setMinimumSize(int width, int height)
 
 ModuleContext AreaView::context(const g2::Module& m) const
 {
+    const auto f = doc_.focus();
     return {doc_.patch(), location_, m, doc_.focusedVariation(), ModulePainter::panelFor(m), currentLook(),
-            doc_.focusedMorphGroup()};
+            doc_.focusedMorphGroup(), f.location == location_ && f.module == m.index ? f.param : -1};
 }
 
 juce::Point<int> AreaView::gridCell(juce::Point<int> p) const
@@ -829,6 +839,12 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
         return;
     }
     if (dragHit_.element && isEditable(*dragHit_.element)) {
+        // Mouse-down on a control focuses its parameter, and the focus selects its module; a Command-click (the
+        // original's knob assignment) does not (CPanel::CtrlClick @000bfda8, CPatch::HandleParamFocusDump @000dd0fe).
+        if (const auto param = focusParam(*dragHit_.element); param && !e.mods.isCommandDown()) {
+            doc_.setFocus({location_, dragHit_.module, *param});
+            selectFocused(dragHit_.module);
+        }
         const auto* m = doc_.patch().area(location_).find(dragHit_.module);
         dragStartValue_ = m ? ModulePainter::value(context(*m), *dragHit_.element).value_or(0) : 0;
         drag_ = dragHit_.element->kind == "Knob" ? Drag::Value : Drag::None;
@@ -874,8 +890,12 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
         select(dragHit_.module, true);
         return;
     }
-    if (!isSelected(dragHit_.module))
+    if (!isSelected(dragHit_.module)) {
         select(dragHit_.module, false);
+        // A module selected by a click on its body takes the focus to its parameter 0 (CPanel::PanelClick
+        // @000bd710 -> CPatch::AddToSelection @000d5d0a).
+        doc_.setFocus(g2::focus::onModule(doc_.patch(), location_, dragHit_.module, doc_.focus()));
+    }
     touch(dragHit_.module);
     if (const auto* m = doc_.patch().area(location_).find(dragHit_.module))
         dragOffset_ = e.getPosition() - ModulePainter::moduleBounds(*m).getPosition();
@@ -1139,6 +1159,9 @@ void AreaView::deleteHighlightedCable()
 
 bool AreaView::keyPressed(const juce::KeyPress& key)
 {
+    if (onArrowKey && (key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::downKey)
+                       || key.isKeyCode(juce::KeyPress::leftKey) || key.isKeyCode(juce::KeyPress::rightKey)))
+        return onArrowKey(key);
     if (key == juce::KeyPress::escapeKey && highlighted_) {
         highlightCable(std::nullopt);
         return true;
@@ -1633,6 +1656,14 @@ void AreaView::select(std::uint8_t module, bool toggle)
     repaintModules();
 }
 
+void AreaView::selectFocused(std::uint8_t module)
+{
+    // When the focus lands on a module that is not selected, the selection becomes that module
+    // (CPatch::HandleParamFocusDump @000dd0fe).
+    if (!isSelected(module))
+        select(module, false);
+}
+
 void AreaView::selectAll()
 {
     selection_.clear();
@@ -1709,6 +1740,7 @@ void AreaView::addModule(std::uint8_t type, std::optional<juce::Point<int>> wher
         }, &error)) {
         selection_ = {added};
         touch(added);
+        doc_.setFocus(g2::focus::onModule(doc_.patch(), loc, added, doc_.focus())); // CPatch::HandleModuleNew
     } else
         status("Cannot add module: " + error);
 }
@@ -1727,6 +1759,7 @@ void AreaView::insertModule(std::uint8_t type)
         }, &error)) {
         clearSelection();
         touch(added);
+        doc_.setFocus(g2::focus::onModule(doc_.patch(), loc, added, doc_.focus())); // CPatch::HandleModuleNew
     } else
         status("Cannot add module: " + error);
 }

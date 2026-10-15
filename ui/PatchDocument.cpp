@@ -51,6 +51,8 @@ void PatchDocument::replace(int slot, const g2::Patch& p, const g2::live::Edit* 
     } else {
         patch_ = p;
     }
+    if (auto& f = focus_[static_cast<std::size_t>(perf_ ? slot : 0)]; !g2::focus::exists(p, f))
+        f = g2::focus::kDefault;
     dirty_ = true;
     edited(slot, edit, undo);
     sendChangeMessage();
@@ -58,6 +60,7 @@ void PatchDocument::replace(int slot, const g2::Patch& p, const g2::live::Edit* 
 
 void PatchDocument::resetHistory()
 {
+    focus_.fill(g2::focus::kDefault); // a new or loaded document (CPatch::CPatch @000d96d4)
     undo_.clearUndoHistory();
     endCoalescing();
     lastStep_ = nullptr;
@@ -221,6 +224,18 @@ void PatchDocument::setVariation(int v)
     auto& header = perf_ ? perf_->slots[static_cast<std::size_t>(slot_)].header : patch_.header;
     header.activeVariation = static_cast<std::uint8_t>(variation_);
     edited(slot_);
+    sendChangeMessage();
+}
+
+void PatchDocument::setFocus(const g2::focus::Focus& f)
+{
+    const int slot = perf_ ? slot_ : 0;
+    auto& now = focus_[static_cast<std::size_t>(slot)];
+    if (f == now || !g2::focus::exists(patch(), f))
+        return;
+    now = f;
+    if (editListener_)
+        editListener_->paramFocused(slot, f);
     sendChangeMessage();
 }
 

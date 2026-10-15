@@ -148,6 +148,14 @@ int renderUi(const juce::File& in, const juce::File& out)
         doc.loadBytes(std::vector<std::uint8_t>(bytes, bytes + mb.getSize()));
         doc.setFile(in);
     }
+    // G2_FOCUS=location,module,param: the parameter focus to show (location 0 FX, 1 VA, 2 the patch settings).
+    if (const char* f = std::getenv("G2_FOCUS")) {
+        juce::StringArray parts;
+        parts.addTokens(f, ",", "");
+        if (parts.size() == 3)
+            doc.setFocus({static_cast<g2::Location>(parts[0].getIntValue()), static_cast<std::uint8_t>(parts[1].getIntValue()),
+                          static_cast<std::uint8_t>(parts[2].getIntValue())});
+    }
     MainView view(doc, false);
     view.setSize(1400, 860);
     if (const char* z = std::getenv("G2_ZOOM"))

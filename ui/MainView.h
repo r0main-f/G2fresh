@@ -7,6 +7,7 @@
 
 #include "AreaView.h"
 #include "EmulatorHost.h"
+#include "FocusKeys.h"
 #include "LiveView.h"
 #include "MidiOutputTarget.h"
 #include "SynthSync.h"
@@ -56,6 +57,7 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     bool keyPressed(const juce::KeyPress&) override;
+    bool keyStateChanged(bool isKeyDown) override;
 
     void newPatch();
     void open();
@@ -162,6 +164,13 @@ private:
     juce::Label status_, load_;
     PatchSettingsBar settings_{doc_};
     ModuleBrowser browser_;
+    // The arrow keys on the parameter focus (FocusKeys.h). The arrow held, to tell its auto-repeat from a
+    // press; the push button an Up holds down until the key is released (CPatchView::KeyRelParamValue).
+    bool focusKeyPressed(g2ui::FocusKey key);
+    void showFocus();
+    void showFocusStatus();
+    int heldArrow_ = 0;
+    std::optional<g2::focus::Focus> heldButton_;
     AreaView va_, fx_;
     ZoomHolder vaZoom_{va_}, fxZoom_{fx_};
     juce::Viewport vaPort_, fxPort_;

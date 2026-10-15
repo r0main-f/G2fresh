@@ -34,6 +34,17 @@ public:
     std::function<void()> onPopup;         // optional: the right-click menu
     std::function<void(const juce::String&)> status;
     std::function<juce::Colour()> colour;  // optional knob colour
+    std::function<void()> onFocus;         // optional: a click focuses the control's parameter
+    std::function<bool()> focused;         // optional: whether it has the patch's parameter focus
+
+    void paintOverChildren(juce::Graphics& g) override
+    {
+        // The focused parameter in the focused frame colour, white (kBtnFrameFocused), as in the areas.
+        if (focused && focused()) {
+            g.setColour(juce::Colours::white);
+            g.drawRect(getLocalBounds(), 1);
+        }
+    }
 
     int preferredWidth() const { return kind == Kind::Knob ? 60 : kind == Kind::Toggle ? 72 : 84; }
 
@@ -117,6 +128,8 @@ public:
 
     void mouseDown(const juce::MouseEvent& e) override
     {
+        if (onFocus && !e.mods.isCommandDown())
+            onFocus();
         if (onPress)
             onPress();
         if (e.mods.isPopupMenu()) {
@@ -260,6 +273,10 @@ PatchSettingsBar::PatchSettingsBar(PatchDocument& doc) : doc_(doc)
             return static_cast<int>(edit::settingValue(doc_.patch(), s, param, static_cast<std::uint8_t>(doc_.focusedVariation())));
         };
         c->max = [def, param] { return def ? static_cast<int>(def->params[param].max) : 127; };
+        // The patch settings share the patch's focus with its areas (CPatch+0x40; area 2).
+        const g2::focus::Focus target{g2::Location::Settings, static_cast<std::uint8_t>(s), param};
+        c->onFocus = [this, target] { doc_.setFocus(target); };
+        c->focused = [this, target] { return doc_.focus() == target; };
         c->text = [textFunc](int v) { return juce::String(g2::paramtext::formatSingle(textFunc, static_cast<std::uint8_t>(v))); };
         c->set = [this, s, param, name](int v, bool coalesce) {
             const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
