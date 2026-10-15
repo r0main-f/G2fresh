@@ -142,6 +142,8 @@ private:
     juce::Label synthStatus_;
     void updateSynthStatus();
     juce::String emulatorBufferName(int buffer) const;
+    // The computer test's result, and the question whether to fit the voice expansion board.
+    void offerExpansion(const ExpansionTest& t);
     // Connects to the emulated G2, from the G2 OS chosen before (or asks where it is).
     void startEmulator(bool chooseFirmware);
     // Asks where the user's copy of Clavia's download is (the Emulated G2's G2 OS
