@@ -1703,9 +1703,20 @@ Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& i
         m.row = static_cast<u8>(m.row - minRow);
     }
     auto inside = [&](u8 index) { return std::find(indices.begin(), indices.end(), index) != indices.end(); };
-    for (const auto& c : area.cables)
-        if (inside(c.fromModule) && inside(c.toModule))
-            clip.cables.push_back(c);
+    // The whole cable tree, pruned as the original prunes its copy for the paste (CPatchData::AdaptForMergingWith
+    // @000e9cfc): first the connectors of the modules left out inside the trees, their chains closing up; then
+    // those left at a root, the tree turning white and staying one (KeepTreeIntactErase).
+    cables::Tree tree(area);
+    for (const auto c : tree.nodes())
+        if (!inside(c.module) && !tree.isRoot(c))
+            tree.eraseConnector(c);
+    for (const auto c : tree.nodes())
+        if (!inside(c.module)) {
+            for (const auto& s : tree.completeTree(c))
+                tree.recolor(s.node, s.parent, CableColor::White);
+            tree.keepTreeIntactErase(c);
+        }
+    clip.cables = tree.toCables(area.cables);
     for (std::size_t v = 0; v < patch.morphs.size(); ++v)
         for (const auto& a : patch.morphs[v].assigns)
             if (a.location == static_cast<u8>(loc) && inside(a.module))

@@ -87,6 +87,9 @@ public:
     void makeBase(Connector c);
     // CTree::erase: removes a connector, its children taking its place.
     void eraseConnector(Connector c);
+    // CCableTree::KeepTreeIntactErase @0001baa4: erases a connector so that its tree stays one. A root's other
+    // branches move below its first branch, which then takes the root's place; anything else as eraseConnector.
+    void keepTreeIntactErase(Connector c);
 
     std::vector<Connector> roots() const; // the trees' roots, in order
     std::vector<Connector> nodes() const; // every connector, depth-first (CTree::CIterator)

@@ -280,6 +280,22 @@ void Tree::eraseConnector(Connector c)
         eraseNode(n);
 }
 
+void Tree::keepTreeIntactErase(Connector c)
+{
+    const int n = find(c);
+    if (n < 0)
+        return;
+    if (nodes_[n].parent == kVirtualRoot && nodes_[n].children.size() > 1) {
+        const int first = nodes_[n].children.front();
+        const std::vector<int> others(nodes_[n].children.begin() + 1, nodes_[n].children.end());
+        for (const int o : others) {
+            split(o);
+            join(o, first);
+        }
+    }
+    eraseNode(n);
+}
+
 std::vector<Connector> Tree::roots() const
 {
     std::vector<Connector> out;

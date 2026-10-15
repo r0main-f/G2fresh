@@ -189,6 +189,64 @@ TEST_CASE("deleting a module splices its chains")
     CHECK(reproduces(f.p.va));
 }
 
+// Copy clones the whole cable tree and, for the paste, erases the connectors of the modules left out: those
+// inside a chain splice it back together, a chain whose output was left out turns white and its branches hang
+// from its first one (CPatchData::AdaptForMergingWith @000e9cfc, CCableTree::KeepTreeIntactErase @0001baa4;
+// manual p100: the modules are copied "including their common cable connections").
+TEST_CASE("copy keeps the chains through the modules left out, as the original's paste does")
+{
+    Fixture f;
+    const u8 osc = f.add(kOscB), a = f.add(kOut2), x = f.add(kLevMult), b = f.add(kOut2), z = f.add(kOut2);
+    // Out -> A -> X -> B, and X's own output to Z.
+    f.connect(f.out(osc), f.in(a));
+    f.connect(f.in(a), f.in(x));
+    f.connect(f.in(x), f.in(b));
+    f.connect(f.out(x), f.in(z));
+    REQUIRE(f.count() == 4);
+    auto has = [](const edit::Clipboard& clip, edit::Endpoint from, edit::Endpoint to, CableColor color) {
+        return std::any_of(clip.cables.begin(), clip.cables.end(), [&](const Cable& c) {
+            return c.fromModule == from.module && c.fromConn == from.conn && c.fromIsOutput == from.isOutput
+                && c.toModule == to.module && c.toConn == to.conn && c.color == color;
+        });
+    };
+
+    SECTION("a module in the middle left out: the chain closes up, its own cables stay behind")
+    {
+        const auto clip = edit::copyModules(f.p, VA, {osc, a, b});
+        CHECK(clip.cables.size() == 2);
+        CHECK(has(clip, f.out(osc), f.in(a), CableColor::Red));
+        CHECK(has(clip, f.in(b), f.in(a), CableColor::Red)); // B now hangs from A
+    }
+    SECTION("the output's module left out: the rest stays linked, white")
+    {
+        const auto clip = edit::copyModules(f.p, VA, {a, x, b, z});
+        CHECK(clip.cables.size() == 3);
+        CHECK(has(clip, f.in(x), f.in(a), CableColor::White));
+        CHECK(has(clip, f.in(b), f.in(x), CableColor::White));
+        CHECK(has(clip, f.out(x), f.in(z), CableColor::Red)); // a net of its own, with its output
+    }
+    SECTION("an output with several branches left out: the others hang from the first, white")
+    {
+        const u8 c = f.add(kOut2), d = f.add(kOut2);
+        f.connect(f.out(osc), f.in(c));
+        f.connect(f.out(osc), f.in(d));
+        const auto clip = edit::copyModules(f.p, VA, {a, c, d});
+        CHECK(clip.cables.size() == 2);
+        CHECK(has(clip, f.in(c), f.in(a), CableColor::White));
+        CHECK(has(clip, f.in(d), f.in(a), CableColor::White)); // from A, not a row A-C-D as a delete makes
+    }
+    SECTION("pasted, the copies are cabled as the clipboard says")
+    {
+        const auto clip = edit::copyModules(f.p, VA, {osc, a, b});
+        const auto added = edit::pasteModules(f.p, VA, clip, 0, 40);
+        REQUIRE(added.size() == 3);
+        CHECK(f.count() == 4 + 2);
+        CHECK(f.stored(f.out(added[0]), f.in(added[1])));
+        CHECK(f.stored(f.in(added[2]), f.in(added[1])));
+    }
+    CHECK(reproduces(f.p.va));
+}
+
 TEST_CASE("jack popup: Disconnect splices")
 {
     Fixture f;
