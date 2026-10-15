@@ -1,5 +1,7 @@
 #include "ModuleBrowser.h"
 
+#include "ModuleSearch.h"
+
 #include "g2/module_db.hpp"
 
 namespace g2ui {
@@ -110,6 +112,31 @@ ModuleBrowser::ModuleBrowser() : keys_(moduleCounts())
     addAndMakeVisible(strip_);
     tabs_.setCurrentTabIndex(2); // Osc
     tabs_.addChangeListener(this);
+    // Finding a module by typing: an addition (the original has the groups only, manual p59).
+    #if JUCE_MAC
+    search_.setTextToShowWhenEmpty(juce::String(juce::CharPointer_UTF8("Find a module (\xe2\x87\xa7\xe2\x8c\x98" "F)")),
+                                   juce::Colours::grey);
+#else
+    search_.setTextToShowWhenEmpty("Find a module (Ctrl+Shift+F)", juce::Colours::grey);
+#endif
+    search_.setSelectAllWhenFocused(true);
+    search_.onTextChange = [this] {
+        if (searching())
+            showSearch(search_.getText());
+        else
+            showCategory(tabs_.getCurrentTabIndex());
+    };
+    search_.onReturnKey = [this] {
+        // The first match goes in, as a double-click on it would.
+        if (searching() && !buttons_.isEmpty() && onAdd)
+            onAdd(buttons_[0]->type());
+    };
+    search_.onEscapeKey = [this] {
+        search_.clear();
+        showCategory(tabs_.getCurrentTabIndex());
+        search_.giveAwayKeyboardFocus();
+    };
+    addAndMakeVisible(search_);
     showCategory(tabs_.getCurrentTabIndex());
 }
 
@@ -120,11 +147,32 @@ ModuleBrowser::~ModuleBrowser()
 
 void ModuleBrowser::changeListenerCallback(juce::ChangeBroadcaster*)
 {
+    // A group chosen ends a search.
+    search_.clear();
     showCategory(tabs_.getCurrentTabIndex());
+}
+
+void ModuleBrowser::focusSearch()
+{
+    search_.grabKeyboardFocus();
+    search_.selectAll();
+}
+
+void ModuleBrowser::showSearch(const juce::String& query)
+{
+    buttons_.clear();
+    for (const auto* def : searchModules(query.toStdString()))
+        stripContent_.addAndMakeVisible(buttons_.add(new ModuleButton(*this, *def)));
+    strip_.setViewPosition(0, 0);
+    resized();
+    if (onStatus)
+        onStatus(buttons_.isEmpty() ? juce::String("No module matches") : juce::String(buttons_.size()) + " modules: Return adds the first");
 }
 
 bool ModuleBrowser::routeKey(const juce::KeyPress& key, bool repeat)
 {
+    if (searching())
+        return false; // the strip shows the matches, not a group
     const auto m = key.getModifiers();
     ModuleBarKey k;
     k.tab = key.isKeyCode(juce::KeyPress::tabKey);
@@ -155,6 +203,8 @@ bool ModuleBrowser::routeKey(const juce::KeyPress& key, bool repeat)
 
 void ModuleBrowser::focusButton(const ModuleButton* b)
 {
+    if (searching())
+        return;
     if (const int i = buttons_.indexOf(b); i >= 0)
         keys_.setFocused(keys_.group(), i);
 }
@@ -203,7 +253,9 @@ void ModuleBrowser::showCategory(int index)
 void ModuleBrowser::resized()
 {
     auto r = getLocalBounds();
-    tabs_.setBounds(r.removeFromTop(28));
+    auto top = r.removeFromTop(28);
+    search_.setBounds(top.removeFromRight(180).reduced(2, 3));
+    tabs_.setBounds(top);
     strip_.setBounds(r);
     const int h = r.getHeight() - strip_.getScrollBarThickness() - 4;
     int x = 2;
