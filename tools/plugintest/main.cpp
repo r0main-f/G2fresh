@@ -814,10 +814,20 @@ void run(const juce::String& path, const juce::File& patch)
     check(longestSilence(sound, 0, sound.size()) < static_cast<std::size_t>(rate * 0.005), "without dropouts in real time");
 
     std::cout << "Its state" << std::endl;
-    waitMs(2500); // the flash goes into the state once quiet for a second (the timer ticks every second)
+    // The flash goes into the state once the G2 OS has written it and it has been quiet for a second (the timer ticks
+    // every second). The machine runs only while the host takes audio, and a busy computer gives it less: play on
+    // until it is there, up to 20 s, rather than for a fixed time.
     juce::MemoryBlock state;
-    onMessageThread([&] { a->getStateInformation(state); });
-    const auto tree = pluginState(state);
+    juce::ValueTree tree;
+    double waited = 0;
+    for (;; waited += 0.5) {
+        onMessageThread([&] { a->getStateInformation(state); });
+        tree = pluginState(state);
+        if (tree["emulatorFlash"].toString().isNotEmpty() || waited >= 20.0)
+            break;
+        play(*a, rate, block, 0.5, -1, -1, false);
+    }
+    std::cout << "  (the synth's memory was in the state after " << waited << " s more)" << std::endl;
     check(tree.hasType("G2fresh"), "the state is G2fresh's (" + juce::String(state.getSize()) + " bytes)");
     check(static_cast<bool>(tree.getProperty("emulated", false)), "it says the emulated G2 runs");
     const auto flash = tree["emulatorFlash"].toString();
