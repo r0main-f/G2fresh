@@ -683,8 +683,10 @@ void AreaView::paintCables(juce::Graphics& g)
     juce::Rectangle<float> covered;
     // With a highlighted chain, the other cables are dimmed and it is drawn last.
     const bool dimmed = highlighted_.has_value() || !heldChain_.empty();
-    if (dimmed)
-        g.beginTransparencyLayer(0.25f);
+    // View > Cable Opacity (an addition) on the cables, the highlighted chain aside.
+    const float alpha = (dimmed ? 0.25f : 1.0f) * cableAlpha(cableOpacity());
+    if (alpha < 1.0f)
+        g.beginTransparencyLayer(alpha);
     for (const auto& cable : doc_.patch().area(location_).cables) {
         if (listHas(heldChain_, cable) || listHas(chain_, cable) || (highlighted_ && sameEnds(cable, *highlighted_)))
             continue; // drawn on top below, even in a hidden colour
@@ -702,8 +704,9 @@ void AreaView::paintCables(juce::Graphics& g)
         }
     }
     cableBounds_ = covered.getSmallestIntegerContainer();
-    if (dimmed) {
+    if (alpha < 1.0f)
         g.endTransparencyLayer();
+    if (dimmed) {
         auto paintGlowing = [&](const g2::Cable& cable, juce::Colour colour) {
             const auto a = jackCentre({cable.fromModule, cable.fromConn, cable.fromIsOutput});
             const auto b = jackCentre({cable.toModule, cable.toConn, false});

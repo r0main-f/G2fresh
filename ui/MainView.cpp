@@ -28,6 +28,7 @@ enum MenuId {
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
     kCableStyleBase = 310,    // + CableStyle
+    kCableOpacityBase = 320,  // + index into kCableOpacities
     kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
     kMidiChannelBase = 600,   // + channel (0: as played)
     kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog,
@@ -578,6 +579,11 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         for (int s = 0; s < 4; ++s)
             styles.addItem(item(kCableStyleBase + s, styleNames[s], {}, true, static_cast<int>(cableStyle()) == s));
         m.addSubMenu("Cable Style", styles);
+        juce::PopupMenu opacity;
+        for (std::size_t i = 0; i < kCableOpacities.size(); ++i)
+            opacity.addItem(item(kCableOpacityBase + static_cast<int>(i), juce::String(kCableOpacities[i]) + "%", {}, true,
+                                 cableOpacity() == kCableOpacities[i]));
+        m.addSubMenu("Cable Opacity", opacity);
         m.addItem(item(kRemoveBendPoints, "Remove All Bend Points", {}, g2::edit::hasCableBends(doc_.patch())));
         m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic));
         m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation()));
@@ -750,6 +756,13 @@ void MainView::menuItemSelected(int id, int)
     }
     if (midiOut_ != nullptr && id >= kMidiChannelBase && id <= kMidiChannelBase + 16) {
         midiOut_->setChannel(id - kMidiChannelBase);
+        return;
+    }
+    if (id >= kCableOpacityBase && id < kCableOpacityBase + static_cast<int>(kCableOpacities.size())) {
+        setCableOpacity(kCableOpacities[static_cast<std::size_t>(id - kCableOpacityBase)]);
+        va_.settingsChanged();
+        fx_.settingsChanged();
+        menuItemsChanged();
         return;
     }
     if (id >= kCableStyleBase && id < kCableStyleBase + 4) {

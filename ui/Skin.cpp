@@ -427,6 +427,16 @@ void setCableStyle(CableStyle style)
     userSettings().setValue("cableStyle", static_cast<int>(style));
 }
 
+int cableOpacity()
+{
+    return cableOpacityFromSetting(userSettings().getIntValue("cableOpacity", 100));
+}
+
+void setCableOpacity(int percent)
+{
+    userSettings().setValue("cableOpacity", cableOpacityFromSetting(percent));
+}
+
 bool wheelEditsKnobs()
 {
     return userSettings().getBoolValue("wheelEditsKnobs", false);
