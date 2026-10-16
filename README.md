@@ -210,7 +210,6 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - Shortcuts that differ:
   - ⌘D duplicates (original: Download To Slot).
   - ⌘L switches to Live (original: Parameter Overview).
-  - ⌘1-8 select variations (original: 1-8).
   - ⇧⌘S is Save As.
   - Several of the original's ⌘ shortcuts are not bound yet.
 
