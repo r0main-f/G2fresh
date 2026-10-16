@@ -138,6 +138,11 @@ private:
     juce::TextButton zoomOut_{"-"}, zoomReset_{"100%"}, zoomIn_{"+"};
     juce::TextButton randomizeButton_{"Randomize"}, mutatorButton_{"Mutator..."};
     juce::ComboBox morphGroup_;
+    // The original's Color selector and paint bucket (manual p60, p82): the colour new modules get; choosing one or
+    // the bucket paints the selected modules. Not saved.
+    juce::TextButton colourButton_, bucketButton_{"Paint"};
+    std::uint8_t moduleColour_ = 0;
+    void chooseModuleColour();
     std::unique_ptr<MutatorWindow> mutator_;
     MidiOutputTarget* midiOut_ = nullptr;
     SynthSync* synth_ = nullptr;

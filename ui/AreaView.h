@@ -71,6 +71,9 @@ public:
     std::function<void(juce::PopupMenu&)> addSynthItems;
     // The last MIDI CC the synth received (CPatch::GetLastUsedMidiController), for a parameter's MIDI Controller menu.
     std::function<std::optional<std::uint8_t>()> lastMidiCc;
+    // The toolbar's colour (manual p60, p82): what new modules get; colourSelection paints the selected modules with one.
+    void setNewModuleColour(std::uint8_t colour) { newModuleColour_ = colour; }
+    void colourSelection(std::uint8_t colour);
     // F5-F8 held: the hint boxes over every parameter (HintOverlay.h); None takes them down.
     void setHintMode(HintMode mode);
     // Adds a module at the first free row of the first column, or at `where`.
@@ -172,6 +175,7 @@ private:
     void showBackgroundMenu(juce::Point<int> where);
     // The module's Replace button: the modules of its group (g2::replace::menu), and the replacement as one undo step.
     void showReplaceMenu(std::uint8_t module);
+    std::uint8_t newModuleColour_ = 0;
     void replaceModule(std::uint8_t module, std::uint8_t newType);
     void showJackMenu(const Jack& jack);
     void showControlMenu(const Hit& h);

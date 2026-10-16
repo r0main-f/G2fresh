@@ -284,7 +284,7 @@ bool filterLoadedNames(Patch& patch)
     return changed;
 }
 
-u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
+u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color)
 {
     Area& area = areaFor(patch, loc);
     const auto* def = db::find(type);
@@ -294,6 +294,8 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
         throw std::invalid_argument(std::string(def->shortName) + " cannot go in this area");
     if (col > 127 || row > 127)
         throw std::invalid_argument("position out of range");
+    if (color > 24)
+        throw std::invalid_argument("no such module colour");
     if (!patchload::canAddModule(patch, loc, type))
         throw std::invalid_argument("the patch is too big: the synth has no room for another module here");
 
@@ -316,6 +318,7 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
     m.type = type;
     m.col = col;
     m.row = row;
+    m.color = color;
     m.locked = def->defaultLocked;
     for (const auto& mode : def->modes)
         m.modes.push_back(mode.defaultValue);
@@ -347,13 +350,13 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
     return index;
 }
 
-u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
+u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color)
 {
     // A module dragged in (CClipboard::Drop @0014d882): the original makes
     // room before it creates the module, so its 34s come first.
     auto* recorded = live::recording();
     const std::size_t start = recorded ? recorded->size() : 0;
-    const u8 index = addModule(patch, loc, type, col, row);
+    const u8 index = addModule(patch, loc, type, col, row, color);
     const std::size_t moves = recorded ? recorded->size() : 0;
     resolveOverlaps(patch, loc, index);
     if (recorded)

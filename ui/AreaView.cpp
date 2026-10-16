@@ -1707,6 +1707,19 @@ void AreaView::showBackgroundMenu(juce::Point<int> where)
     });
 }
 
+void AreaView::colourSelection(std::uint8_t colour)
+{
+    if (selection_.empty())
+        return;
+    const auto loc = location_;
+    const auto targets = selection_;
+    doc_.perform("Change module colour", [&](g2::Patch& p) {
+        for (auto index : targets)
+            if (p.area(loc).find(index))
+                g2::edit::setModuleColor(p, loc, index, colour);
+    });
+}
+
 void AreaView::showReplaceMenu(std::uint8_t module)
 {
     const auto* m = doc_.patch().area(location_).find(module);
@@ -2152,7 +2165,7 @@ void AreaView::addModule(std::uint8_t type, std::optional<juce::Point<int>> wher
     std::uint8_t added = 0;
     juce::String error;
     if (doc_.perform("Add module", [&](g2::Patch& p) {
-            added = g2::edit::dropModule(p, loc, type, static_cast<std::uint8_t>(cell.x), static_cast<std::uint8_t>(cell.y));
+            added = g2::edit::dropModule(p, loc, type, static_cast<std::uint8_t>(cell.x), static_cast<std::uint8_t>(cell.y), newModuleColour_);
         }, &error)) {
         selection_ = {added};
         touch(added);
@@ -2170,7 +2183,7 @@ void AreaView::insertModule(std::uint8_t type)
     std::uint8_t added = 0;
     juce::String error;
     if (doc_.perform("Add module", [&](g2::Patch& p) {
-            added = g2::edit::addModule(p, loc, type, col, row);
+            added = g2::edit::addModule(p, loc, type, col, row, newModuleColour_);
             g2::edit::resolveOverlaps(p, loc, added);
         }, &error)) {
         clearSelection();

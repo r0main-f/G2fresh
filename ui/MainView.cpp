@@ -230,6 +230,16 @@ MainView::MainView(PatchDocument& doc, bool standalone)
             doc_.setFocusedMorphGroup(id - 1);
     };
     addAndMakeVisible(morphGroup_);
+    colourButton_.setTooltip("Module colour: new modules get it; choosing one paints the selected modules");
+    colourButton_.setColour(juce::TextButton::buttonColourId, ModulePainter::moduleColour(0));
+    colourButton_.onClick = [this] { chooseModuleColour(); };
+    bucketButton_.setTooltip("Paint the selected modules with the module colour");
+    bucketButton_.onClick = [this] {
+        if (auto* a = areaWithSelection())
+            a->colourSelection(moduleColour_);
+    };
+    addAndMakeVisible(colourButton_);
+    addAndMakeVisible(bucketButton_);
     addAndMakeVisible(mutatorButton_);
     // Edit / Live: the patch, or the emulated G2 as an instrument
     editButton_.setTooltip("Edit the patch: modules and cables (Cmd L switches)");
@@ -1062,6 +1072,29 @@ void MainView::slotClicked(int slot)
     updateToolbar();
 }
 
+void MainView::chooseModuleColour()
+{
+    juce::PopupMenu colours;
+    for (int c : ModulePainter::moduleColourMenuOrder()) {
+        juce::PopupMenu::Item item(c == 0 ? juce::String("Default") : juce::String("Colour ") + juce::String(c));
+        item.itemID = 1 + c;
+        item.colour = ModulePainter::moduleColour(c);
+        item.isTicked = moduleColour_ == c;
+        colours.addItem(std::move(item));
+    }
+    colours.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(colourButton_),
+                          [safe = juce::Component::SafePointer<MainView>(this)](int r) {
+                              if (!safe || r <= 0)
+                                  return;
+                              safe->moduleColour_ = static_cast<std::uint8_t>(r - 1);
+                              safe->colourButton_.setColour(juce::TextButton::buttonColourId, ModulePainter::moduleColour(r - 1));
+                              for (auto* area : {&safe->va_, &safe->fx_})
+                                  area->setNewModuleColour(safe->moduleColour_);
+                              if (auto* a = safe->areaWithSelection())
+                                  a->colourSelection(safe->moduleColour_);
+                          });
+}
+
 void MainView::recallVariationInit()
 {
     const auto to = static_cast<std::uint8_t>(doc_.variation());
@@ -1423,6 +1456,10 @@ void MainView::resized()
     randomizeButton_.setBounds(bar.removeFromRight(92));
     bar.removeFromRight(4);
     morphGroup_.setBounds(bar.removeFromRight(150));
+    bar.removeFromRight(8);
+    bucketButton_.setBounds(bar.removeFromRight(44));
+    bar.removeFromRight(2);
+    colourButton_.setBounds(bar.removeFromRight(28));
     bar.removeFromRight(16);
     varInit_.setBounds(bar.removeFromRight(40));
     bar.removeFromRight(4);

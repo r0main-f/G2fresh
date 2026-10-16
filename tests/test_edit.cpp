@@ -689,3 +689,17 @@ TEST_CASE("module Assign: a module's parameters onto a knob page")
     edit::assignModuleToPage(p, Location::Va, seq, 3, true); // Multi Column: 21 knobs from B1
     CHECK(edit::knobOf(p, Location::Va, seq, edit::assignableParams(*seqNote)[20]) == 24 + 20);
 }
+
+TEST_CASE("a new module takes the toolbar's colour")
+{
+    // Manual p60, p82: "the color selector stays in its new selection, causing any new modules that you add to the
+    // Patch window to get the selected color".
+    auto p = g2::Patch::makeDefault();
+    const auto a = edit::addModule(p, Location::Va, 7, 0, 0);
+    CHECK(p.va.find(a)->color == 0);
+    const auto b = edit::addModule(p, Location::Va, 7, 0, 4, 9);
+    CHECK(p.va.find(b)->color == 9);
+    const auto c = edit::dropModule(p, Location::Va, 7, 0, 8, 3);
+    CHECK(p.va.find(c)->color == 3);
+    CHECK_THROWS_AS(edit::addModule(p, Location::Va, 7, 0, 12, 25), std::invalid_argument); // 25 colours: 0..24
+}
