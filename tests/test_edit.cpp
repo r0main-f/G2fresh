@@ -168,9 +168,9 @@ TEST_CASE("morph, knob and MIDI assignments")
     edit::assignKnob(p, 20, Location::Va, osc, 0); // moves to the new knob
     CHECK(edit::knobOf(p, Location::Va, osc, 0) == 20);
     CHECK_FALSE(p.knobs[9].has_value());
-    CHECK(edit::knobName(0) == "1A-1");
-    CHECK(edit::knobName(9) == "1B-2");
-    CHECK(edit::knobName(119) == "5C-8");
+    CHECK(edit::knobName(0) == "A1-1"); // the original's "Page A1" (SMNU Knob menu, ids 2010-2024; manual p19)
+    CHECK(edit::knobName(9) == "A2-2");
+    CHECK(edit::knobName(119) == "E3-8");
 
     edit::assignMidiCc(p, 21, Location::Va, osc, 1);
     CHECK(edit::midiCcOf(p, Location::Va, osc, 1) == 21);
@@ -517,4 +517,30 @@ TEST_CASE("module bar: where an inserted module goes (CTabButton::Action)")
     // The rightmost selected column, below the lowest selected module there.
     CHECK(edit::insertPosition(p, Location::Va, {a, b, c}) == std::pair<u8, u8>{1, static_cast<u8>(10 + h)});
     CHECK(edit::insertPosition(p, Location::Va, {b, a}) == std::pair<u8, u8>{1, static_cast<u8>(h)});
+}
+
+TEST_CASE("modules go only where the original allows them: Fx-In in the FX area")
+{
+    // Audit P3: IsValidContext / CPatchData::CutForMergingWith @000e60a2 keep a module out of an area its contexts
+    // don't name (data/modules.json flags.contexts); Fx-In is FX-only.
+    Patch p = Patch::makeDefault();
+    const db::ModuleDef* fxIn = nullptr;
+    const db::ModuleDef* driver = nullptr;
+    for (const auto& d : db::modules()) {
+        if (std::string(d.shortName) == "Fx-In")
+            fxIn = &d;
+        if (std::string(d.shortName) == "Driver")
+            driver = &d;
+    }
+    REQUIRE(fxIn != nullptr);
+    REQUIRE(driver != nullptr);
+    CHECK(fxIn->contexts == 0b001);
+    CHECK_THROWS_AS(edit::addModule(p, Location::Va, fxIn->typeId, 0, 0), std::invalid_argument);
+    const u8 inFx = edit::addModule(p, Location::Fx, fxIn->typeId, 0, 0);
+    // Pasting it into the voice area is refused too.
+    const auto clip = edit::copyModules(p, Location::Fx, {inFx});
+    CHECK_THROWS_AS(edit::pasteModules(p, Location::Va, clip, 0, 0), std::invalid_argument);
+    CHECK(p.va.modules.empty());
+    // A module whose contexts the data doesn't give goes anywhere.
+    CHECK(driver->contexts == 0b111);
 }

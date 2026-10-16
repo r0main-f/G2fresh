@@ -290,6 +290,8 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
     const auto* def = db::find(type);
     if (!def || def->kind != db::ModuleKind::Module)
         throw std::invalid_argument("not a module type");
+    if (!((def->contexts >> static_cast<int>(loc)) & 1)) // IsValidContext (audit P3): Fx-In is FX-only
+        throw std::invalid_argument(std::string(def->shortName) + " cannot go in this area");
     if (col > 127 || row > 127)
         throw std::invalid_argument("position out of range");
     if (!patchload::canAddModule(patch, loc, type))
@@ -1454,8 +1456,9 @@ void clearKnob(Patch& patch, int knob)
 
 std::string knobName(int knob)
 {
-    const int group = knob / kKnobsPerPage;
-    return std::to_string(group / 3 + 1) + static_cast<char>('A' + group % 3) + "-" + std::to_string(knob % kKnobsPerPage + 1);
+    // The original's pages: "Page A1" .. "Page E3", eight knobs each (SMNU Knob menu, ids 2010-2024; manual p19).
+    const int page = knob / kKnobsPerPage;
+    return std::string(1, static_cast<char>('A' + page / 3)) + std::to_string(page % 3 + 1) + "-" + std::to_string(knob % kKnobsPerPage + 1);
 }
 
 std::optional<u8> midiCcOf(const Patch& patch, Location loc, u8 module, u8 param)
@@ -1895,6 +1898,10 @@ u8 blockFreeRow(const Patch& patch, Location loc, const Clipboard& clip, u8 col,
 std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 row)
 {
     Area& area = areaFor(patch, loc);
+    // A module the area does not take refuses the paste (CPatchData::CutForMergingWith @000e60a2, IsValidContext).
+    for (const auto& m : clip.modules)
+        if (const auto* def = m.def(); def && !((def->contexts >> static_cast<int>(loc)) & 1))
+            throw std::invalid_argument(std::string(def->shortName) + " cannot go in this area");
     if (!patchload::canPaste(patch, patchload::dynamicSize(clip.modules, clip.cables.size()))
         || area.modules.size() + clip.modules.size() > 127)
         throw std::invalid_argument("the patch is too big: the synth has no room for these modules");

@@ -27,6 +27,14 @@ COLOR = {"red": "Red", "blue": "Blue", "yellow": "Yellow", "blue_red": "BlueRed"
 BANDWIDTH = {"static": "Static", "dynamic": "Dynamic"}
 
 
+def contexts_bits(flags):
+    # bit = g2::Location: 0 FX, 1 VA, 2 patch settings; all three when the data gives none.
+    ctx = flags.get("contexts")
+    if not ctx:
+        return 7
+    return sum({"fx": 1, "va": 2, "patchSettings": 4}[c] for c in ctx)
+
+
 def cstr(s):
     if s is None:
         return "nullptr"
@@ -191,7 +199,7 @@ def generate():
             f"{span('Inputs', 'inputs')}, {span('Outputs', 'outputs')}, "
             f"{span('Params', 'params')}, {span('Modes', 'modes')}, {cstr(descriptions.get(m['shortName']) if m['kind'] == 'module' else None)}, "
             f"{m['toolbarSlot'] if m.get('toolbarSlot') is not None else 255}, "
-            f"{('kLabels' + str(t)) if t in labels else '{}'}, {span('EditOrder', 'editOrder')}}},")
+            f"{('kLabels' + str(t)) if t in labels else '{}'}, {span('EditOrder', 'editOrder')}, {contexts_bits(fl)}}},")
     lines += ["};", "", "const CategoryDef kCategories[] = {"]
     for c in mdb["categories"]:
         r, g, b = c["color"]

@@ -291,9 +291,10 @@ TEST_CASE("mutate: locked modules and fixed classes are never changed")
     for (const auto& d : db::modules())
         if (d.defaultLocked && d.kind == db::ModuleKind::Module && !d.params.empty()) {
             Patch q = Patch::makeDefault();
-            const u8 idx = edit::addModule(q, Location::Va, d.typeId, 0, 0);
+            const auto loc = (d.contexts & 0b010) ? Location::Va : Location::Fx; // where it may go (Fx-In: FX only)
+            const u8 idx = edit::addModule(q, loc, d.typeId, 0, 0);
             for (std::size_t k = 0; k < d.params.size(); ++k)
-                CHECK_FALSE(isEnabled(*q.va.find(idx), k, Settings{}));
+                CHECK_FALSE(isEnabled(*q.area(loc).find(idx), k, Settings{}));
         }
 }
 

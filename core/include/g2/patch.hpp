@@ -153,6 +153,11 @@ struct Patch {
     std::vector<file::Section> toSections() const;
 };
 
+// The names the original gives a new patch ("No name", SSTR 128 {Patch} 41) and a new performance ("Empty perf",
+// CPerformanceManager::CreateNewPerformance @000fe694).
+inline constexpr const char* kNewPatchName = "No name";
+inline constexpr const char* kNewPerformanceName = "Empty perf";
+
 struct Performance {
     file::PerfHeader header;
     std::array<Patch, 4> slots;
@@ -166,6 +171,9 @@ struct Performance {
     // other slots empty and off. (A G2 plays slot A from the keyboard only
     // when its performance says so.)
     static Performance playing(const Patch& patch, const std::string& name = {});
+    // A new performance as the original makes it (CreateNewPerformance @000fe694): four slots enabled, each with a
+    // new patch, the keyboard on slot A, MIDI channel 0 everywhere (CSlotSettings::CSlotSettings @00064138).
+    static Performance makeNew();
 };
 
 // Thrown by the loaders when the file's checksum is wrong (the file may be

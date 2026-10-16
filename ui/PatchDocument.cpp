@@ -341,7 +341,7 @@ void PatchDocument::newPatch()
     slot_ = 0;
     variation_ = 0;
     file_ = juce::File();
-    name_ = "New patch";
+    name_ = g2::kNewPatchName;
     dirty_ = false;
     loadReport_.clear();
     convertedFrom_ = 0;
@@ -351,17 +351,8 @@ void PatchDocument::newPatch()
 void PatchDocument::newPerformance()
 {
     resetHistory();
-    g2::Performance perf;
-    for (std::size_t i = 0; i < perf.slots.size(); ++i) {
-        perf.slots[i] = g2::Patch::makeDefault();
-        auto& slot = perf.header.slots[i];
-        slot.patchName = "New patch";
-        slot.enabled = 1;
-        slot.keyboard = i == 0 ? 1 : 0;
-        slot.midiChannel = static_cast<std::uint8_t>(i);
-    }
-    perf_ = std::move(perf);
-    perfName_ = "Performance";
+    perf_ = g2::Performance::makeNew();
+    perfName_ = g2::kNewPerformanceName;
     slot_ = 0;
     variation_ = 0;
     file_ = juce::File();

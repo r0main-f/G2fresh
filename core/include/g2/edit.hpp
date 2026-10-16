@@ -239,7 +239,7 @@ inline constexpr int kKnobsPerPage = 8;
 std::optional<int> knobOf(const Patch& patch, Location loc, u8 module, u8 param);
 void assignKnob(Patch& patch, int knob, Location loc, u8 module, u8 param); // replaces the knob's previous target
 void clearKnob(Patch& patch, int knob);
-std::string knobName(int knob); // "1A-3": page 1, sub-page A, knob 3
+std::string knobName(int knob); // "A1-3": page A1 (the original's "Page A1"), knob 3
 
 // MIDI controllers a patch can assign: 0..119 except 0, 1, 11, 18, 32, 64,
 // 70, 96, 97 (MIDICtrl::IsValid @00148754). CC 7 and 17 are pre-assigned to

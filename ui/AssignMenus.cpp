@@ -8,20 +8,18 @@ juce::PopupMenu knobMenu(const g2::Patch& patch, g2::Location loc, std::uint8_t 
 {
     juce::PopupMenu knobs;
     const auto knob = g2::edit::knobOf(patch, loc, module, param);
-    for (int page = 0; page < 5; ++page) {
+    // The original's Knob menu: Page A1 .. Page E3, eight knobs each (SMNU, ids 2010-2024).
+    for (int page = 0; page < 15; ++page) {
         juce::PopupMenu pageMenu;
-        for (int sub = 0; sub < 3; ++sub) {
-            juce::PopupMenu subMenu;
-            for (int k = 0; k < g2::edit::kKnobsPerPage; ++k) {
-                const int index = (page * 3 + sub) * g2::edit::kKnobsPerPage + k;
-                juce::String text = "Knob " + juce::String(k + 1);
-                if (const auto& a = patch.knobs[static_cast<std::size_t>(index)]; a && index != knob.value_or(-1))
-                    text << "  (in use)";
-                subMenu.addItem(kKnobBase + index, text, true, knob == index);
-            }
-            pageMenu.addSubMenu(juce::String::charToString(static_cast<juce::juce_wchar>('A' + sub)), subMenu);
+        for (int k = 0; k < g2::edit::kKnobsPerPage; ++k) {
+            const int index = page * g2::edit::kKnobsPerPage + k;
+            juce::String text = "Knob " + juce::String(k + 1);
+            if (const auto& a = patch.knobs[static_cast<std::size_t>(index)]; a && index != knob.value_or(-1))
+                text << "  (in use)";
+            pageMenu.addItem(kKnobBase + index, text, true, knob == index);
         }
-        knobs.addSubMenu("Page " + juce::String(page + 1), pageMenu);
+        const auto name = "Page " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + page / 3)) + juce::String(page % 3 + 1);
+        knobs.addSubMenu(name, pageMenu, true, nullptr, knob && *knob / g2::edit::kKnobsPerPage == page);
     }
     knobs.addSeparator();
     knobs.addItem(kClearKnob, "No knob", knob.has_value());
