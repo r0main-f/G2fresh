@@ -229,6 +229,7 @@ private:
     juce::Rectangle<int> cableBounds_; // what the cables covered at the last paint
     // DrumSynth preset selectors' state (last preset), per module, as the original keeps it.
     std::map<std::uint8_t, g2::special::DrumPresetSelector> drumSelectors_;
+    int shownGeneration_ = -1, shownSlot_ = -1; // the document and slot the selectors belong to
     std::optional<juce::Point<int>> dropCell_; // browser drag-over preview
 
     std::unique_ptr<ModulesLayer> modules_;

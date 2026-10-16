@@ -2,6 +2,7 @@
 
 #include "AssignMenus.h"
 #include "ButtonPress.h"
+#include "DrumSelectors.h"
 #include "CableColours.h"
 #include "CableCurve.h"
 #include "IncDec.h"
@@ -205,6 +206,11 @@ void AreaView::timerCallback()
 
 void AreaView::changeListenerCallback(juce::ChangeBroadcaster*)
 {
+    // The DrumSynth selectors' state goes with its module, and with every module when another patch is shown.
+    const bool replaced = doc_.generation() != shownGeneration_ || doc_.slot() != shownSlot_;
+    shownGeneration_ = doc_.generation();
+    shownSlot_ = doc_.slot();
+    pruneDrumSelectors(drumSelectors_, doc_.patch().area(location_), replaced);
     std::erase_if(selection_, [&](std::uint8_t m) { return !doc_.patch().area(location_).find(m); });
     // Follow the highlighted cable (its colour may have changed); drop it once gone.
     if (highlighted_) {

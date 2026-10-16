@@ -62,6 +62,7 @@ void PatchDocument::resetHistory()
 {
     focus_.fill(g2::focus::kDefault); // a new or loaded document (CPatch::CPatch @000d96d4)
     cablesShown_.fill(true);
+    ++generation_;
     undo_.clearUndoHistory();
     endCoalescing();
     lastStep_ = nullptr;
