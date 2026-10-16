@@ -85,6 +85,9 @@ struct ModuleDef {
     // The parameters in the order the arrow keys walk them (the module type's ParamEditOrder,
     // CBuildModule::GetNextParamFrom @000a9f6c): a permutation of the parameter indices.
     std::span<const std::uint8_t> editOrder;
+    // Where it may go (flags.contexts; the original's IsValidContext): bit 0 the FX area, bit 1 the voice area, bit 2
+    // the patch settings (bit = g2::Location). All three when the data gives none.
+    std::uint8_t contexts = 0b111;
 };
 
 struct CategoryDef {

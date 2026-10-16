@@ -518,3 +518,29 @@ TEST_CASE("module bar: where an inserted module goes (CTabButton::Action)")
     CHECK(edit::insertPosition(p, Location::Va, {a, b, c}) == std::pair<u8, u8>{1, static_cast<u8>(10 + h)});
     CHECK(edit::insertPosition(p, Location::Va, {b, a}) == std::pair<u8, u8>{1, static_cast<u8>(h)});
 }
+
+TEST_CASE("modules go only where the original allows them: Fx-In in the FX area")
+{
+    // Audit P3: IsValidContext / CPatchData::CutForMergingWith @000e60a2 keep a module out of an area its contexts
+    // don't name (data/modules.json flags.contexts); Fx-In is FX-only.
+    Patch p = Patch::makeDefault();
+    const db::ModuleDef* fxIn = nullptr;
+    const db::ModuleDef* driver = nullptr;
+    for (const auto& d : db::modules()) {
+        if (std::string(d.shortName) == "Fx-In")
+            fxIn = &d;
+        if (std::string(d.shortName) == "Driver")
+            driver = &d;
+    }
+    REQUIRE(fxIn != nullptr);
+    REQUIRE(driver != nullptr);
+    CHECK(fxIn->contexts == 0b001);
+    CHECK_THROWS_AS(edit::addModule(p, Location::Va, fxIn->typeId, 0, 0), std::invalid_argument);
+    const u8 inFx = edit::addModule(p, Location::Fx, fxIn->typeId, 0, 0);
+    // Pasting it into the voice area is refused too.
+    const auto clip = edit::copyModules(p, Location::Fx, {inFx});
+    CHECK_THROWS_AS(edit::pasteModules(p, Location::Va, clip, 0, 0), std::invalid_argument);
+    CHECK(p.va.modules.empty());
+    // A module whose contexts the data doesn't give goes anywhere.
+    CHECK(driver->contexts == 0b111);
+}
