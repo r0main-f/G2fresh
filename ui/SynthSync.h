@@ -130,6 +130,8 @@ public:
     // The last MIDI controller the synth received (80 CMMidiLearn), while the patch is on it
     // (CPatch::GetLastUsedMidiController @000d47e8).
     std::optional<std::uint8_t> lastMidiCc() const;
+    // The G2's focused slot (09 CMSlotFocus), or -1 when not connected or none.
+    int synthFocusedSlot() const { return ready() && link_->state().slotFocus < 4 ? link_->state().slotFocus : -1; }
 
     // An alert the original shows when the synth reports an exception (7E):
     // title and text. Set by the editor window.

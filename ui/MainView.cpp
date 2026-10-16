@@ -589,7 +589,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kSaveInitPatch1, "Save InitPatch 1")); // the original's File menu (SMNU, items 108 and 109)
         m.addItem(item(kSaveInitPatch2, "Save InitPatch 2"));
         m.addSeparator();
-        m.addItem(item(kPerformanceSettings, "Performance Settings...", {}, doc_.isPerformance()));
+        m.addItem(item(kPerformanceSettings, "Performance Settings...", kCmd + "R", doc_.isPerformance()));
     } else if (index == 1) {
         const auto& undo = doc_;
         m.addItem(item(kUndo, "Undo", kCmd + "Z", undo.canUndo()));
@@ -620,7 +620,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kMutator, "Patch Mutator...", kCmd + "2"));
         m.addSeparator();
         m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
-        m.addItem(item(kPatchNotes, "Patch Notes..."));
+        m.addItem(item(kPatchNotes, "Patch Notes...", kCmd + "J"));
         m.addSeparator();
         m.addItem(item(kDeleteUnused, "Delete Unused Modules")); // the original's Patch menu (SMNU, item 305)
     } else if (index == 2) {
@@ -631,7 +631,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kZoomReset, "Actual Size", kCmd + "0"));
         m.addItem(item(kZoomFit, "Zoom to Fit", kShift + kCmd + "0"));
         m.addSeparator();
-        m.addItem(item(kShowSettings, "Show Patch Settings", {}, true, !settings_.isCollapsed()));
+        m.addItem(item(kShowSettings, "Show Patch Settings", kCmd + "P", true, !settings_.isCollapsed()));
         juce::PopupMenu cables;
         static const char* const names[7] = {"Red", "Blue", "Yellow", "Orange", "Green", "Purple", "White"};
         for (int c = 0; c < 7; ++c)
@@ -1559,6 +1559,30 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return setZoom(1.0f), true;
     if (key == juce::KeyPress('0', cmd | juce::ModifierKeys::shiftModifier, 0) || key == juce::KeyPress(')', cmd | juce::ModifierKeys::shiftModifier, 0))
         return zoomToFit(), true;
+    // The original's Ctrl (Mac: Command) shortcuts G2fresh has the functions for (manual p116).
+    if (key.getModifiers().isCommandDown() && !key.getModifiers().isAltDown() && !liveMode_) {
+        const int k = key.getKeyCode();
+        switch (commandKey(k > 0 && k < 128 ? static_cast<char>(k) : 0, key.getModifiers().isShiftDown())) {
+        case CommandKey::PatchSettings:
+            settings_.setCollapsed(!settings_.isCollapsed());
+            return true;
+        case CommandKey::PerformanceSettings:
+            if (doc_.isPerformance())
+                showPerformanceSettings(doc_, this);
+            return true;
+        case CommandKey::Textpad:
+            showPatchNotes(doc_, this);
+            return true;
+        case CommandKey::UploadSlot:
+            if (const int slot = synth_ != nullptr ? synth_->synthFocusedSlot() : -1; slot >= 0)
+                confirmDiscard([this, slot] { synth_->getPatch(slot); });
+            else
+                setStatus("Get Patch: no G2 connected");
+            return true;
+        case CommandKey::None:
+            break;
+        }
+    }
     // ⌘2 is the original's Patch Mutator (⌘1 Dump One and ⌘3 Patch Adjuster are not in G2fresh).
     if (key == juce::KeyPress('2', cmd, 0))
         return showMutator(), true;

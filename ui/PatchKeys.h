@@ -65,6 +65,23 @@ inline MutatorKey mutatorKey(char c, bool modifier, bool repeat)
     }
 }
 
+// The original's Ctrl (Mac: Command) shortcuts that G2fresh has the functions for (manual p116): P shows or hides the
+// patch settings, R the Performance Settings, J the Textpad (Patch Notes), U uploads the G2's active slot. `shift`:
+// Shift held too (then not these).
+enum class CommandKey { None, PatchSettings, PerformanceSettings, Textpad, UploadSlot };
+inline CommandKey commandKey(char c, bool shift)
+{
+    if (shift)
+        return CommandKey::None;
+    switch (std::tolower(static_cast<unsigned char>(c))) {
+    case 'p': return CommandKey::PatchSettings;
+    case 'r': return CommandKey::PerformanceSettings;
+    case 'j': return CommandKey::Textpad;
+    case 'u': return CommandKey::UploadSlot;
+    default: return CommandKey::None;
+    }
+}
+
 // A click on a performance's slot button (manual p58): it focuses the slot; Shift-click turns it on or off; the morph
 // modifier (Option on the Mac, Ctrl elsewhere: the manual's Ctrl) assigns the keyboard to it or not.
 enum class SlotClick { Focus, ToggleActive, ToggleKeyboard };

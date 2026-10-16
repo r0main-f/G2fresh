@@ -96,3 +96,15 @@ TEST_CASE("patch keys: the Mutator's, while it is open")
     CHECK(mutatorKey('u', false, true) == MutatorKey::None);
     CHECK(mutatorKey('a', false, false) == MutatorKey::None);
 }
+
+TEST_CASE("patch keys: the original's command shortcuts G2fresh has the functions for")
+{
+    // Manual p116: Ctrl(Mac: Cmd)+P the Patch Settings, +R the Performance Settings, +J the Textpad (Patch Notes),
+    // +U upload the active slot from the G2.
+    CHECK(commandKey('p', false) == CommandKey::PatchSettings);
+    CHECK(commandKey('R', false) == CommandKey::PerformanceSettings);
+    CHECK(commandKey('j', false) == CommandKey::Textpad);
+    CHECK(commandKey('u', false) == CommandKey::UploadSlot);
+    CHECK(commandKey('p', true) == CommandKey::None); // with Shift: not these
+    CHECK(commandKey('q', false) == CommandKey::None);
+}
