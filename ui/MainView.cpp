@@ -233,9 +233,8 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     fxPane_.setText("FX AREA", "Monophonic: runs once, shared by all voices. Put effects here (reverb, chorus, delay...).",
                     "The FX area processes the mix of all voices once. Route voices here with the Fx/Bus outputs of "
                     "the voice area, e.g. 2-Out set to Fx.");
-    layout_.setItemLayout(0, 60, -1.0, -0.62);
-    layout_.setItemLayout(1, 6, 6, 6);
-    layout_.setItemLayout(2, 60, -1.0, -0.38);
+    divider_.setTooltip("Drag to share the window between the areas. Its buttons: only the FX Area, only the Voice "
+                        "Area, back to before (keys F and V switch too)");
 
     setWantsKeyboardFocus(true);
     doc_.addChangeListener(this);
@@ -1177,8 +1176,85 @@ void MainView::changeListenerCallback(juce::ChangeBroadcaster* source)
     menuItemsChanged(); // undo/redo state
 }
 
+int MainView::splitTotal() const
+{
+    return fxPane_.getBottom() - vaPane_.getY();
+}
+
+void MainView::splitMoved()
+{
+    resized();
+    const auto pos = static_cast<std::uint16_t>(split_.position);
+    if (doc_.patch().header.splitterPos != pos)
+        doc_.performLive([pos](g2::Patch& p) { p.header.splitterPos = pos; });
+}
+
+void MainView::Divider::paint(juce::Graphics& g)
+{
+    const auto r = getLocalBounds();
+    g.fillAll(juce::Colour(0xff25272b));
+    g.setColour(juce::Colour(0xff3a3d44));
+    g.drawHorizontalLine(0, 0.0f, static_cast<float>(r.getWidth()));
+    g.drawHorizontalLine(r.getBottom() - 1, 0.0f, static_cast<float>(r.getWidth()));
+    // The three buttons at the left: the bar up (only the FX Area), down (only the Voice Area), back.
+    g.setColour(juce::Colour(0xffa8adb6));
+    for (int b = 0; b < 3; ++b) {
+        const auto box = juce::Rectangle<float>(static_cast<float>(b * SplitBar::kHeight), 0.0f, SplitBar::kHeight, SplitBar::kHeight).reduced(2.5f);
+        juce::Path p;
+        if (b == 0)
+            p.addTriangle(box.getCentreX(), box.getY(), box.getRight(), box.getBottom(), box.getX(), box.getBottom());
+        else if (b == 1)
+            p.addTriangle(box.getX(), box.getY(), box.getRight(), box.getY(), box.getCentreX(), box.getBottom());
+        else {
+            p.addTriangle(box.getCentreX(), box.getY(), box.getRight(), box.getCentreY() - 0.5f, box.getX(), box.getCentreY() - 0.5f);
+            p.addTriangle(box.getX(), box.getCentreY() + 0.5f, box.getRight(), box.getCentreY() + 0.5f, box.getCentreX(), box.getBottom());
+        }
+        g.fillPath(p);
+    }
+}
+
+void MainView::Divider::mouseMove(const juce::MouseEvent& e)
+{
+    setMouseCursor(buttonAt(e.x) >= 0 ? juce::MouseCursor::NormalCursor : juce::MouseCursor::UpDownResizeCursor);
+}
+
+void MainView::Divider::mouseDown(const juce::MouseEvent& e)
+{
+    const int total = owner_.splitTotal();
+    switch (buttonAt(e.x)) {
+    case 0: owner_.split_.toFx(total); break;
+    case 1: owner_.split_.toVoice(total); break;
+    case 2: owner_.split_.restore(); break;
+    default:
+        dragging_ = true;
+        grab_ = e.y;
+        owner_.split_.beginDrag(total);
+        return;
+    }
+    owner_.splitMoved();
+}
+
+void MainView::Divider::mouseDrag(const juce::MouseEvent& e)
+{
+    if (!dragging_)
+        return;
+    owner_.split_.dragTo(e.getEventRelativeTo(&owner_).y - grab_ - owner_.vaPane_.getY(), owner_.splitTotal());
+    owner_.resized();
+}
+
+void MainView::Divider::mouseUp(const juce::MouseEvent&)
+{
+    if (std::exchange(dragging_, false))
+        owner_.splitMoved();
+}
+
 void MainView::updateToolbar()
 {
+    // The split bar where this patch has it (each slot's patch its own).
+    if (const int pos = doc_.patch().header.splitterPos; pos != split_.position) {
+        split_.position = pos;
+        resized();
+    }
     // While the Patch Mutator plays an individual in variation 9, no
     // variation button is lit (the original focuses variation 9).
     for (int i = 0; i < variations_.size(); ++i)
@@ -1329,8 +1405,9 @@ void MainView::resized()
     }
     settings_.setBounds(r.removeFromTop(settings_.preferredHeight(r.getWidth())));
     browser_.setBounds(r.removeFromTop(62));
-    juce::Component* parts[] = {&vaPane_, &divider_, &fxPane_};
-    layout_.layOutComponents(parts, 3, r.getX(), r.getY(), r.getWidth(), r.getHeight(), true, true);
+    vaPane_.setBounds(r.removeFromTop(SplitBar::shown(split_.position, r.getHeight())));
+    divider_.setBounds(r.removeFromTop(SplitBar::kHeight));
+    fxPane_.setBounds(r);
     for (auto [port, area] : {std::pair{&vaPort_, &va_}, std::pair{&fxPort_, &fx_}})
         area->setMinimumSize(juce::roundToInt(static_cast<float>(port->getWidth()) / zoom_),
                              juce::roundToInt(static_cast<float>(port->getHeight()) / zoom_));
@@ -1451,6 +1528,10 @@ bool MainView::keyPressed(const juce::KeyPress& key)
             return doc_.setVariation(k.index), true;
         if (k.kind == PatchKey::Kind::Slot)
             return doc_.setSlot(k.index), true;
+        if (k.kind == PatchKey::Kind::ShowVoice || k.kind == PatchKey::Kind::ShowFx) {
+            k.kind == PatchKey::Kind::ShowVoice ? split_.showVoice(splitTotal()) : split_.showFx(splitTotal());
+            return splitMoved(), true;
+        }
     }
     return false;
 }

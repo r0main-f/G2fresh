@@ -1,6 +1,7 @@
 #pragma once
 // The patch window's single keys, as Clavia's editor v1.62 binds them (CPatchView::InitializeShortcutKeys @000fafd8;
-// manual p115-116): 1 to 8 select the variation, A to D a performance's slot, on key down and with no modifier.
+// manual p115-116): 1 to 8 select the variation, A to D a performance's slot, V and F show the Voice or the FX Area
+// (SplitBar.h), on key down and with no modifier.
 // Plain C++.
 
 #include <array>
@@ -10,7 +11,7 @@
 namespace g2ui {
 
 struct PatchKey {
-    enum class Kind { None, Variation, Slot };
+    enum class Kind { None, Variation, Slot, ShowVoice, ShowFx };
     Kind kind = Kind::None;
     int index = 0;
 };
@@ -28,6 +29,10 @@ inline PatchKey patchKey(char c, bool modifier, bool repeat, bool performance,
     const char l = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (performance && l >= 'a' && l <= 'd' && enabled[static_cast<std::size_t>(l - 'a')])
         return {PatchKey::Kind::Slot, l - 'a'};
+    if (l == 'v')
+        return {PatchKey::Kind::ShowVoice};
+    if (l == 'f')
+        return {PatchKey::Kind::ShowFx};
     return {};
 }
 
