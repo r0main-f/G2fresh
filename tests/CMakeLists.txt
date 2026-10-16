@@ -55,6 +55,7 @@ add_executable(g2tests
   test_drag_copy.cpp
   test_paste_layout.cpp
   test_drum_selectors.cpp
+  test_mutator_set.cpp
   test_benchpack.cpp
 )
 target_link_libraries(g2tests PRIVATE g2bridgelib g2engine g2clavia Catch2::Catch2WithMain) # g2proto and g2core come with it

@@ -618,10 +618,35 @@ void Mutator::sync(const Patch& patch)
             });
         }
     };
-    for (auto& b : population)
+    // New modules join every box too, each value the module's in the active variation plus a random fraction
+    // (CMutaSynthData::AddModule @00141c08).
+    const u8 active = patch.header.activeVariation;
+    auto join = [&](std::optional<Individual>& box) {
+        if (!box)
+            return;
+        for (Location loc : {Location::Va, Location::Fx}) {
+            auto& genes = box->area(loc);
+            for (const auto& m : patch.area(loc).modules) {
+                if (box->find(loc, m.index) || m.params.empty())
+                    continue;
+                ModuleGenes g{m.index, m.type, {}};
+                const auto& values = m.params[std::min<std::size_t>(active, m.params.size() - 1)];
+                for (const u8 v : values)
+                    g.values.push_back(v + rng_.unit());
+                genes.insert(std::upper_bound(genes.begin(), genes.end(), g,
+                                              [](const ModuleGenes& a, const ModuleGenes& b) { return a.index < b.index; }),
+                             std::move(g));
+            }
+        }
+    };
+    for (auto& b : population) {
         prune(b);
-    for (auto& b : geneBank)
+        join(b);
+    }
+    for (auto& b : geneBank) {
         prune(b);
+        join(b);
+    }
 }
 
 std::optional<Individual>* Mutator::slot(Box b)

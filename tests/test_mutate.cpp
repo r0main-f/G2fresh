@@ -503,3 +503,29 @@ TEST_CASE("mutate: the Range knob goes from 0 to 50 %")
     s.setProbability(0.0); // the link curve gives at most 0.5 too
     CHECK(s.range <= kMaxRange);
 }
+
+TEST_CASE("mutator: a module added while it is open joins every individual")
+{
+    // Audit R3: CMutaSynthData::AddModule @00141c08 adds the new module to the population and the gene bank too,
+    // each value the module's plus a random fraction; G2fresh added it to its mirror of the variations only.
+    Patch p = Patch::makeDefault();
+    edit::addModule(p, Location::Va, 7, 0, 0); // an OscB
+    Mutator m(p, 7);
+    m.randomize(p, 0);
+    REQUIRE(m.population[2].has_value());
+    m.geneBank[0] = m.population[2];
+    const u8 added = edit::addModule(p, Location::Va, 19, 1, 0); // a Mix4-1B, while the Mutator is open
+    edit::setParam(p, Location::Va, added, 0, 0, 90);
+    m.sync(p);
+    for (const auto* box : {&m.population[2], &m.geneBank[0]}) {
+        REQUIRE(box->has_value());
+        const auto* g = (*box)->find(Location::Va, added);
+        REQUIRE(g != nullptr);
+        CHECK(g->type == 19);
+        CHECK((*box)->quantized(Location::Va, added)[0] == 90); // the module's value, a fraction above it
+    }
+    // Every filled box has it.
+    for (const auto& box : m.population)
+        if (box)
+            CHECK(box->find(Location::Va, added) != nullptr);
+}
