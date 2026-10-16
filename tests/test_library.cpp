@@ -804,10 +804,10 @@ TEST_CASE("library: scan timing", "[.bench]")
 
 TEST_CASE("Patch Library: a first use starts on the default folder, once")
 {
-    // Asked for after hand testing: on first use the library starts on ~/Documents/G2 Patches instead of asking for
-    // a folder. Once that was done, a list the user emptied stays empty.
+    // Asked for after hand testing: on first use the library starts on the default folder instead of asking for a
+    // folder. Once that was done, a list the user emptied stays empty.
     using g2ui::startingFolders;
-    const std::string def = "/Users/x/Documents/G2 Patches";
+    const std::string def = "/Users/x/Music/G2fresh/Patches";
     auto s = startingFolders({}, false, def);
     CHECK(s.folders == std::vector<std::string>{def});
     CHECK(s.addedDefault);
@@ -817,4 +817,12 @@ TEST_CASE("Patch Library: a first use starts on the default folder, once")
     s = startingFolders({"/Volumes/Patches"}, false, def); // folders chosen before this version: kept as they are
     CHECK(s.folders == std::vector<std::string>{"/Volumes/Patches"});
     CHECK_FALSE(s.addedDefault);
+}
+
+TEST_CASE("Patch Library: the default folder is G2fresh/Patches in the Music folder")
+{
+    // The user's choice (2026-10-16): where music apps keep their users' files (Ableton's ~/Music/Ableton/...), named
+    // after the app, on every system.
+    CHECK(g2ui::defaultPatchFolder("/Users/x/Music") == "/Users/x/Music/G2fresh/Patches");
+    CHECK(g2ui::defaultPatchFolder("C:\\Users\\x\\Music") == "C:\\Users\\x\\Music\\G2fresh\\Patches");
 }

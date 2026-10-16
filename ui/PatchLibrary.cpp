@@ -410,11 +410,12 @@ public:
         folders_.addLines(store_.get(kFoldersKey));
         folders_.removeEmptyStrings();
         {
-            // A first use starts on ~/Documents/G2 Patches, made if missing (asked for after hand testing).
+            // A first use starts on G2fresh/Patches in the Music folder, made if missing (asked for after hand testing).
             std::vector<std::string> stored;
             for (const auto& f : folders_)
                 stored.push_back(f.toStdString());
-            const auto def = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("G2 Patches");
+            const juce::File def{juce::String(defaultPatchFolder(
+                juce::File::getSpecialLocation(juce::File::userMusicDirectory).getFullPathName().toStdString()))};
             const auto start = startingFolders(stored, store_.get(kDefaultFolderKey) == "1", def.getFullPathName().toStdString());
             if (start.addedDefault && (def.isDirectory() || def.createDirectory())) {
                 folders_.add(def.getFullPathName());
@@ -602,7 +603,9 @@ public:
                    "G2fresh comes without patches. It reads yours where they are, with their subfolders, and never "
                    "changes them.";
         else if (model_.index.size() == 0 && !scanning_)
-            hint = "No .pch2 or .prf2 file in " + (folders_.size() == 1 ? juce::File(folders_[0]).getFileName() : juce::String("the chosen folders"))
+            hint = "No .pch2 or .prf2 file in "
+                 + (folders_.size() == 1 ? juce::File(folders_[0]).getParentDirectory().getFileName() + "/" + juce::File(folders_[0]).getFileName()
+                                         : juce::String("the chosen folders"))
                  + " yet. Put your patches there (subfolders too), or add a folder: Folders > Add Folder...\n\n"
                    "G2fresh comes without patches. You can download these, unzip them into the folder, then Rescan:";
         else if (model_.rowCount() == 0 && !scanning_)
@@ -1419,7 +1422,11 @@ private:
                                                  "Nord%20Modular%20G2%20Factory%20Bank%20v1.24%20revA.zip")};
     juce::HyperlinkButton communityLink_{"G2 patches by users (a GitHub mirror of the electro-music.com forum's archive)",
                                          juce::URL("https://github.com/DatanoiseTV/NordModularPatches")};
+#if JUCE_MAC
     juce::TextButton showFolder_{"Show the Folder in the Finder"};
+#else
+    juce::TextButton showFolder_{"Show the Folder"};
+#endif
 
     void updateEmptyLinks()
     {

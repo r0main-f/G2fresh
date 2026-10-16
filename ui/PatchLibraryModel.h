@@ -21,8 +21,19 @@
 
 namespace g2ui {
 
+// The default folder: G2fresh/Patches in the user's Music folder, on every system (where music apps keep their users'
+// files; the user's choice, 2026-10-16). `musicDir` is the system's Music folder; its separator is kept.
+inline std::string defaultPatchFolder(const std::string& musicDir)
+{
+    const char sep = musicDir.find('\\') != std::string::npos && musicDir.find('/') == std::string::npos ? '\\' : '/';
+    std::string dir = musicDir;
+    if (!dir.empty() && dir.back() != sep)
+        dir += sep;
+    return dir + "G2fresh" + sep + "Patches";
+}
+
 // The folders the library starts with: the ones chosen before; on a first use (none chosen, and the default never
-// added), the default folder (~/Documents/G2 Patches, which the caller creates). Once added, it is not added again: a
+// added), the default folder (defaultPatchFolder, which the caller creates). Once added, it is not added again: a
 // list the user emptied stays empty.
 struct StartingFolders {
     std::vector<std::string> folders;
