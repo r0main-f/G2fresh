@@ -960,6 +960,57 @@ std::optional<u8> targetFromText(const Patch& patch, Target t, u8 variation, con
     return best;
 }
 
+namespace {
+const char* const kOneSlotActive = "At least one slot must be active.";
+}
+
+std::string toggleSlotEnabled(file::PerfHeader& header, int slot)
+{
+    auto& s = header.slots[static_cast<std::size_t>(slot)];
+    if (s.enabled == 0) {
+        s.enabled = 1;
+        header.focusedSlot = static_cast<u8>(slot);
+        return {};
+    }
+    for (int u = 0; u < 4; ++u) {
+        auto& other = header.slots[static_cast<std::size_t>(u)];
+        if (u == slot || other.enabled == 0)
+            continue;
+        if (s.keyboard != 0) {
+            s.keyboard = 0;
+            other.keyboard = 1;
+        }
+        header.focusedSlot = static_cast<u8>(u);
+        s.enabled = 0;
+        return {};
+    }
+    return kOneSlotActive;
+}
+
+std::string toggleSlotKeyboard(file::PerfHeader& header, int slot)
+{
+    auto& s = header.slots[static_cast<std::size_t>(slot)];
+    if (s.keyboard == 0) {
+        s.keyboard = 1;
+        return {};
+    }
+    for (int u = 0; u < 4; ++u)
+        if (u != slot && header.slots[static_cast<std::size_t>(u)].keyboard != 0) {
+            s.keyboard = 0;
+            return {};
+        }
+    return kOneSlotActive;
+}
+
+void validateKeyboardRange(file::PerfHeader& header, int slot)
+{
+    auto& s = header.slots[static_cast<std::size_t>(slot)];
+    s.kbdRangeLower = std::min<u8>(s.kbdRangeLower, 127);
+    s.kbdRangeUpper = std::min<u8>(s.kbdRangeUpper, 127);
+    if (s.kbdRangeUpper < s.kbdRangeLower)
+        s.kbdRangeLower = s.kbdRangeUpper;
+}
+
 std::string targetEditText(const Patch& patch, Target t, u8 variation)
 {
     const auto text = targetText(patch, t, variation);

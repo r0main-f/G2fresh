@@ -107,8 +107,23 @@ public:
                     doc_.editPerformance([&](g2::file::PerfHeader& h) { h.slots[static_cast<std::size_t>(i)].*field = v; });
                 };
             };
-            toggle(row.enabled, s.enabled != 0, &g2::file::SlotSettings::enabled);
-            toggle(row.keyboard, s.keyboard != 0, &g2::file::SlotSettings::keyboard);
+            // Active and Keyboard follow the original's rules (g2::edit::toggleSlotEnabled / toggleSlotKeyboard): a refusal
+            // shows its alert and leaves the box as it was; a change may move the keyboard to another row.
+            auto ruled = [this, i](juce::ToggleButton& b, bool on, bool enabledBox) {
+                b.setToggleState(on, juce::dontSendNotification);
+                b.onClick = [this, i, enabledBox] {
+                    std::string refused;
+                    doc_.editPerformance([&](g2::file::PerfHeader& h) {
+                        refused = enabledBox ? g2::edit::toggleSlotEnabled(h, i) : g2::edit::toggleSlotKeyboard(h, i);
+                    });
+                    if (!refused.empty())
+                        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Performance Settings",
+                                                               juce::String(refused), {}, this);
+                    refreshRows();
+                };
+            };
+            ruled(row.enabled, s.enabled != 0, true);
+            ruled(row.keyboard, s.keyboard != 0, false);
             toggle(row.hold, s.hold != 0, &g2::file::SlotSettings::hold);
             for (auto* box : {&row.lower, &row.upper}) {
                 for (int k = 0; k < 128; ++k)
@@ -205,7 +220,24 @@ private:
         doc_.editPerformance([&](g2::file::PerfHeader& h) {
             auto& s = h.slots[static_cast<std::size_t>(i)];
             (lower ? s.kbdRangeLower : s.kbdRangeUpper) = v;
+            g2::edit::validateKeyboardRange(h, i); // the lower end no higher than the upper (ValidateKeyboardRange)
         });
+        refreshRows();
+    }
+
+    // Every row's Active, Keyboard and range as the performance has them now.
+    void refreshRows()
+    {
+        const auto* perf = doc_.performance();
+        if (perf == nullptr)
+            return;
+        for (std::size_t r = 0; r < rows_.size(); ++r) {
+            const auto& s = perf->header.slots[r];
+            rows_[r].enabled.setToggleState(s.enabled != 0, juce::dontSendNotification);
+            rows_[r].keyboard.setToggleState(s.keyboard != 0, juce::dontSendNotification);
+            rows_[r].lower.setSelectedId(s.kbdRangeLower + 1, juce::dontSendNotification);
+            rows_[r].upper.setSelectedId(s.kbdRangeUpper + 1, juce::dontSendNotification);
+        }
     }
 
     PatchDocument& doc_;
