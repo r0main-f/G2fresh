@@ -199,15 +199,13 @@ G2fresh follows the original wherever it can: the G2 and G2X running OS 1.62, an
 - An unedited version-23 file keeps its own header (for example "BUILD 266") when saved again; the original writes "BUILD 320". The release velocity is written as stored; the original's writer stores the attack velocity there.
 - An unedited file saves byte for byte as it was loaded, including cable and morph lists in an order the original would have sorted. The first cable edit in an area rewrites its cable list in the original's order.
 - A loaded file with a cable loop (none is known) loses the cable closing the loop at the next cable edit; the original's cable tree would be corrupted instead.
-- On buttons whose maximum isn't 127, the original's morph-key toggle quirk is not reproduced.
 - Labels and names:
   - Clearing a label restores the panel's caption.
   - Labels and modules are renamed from the pop-up menu.
   - Typed names are filtered per character; slot names from the synth are kept as they are.
 - Input:
-  - Buttons act on mouse-up, except push buttons, which act on press as in the original.
   - Shift gives fine adjustment.
-  - Alt is the morph key on every platform, and works on knobs only.
+  - Alt is the morph key on every platform, and works on knobs only: the original's morph key on buttons (and its quirk on buttons whose maximum isn't 127) is not reproduced.
   - The random generator is seeded from the clock.
   - The stand-alone app has Randomize.
   - Recent Files holds 12 entries and offers Clear.

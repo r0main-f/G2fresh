@@ -4,6 +4,8 @@
 
 #include "PatchKeys.h"
 
+#include <array>
+
 using namespace g2ui;
 using Kind = PatchKey::Kind;
 
@@ -28,4 +30,13 @@ TEST_CASE("patch keys: A to D select a performance's slot")
     CHECK(patchKey('e', false, false, true).kind == Kind::None);
     CHECK(patchKey('b', false, false, false).kind == Kind::None); // a patch has no slots
     CHECK(patchKey('c', true, false, true).kind == Kind::None);
+}
+
+TEST_CASE("patch keys: a disabled slot is not selected")
+{
+    // KeySelectSlot @000f992e selects a slot only if it is enabled (found by the audit pass of 2026-10-16).
+    const std::array<bool, 4> abOnly{true, true, false, false};
+    CHECK(patchKey('b', false, false, true, abOnly).kind == Kind::Slot);
+    CHECK(patchKey('c', false, false, true, abOnly).kind == Kind::None);
+    CHECK(patchKey('d', false, false, true, abOnly).kind == Kind::None);
 }
