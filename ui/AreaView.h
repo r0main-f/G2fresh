@@ -152,6 +152,8 @@ private:
     void repaintModules();
 
     void setValue(const Hit& h, int value, bool coalesce);
+    // A reset knob's triangle clicked (ResetKnob.h): the centre value, or (morph) the focused group's range cleared.
+    void resetKnob(const Hit& h, bool morph);
     // Push buttons (momentary parameters): pressed while the mouse is down.
     bool isPushButton(const Hit& h) const;
     void pressMomentary(const Hit& h, int value);

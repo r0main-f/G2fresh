@@ -1,6 +1,7 @@
 #include "ModulePainter.h"
 
 #include "IncDec.h"
+#include "ResetKnob.h"
 #include "ModernIcons.h"
 #include "PatchDocument.h"
 #include "SpecialControls.h"
@@ -259,7 +260,7 @@ juce::Rectangle<int> ModulePainter::elementBounds(const PanelElement& e)
         if (isSlider(e))
             return {e.x, e.y, 11, e.type == "SeqSlider" ? 75 : 51};
         const int s = knobSprite(e.type).size;
-        return {e.x, e.y, s, s};
+        return {e.x, e.y + knobTop(e.type.toStdString()), s, s}; // a reset knob is below its triangle (ResetKnob.h)
     }
     if (isJack(e))
         return {e.x, e.y, kJackSize, kJackSize};
@@ -485,6 +486,28 @@ void ModulePainter::paintFocus(juce::Graphics& g, const ModuleContext& c, const 
         }
 }
 
+void ModulePainter::paintResetTriangle(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, int value, int max)
+{
+    // CPnlIndicatorKnob::Draw @000cc686: in the strip above the knob, lit (bitmap 0x213) at the centre value, else
+    // 0x214. The Modern look draws its own: a small triangle pointing at the knob.
+    const auto strip = resetStrip(e.type.toStdString());
+    if (!strip)
+        return;
+    const bool lit = resetLit(value, max);
+    if (c.look == Look::Classic)
+        if (const auto img = Skin::get().cbmp(lit ? 0x213 : 0x214); img.isValid()) {
+            g.drawImageAt(img, e.x + strip->x, e.y);
+            return;
+        }
+    const auto box = juce::Rectangle<float>(static_cast<float>(e.x + strip->x), static_cast<float>(e.y),
+                                            static_cast<float>(strip->w), static_cast<float>(strip->h))
+                         .withSizeKeepingCentre(static_cast<float>(strip->h + 1), static_cast<float>(strip->h - 1));
+    juce::Path t;
+    t.addTriangle(box.getX(), box.getY(), box.getRight(), box.getY(), box.getCentreX(), box.getBottom());
+    g.setColour(lit ? juce::Colour(0xff3478d4) : juce::Colour(0xff8a8f99)); // the Modern look's kAccent, kSubtle
+    g.fillPath(t);
+}
+
 void ModulePainter::paintIncDec(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool focused)
 {
     // Faces RGB(202,202,202), the half held RGB(0,255,222); the frame kBtnFrameFocused (white) on the focused knob,
@@ -493,7 +516,7 @@ void ModulePainter::paintIncDec(juce::Graphics& g, const ModuleContext& c, const
     const int pressed = focused ? c.incDecPressed : 0;
     for (const int side : {-1, +1}) {
         const auto& h = side < 0 ? pair.dec : pair.inc;
-        const juce::Rectangle<int> r{e.x + h.x, e.y + h.y, h.w, h.h};
+        const juce::Rectangle<int> r{e.x + h.x, e.y + knobTop(e.type.toStdString()) + h.y, h.w, h.h};
         g.setColour(pressed == side ? juce::Colour(0, 255, 222) : juce::Colour(202, 202, 202));
         g.fillRect(r);
         g.setColour(focused ? juce::Colours::white : juce::Colour(100, 100, 100));
@@ -538,6 +561,7 @@ void ModulePainter::paintElement(juce::Graphics& g, const ModuleContext& c, cons
             g.drawRect(r.getX(), y, r.getWidth(), 6);
             return;
         }
+        paintResetTriangle(g, c, e, val, max);
         const auto sprite = knobSprite(e.type);
         const auto morph = morphLook(c, e.codeRef);
         const int frame = highlighted ? 0 : morph.colourGroup >= 0 ? 2 + morph.colourGroup : 1;
@@ -847,6 +871,7 @@ void ModulePainter::paintModernElement(juce::Graphics& g, const ModuleContext& c
             roundedButton(g, {r.getX(), y, r.getWidth(), 8.0f}, false, highlighted, 2.5f);
             return;
         }
+        paintResetTriangle(g, c, e, val, max);
         const float size = static_cast<float>(knobSprite(e.type).size) - 2.0f;
         const auto area = r.withSizeKeepingCentre(size, size);
         const auto centre = area.getCentre();

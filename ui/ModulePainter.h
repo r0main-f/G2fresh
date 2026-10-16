@@ -77,6 +77,8 @@ private:
     static void paintPlug(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, juce::Rectangle<float> r,
                           juce::Colour colour);
     static void paintIncDec(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool focused);
+    // A reset knob's triangle, above the knob (ResetKnob.h).
+    static void paintResetTriangle(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, int value, int max);
     static void paintElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted);
     static void paintModern(juce::Graphics& g, const ModuleContext& c, const PanelElement* highlighted);
     static void paintModernElement(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, bool highlighted);

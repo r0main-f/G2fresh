@@ -6,6 +6,7 @@
 #include "CableColours.h"
 #include "CableCurve.h"
 #include "IncDec.h"
+#include "ResetKnob.h"
 #include "ModernIcons.h"
 #include "ModuleBrowser.h"
 #include "SpecialControls.h"
@@ -32,8 +33,10 @@ bool inKnobControl(const PanelElement& e, juce::Point<int> local)
 {
     if (e.kind != "Knob")
         return false;
-    const auto k = incDecKnob(e.type.toStdString());
-    return k && incDecControlSize(*k).contains(local.x - e.x, local.y - e.y);
+    const auto type = e.type.toStdString();
+    const auto k = incDecKnob(type);
+    return k && (incDecControlSize(*k).contains(local.x - e.x, local.y - e.y - knobTop(type))
+                 || onResetStrip(type, local.x - e.x, local.y - e.y));
 }
 
 // The parameter a control focuses: knobs, sliders and buttons do (CPnlKnobSliderABC::OnClick @000cb9b0,
@@ -935,9 +938,23 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
         const auto* m = doc_.patch().area(location_).find(dragHit_.module);
         // The inc/dec pair under a knob: a step on mouse-down, then again while held; Option steps the morph range
         // (CPnlControl::UpDownOnClickHandler @000c8970).
-        if (const auto k = dragHit_.element->kind == "Knob" ? incDecKnob(dragHit_.element->type.toStdString()) : std::nullopt;
+        const auto type = dragHit_.element->type.toStdString();
+        // A reset knob's triangle: the centre value, or with the morph key no morph range in the focused group
+        // (CPnlKnobSliderABC::OnClick @000cb9b0 area 4: ResetParamValue, ResetMorphValue).
+        if (m && dragHit_.element->kind == "Knob" && !e.mods.isCommandDown()
+            && onResetStrip(type, dragHit_.local.x - dragHit_.element->x, dragHit_.local.y - dragHit_.element->y)) {
+#if JUCE_MAC
+            const bool morphKey = e.mods.isAltDown();
+#else
+            const bool morphKey = e.mods.isCtrlDown();
+#endif
+            resetKnob(dragHit_, morphKey);
+            return;
+        }
+        if (const auto k = dragHit_.element->kind == "Knob" ? incDecKnob(type) : std::nullopt;
             m && k && !e.mods.isCommandDown()) {
-            const auto part = incDecAt(*k, dragHit_.local.x - dragHit_.element->x, dragHit_.local.y - dragHit_.element->y);
+            const auto part = incDecAt(*k, dragHit_.local.x - dragHit_.element->x,
+                                       dragHit_.local.y - dragHit_.element->y - knobTop(type));
             if (part != IncDecPart::None) {
                 startIncDec(dragHit_, part == IncDecPart::Inc ? +1 : -1, e.mods.isAltDown());
                 return;
@@ -1361,6 +1378,28 @@ bool AreaView::keyPressed(const juce::KeyPress& key)
         return true;
     }
     return false;
+}
+
+void AreaView::resetKnob(const Hit& h, bool morph)
+{
+    const auto* m = doc_.patch().area(location_).find(h.module);
+    if (!m || !h.element)
+        return;
+    if (!morph) {
+        doc_.endCoalescing();
+        setValue(h, resetValue(ModulePainter::maxValue(context(*m), *h.element)), false);
+        return;
+    }
+    touch(h.module);
+    const auto loc = location_;
+    const auto module = h.module;
+    const auto param = static_cast<std::uint8_t>(h.element->codeRef);
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    const auto group = static_cast<std::uint8_t>(doc_.focusedMorphGroup());
+    juce::String error;
+    if (!doc_.perform("Reset morph", [=](g2::Patch& p) { g2::edit::setMorph(p, variation, loc, module, param, group, 0); }, &error))
+        status("Cannot reset the morph: " + error);
+    repaintModules();
 }
 
 void AreaView::setValue(const Hit& h, int value, bool coalesce)
