@@ -319,6 +319,9 @@ bool hasCableBends(const Patch& patch);
 // Copies every value of a variation (modules, settings, morphs) to another.
 // Variation 8 is the "init" variation.
 void copyVariation(Patch& patch, u8 from, u8 to);
+// The toolbar's Init button ("recall variation init", CPatchToolbar::HandleChangeRequests @000f622a): the init
+// variation (8) copied into `variation`, as CMParamSettingCopy(8, variation).
+inline void recallVariationInit(Patch& patch, u8 variation) { copyVariation(patch, 8, variation); }
 
 // The audition variation: the original's patches have a tenth variation
 // (index 9), never saved in files, where the Patch Mutator plays the
@@ -372,6 +375,13 @@ struct Inserted {
     std::vector<u8> va, fx;
 };
 Inserted insertPatch(Patch& patch, const Patch& file);
+// Delete Unused Modules (CPatchData::GetDeleteUnusedModulesMolecules @000e8d02): the modules of an area that play into
+// nothing, in the order the original finds them. A module with outputs is unused when none of them is in a cable
+// tree; one without outputs when none of its inputs is fed by an output; keepIfUnused modules never are. Each one
+// found is taken out with its cables and the search starts again, as a removal can leave others unused.
+std::vector<u8> unusedModules(const Patch& patch, Location loc);
+// Deletes them in both areas, as a delete (chains spliced; their knobs, controllers and morphs go).
+void deleteUnusedModules(Patch& patch);
 // Deletes several modules as one selection (delete, cut), splicing as removeModule.
 void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices);
 void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow);

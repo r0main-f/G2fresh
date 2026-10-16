@@ -25,6 +25,7 @@ enum MenuId {
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
+    kRecallInit, kDeleteUnused,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -57,9 +58,11 @@ juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String&
 #if JUCE_MAC
 const juce::String kCmd = juce::String::fromUTF8("\xe2\x8c\x98");   // ⌘
 const juce::String kShift = juce::String::fromUTF8("\xe2\x87\xa7"); // ⇧
+const juce::String kMorphKeyName = "Option";
 #else
 const juce::String kCmd = "Ctrl+";
 const juce::String kShift = "Shift+";
+const juce::String kMorphKeyName = "Ctrl";
 #endif
 
 } // namespace
@@ -126,13 +129,18 @@ MainView::MainView(PatchDocument& doc, bool standalone)
         b->onClick = [this, i] { doc_.setVariation(i); };
         addAndMakeVisible(b);
     }
+    // The original's Init button beside the variations: the init variation into the one shown.
+    varInit_.setTooltip("Init: recall the variation init (the Init variation's values into this variation)");
+    varInit_.onClick = [this] { recallVariationInit(); };
+    addAndMakeVisible(varInit_);
     for (int i = 0; i < 4; ++i) {
         auto* b = slots_.add(new juce::TextButton(juce::String::charToString(static_cast<juce::juce_wchar>('A' + i))));
         b->setClickingTogglesState(true);
         b->setRadioGroupId(2);
         b->setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff3070c0));
-        b->onClick = [this, i] { doc_.setSlot(i); };
+        b->onClick = [this, i] { slotClicked(i); };
         addChildComponent(b);
+        addChildComponent(keyboardMarks_.add(new KeyboardMark()));
     }
     status_.setFont(theme::font());
     status_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
@@ -565,6 +573,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             variations.addItem(item(kCopyVariationBase + v, v < g2::kUserVariations ? "Variation " + juce::String(v + 1) : juce::String("Init"),
                                     {}, v != doc_.variation()));
         m.addSubMenu("Copy Variation " + juce::String(doc_.variation() + 1) + " To", variations);
+        m.addItem(item(kRecallInit, "Recall Init into Variation " + juce::String(doc_.variation() + 1)));
         const juce::String target = selected ? "Selected Modules" : "Variation " + juce::String(doc_.variation() + 1);
         m.addItem(item(kRandomize, "Randomize " + target));
         m.addItem(item(kMutate, "Mutate " + target));
@@ -572,6 +581,8 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addSeparator();
         m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
         m.addItem(item(kPatchNotes, "Patch Notes..."));
+        m.addSeparator();
+        m.addItem(item(kDeleteUnused, "Delete Unused Modules")); // the original's Patch menu (SMNU, item 305)
     } else if (index == 2) {
         m.addItem(item(kLiveMode, "Live (Emulated G2 Panel and Keyboard)", kCmd + "L", true, liveMode_));
         m.addSeparator();
@@ -825,6 +836,14 @@ void MainView::menuItemSelected(int id, int)
         break;
     case kSelectAll: activeArea().selectAll(); break;
     case kSaveSelection: saveSelection(); break;
+    case kRecallInit: recallVariationInit(); break;
+    case kDeleteUnused: {
+        const auto before = doc_.patch().va.modules.size() + doc_.patch().fx.modules.size();
+        doc_.perform("Delete unused modules", [](g2::Patch& p) { g2::edit::deleteUnusedModules(p); });
+        const auto gone = before - (doc_.patch().va.modules.size() + doc_.patch().fx.modules.size());
+        setStatus(gone == 0 ? juce::String("No unused module") : juce::String(static_cast<int>(gone)) + (gone == 1 ? " unused module deleted" : " unused modules deleted"));
+        break;
+    }
     case kInsertPatch: insertPatchFile(); break;
     case kRemoveBendPoints:
         doc_.perform("Remove all bend points", [](g2::Patch& p) { g2::edit::clearCableBends(p); });
@@ -970,6 +989,40 @@ void MainView::setAnimation(bool on)
 
 // ---- Zoom ----------------------------------------------------------------------
 
+void MainView::slotClicked(int slot)
+{
+    const auto m = juce::ModifierKeys::getCurrentModifiers();
+#if JUCE_MAC
+    const bool morph = m.isAltDown();
+#else
+    const bool morph = m.isCtrlDown();
+#endif
+    std::string refused;
+    switch (slotClick(m.isShiftDown(), morph)) {
+    case SlotClick::Focus:
+        doc_.setSlot(slot);
+        break;
+    case SlotClick::ToggleActive:
+        doc_.editPerformance([&](g2::file::PerfHeader& h) { refused = g2::edit::toggleSlotEnabled(h, slot); });
+        if (const auto* perf = doc_.performance(); perf && perf->header.focusedSlot != doc_.slot())
+            doc_.setSlot(perf->header.focusedSlot); // a slot turned on takes the focus, one turned off gives it
+        break;
+    case SlotClick::ToggleKeyboard:
+        doc_.editPerformance([&](g2::file::PerfHeader& h) { refused = g2::edit::toggleSlotKeyboard(h, slot); });
+        break;
+    }
+    if (!refused.empty())
+        setStatus(juce::String(refused));
+    updateToolbar();
+}
+
+void MainView::recallVariationInit()
+{
+    const auto to = static_cast<std::uint8_t>(doc_.variation());
+    doc_.perform("Recall Init", [&](g2::Patch& p) { g2::edit::recallVariationInit(p, to); });
+    setStatus("Recalled the Init variation into variation " + juce::String(to + 1));
+}
+
 void MainView::zoomToFit()
 {
     // G2fresh's own (ZoomFit.h): the largest zoom at which both areas' modules fit their panes, from their tops.
@@ -1053,9 +1106,14 @@ void MainView::updateToolbar()
         b->setVisible(perf != nullptr);
         if (perf) {
             const auto name = PatchDocument::fromG2Bytes(perf->header.slots[static_cast<std::size_t>(i)].patchName);
-            b->setTooltip("Slot " + b->getButtonText() + (name.isNotEmpty() ? ": " + name : juce::String()));
+            b->setTooltip("Slot " + b->getButtonText() + (name.isNotEmpty() ? ": " + name : juce::String())
+                          + ". Click: edit it; Shift-click: on or off; " + kMorphKeyName + "-click: on the keyboard or not");
         }
         b->setToggleState(i == doc_.slot(), juce::dontSendNotification);
+        // As the original's slot buttons (manual p58): active slots blue, a red line on top of those the keyboard plays.
+        const auto& s = perf ? perf->header.slots[static_cast<std::size_t>(i)] : g2::file::SlotSettings{};
+        b->setColour(juce::TextButton::buttonColourId, perf && s.enabled ? juce::Colour(0xff2a4466) : juce::Colour(0xff3a3d44));
+        keyboardMarks_[i]->setVisible(perf != nullptr && s.keyboard != 0);
     }
     // In a performance: "<performance file>  A:" then the slot's patch name.
     if (perf) {
@@ -1154,7 +1212,10 @@ void MainView::resized()
     bar.removeFromRight(16);
     if (doc_.isPerformance()) {
         for (int i = slots_.size(); --i >= 0;)
+        {
             slots_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
+            keyboardMarks_[i]->setBounds(slots_[i]->getBounds().withHeight(3).reduced(3, 0));
+        }
         bar.removeFromRight(16);
     }
     mutatorButton_.setBounds(bar.removeFromRight(92));
@@ -1163,6 +1224,8 @@ void MainView::resized()
     bar.removeFromRight(4);
     morphGroup_.setBounds(bar.removeFromRight(150));
     bar.removeFromRight(16);
+    varInit_.setBounds(bar.removeFromRight(40));
+    bar.removeFromRight(4);
     for (int i = variations_.size(); --i >= 0;)
         variations_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
     variationLabel_.setBounds(bar.removeFromRight(textWidth(variationLabel_)));

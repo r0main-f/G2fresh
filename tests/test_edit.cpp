@@ -593,3 +593,18 @@ TEST_CASE("a knob assigned to an LED is not a parameter's knob")
     CHECK(edit::knobTarget(p, 6) == edit::Target{Location::Va, osc, 0});
     CHECK(edit::knobOf(p, Location::Va, osc, 0) == 6);
 }
+
+TEST_CASE("Init recalls the init variation into the variation shown")
+{
+    // Audit V2: the toolbar's Init button ("recall variation init", CPatchToolbar::HandleChangeRequests @000f622a)
+    // sends CMParamSettingCopy(8, the focused variation): the init variation's values into the one shown.
+    Patch p = Patch::makeDefault();
+    const u8 mix = edit::addModule(p, Location::Va, 19, 0, 0);
+    edit::setParam(p, Location::Va, mix, 0, 8, 33); // the init variation
+    edit::setParam(p, Location::Va, mix, 0, 2, 100);
+    edit::setParam(p, Location::Va, mix, 0, 3, 90);
+    edit::recallVariationInit(p, 2);
+    CHECK(p.va.find(mix)->params[2][0] == 33);
+    CHECK(p.va.find(mix)->params[3][0] == 90); // other variations untouched
+    CHECK(p.va.find(mix)->params[8][0] == 33);
+}

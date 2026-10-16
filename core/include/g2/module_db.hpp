@@ -88,6 +88,8 @@ struct ModuleDef {
     // Where it may go (flags.contexts; the original's IsValidContext): bit 0 the FX area, bit 1 the voice area, bit 2
     // the patch settings (bit = g2::Location). All three when the data gives none.
     std::uint8_t contexts = 0b111;
+    // Kept by Delete Unused Modules whatever its cables (flags.keepIfUnused, the module info's +0x26): the MIDI senders.
+    bool keepIfUnused = false;
 };
 
 struct CategoryDef {

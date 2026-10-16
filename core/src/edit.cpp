@@ -2070,6 +2070,59 @@ std::vector<u8> copyModulesBy(Patch& patch, Location loc, const std::vector<u8>&
                         static_cast<u8>(std::clamp(row + dRow, 0, 127)));
 }
 
+std::vector<u8> unusedModules(const Patch& patch, Location loc)
+{
+    Area area = patch.area(loc); // a copy, taken apart as the original's clone is
+    std::vector<u8> unused;
+    auto takeOut = [&](u8 index) {
+        unused.push_back(index);
+        std::erase_if(area.modules, [&](const Module& m) { return m.index == index; });
+        std::erase_if(area.cables, [&](const Cable& c) { return c.fromModule == index || c.toModule == index; });
+    };
+    for (bool found = true; found;) {
+        found = false;
+        const cables::Tree tree(area);
+        for (const auto& m : area.modules) {
+            const auto* def = m.def();
+            if (!def || def->keepIfUnused || def->outputs.empty())
+                continue;
+            bool used = false;
+            for (std::size_t o = 0; o < def->outputs.size() && !used; ++o)
+                used = tree.contains({m.index, static_cast<u8>(o), true});
+            if (!used) {
+                takeOut(m.index);
+                found = true;
+                break;
+            }
+        }
+        if (found)
+            continue;
+        for (const auto& m : area.modules) {
+            const auto* def = m.def();
+            if (!def || def->keepIfUnused || !def->outputs.empty() || def->inputs.empty())
+                continue;
+            bool fed = false;
+            for (std::size_t i = 0; i < def->inputs.size() && !fed; ++i) {
+                const cables::Connector c{m.index, static_cast<u8>(i), false};
+                fed = tree.contains(c) && tree.hasSignal(c);
+            }
+            if (!fed) {
+                takeOut(m.index);
+                found = true;
+                break;
+            }
+        }
+    }
+    return unused;
+}
+
+void deleteUnusedModules(Patch& patch)
+{
+    for (const Location loc : {Location::Va, Location::Fx})
+        if (const auto unused = unusedModules(patch, loc); !unused.empty())
+            removeModules(patch, loc, unused);
+}
+
 Patch selectionPatch(const Patch& patch, Location loc, const std::vector<u8>& indices)
 {
     Patch out = Patch::makeDefault();
