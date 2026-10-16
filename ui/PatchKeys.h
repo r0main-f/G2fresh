@@ -44,6 +44,27 @@ inline PatchKey patchKey(char c, bool modifier, bool repeat, bool performance,
     return {};
 }
 
+// The Patch Mutator's keys, while its window is open (CPatchView::KeyMuta*; the letters from the original's key codes):
+// U mutates the Mother, N randomizes, I interpolates and X crosses Mother and Father, S stores the focused child in the
+// gene bank, O and T make the current variation the Mother or the Father, E mutates the current variation.
+enum class MutatorKey { None, Mutate, Randomize, Interpolate, Cross, StoreChild, Mother, Father, MutateCurrent };
+inline MutatorKey mutatorKey(char c, bool modifier, bool repeat)
+{
+    if (modifier || repeat)
+        return MutatorKey::None;
+    switch (std::tolower(static_cast<unsigned char>(c))) {
+    case 'u': return MutatorKey::Mutate;
+    case 'n': return MutatorKey::Randomize;
+    case 'i': return MutatorKey::Interpolate;
+    case 'x': return MutatorKey::Cross;
+    case 's': return MutatorKey::StoreChild;
+    case 'o': return MutatorKey::Mother;
+    case 't': return MutatorKey::Father;
+    case 'e': return MutatorKey::MutateCurrent;
+    default: return MutatorKey::None;
+    }
+}
+
 // A click on a performance's slot button (manual p58): it focuses the slot; Shift-click turns it on or off; the morph
 // modifier (Option on the Mac, Ctrl elsewhere: the manual's Ctrl) assigns the keyboard to it or not.
 enum class SlotClick { Focus, ToggleActive, ToggleKeyboard };

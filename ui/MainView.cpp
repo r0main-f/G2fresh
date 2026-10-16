@@ -1559,6 +1559,14 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     if (!liveMode_) {
         const auto c = key.getTextCharacter();
         const auto m = key.getModifiers();
+        // The Mutator's keys, while it is open.
+        if (mutator_ && mutator_->isVisible())
+            if (const auto mk = mutatorKey(c > 0 && c < 128 ? static_cast<char>(c) : 0,
+                                           m.isCommandDown() || m.isCtrlDown() || m.isAltDown() || m.isShiftDown(), repeat);
+                mk != MutatorKey::None) {
+                mutator_->keyAction(mk);
+                return true;
+            }
         std::array<bool, 4> enabled{true, true, true, true};
         if (const auto* perf = doc_.performance())
             for (std::size_t s = 0; s < 4; ++s)

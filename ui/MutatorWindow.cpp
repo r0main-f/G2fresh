@@ -235,6 +235,64 @@ public:
         status_.setBounds(r.removeFromBottom(24));
     }
 
+    // The same keys while the Mutator's own window has the keyboard.
+    bool keyPressed(const juce::KeyPress& key) override
+    {
+        const auto c = key.getTextCharacter();
+        const auto m = key.getModifiers();
+        const auto k = mutatorKey(c > 0 && c < 128 ? static_cast<char>(c) : 0,
+                                  m.isCommandDown() || m.isCtrlDown() || m.isAltDown() || m.isShiftDown(), false);
+        if (k == MutatorKey::None)
+            return false;
+        keyAction(k);
+        return true;
+    }
+
+    // CPatchView::KeyMuta*: as the buttons and box menus, with the original's conditions (Mutate needs a Mother,
+    // Cross and Interpolate a Mother and a Father; O and T copy the current variation, E mutates it).
+    void keyAction(MutatorKey k)
+    {
+        switch (k) {
+        case MutatorKey::Mutate:
+            if (mutator().hasData(mut::kMother) && mutator().mutate(doc_.patch(), mut::kMother))
+                status("Six mutants of the Mother");
+            break;
+        case MutatorKey::Randomize:
+            randomize_.triggerClick();
+            return;
+        case MutatorKey::Interpolate:
+            if (mutator().hasData(mut::kMother) && mutator().hasData(mut::kFather))
+                interpolate_.triggerClick();
+            return;
+        case MutatorKey::Cross:
+            if (mutator().hasData(mut::kMother) && mutator().hasData(mut::kFather))
+                cross_.triggerClick();
+            return;
+        case MutatorKey::StoreChild:
+            if (mutator().storeFocused())
+                status("Stored in the gene bank");
+            break;
+        case MutatorKey::Mother:
+            if (mutator().focus != mut::kMother) {
+                copyFromVariation(mut::kMother);
+                status("Variation " + juce::String(doc_.variation() + 1) + " is the Mother");
+            }
+            break;
+        case MutatorKey::Father:
+            if (mutator().focus != mut::kFather) {
+                copyFromVariation(mut::kFather);
+                status("Variation " + juce::String(doc_.variation() + 1) + " is the Father");
+            }
+            break;
+        case MutatorKey::MutateCurrent:
+            if (mutator().mutate(doc_.patch(), currentVariation()))
+                status("Six mutants of variation " + juce::String(doc_.variation() + 1));
+            break;
+        case MutatorKey::None: return;
+        }
+        refresh();
+    }
+
 private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override
     {
@@ -372,6 +430,11 @@ MutatorWindow::MutatorWindow(PatchDocument& doc)
     setContentNonOwned(panel_.get(), true);
     setAlwaysOnTop(true);
     centreWithSize(getWidth(), getHeight());
+}
+
+void MutatorWindow::keyAction(MutatorKey k)
+{
+    panel_->keyAction(k);
 }
 
 MutatorWindow::~MutatorWindow()

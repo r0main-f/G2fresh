@@ -4,6 +4,7 @@
 #pragma once
 
 #include "PatchDocument.h"
+#include "PatchKeys.h"
 
 #include "g2/mutate.hpp"
 
@@ -16,6 +17,8 @@ public:
     explicit MutatorWindow(PatchDocument& doc);
     ~MutatorWindow() override;
     void closeButtonPressed() override { setVisible(false); }
+    // The Mutator's keys (PatchKeys.h), as the patch window hands them over while the Mutator is open.
+    void keyAction(MutatorKey k);
 
 private:
     class Panel;

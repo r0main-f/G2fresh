@@ -78,3 +78,21 @@ TEST_CASE("patch keys: R starts or stops a performance's master clock")
     CHECK(patchKey('r', false, false, false).kind == Kind::None);
     CHECK(patchKey('r', true, false, true).kind == Kind::None);
 }
+
+TEST_CASE("patch keys: the Mutator's, while it is open")
+{
+    // CPatchView::InitializeShortcutKeys @000fafd8 binds them as the variations' keys; each acts only with the Mutator
+    // open (gFloater). The letters are read from the original's key codes (its table runs Q=0x22 .. P, A=0x30 .. L,
+    // Z=0x3e .. M, as the known F, V, L, M, R, Z and A-D show).
+    CHECK(mutatorKey('u', false, false) == MutatorKey::Mutate);         // KeyMutaMutate (0x28)
+    CHECK(mutatorKey('n', false, false) == MutatorKey::Randomize);      // KeyMutaRandomize (0x43)
+    CHECK(mutatorKey('i', false, false) == MutatorKey::Interpolate);    // KeyMutaInterpolate (0x29)
+    CHECK(mutatorKey('x', false, false) == MutatorKey::Cross);          // KeyMutaCross (0x3f)
+    CHECK(mutatorKey('s', false, false) == MutatorKey::StoreChild);     // KeyMutaStoreChild (0x31)
+    CHECK(mutatorKey('o', false, false) == MutatorKey::Mother);         // KeyMutaAssignMother (0x2a)
+    CHECK(mutatorKey('t', false, false) == MutatorKey::Father);         // KeyMutaAssignFather (0x26)
+    CHECK(mutatorKey('E', false, false) == MutatorKey::MutateCurrent);  // KeyMutaMutateCurrent (0x24)
+    CHECK(mutatorKey('u', true, false) == MutatorKey::None);
+    CHECK(mutatorKey('u', false, true) == MutatorKey::None);
+    CHECK(mutatorKey('a', false, false) == MutatorKey::None);
+}
