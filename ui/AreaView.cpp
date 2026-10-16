@@ -440,6 +440,54 @@ void AreaView::paintOverlay(juce::Graphics& g)
     }
     paintLiveLeds(g);
     paintCables(g);
+    paintHints(g);
+}
+
+void AreaView::setHintMode(HintMode mode)
+{
+    if (mode == hintMode_)
+        return;
+    hintMode_ = mode;
+    overlay_->repaint();
+}
+
+void AreaView::paintHints(juce::Graphics& g)
+{
+    // Yellow boxes centred on each parameter's control (CPanelItem::GetItemCenter), one per parameter.
+    if (hintMode_ == HintMode::None)
+        return;
+    const auto& patch = doc_.patch();
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    g.setFont(juce::Font(juce::FontOptions(10.0f)));
+    for (const auto& m : patch.area(location_).modules) {
+        const auto* panel = ModulePainter::panelFor(m);
+        if (!panel)
+            continue;
+        const auto origin = ModulePainter::moduleBounds(m).getPosition();
+        std::vector<std::uint8_t> shown;
+        for (const auto& e : panel->elements) {
+            const auto param = focusParam(e);
+            if (!param || std::find(shown.begin(), shown.end(), *param) != shown.end())
+                continue;
+            shown.push_back(*param);
+            const auto text = hintText(patch, hintMode_, location_, m.index, *param, variation);
+            if (!text)
+                continue;
+            const auto lines = juce::StringArray::fromLines(juce::String(*text));
+            int w = 0;
+            for (const auto& l : lines)
+                w = std::max(w, juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), l));
+            const auto centre = ModulePainter::elementBounds(e).translated(origin.x, origin.y).getCentre();
+            const int h = lines.size() * 12 + 2;
+            const juce::Rectangle<int> box(centre.x - (w + 6) / 2, centre.y - h / 2, w + 6, h);
+            g.setColour(juce::Colour(0xffffffa0));
+            g.fillRect(box);
+            g.setColour(juce::Colours::black);
+            g.drawRect(box);
+            for (int i = 0; i < lines.size(); ++i)
+                g.drawText(lines[i], box.getX(), box.getY() + 1 + i * 12, box.getWidth(), 12, juce::Justification::centred);
+        }
+    }
 }
 
 void AreaView::paintLiveLeds(juce::Graphics& g)
@@ -1658,7 +1706,7 @@ void AreaView::showModuleMenu(std::uint8_t module)
         return;
     // The original's items and order, then G2fresh's own (ModuleMenu.h).
     using Id = ModuleMenuItem::Id;
-    enum { kColourBase = 100, kReplaceBase = 1000 };
+    enum { kColourBase = 100, kReplaceBase = 1000, kAssignBase = 2000, kAssignMultiBase = 2100 };
     const bool many = selection_.size() > 1;
     juce::PopupMenu colours;
     for (int c : ModulePainter::moduleColourMenuOrder()) {
@@ -1678,7 +1726,17 @@ void AreaView::showModuleMenu(std::uint8_t module)
             menu.addSeparator();
         else if (item.id == Id::Replace)
             menu.addSubMenu(item.label, replace, item.enabled && replace.getNumItems() > 1);
-        else if (item.id == Id::Colour)
+        else if (item.id == Id::Assign) {
+            juce::PopupMenu assign;
+            if (const auto* def = g2::db::find(m->type))
+                for (const auto& page : assignMenu(doc_.patch(), *def)) {
+                    juce::PopupMenu columns;
+                    for (const auto& a : page.items)
+                        columns.addItem((a.multi ? kAssignMultiBase : kAssignBase) + a.page, a.label);
+                    assign.addSubMenu(page.label, columns);
+                }
+            menu.addSubMenu(item.label, assign, item.enabled);
+        } else if (item.id == Id::Colour)
             menu.addSubMenu(many ? "Colour (selection)" : "Colour", colours);
         else
             menu.addItem(static_cast<int>(item.id), item.label, item.enabled, item.ticked);
@@ -1688,7 +1746,16 @@ void AreaView::showModuleMenu(std::uint8_t module)
             return;
         auto& self = *safe;
         const auto loc = self.location_;
-        if (result >= kReplaceBase) {
+        if (result >= kAssignBase && result < kAssignMultiBase + 15) {
+            const bool multi = result >= kAssignMultiBase;
+            const int page = result - (multi ? kAssignMultiBase : kAssignBase);
+            juce::String error;
+            if (!self.doc_.perform("Assign module to knobs",
+                                   [&](g2::Patch& p) { g2::edit::assignModuleToPage(p, loc, module, page, multi); }, &error))
+                self.status("Cannot assign: " + error);
+            else
+                self.status("Assigned to knobs from " + juce::String(g2::edit::knobName(page * g2::edit::kKnobsPerPage)));
+        } else if (result >= kReplaceBase) {
             const auto newType = static_cast<std::uint8_t>(result - kReplaceBase);
             std::uint8_t replaced = 0;
             juce::String error;
@@ -1758,7 +1825,7 @@ void AreaView::showControlMenu(const Hit& h)
 
     const auto knob = g2::edit::knobOf(patch, loc, module, param);
     const auto cc = g2::edit::midiCcOf(patch, loc, module, param);
-    const auto ccs = am::ccMenu(patch, loc, module, param);
+    const auto ccs = am::ccMenu(patch, loc, module, param, lastMidiCc ? lastMidiCc() : std::nullopt);
 
     juce::PopupMenu menu;
     menu.addSectionHeader(juce::String(m->name) + "  " + def->params[param].name);
@@ -1796,7 +1863,7 @@ void AreaView::showControlMenu(const Hit& h)
             // leaving it removes that group only (CControlMenu::HandleMenuSelection).
             doc.perform("Morph assign", [&](g2::Patch& p) { g2::edit::toggleMorphAssign(p, variation, loc, module, param, group); });
         } else if (am::isAssignItem(r)) {
-            am::apply(doc, r, loc, module, param);
+            am::apply(doc, r, loc, module, param, safe.getComponent());
         } else if (r == kDefault) {
             const auto* mod = doc.patch().area(loc).find(module);
             if (mod && mod->def())

@@ -160,6 +160,10 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
     settings_.onLayoutChanged = [this] { resized(); };
     // The background pop-up's synth items (BackgroundMenu.h): a patch to a slot or Local, a performance on or off.
+    auto lastCc = [this] { return synth_ != nullptr ? synth_->lastMidiCc() : std::nullopt; };
+    settings_.lastMidiCc = lastCc;
+    for (auto* area : {&va_, &fx_})
+        area->lastMidiCc = lastCc;
     for (auto* area : {&va_, &fx_})
         area->addSynthItems = [this](juce::PopupMenu& m) {
             if (synth_ == nullptr)
@@ -1456,6 +1460,13 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     // @000f93d4 -> CTBWindow::RouteKeySpec).
     if (!liveMode_ && browser_.routeKey(key, repeat))
         return true;
+    // F5-F8 show the hint boxes while held (CPatchView::KeyHintView*; KeyBringDownHintViews on release).
+    if (!liveMode_ && code >= juce::KeyPress::F5Key && code <= juce::KeyPress::F8Key && !key.getModifiers().isAnyModifierKeyDown()) {
+        const auto mode = hintModeForKey(5 + (code - juce::KeyPress::F5Key));
+        va_.setHintMode(mode);
+        fx_.setHintMode(mode);
+        return true;
+    }
     // Esc aborts every drag (|, not ||), as CPatchView::KeyAbortDragOperations @000f7cde; an area's own Esc comes to it
     // first.
     if (code == juce::KeyPress::escapeKey && !liveMode_ && (divider_.abortDrag() | va_.abortDrag() | fx_.abortDrag()))
@@ -1555,6 +1566,14 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     if (!liveMode_) {
         const auto c = key.getTextCharacter();
         const auto m = key.getModifiers();
+        // The Mutator's keys, while it is open.
+        if (mutator_ && mutator_->isVisible())
+            if (const auto mk = mutatorKey(c > 0 && c < 128 ? static_cast<char>(c) : 0,
+                                           m.isCommandDown() || m.isCtrlDown() || m.isAltDown() || m.isShiftDown(), repeat);
+                mk != MutatorKey::None) {
+                mutator_->keyAction(mk);
+                return true;
+            }
         std::array<bool, 4> enabled{true, true, true, true};
         if (const auto* perf = doc_.performance())
             for (std::size_t s = 0; s < 4; ++s)
@@ -1566,6 +1585,36 @@ bool MainView::keyPressed(const juce::KeyPress& key)
             return doc_.setVariation(k.index), true;
         if (k.kind == PatchKey::Kind::Slot)
             return doc_.setSlot(k.index), true;
+        if (k.kind == PatchKey::Kind::ToggleClock) {
+            doc_.editPerformance([](g2::file::PerfHeader& h) { h.masterClockRun = h.masterClockRun != 0 ? 0 : 1; });
+            if (const auto* perf = doc_.performance())
+                setStatus(perf->header.masterClockRun != 0 ? "Master clock running" : "Master clock stopped");
+            return true;
+        }
+        if (k.kind == PatchKey::Kind::AssignMidi) {
+            const auto f = doc_.focus();
+            if (g2::edit::canAssignMidiCc(doc_.patch(), f.location, f.module, f.param))
+                showMidiCcDialog(doc_, f.location, f.module, f.param, this);
+            return true;
+        }
+        if (k.kind == PatchKey::Kind::LearnMidi) {
+            // The focused parameter takes the last CC the synth received, unless it holds a pre-assigned one
+            // (CPatchView::KeyLearnMidi @000f99fe).
+            const auto cc = synth_ != nullptr ? synth_->lastMidiCc() : std::nullopt;
+            const auto f = doc_.focus();
+            if (!cc) {
+                setStatus("No MIDI CC received: move a controller on the synth's MIDI input first");
+                return true;
+            }
+            juce::String error;
+            if (doc_.perform("Learn MIDI controller", [&](g2::Patch& p) {
+                    g2::edit::assignMidiCc(p, *cc, f.location, f.module, f.param);
+                }, &error))
+                setStatus("CC " + juce::String(*cc) + " assigned to the focused parameter");
+            else
+                setStatus("Cannot assign CC " + juce::String(*cc) + ": " + error);
+            return true;
+        }
         if (k.kind == PatchKey::Kind::ShowVoice || k.kind == PatchKey::Kind::ShowFx) {
             k.kind == PatchKey::Kind::ShowVoice ? split_.showVoice(splitTotal()) : split_.showFx(splitTotal());
             return splitMoved(), true;
@@ -1576,6 +1625,11 @@ bool MainView::keyPressed(const juce::KeyPress& key)
 
 bool MainView::keyStateChanged(bool)
 {
+    if (!juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::F5Key) && !juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::F6Key)
+        && !juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::F7Key) && !juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::F8Key)) {
+        va_.setHintMode(HintMode::None);
+        fx_.setHintMode(HintMode::None);
+    }
     if (heldKey_ != 0 && !juce::KeyPress::isKeyCurrentlyDown(heldKey_))
         heldKey_ = 0;
     if (heldArrow_ != 0 && !juce::KeyPress::isKeyCurrentlyDown(heldArrow_)) {

@@ -164,7 +164,8 @@ def generate():
                              f"{'true' if p.get('morphable') else 'false'}, {func}, "
                              f"{{{deps[0]}, {deps[1]}}}, {cstr(p.get('rangeType'))}, "
                              f"{'true' if p.get('momentary') else 'false'}, "
-                             f"{'false' if p.get('midiAssignable') is False else 'true'}}},")
+                             f"{'false' if p.get('midiAssignable') is False else 'true'}, "
+                             f"{0xFF if p.get('knobButtonParam') is None else p['knobButtonParam']}}},")
             lines.append("};")
         order = m.get("editOrder") or []
         if order:

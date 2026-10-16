@@ -40,13 +40,14 @@ within an area, U2, most of U3, V4, M9, the whole live-editing table §4.1 and m
 Modules, V2 Var Init, N4 Init 1&2 and Save InitPatch, L6 slot Shift/Ctrl-click (#43, #44); U1 per-slot undo, U3's
 F/V keys and Esc aborting a drag, U4 the split bar, G6 the reset triangles (and the reset knobs drawn below them),
 V6/L10 the toolbar voices "%d (%d)", P12 the module pop-up (Assign, Global Assign and Help still missing), P4 the
-background pop-up (#44, #45). L10's BPM range was already 30-240.
+background pop-up (#44, #45). L10's BPM range was already 30-240. In #46: K5 module Assign > Page > Column /
+Multi Column; K7 the MIDI Controller submenu (last CC received, Assign... dialog, Deassign), L and M; the R key; R5
+the Mutator's keys; U3/U7 the F5-F8 hint boxes (Ctrl+F8 not built).
 
-**Still open, missing features**: K7 MIDI Learn (L), the CC dialog (M), Assign/Deassign MIDI to Selection; K4-K6
-Parameter Pages, Overview, module Assign, global knobs (load/save only); M2/M3 New To / Open To / Save From; L10 the
-toolbar's master clock (BPM, Run, the R key); B5-B7 Synth Memory delete, sort, bank up/download; U3's Z note; G1/G2
-knob control modes; V8 Patch Adjuster; B9/B10 Controller Snapshot, Dump One, Virtual Keyboard; R5 Mutator gestures
-and keys; M11/M13 Textpad and the settings controls' menus; P11/P13 colour selector, Replace button; M14/D6 help
+**Still open, missing features**: K7 Assign/Deassign MIDI to Selection; K4, K6 Parameter Pages, Overview, Global
+Assign and the global knobs (load/save only); M2/M3 New To / Open To / Save From; L10 the
+toolbar's master clock (BPM, Run); B5-B7 Synth Memory delete, sort, bank up/download; U3's Z note and Ctrl+F8; G1/G2
+knob control modes; V8 Patch Adjuster; B9/B10 Controller Snapshot, Dump One, Virtual Keyboard; R5 Mutator gestures; M11/M13 Textpad and the settings controls' menus; P11/P13 colour selector, Replace button; M14/D6 help
 (Clavia's text cannot ship); M1/M7/L5 one document, no Window menu, first G2 only (to list in the README). New since
 the audit: Options > Color Scheme and Maximize Windows (DITL 133); toolbar Synth Name, Performance Name, Perf, Color;
 ⌘N while live clears the focused slot (manual p116).

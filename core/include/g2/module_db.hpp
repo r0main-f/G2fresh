@@ -44,6 +44,9 @@ struct ParamDef {
     // Can take a MIDI controller (param spec +0x10, CPanel::CtrlIsMidiAssignable);
     // false for the controller-number parameters of Automate, CtrlSend, CtrlRcv.
     bool midiAssignable;
+    // The push button a knob's assignment takes along (param spec +0x0E: a sequencer step's slider and its button);
+    // 0xFF none, or the parameter itself. Such a button gets no knob of its own (CKnobAssignMenu::GetNoOfAssignableParams).
+    std::uint8_t knobButtonParam = 0xFF;
 };
 
 struct ModeDef {

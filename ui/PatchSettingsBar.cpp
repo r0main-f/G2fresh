@@ -444,7 +444,7 @@ void PatchSettingsBar::showMorphDialMenu(int group)
         copy.addItem(kCopyBase + g, "Group " + juce::String(g + 1), g != group);
     const auto knob = edit::knobOf(patch, loc, module, param);
     const auto cc = edit::midiCcOf(patch, loc, module, param);
-    const auto ccs = am::ccMenu(patch, loc, module, param);
+    const auto ccs = am::ccMenu(patch, loc, module, param, lastMidiCc ? lastMidiCc() : std::nullopt);
 
     juce::PopupMenu menu;
     menu.addSectionHeader("Morph " + juce::String(group + 1) + "  " + juce::String(edit::morphLabel(patch, group)));
@@ -476,7 +476,7 @@ void PatchSettingsBar::showMorphDialMenu(int group)
         } else if (r == kName) {
             safe->renameMorphGroup(group);
         } else if (am::isAssignItem(r)) {
-            am::apply(doc, r, loc, module, param);
+            am::apply(doc, r, loc, module, param, safe.getComponent());
         }
     });
 }

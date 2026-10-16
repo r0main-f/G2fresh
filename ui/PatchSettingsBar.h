@@ -37,6 +37,8 @@ public:
     class Control;
     // Whether the patch plays on a synth, and the voices the synth gives it (unknown: nullopt), for the Voices box.
     std::function<std::pair<bool, std::optional<std::uint8_t>>()> voicesOnSynth;
+    // The last MIDI CC the synth received, for the morph dials' MIDI Controller menu.
+    std::function<std::optional<std::uint8_t>()> lastMidiCc;
     void synthChanged()
     {
         if (const auto now = liveVoices(); now != shownVoices_) {

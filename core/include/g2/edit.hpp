@@ -263,6 +263,14 @@ inline constexpr u8 kKnobToLed = 1;
 void assignKnob(Patch& patch, int knob, Location loc, u8 module, u8 param); // replaces the knob's previous target
 void clearKnob(Patch& patch, int knob);
 std::string knobName(int knob); // "A1-3": page A1 (the original's "Page A1"), knob 3
+// Module Assign (the module pop-up's Assign > Page > Column or Multi Column; CKnobMap::GetAssignModuleToPageMolecules
+// @000f24d4): the module's parameters in its edit order, without those another takes along as its button, onto knob
+// page `page` (0..14: A1, A2, A3, B1...) from its first knob; at most 8 unless `multi`, which runs on into the pages
+// after. A knob's old target, and a parameter's old knob, are freed first.
+std::vector<u8> assignableParams(const db::ModuleDef& def);
+void assignModuleToPage(Patch& patch, Location loc, u8 module, int page, bool multi);
+// Whether any of a knob page's 8 knobs is assigned (CKnobMap::IsPageUsed @000f0fe0).
+bool isKnobPageUsed(const Patch& patch, int page);
 
 // MIDI controllers a patch can assign: 0..119 except 0, 1, 11, 18, 32, 64,
 // 70, 96, 97 (MIDICtrl::IsValid @00148754). CC 7 and 17 are pre-assigned to
