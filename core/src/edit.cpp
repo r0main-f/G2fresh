@@ -213,6 +213,7 @@ std::vector<live::Op> recreate(const Patch& patch, Location loc, const Module& m
     return ops;
 }
 
+void placeBelow(Patch& patch, Location loc, const std::vector<u8>& keep);
 void placeBelow(Patch& patch, Location loc, u8 keep);
 
 } // namespace
@@ -393,17 +394,24 @@ void resolveOverlaps(Patch& patch, Location loc, u8 keep)
 namespace {
 void placeBelow(Patch& patch, Location loc, u8 keep)
 {
+    placeBelow(patch, loc, keep ? std::vector<u8>{keep} : std::vector<u8>{});
+}
+
+void placeBelow(Patch& patch, Location loc, const std::vector<u8>& keep)
+{
     Area& area = areaFor(patch, loc);
-    // Per column: the kept module first, then the others top to bottom; each
-    // one goes no higher than it was, below anything placed that it overlaps.
+    // Per column: the kept modules first (a dropped, pasted or moved group, which keeps its arrangement as the
+    // original's CPatchData::GetMakeRoomForMolecules @000ea184 keeps the dropped modules), then the others top to
+    // bottom; each one goes no higher than it was, below anything placed that it overlaps.
+    auto kept = [&](const Module* m) { return std::find(keep.begin(), keep.end(), m->index) != keep.end(); };
     std::vector<Module*> order;
     for (auto& m : area.modules)
         order.push_back(&m);
     std::stable_sort(order.begin(), order.end(), [&](const Module* a, const Module* b) {
         if (a->col != b->col)
             return a->col < b->col;
-        if ((a->index == keep) != (b->index == keep))
-            return a->index == keep;
+        if (kept(a) != kept(b))
+            return kept(a);
         return a->row < b->row;
     });
     std::vector<const Module*> placed;
@@ -1919,8 +1927,7 @@ std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, 
             }
         }
     }
-    for (u8 index : added)
-        placeBelow(patch, loc, index);
+    placeBelow(patch, loc, added);
     // What the original sends (CClipboard::Drop @0014d882): the make-room
     // 34s, then GetNewModulesMolecules @000eba8e: a 30 per module, the new
     // data's 52, 4D, the morphs (43), 5B, 5A; then the rates. The undo takes
@@ -2046,8 +2053,7 @@ void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int
         }
     // The moved group keeps its place; others make room below: the
     // original sends those 34s first, then the moved modules'.
-    for (u8 index : indices)
-        placeBelow(patch, loc, index);
+    placeBelow(patch, loc, indices);
     recordMoves(area, loc, before, indices);
 }
 
