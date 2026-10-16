@@ -68,6 +68,8 @@ public:
     std::function<bool(const juce::KeyPress&)> onArrowKey;
     // The synth's part of the background pop-up (BackgroundMenu.h), with what each item does, from the window.
     std::function<void(juce::PopupMenu&)> addSynthItems;
+    // The last MIDI CC the synth received (CPatch::GetLastUsedMidiController), for a parameter's MIDI Controller menu.
+    std::function<std::optional<std::uint8_t>()> lastMidiCc;
     // Adds a module at the first free row of the first column, or at `where`.
     void addModule(std::uint8_t type, std::optional<juce::Point<int>> where = std::nullopt);
     // Adds a module from the module bar (double-click or Return), where the

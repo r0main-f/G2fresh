@@ -1777,7 +1777,7 @@ void AreaView::showControlMenu(const Hit& h)
 
     const auto knob = g2::edit::knobOf(patch, loc, module, param);
     const auto cc = g2::edit::midiCcOf(patch, loc, module, param);
-    const auto ccs = am::ccMenu(patch, loc, module, param);
+    const auto ccs = am::ccMenu(patch, loc, module, param, lastMidiCc ? lastMidiCc() : std::nullopt);
 
     juce::PopupMenu menu;
     menu.addSectionHeader(juce::String(m->name) + "  " + def->params[param].name);
@@ -1815,7 +1815,7 @@ void AreaView::showControlMenu(const Hit& h)
             // leaving it removes that group only (CControlMenu::HandleMenuSelection).
             doc.perform("Morph assign", [&](g2::Patch& p) { g2::edit::toggleMorphAssign(p, variation, loc, module, param, group); });
         } else if (am::isAssignItem(r)) {
-            am::apply(doc, r, loc, module, param);
+            am::apply(doc, r, loc, module, param, safe.getComponent());
         } else if (r == kDefault) {
             const auto* mod = doc.patch().area(loc).find(module);
             if (mod && mod->def())

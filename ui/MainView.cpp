@@ -160,6 +160,10 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
     settings_.onLayoutChanged = [this] { resized(); };
     // The background pop-up's synth items (BackgroundMenu.h): a patch to a slot or Local, a performance on or off.
+    auto lastCc = [this] { return synth_ != nullptr ? synth_->lastMidiCc() : std::nullopt; };
+    settings_.lastMidiCc = lastCc;
+    for (auto* area : {&va_, &fx_})
+        area->lastMidiCc = lastCc;
     for (auto* area : {&va_, &fx_})
         area->addSynthItems = [this](juce::PopupMenu& m) {
             if (synth_ == nullptr)
@@ -1566,6 +1570,24 @@ bool MainView::keyPressed(const juce::KeyPress& key)
             return doc_.setVariation(k.index), true;
         if (k.kind == PatchKey::Kind::Slot)
             return doc_.setSlot(k.index), true;
+        if (k.kind == PatchKey::Kind::LearnMidi) {
+            // The focused parameter takes the last CC the synth received, unless it holds a pre-assigned one
+            // (CPatchView::KeyLearnMidi @000f99fe).
+            const auto cc = synth_ != nullptr ? synth_->lastMidiCc() : std::nullopt;
+            const auto f = doc_.focus();
+            if (!cc) {
+                setStatus("No MIDI CC received: move a controller on the synth's MIDI input first");
+                return true;
+            }
+            juce::String error;
+            if (doc_.perform("Learn MIDI controller", [&](g2::Patch& p) {
+                    g2::edit::assignMidiCc(p, *cc, f.location, f.module, f.param);
+                }, &error))
+                setStatus("CC " + juce::String(*cc) + " assigned to the focused parameter");
+            else
+                setStatus("Cannot assign CC " + juce::String(*cc) + ": " + error);
+            return true;
+        }
         if (k.kind == PatchKey::Kind::ShowVoice || k.kind == PatchKey::Kind::ShowFx) {
             k.kind == PatchKey::Kind::ShowVoice ? split_.showVoice(splitTotal()) : split_.showFx(splitTotal());
             return splitMoved(), true;

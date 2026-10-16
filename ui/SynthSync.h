@@ -127,6 +127,9 @@ public:
     // CPatch::GetCurrentNumberOfVoices @000d458c).
     bool patchConnected() const { return ready() && bound() && synthSlotFor(doc_.slot()) >= 0; }
     std::optional<std::uint8_t> currentVoices() const;
+    // The last MIDI controller the synth received (80 CMMidiLearn), while the patch is on it
+    // (CPatch::GetLastUsedMidiController @000d47e8).
+    std::optional<std::uint8_t> lastMidiCc() const;
 
     // An alert the original shows when the synth reports an exception (7E):
     // title and text. Set by the editor window.
