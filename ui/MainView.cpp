@@ -28,6 +28,7 @@ enum MenuId {
     kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
     kRecallInit, kDeleteUnused, kPasteParams, kSaveInitPatch1, kSaveInitPatch2,
     kNewToBase = 900, kOpenToBase = 910, kSaveFromBase = 920, // + slot
+    kAssignMidiSelection = 930, kDeassignMidiSelection, kDeassignAllMidi,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -646,6 +647,11 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kPatchNotes, "Patch Notes...", kCmd + "J"));
         m.addSeparator();
         m.addItem(item(kDeleteUnused, "Delete Unused Modules")); // the original's Patch menu (SMNU, item 305)
+        m.addSeparator();
+        // The original's Tools menu (SMNU 1086-1088).
+        m.addItem(item(kAssignMidiSelection, "Assign MIDI to Selection", {}, selected));
+        m.addItem(item(kDeassignMidiSelection, "Deassign MIDI from Selection", {}, selected));
+        m.addItem(item(kDeassignAllMidi, "Deassign All MIDI"));
     } else if (index == 2) {
         m.addItem(item(kLiveMode, "Live (Emulated G2 Panel and Keyboard)", kCmd + "L", true, liveMode_));
         m.addSeparator();
@@ -911,6 +917,21 @@ void MainView::menuItemSelected(int id, int)
         setStatus(gone == 0 ? juce::String("No unused module") : juce::String(static_cast<int>(gone)) + (gone == 1 ? " unused module deleted" : " unused modules deleted"));
         break;
     }
+    case kAssignMidiSelection:
+    case kDeassignMidiSelection:
+        if (auto* a = areaWithSelection()) {
+            const auto loc = a->location();
+            const auto modules = a->selection();
+            doc_.perform(id == kAssignMidiSelection ? "Assign MIDI to selection" : "Deassign MIDI from selection",
+                         [&](g2::Patch& p) {
+                             id == kAssignMidiSelection ? g2::edit::autoAssignMidiCcs(p, loc, modules)
+                                                        : g2::edit::deassignMidiCcs(p, loc, modules);
+                         });
+        }
+        break;
+    case kDeassignAllMidi:
+        doc_.perform("Deassign all MIDI", [](g2::Patch& p) { g2::edit::deassignAllMidiCcs(p); });
+        break;
     case kInsertPatch: insertPatchFile(); break;
     case kRemoveBendPoints:
         doc_.perform("Remove all bend points", [](g2::Patch& p) { g2::edit::clearCableBends(p); });

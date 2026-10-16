@@ -1520,6 +1520,52 @@ void clearKnob(Patch& patch, int knob)
     }
 }
 
+void autoAssignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules)
+{
+    auto used = [&](u8 cc) {
+        return std::any_of(patch.controllers.begin(), patch.controllers.end(), [&](const CtrlAssign& a) { return a.cc == cc; });
+    };
+    for (const u8 module : modules) {
+        const auto* m = patch.area(loc).find(module);
+        const auto* def = m ? db::find(m->type) : nullptr;
+        if (!def)
+            continue;
+        for (std::size_t param = 0; param < def->params.size(); ++param) {
+            const auto p8 = static_cast<u8>(param);
+            if (!canAssignMidiCc(patch, loc, module, p8) || midiCcOf(patch, loc, module, p8))
+                continue;
+            for (int n = 0; n < 120; ++n) {
+                const auto cc = static_cast<u8>(n);
+                if (isValidMidiCc(cc) && !isPreAssignedMidiCc(cc) && !used(cc)) {
+                    assignMidiCc(patch, cc, loc, module, p8);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void deassignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules)
+{
+    std::vector<u8> ccs;
+    for (const auto& a : patch.controllers)
+        if (a.location == static_cast<u8>(loc) && std::find(modules.begin(), modules.end(), a.module) != modules.end()
+            && !isPreAssignedMidiCc(a.cc))
+            ccs.push_back(a.cc);
+    for (const u8 cc : ccs)
+        clearMidiCc(patch, cc);
+}
+
+void deassignAllMidiCcs(Patch& patch)
+{
+    std::vector<u8> ccs;
+    for (const auto& a : patch.controllers)
+        if (!isPreAssignedMidiCc(a.cc))
+            ccs.push_back(a.cc);
+    for (const u8 cc : ccs)
+        clearMidiCc(patch, cc);
+}
+
 std::vector<u8> assignableParams(const db::ModuleDef& def)
 {
     std::vector<u8> out;
