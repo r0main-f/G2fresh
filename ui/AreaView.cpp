@@ -527,8 +527,10 @@ juce::Path AreaView::cablePath(juce::Point<float> a, juce::Point<float> b, std::
             path.lineTo(points[i].x, points[i].y);
         path.lineTo(b);
     } else {
-        const float sag = std::min(90.0f, 12.0f + 0.22f * distance);
-        path.cubicTo(a + juce::Point<float>((b.x - a.x) * 0.15f, sag), b + juce::Point<float>((a.x - b.x) * 0.15f, sag), b);
+        // The area's seed varies the sag and lean, so Shake reshuffles these cables too (CableView.h).
+        const auto curve = modernCurve(distance, cableSeed_);
+        path.cubicTo(a + juce::Point<float>((b.x - a.x) * curve.lean, curve.sag),
+                     b + juce::Point<float>((a.x - b.x) * curve.lean, curve.sag), b);
     }
     return path;
 }
