@@ -184,6 +184,15 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     mutatorButton_.setTooltip("Breed new versions of the current variation: randomize, mutate, cross, audition");
     mutatorButton_.onClick = [this] { showMutator(); };
     addAndMakeVisible(randomizeButton_);
+    // The focused morph group, beside Randomize and the Mutator: the original keeps its morph dials in the patch
+    // window's toolbar (a click on one focuses its group, CMorphContainer::Click @00123a84); G2fresh's dials are in the
+    // settings strip, collapsed by default, so the group can be chosen here too.
+    morphGroup_.setTooltip("The focused morph group: the one Morph Assign, the morph drag and Option+arrows act on");
+    morphGroup_.onChange = [this] {
+        if (const int id = morphGroup_.getSelectedId(); id > 0 && id - 1 != doc_.focusedMorphGroup())
+            doc_.setFocusedMorphGroup(id - 1);
+    };
+    addAndMakeVisible(morphGroup_);
     addAndMakeVisible(mutatorButton_);
     // Edit / Live: the patch, or the emulated G2 as an instrument
     editButton_.setTooltip("Edit the patch: modules and cables (Cmd L switches)");
@@ -1060,6 +1069,15 @@ void MainView::updateToolbar()
     name_.setTooltip(perf ? "Slot patch name: double-click to rename (up to 16 characters)"
                           : "Patch name: double-click to rename (up to 16 characters). Save uses it as the file name.");
     edited_.setText(doc_.isDirty() ? "(edited)" : "", juce::dontSendNotification);
+    // The morph groups, by number and name (the names can be changed on the morph dials).
+    for (int g = 0; g < g2::kMorphGroups; ++g) {
+        const auto text = "Morph " + juce::String(g + 1) + ": " + juce::String(g2::edit::morphLabel(doc_.patch(), static_cast<std::uint8_t>(g)));
+        if (morphGroup_.getNumItems() <= g)
+            morphGroup_.addItem(text, g + 1);
+        else if (morphGroup_.getItemText(g) != text)
+            morphGroup_.changeItemText(g + 1, text);
+    }
+    morphGroup_.setSelectedId(doc_.focusedMorphGroup() + 1, juce::dontSendNotification);
     updateLoad();
     const int voices = doc_.patch().header.voiceCount;
     vaPane_.setText("VOICE AREA",
@@ -1141,6 +1159,8 @@ void MainView::resized()
     mutatorButton_.setBounds(bar.removeFromRight(92));
     bar.removeFromRight(4);
     randomizeButton_.setBounds(bar.removeFromRight(92));
+    bar.removeFromRight(4);
+    morphGroup_.setBounds(bar.removeFromRight(150));
     bar.removeFromRight(16);
     for (int i = variations_.size(); --i >= 0;)
         variations_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);

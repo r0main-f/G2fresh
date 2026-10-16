@@ -129,6 +129,7 @@ private:
     juce::OwnedArray<juce::TextButton> slots_; // performance slots A-D
     juce::TextButton zoomOut_{"-"}, zoomReset_{"100%"}, zoomIn_{"+"};
     juce::TextButton randomizeButton_{"Randomize"}, mutatorButton_{"Mutator..."};
+    juce::ComboBox morphGroup_;
     std::unique_ptr<MutatorWindow> mutator_;
     MidiOutputTarget* midiOut_ = nullptr;
     SynthSync* synth_ = nullptr;
