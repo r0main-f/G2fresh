@@ -7,6 +7,7 @@
 
 #include "Dialogs.h"
 #include "LiveShow.h"
+#include "PatchKeys.h"
 #include "PatchLibrary.h"
 #include "SynthSettingsWindow.h"
 #include "ZoomFit.h"
@@ -1252,9 +1253,21 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return setZoom(1.0f), true;
     if (key == juce::KeyPress('0', cmd | juce::ModifierKeys::shiftModifier, 0) || key == juce::KeyPress(')', cmd | juce::ModifierKeys::shiftModifier, 0))
         return zoomToFit(), true;
-    for (int i = 0; i < g2::kUserVariations; ++i)
-        if (key == juce::KeyPress('1' + i, cmd, 0))
-            return doc_.setVariation(i), true;
+    // ⌘2 is the original's Patch Mutator (⌘1 Dump One and ⌘3 Patch Adjuster are not in G2fresh).
+    if (key == juce::KeyPress('2', cmd, 0))
+        return showMutator(), true;
+    // 1 to 8 select the variation, A to D a performance's slot (CPatchView::InitializeShortcutKeys @000fafd8).
+    if (!liveMode_) {
+        const auto c = key.getTextCharacter();
+        const auto m = key.getModifiers();
+        const auto k = patchKey(c > 0 && c < 128 ? static_cast<char>(c) : 0,
+                                m.isCommandDown() || m.isCtrlDown() || m.isAltDown() || m.isShiftDown(), repeat,
+                                doc_.isPerformance());
+        if (k.kind == PatchKey::Kind::Variation)
+            return doc_.setVariation(k.index), true;
+        if (k.kind == PatchKey::Kind::Slot)
+            return doc_.setSlot(k.index), true;
+    }
     return false;
 }
 
