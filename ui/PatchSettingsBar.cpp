@@ -39,10 +39,11 @@ public:
 
     void paintOverChildren(juce::Graphics& g) override
     {
-        // The focused parameter in the focused frame colour, white (kBtnFrameFocused), as in the areas.
+        // The focused parameter: a bar under the control in the accent colour, not a white frame, which in this strip
+        // is the focused morph group's (found by hand testing: the two frames read as two focused groups).
         if (focused && focused()) {
-            g.setColour(juce::Colours::white);
-            g.drawRect(getLocalBounds(), 1);
+            g.setColour(kAccent);
+            g.fillRoundedRectangle(getLocalBounds().toFloat().removeFromBottom(3.0f).reduced(4.0f, 0.0f), 1.5f);
         }
     }
 

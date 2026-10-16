@@ -1880,6 +1880,8 @@ void AreaView::paste(const g2::edit::Clipboard& clip)
         row = bottom;
     }
     const auto loc = location_;
+    // Whole, at the first rows from there where it fits: nothing has to move (g2::edit::blockFreeRow).
+    row = g2::edit::blockFreeRow(doc_.patch(), loc, clip, static_cast<std::uint8_t>(col), static_cast<std::uint8_t>(row));
     std::vector<std::uint8_t> added;
     juce::String error;
     if (doc_.perform("Paste", [&](g2::Patch& p) {

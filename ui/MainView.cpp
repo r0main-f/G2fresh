@@ -417,7 +417,8 @@ void MainView::startForLive()
     const bool otherSynth = synth_ != nullptr && synth_->kind() != SynthSync::Kind::None
                          && synth_->kind() != SynthSync::Kind::Emulated;
     const bool available = emulator_ != nullptr && emulator_->emulatorAvailable();
-    switch (liveShow(available, available && emulator_->emulatorRunning(), otherSynth,
+    const bool editorOnIt = synth_ != nullptr && synth_->kind() == SynthSync::Kind::Emulated;
+    switch (liveShow(available, available && emulator_->emulatorRunning(), editorOnIt, otherSynth,
                      available ? emulator_->emulatorsInHost() : 0)) {
     case LiveShow::Start:
         startEmulator(false); // asks for the G2 OS the first time

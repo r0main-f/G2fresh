@@ -1853,6 +1853,22 @@ Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& i
     return clip;
 }
 
+u8 blockFreeRow(const Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 fromRow)
+{
+    const auto& modules = patch.area(loc).modules;
+    for (int row = fromRow; row < 127; ++row) {
+        const bool fits = std::all_of(clip.modules.begin(), clip.modules.end(), [&](const Module& c) {
+            const int cc = col + c.col, top = row + c.row, bottom = top + heightOf(c);
+            return std::none_of(modules.begin(), modules.end(), [&](const Module& m) {
+                return m.col == cc && top < m.row + heightOf(m) && m.row < bottom;
+            });
+        });
+        if (fits)
+            return static_cast<u8>(row);
+    }
+    return 127;
+}
+
 std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 row)
 {
     Area& area = areaFor(patch, loc);

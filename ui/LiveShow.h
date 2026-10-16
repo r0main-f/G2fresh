@@ -12,14 +12,18 @@ enum class LiveShow {
                    // (re/notes/audio-path.md §3.6), so a second starts only when asked, as when a project opens
 };
 
-inline LiveShow liveShow(bool emulatorAvailable, bool running, bool otherSynth, int othersInHost)
+// `running`: this instance's emulated G2 runs; `editorOnIt`: the editor is connected to it (Synth > Disconnect leaves
+// it running without the editor); `othersInHost`: the emulated G2s running in the host, this one's included.
+inline LiveShow liveShow(bool emulatorAvailable, bool running, bool editorOnIt, bool otherSynth, int othersInHost)
 {
     if (!emulatorAvailable)
         return LiveShow::NoEmulator;
-    if (running)
+    if (running && editorOnIt)
         return LiveShow::Nothing;
     if (otherSynth)
         return LiveShow::OtherSynth;
+    if (running)
+        return LiveShow::Start; // connect the editor to it again, as Synth > Connect to Emulated G2
     if (othersInHost > 0)
         return LiveShow::OtherInstance;
     return LiveShow::Start;

@@ -42,8 +42,8 @@ inline float cableAlpha(int percent)
 }
 
 // G2fresh's own hanging cable (the Modern look's curved styles): a cubic whose arms lean `lean` of the jack-to-jack
-// distance sideways and drop `sag` pixels. The area's seed, which Shake renews, varies both: the sag from 75% to 125%
-// of min(90, 12 + 0.22 L), the lean from 0.05 to 0.25.
+// distance sideways and drop `sag` pixels. The area's seed, which Shake renews, varies both: the sag from 40% to 160%
+// of min(90, 12 + 0.22 L), the lean from 0 to 0.35.
 struct ModernCurve {
     float sag = 0, lean = 0;
 };
@@ -52,7 +52,7 @@ inline ModernCurve modernCurve(float length, int seed)
     const float base = std::min(90.0f, 12.0f + 0.22f * length);
     const int s = ((seed % 256) + 256) % 256;
     const float a = static_cast<float>((s * 37) % 256) / 255.0f, b = static_cast<float>((s * 101 + 53) % 256) / 255.0f;
-    return {base * (0.75f + 0.5f * a), 0.05f + 0.2f * b};
+    return {base * (0.4f + 1.2f * a), 0.35f * b};
 }
 
 // Whether a cable is drawn: Hide All's flag and its colour's flag both let it show (CPatch::HandlePatchHeaderDump
