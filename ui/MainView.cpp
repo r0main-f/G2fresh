@@ -25,7 +25,7 @@ enum MenuId {
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
-    kRecallInit, kDeleteUnused, kPasteParams,
+    kRecallInit, kDeleteUnused, kPasteParams, kSaveInitPatch1, kSaveInitPatch2,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -215,6 +215,15 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     editButton_.setToggleState(true, juce::dontSendNotification);
     editButton_.onClick = [this] { setLiveMode(false); };
     liveButton_.onClick = [this] { setLiveMode(true); };
+    // The original's Init 1 and Init 2, after New (manual p59): the init patch, into the active slot of a performance.
+    for (auto [b, n] : {std::pair{&init1_, 1}, std::pair{&init2_, 2}}) {
+        b->setTooltip("Init " + juce::String(n) + ": a new patch from Init Patch " + juce::String(n)
+                      + " (File > Save InitPatch " + juce::String(n) + " makes it)");
+        b->onClick = [this, n] { recallInitPatch(n); };
+        addAndMakeVisible(b);
+    }
+    init1_.setConnectedEdges(juce::Button::ConnectedOnRight);
+    init2_.setConnectedEdges(juce::Button::ConnectedOnLeft);
     addChildComponent(live_);
     vaPort_.setScrollBarsShown(true, true);
     fxPort_.setScrollBarsShown(true, true);
@@ -549,6 +558,8 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addSeparator();
         m.addItem(item(kSave, "Save", kCmd + "S"));
         m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S"));
+        m.addItem(item(kSaveInitPatch1, "Save InitPatch 1")); // the original's File menu (SMNU, items 108 and 109)
+        m.addItem(item(kSaveInitPatch2, "Save InitPatch 2"));
         m.addSeparator();
         m.addItem(item(kPerformanceSettings, "Performance Settings...", {}, doc_.isPerformance()));
     } else if (index == 1) {
@@ -861,6 +872,8 @@ void MainView::menuItemSelected(int id, int)
     case kPatchLibrary: showLibrary(); break;
     case kSave: save(false); break;
     case kSaveAs: save(true); break;
+    case kSaveInitPatch1: saveInitPatch(1); break;
+    case kSaveInitPatch2: saveInitPatch(2); break;
     case kClearRecent:
         recent_.clear();
         userSettings().setValue("recentFiles", recent_.toString());
@@ -1026,6 +1039,71 @@ void MainView::recallVariationInit()
     const auto to = static_cast<std::uint8_t>(doc_.variation());
     doc_.perform("Recall Init", [&](g2::Patch& p) { g2::edit::recallVariationInit(p, to); });
     setStatus("Recalled the Init variation into variation " + juce::String(to + 1));
+}
+
+juce::File MainView::initPatchFile(int n)
+{
+    return userSettings().getFile().getParentDirectory().getChildFile(initPatchFileName(n));
+}
+
+void MainView::saveInitPatch(int n)
+{
+    // CEditorApp::HandleDefaultPatchSave @00149e1c: the top patch (in a performance, the focused slot's), as it is.
+    const auto f = initPatchFile(n);
+    const auto bytes = g2::savePatch(doc_.patch());
+    if (f.getParentDirectory().createDirectory() && f.replaceWithData(bytes.data(), bytes.size()))
+        setStatus("Saved \"" + doc_.name() + "\" as Init Patch " + juce::String(n));
+    else
+        setStatus("Could not write " + f.getFullPathName());
+}
+
+void MainView::recallInitPatch(int n)
+{
+    // CEditorApp::HandleDefaultPatchOpen @0014a5c8: nothing without the file; else, after asking about unsaved
+    // changes, the file as a new patch (if connected, into the focused slot). The file stays the template: Save asks
+    // where, rather than overwrite it.
+    const auto f = initPatchFile(n);
+    juce::MemoryBlock mb;
+    if (!f.existsAsFile() || !f.loadFileAsData(mb)) {
+        setStatus("No Init Patch " + juce::String(n) + " yet: File > Save InitPatch " + juce::String(n) + " makes one");
+        return;
+    }
+    const auto* data = static_cast<const std::uint8_t*>(mb.getData());
+    const std::vector<std::uint8_t> bytes(data, data + mb.getSize());
+    const auto name = f.getFileNameWithoutExtension(); // a patch file's name is its file name
+    if (doc_.isPerformance()) {
+        // Into the focused slot, as one undo step (as Open in Slot).
+        g2::Patch patch;
+        try {
+            auto loaded = g2::load(bytes, {});
+            auto* p = std::get_if<g2::Patch>(&loaded.content);
+            if (p == nullptr)
+                throw std::runtime_error("not a patch");
+            patch = std::move(*p);
+        } catch (const std::exception& e) {
+            setStatus(f.getFileName() + ": " + e.what());
+            return;
+        }
+        if (doc_.perform("Init " + juce::String(n), [&patch](g2::Patch& p) { p = patch; })) {
+            doc_.setName(name);
+            setStatus("Init Patch " + juce::String(n) + " is in slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + doc_.slot())));
+        }
+        return;
+    }
+    confirmDiscard([this, bytes, name, n] {
+        try {
+            doc_.loadBytes(bytes);
+        } catch (const std::exception& e) {
+            setStatus("Init Patch " + juce::String(n) + ": " + e.what());
+            return;
+        }
+        doc_.setFile({});
+        doc_.setName(name);
+        doc_.markSaved(); // just recalled: nothing to lose
+        setStatus("New patch from Init Patch " + juce::String(n));
+        updateToolbar();
+        setZoom(1.0f); // as Open
+    });
 }
 
 void MainView::zoomToFit()
@@ -1210,6 +1288,9 @@ void MainView::resized()
     edited_.setBounds(bar.removeFromLeft(70));
     editButton_.setBounds(bar.removeFromLeft(48));
     liveButton_.setBounds(bar.removeFromLeft(48));
+    bar.removeFromLeft(10);
+    init1_.setBounds(bar.removeFromLeft(48));
+    init2_.setBounds(bar.removeFromLeft(48));
 
     zoomIn_.setBounds(bar.removeFromRight(28));
     zoomReset_.setBounds(bar.removeFromRight(54));

@@ -165,6 +165,7 @@ private:
     void startForLive();
     bool liveMode_ = false;
     juce::TextButton editButton_{"Edit"}, liveButton_{"Live"};
+    juce::TextButton init1_{"Init 1"}, init2_{"Init 2"};
     LiveView live_{nullptr};
     void updateLoad();
     juce::PopupMenu synthMenu();
@@ -178,6 +179,10 @@ private:
     void showFocus();
     void zoomToFit();
     void recallVariationInit();
+    // The two init patches (File > Save InitPatch 1/2, the toolbar's Init 1 and Init 2): files beside the settings.
+    static juce::File initPatchFile(int n);
+    void saveInitPatch(int n);
+    void recallInitPatch(int n);
     void slotClicked(int slot);
     void saveSelection();
     void insertPatchFile();

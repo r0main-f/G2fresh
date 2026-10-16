@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cctype>
+#include <string>
 
 namespace g2ui {
 
@@ -38,6 +39,13 @@ inline SlotClick slotClick(bool shift, bool morphModifier)
     if (shift)
         return SlotClick::ToggleActive;
     return morphModifier ? SlotClick::ToggleKeyboard : SlotClick::Focus;
+}
+
+// The init patches' files (Save InitPatch 1/2; the toolbar's Init 1 and Init 2): "InitPatch" + n in the settings
+// folder, as the original's in its preferences folder (CEditorApp), with .pch2 so that they open elsewhere too.
+inline std::string initPatchFileName(int n)
+{
+    return "InitPatch" + std::to_string(n) + ".pch2";
 }
 
 } // namespace g2ui
