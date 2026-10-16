@@ -799,7 +799,12 @@ void MainView::menuItemSelected(int id, int)
     }
     switch (id) {
     case kNew: newPatch(); break;
-    case kNewPerformance: confirmDiscard([this] { doc_.newPerformance(); }); break;
+    case kNewPerformance:
+        confirmDiscard([this] {
+            doc_.newPerformance();
+            setZoom(1.0f);
+        });
+        break;
     case kPerformanceSettings: showPerformanceSettings(doc_, this); break;
     case kCut: copySelection(true); break;
     case kCopy: copySelection(false); break;
@@ -1379,7 +1384,16 @@ void MainView::showLibrary()
     if (!library_)
         library_ = std::make_unique<PatchLibrary>(LibraryHost{
             doc_, synth_, [this](std::function<void()> then) { confirmDiscard(std::move(then)); },
-            [this](const juce::File& f) { openFile(f); }});
+            [this](const juce::File& f) {
+                openFile(f);
+                // Once a patch is opened from it, the library closes (it stays open while you audition), after the
+                // open has finished.
+                if (doc_.file() == f)
+                    juce::MessageManager::callAsync([safe = juce::Component::SafePointer<PatchLibrary>(library_.get())] {
+                        if (safe != nullptr && safe->isVisible())
+                            safe->closeButtonPressed();
+                    });
+            }});
     library_->open();
 }
 
@@ -1434,7 +1448,10 @@ void MainView::discardChanges()
 
 void MainView::newPatch()
 {
-    confirmDiscard([this] { doc_.newPatch(); });
+    confirmDiscard([this] {
+        doc_.newPatch();
+        setZoom(1.0f); // a new document starts at 100%
+    });
 }
 
 void MainView::open()
@@ -1479,6 +1496,7 @@ void MainView::loadFile(const juce::File& f, bool ignoreChecksum)
             notes.add("checksum ignored");
         setStatus("Opened " + f.getFileName() + (notes.isEmpty() ? juce::String() : " (" + notes.joinIntoString(", ") + ")"));
         updateToolbar();
+        setZoom(1.0f); // an opened document starts at 100%
         // The original repairs what it cannot load as it is, and says so.
         if (const auto report = doc_.loadReport(); report.isNotEmpty())
             juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, f.getFileName(),
