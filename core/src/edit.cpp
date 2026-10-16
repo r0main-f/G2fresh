@@ -1948,6 +1948,21 @@ std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, 
     return added;
 }
 
+std::vector<u8> copyModulesBy(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow)
+{
+    int col = 127, row = 127;
+    for (const auto& m : patch.area(loc).modules)
+        if (std::find(indices.begin(), indices.end(), m.index) != indices.end()) {
+            col = std::min<int>(col, m.col);
+            row = std::min<int>(row, m.row);
+        }
+    const auto clip = copyModules(patch, loc, indices);
+    if (clip.empty())
+        return {};
+    return pasteModules(patch, loc, clip, static_cast<u8>(std::clamp(col + dCol, 0, 127)),
+                        static_cast<u8>(std::clamp(row + dRow, 0, 127)));
+}
+
 Patch selectionPatch(const Patch& patch, Location loc, const std::vector<u8>& indices)
 {
     Patch out = Patch::makeDefault();
