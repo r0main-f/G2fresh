@@ -1,6 +1,7 @@
 #include "AreaView.h"
 
 #include "AssignMenus.h"
+#include "ButtonPress.h"
 #include "CableColours.h"
 #include "CableCurve.h"
 #include "IncDec.h"
@@ -943,6 +944,11 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
             pushed_ = true;
             return;
         }
+        // A button acts as the mouse goes down (CPnlButtonABC::OnClick @000c3520 -> OnClickHandler @000c341a).
+        if (m && actsOnPress(dragHit_.element->kind.toStdString()) && !SpecialControls::isSpecial(*dragHit_.element)) {
+            clickControl(dragHit_);
+            return;
+        }
         // A note sequencer step jumps to the note clicked (CPnlSeqSlider::OnClick),
         // then drags from there.
         if (m && SpecialControls::isSeqSlider(*dragHit_.element) && !e.mods.isAltDown()) {
@@ -1200,7 +1206,9 @@ void AreaView::mouseUp(const juce::MouseEvent& e)
                      [&](g2::Patch& p) { g2::edit::moveModules(p, loc, moved, dCol, dRow); });
         return;
     }
+    // Mode selectors and the special controls act on release; buttons acted on mouse-down.
     if (dragHit_.element && isEditable(*dragHit_.element) && dragHit_.element->kind != "Knob"
+        && !(actsOnPress(dragHit_.element->kind.toStdString()) && !SpecialControls::isSpecial(*dragHit_.element))
         && e.getDistanceFromDragStart() < 4)
         clickControl(dragHit_);
 }
