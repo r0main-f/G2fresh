@@ -27,6 +27,7 @@ const juce::Colour kAmber{0xffffb347};
 const juce::Colour kProblem{0xffff8a7a};
 
 const char* const kFoldersKey = "libraryFolders";
+const char* const kDefaultFolderKey = "libraryDefaultFolderAdded";
 const char* const kFavouritesKey = "libraryFavourites";
 const char* const kRecentKey = "libraryRecent";
 
@@ -408,6 +409,19 @@ public:
 
         folders_.addLines(store_.get(kFoldersKey));
         folders_.removeEmptyStrings();
+        {
+            // A first use starts on ~/Documents/G2 Patches, made if missing (asked for after hand testing).
+            std::vector<std::string> stored;
+            for (const auto& f : folders_)
+                stored.push_back(f.toStdString());
+            const auto def = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("G2 Patches");
+            const auto start = startingFolders(stored, store_.get(kDefaultFolderKey) == "1", def.getFullPathName().toStdString());
+            if (start.addedDefault && (def.isDirectory() || def.createDirectory())) {
+                folders_.add(def.getFullPathName());
+                store_.set(kFoldersKey, folders_.joinIntoString("\n"));
+                store_.set(kDefaultFolderKey, "1");
+            }
+        }
         model_.marks.setFavouritesText(store_.get(kFavouritesKey).toStdString());
         model_.marks.setRecentText(store_.get(kRecentKey).toStdString());
 
@@ -492,6 +506,15 @@ public:
         table_.setColour(juce::ListBox::backgroundColourId, kListBackground);
         table_.onKey = [this](const juce::KeyPress& key) { return tableKey(key); };
         addAndMakeVisible(table_);
+        for (auto* link : {&factoryLink_, &communityLink_}) {
+            link->setFont(theme::font(), false, juce::Justification::centred);
+            addChildComponent(*link);
+        }
+        showFolder_.onClick = [this] {
+            if (!folders_.isEmpty())
+                juce::File(folders_[0]).revealToUser();
+        };
+        addChildComponent(showFolder_);
         addAndMakeVisible(detail_);
 
         // ---- the bottom row
@@ -579,15 +602,19 @@ public:
                    "G2fresh comes without patches. It reads yours where they are, with their subfolders, and never "
                    "changes them.";
         else if (model_.index.size() == 0 && !scanning_)
-            hint = "No .pch2 or .prf2 file in the chosen folders.";
+            hint = "No .pch2 or .prf2 file in " + (folders_.size() == 1 ? juce::File(folders_[0]).getFileName() : juce::String("the chosen folders"))
+                 + " yet. Put your patches there (subfolders too), or add a folder: Folders > Add Folder...\n\n"
+                   "G2fresh comes without patches. You can download these, unzip them into the folder, then Rescan:";
         else if (model_.rowCount() == 0 && !scanning_)
             hint = "No file matches the search and the filters.";
         if (hint.isEmpty())
             return;
         g.setColour(kDimText);
         g.setFont(theme::font());
-        g.drawFittedText(hint, table_.getBounds().reduced(40).withTrimmedTop(table_.getHeaderHeight()),
-                         juce::Justification::centred, 6);
+        auto area = table_.getBounds().reduced(40).withTrimmedTop(table_.getHeaderHeight());
+        if (factoryLink_.isVisible())
+            area = area.withBottom(factoryLink_.getY() - 10); // above the links
+        g.drawFittedText(hint, area, juce::Justification::centredBottom, 6);
     }
 
     void resized() override
@@ -629,6 +656,15 @@ public:
         detail_.setBounds(r.removeFromRight(juce::jlimit(280, 380, getWidth() * 3 / 10)));
         r.removeFromRight(8);
         table_.setBounds(r);
+        {
+            // The links under the empty list's hint.
+            auto links = r.withTrimmedTop(r.getHeight() / 2 + 30).reduced(40, 0);
+            factoryLink_.setBounds(links.removeFromTop(24));
+            communityLink_.setBounds(links.removeFromTop(24));
+            links.removeFromTop(8);
+            showFolder_.setBounds(links.removeFromTop(26).withSizeKeepingCentre(220, 26));
+        }
+        updateEmptyLinks();
         pictureDue_ = juce::Time::getMillisecondCounter() + 150; // the picture's room may have changed
     }
 
@@ -849,6 +885,7 @@ private:
             table_.deselectAllRows();
         updating_ = false;
         table_.repaint();
+        updateEmptyLinks();
         repaint(); // the hint over an empty list
         selectionChanged();
     }
@@ -953,6 +990,7 @@ private:
             rowsStale_ = rowsStale_ || !update.found.empty() || !update.removed.empty();
             if (update.finished || (!scanner_.running() && !rowsStale_)) {
                 scanning_ = false;
+                updateEmptyLinks();
 
                 if (update.finished && update.stats.read > 0)
                     message_ = "Read " + juce::String(static_cast<int>(update.stats.read)) + " new or changed "
@@ -1373,6 +1411,23 @@ private:
         open_{"Open"};
     juce::ToggleButton onSelect_{"Audition on Select"};
     std::unique_ptr<juce::FileChooser> chooser_;
+    // An empty library says where patches come from (asked for after hand testing). G2fresh ships none: Clavia's
+    // banks are Clavia's (Nord no longer hosts them; the Internet Archive keeps the copy), the users' are theirs.
+    juce::HyperlinkButton factoryLink_{"Clavia's G2 factory bank v1.24 (a zip, from the Internet Archive's copy of nordkeyboards.com)",
+                                       juce::URL("https://web.archive.org/web/2020id_/http://www.nordkeyboards.com/sites/default/files/files/"
+                                                 "sound-libraries/product-libraries/nord-modular-g2/"
+                                                 "Nord%20Modular%20G2%20Factory%20Bank%20v1.24%20revA.zip")};
+    juce::HyperlinkButton communityLink_{"G2 patches by users (a GitHub mirror of the electro-music.com forum's archive)",
+                                         juce::URL("https://github.com/DatanoiseTV/NordModularPatches")};
+    juce::TextButton showFolder_{"Show the Folder in the Finder"};
+
+    void updateEmptyLinks()
+    {
+        const bool empty = model_.index.size() == 0 && !scanning_;
+        for (juce::Component* c : std::initializer_list<juce::Component*>{&factoryLink_, &communityLink_, &showFolder_})
+            c->setVisible(empty);
+        showFolder_.setVisible(empty && !folders_.isEmpty());
+    }
 };
 
 // ---- The window ------------------------------------------------------------------------------------------------------------
