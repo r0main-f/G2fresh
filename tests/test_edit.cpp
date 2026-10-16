@@ -168,9 +168,9 @@ TEST_CASE("morph, knob and MIDI assignments")
     edit::assignKnob(p, 20, Location::Va, osc, 0); // moves to the new knob
     CHECK(edit::knobOf(p, Location::Va, osc, 0) == 20);
     CHECK_FALSE(p.knobs[9].has_value());
-    CHECK(edit::knobName(0) == "1A-1");
-    CHECK(edit::knobName(9) == "1B-2");
-    CHECK(edit::knobName(119) == "5C-8");
+    CHECK(edit::knobName(0) == "A1-1"); // the original's "Page A1" (SMNU Knob menu, ids 2010-2024; manual p19)
+    CHECK(edit::knobName(9) == "A2-2");
+    CHECK(edit::knobName(119) == "E3-8");
 
     edit::assignMidiCc(p, 21, Location::Va, osc, 1);
     CHECK(edit::midiCcOf(p, Location::Va, osc, 1) == 21);

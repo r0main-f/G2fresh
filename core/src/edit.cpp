@@ -1456,8 +1456,9 @@ void clearKnob(Patch& patch, int knob)
 
 std::string knobName(int knob)
 {
-    const int group = knob / kKnobsPerPage;
-    return std::to_string(group / 3 + 1) + static_cast<char>('A' + group % 3) + "-" + std::to_string(knob % kKnobsPerPage + 1);
+    // The original's pages: "Page A1" .. "Page E3", eight knobs each (SMNU Knob menu, ids 2010-2024; manual p19).
+    const int page = knob / kKnobsPerPage;
+    return std::string(1, static_cast<char>('A' + page / 3)) + std::to_string(page % 3 + 1) + "-" + std::to_string(knob % kKnobsPerPage + 1);
 }
 
 std::optional<u8> midiCcOf(const Patch& patch, Location loc, u8 module, u8 param)
