@@ -579,3 +579,17 @@ TEST_CASE("Performance Settings: a slot stays active, the keyboard moves off a d
     CHECK(h.slots[0].kbdRangeLower == 40);
     CHECK(h.slots[0].kbdRangeUpper == 40);
 }
+
+TEST_CASE("a knob assigned to an LED is not a parameter's knob")
+{
+    // Audit K3: a knob target of type 1 is an LED (CKnobMap::GetAssignKnobToLedMolecules @000f1848 builds
+    // CBarbTargetSpec(..., 1)); G2fresh read it as a parameter, so the DAW automated and the menus showed one.
+    Patch p = Patch::makeDefault();
+    const u8 osc = edit::addModule(p, Location::Va, 7, 0, 0);
+    p.knobs[5] = KnobAssign{static_cast<u8>(Location::Va), osc, 1, 0}; // assignType 1: the module's LED 0
+    CHECK_FALSE(edit::knobTarget(p, 5));
+    CHECK_FALSE(edit::knobOf(p, Location::Va, osc, 0));
+    p.knobs[6] = KnobAssign{static_cast<u8>(Location::Va), osc, 0, 0}; // a parameter
+    CHECK(edit::knobTarget(p, 6) == edit::Target{Location::Va, osc, 0});
+    CHECK(edit::knobOf(p, Location::Va, osc, 0) == 6);
+}

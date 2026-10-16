@@ -249,6 +249,9 @@ bool repairMorphs(Patch& patch);
 // The 120 assignable knobs: 5 pages x 3 sub-pages (A-C) x 8 knobs.
 inline constexpr int kKnobsPerPage = 8;
 std::optional<int> knobOf(const Patch& patch, Location loc, u8 module, u8 param);
+// A knob assignment of type 1 targets a module's LED, not a parameter (CKnobMap::GetAssignKnobToLedMolecules
+// @000f1848, CBarbTargetSpec(..., 1)): knobOf and knobTarget leave it out; the patch keeps it as it is.
+inline constexpr u8 kKnobToLed = 1;
 void assignKnob(Patch& patch, int knob, Location loc, u8 module, u8 param); // replaces the knob's previous target
 void clearKnob(Patch& patch, int knob);
 std::string knobName(int knob); // "A1-3": page A1 (the original's "Page A1"), knob 3

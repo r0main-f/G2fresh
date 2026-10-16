@@ -1,5 +1,7 @@
 #include "MutatorWindow.h"
 
+#include "MutatorSet.h"
+
 #include "Theme.h"
 
 namespace g2ui {
@@ -49,7 +51,7 @@ private:
 class MutatorWindow::Panel : public juce::Component, private juce::ChangeListener {
 public:
     explicit Panel(PatchDocument& doc)
-        : doc_(doc), mutator_(doc.patch(), static_cast<std::uint32_t>(juce::Time::currentTimeMillis()))
+        : doc_(doc), seed_(static_cast<std::uint32_t>(juce::Time::currentTimeMillis()))
     {
         auto op = [this](juce::TextButton& b, const juce::String& tip, std::function<void()> f) {
             b.setTooltip(tip);
@@ -60,23 +62,23 @@ public:
             addAndMakeVisible(b);
         };
         op(randomize_, "Six random versions of the current variation", [this] {
-            mutator_.randomize(doc_.patch(), static_cast<std::uint8_t>(doc_.variation()));
+            mutator().randomize(doc_.patch(), static_cast<std::uint8_t>(doc_.variation()));
             status("Six random children of variation " + juce::String(doc_.variation() + 1));
         });
         op(mutate_, "Six small variations of the Mother (or of the current variation if the Mother box is empty)", [this] {
-            if (!mutator_.hasData(mut::kMother))
+            if (!mutator().hasData(mut::kMother))
                 copyFromVariation(mut::kMother);
-            mutator_.mutate(doc_.patch(), mut::kMother);
+            mutator().mutate(doc_.patch(), mut::kMother);
             status("Six mutants of the Mother");
         });
         op(cross_, "Six children mixing the Mother and the Father", [this] {
-            if (mutator_.cross(mut::kMother, mut::kFather))
+            if (mutator().cross(mut::kMother, mut::kFather))
                 status("Six crosses of Mother and Father");
             else
                 status("Cross needs a Mother and a Father (right-click a box to set them)");
         });
         op(interpolate_, "Six steps between the Mother and the Father", [this] {
-            if (mutator_.interpolate(mut::kMother, mut::kFather))
+            if (mutator().interpolate(mut::kMother, mut::kFather))
                 status("Six steps from Mother to Father");
             else
                 status("Interpolate needs a Mother and a Father (right-click a box to set them)");
@@ -106,7 +108,7 @@ public:
             copy->onClick = [this, row] {
                 doc_.perform("Copy gene bank to variations", [&](g2::Patch& p) {
                     const g2::Patch before = p;
-                    mutator_.copyRowToVariations(p, row);
+                    mutator().copyRowToVariations(p, row);
                     // CDialogMutaBackground @0013f7b2: each variation's dump, no 6A.
                     for (std::uint8_t v = 0; v < g2::kUserVariations; ++v)
                         g2::live::recordVariationDump(before, p, v);
@@ -115,7 +117,7 @@ public:
             };
             auto* clear = rowClear_.add(new juce::TextButton("Clear"));
             clear->onClick = [this, row] {
-                mutator_.clearRow(row);
+                mutator().clearRow(row);
                 refresh();
             };
             addAndMakeVisible(copy);
@@ -134,22 +136,22 @@ public:
             addAndMakeVisible(l);
         };
         // Probability 0-100 %, Range 0-50 % (the original's knob, CSmallKnob(..., 0x32)), Crossover 0-100 %.
-        slider(probability_, probabilityLabel_, "Probability", mutator_.settings.probability, 100.0);
-        slider(range_, rangeLabel_, "Range", mutator_.settings.range, mut::kMaxRange * 100.0);
-        slider(crossover_, crossoverLabel_, "Crossover", mutator_.settings.crossover, 100.0);
+        slider(probability_, probabilityLabel_, "Probability", mutator().settings.probability, 100.0);
+        slider(range_, rangeLabel_, "Range", mutator().settings.range, mut::kMaxRange * 100.0);
+        slider(crossover_, crossoverLabel_, "Crossover", mutator().settings.crossover, 100.0);
         probability_.onValueChange = [this] {
-            mutator_.settings.setProbability(probability_.getValue() / 100.0);
-            range_.setValue(mutator_.settings.range * 100.0, juce::dontSendNotification);
+            mutator().settings.setProbability(probability_.getValue() / 100.0);
+            range_.setValue(mutator().settings.range * 100.0, juce::dontSendNotification);
         };
         range_.onValueChange = [this] {
-            mutator_.settings.setRange(range_.getValue() / 100.0);
-            probability_.setValue(mutator_.settings.probability * 100.0, juce::dontSendNotification);
+            mutator().settings.setRange(range_.getValue() / 100.0);
+            probability_.setValue(mutator().settings.probability * 100.0, juce::dontSendNotification);
         };
-        crossover_.onValueChange = [this] { mutator_.settings.crossover = crossover_.getValue() / 100.0; };
-        link_.setToggleState(mutator_.settings.link, juce::dontSendNotification);
+        crossover_.onValueChange = [this] { mutator().settings.crossover = crossover_.getValue() / 100.0; };
+        link_.setToggleState(mutator().settings.link, juce::dontSendNotification);
         link_.onClick = [this] {
-            mutator_.settings.setLink(link_.getToggleState());
-            range_.setValue(mutator_.settings.range * 100.0, juce::dontSendNotification);
+            mutator().settings.setLink(link_.getToggleState());
+            range_.setValue(mutator().settings.range * 100.0, juce::dontSendNotification);
         };
         link_.setTooltip("Link Probability and Range as the original does");
         addAndMakeVisible(link_);
@@ -160,10 +162,10 @@ public:
             {mut::Effects, "Effects"}};
         for (const auto& [group, name] : groups) {
             auto* t = locks_.add(new juce::ToggleButton(name));
-            t->setToggleState(mutator_.settings.quickLocked(group), juce::dontSendNotification);
+            t->setToggleState(mutator().settings.quickLocked(group), juce::dontSendNotification);
             t->setTooltip(juce::String("Keep ") + name + " unchanged");
             const auto gr = group;
-            t->onClick = [this, t, gr] { mutator_.settings.setQuickLock(gr, t->getToggleState()); };
+            t->onClick = [this, t, gr] { mutator().settings.setQuickLock(gr, t->getToggleState()); };
             addAndMakeVisible(t);
         }
         lockLabel_.setText("Keep unchanged:", juce::dontSendNotification);
@@ -236,7 +238,11 @@ public:
 private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override
     {
-        mutator_.sync(doc_.patch());
+        mutator().sync(doc_.patch());
+        // Another patch's Mutator may be the shown one now: its own settings.
+        probability_.setValue(mutator().settings.probability * 100.0, juce::dontSendNotification);
+        range_.setValue(mutator().settings.range * 100.0, juce::dontSendNotification);
+        crossover_.setValue(mutator().settings.crossover * 100.0, juce::dontSendNotification);
         refresh();
     }
 
@@ -244,14 +250,14 @@ private:
     {
         for (int i = 0; i < boxes_.size(); ++i) {
             const mut::Box box{mut::BoxKind::Population, i};
-            boxes_[i]->filled = mutator_.hasData(box);
-            boxes_[i]->focused = mutator_.focus == box;
+            boxes_[i]->filled = mutator().hasData(box);
+            boxes_[i]->focused = mutator().focus == box;
             boxes_[i]->repaint();
         }
         for (int i = 0; i < bank_.size(); ++i) {
             const mut::Box box{mut::BoxKind::GeneBank, i};
-            bank_[i]->filled = mutator_.hasData(box);
-            bank_[i]->focused = mutator_.focus == box;
+            bank_[i]->filled = mutator().hasData(box);
+            bank_[i]->focused = mutator().focus == box;
             bank_[i]->repaint();
         }
     }
@@ -263,7 +269,7 @@ private:
     void copyFromVariation(mut::Box to)
     {
         g2::Patch scratch = doc_.patch();
-        mutator_.copy(scratch, currentVariation(), to);
+        mutator().copy(scratch, currentVariation(), to);
     }
 
     // Plays an individual as the original does: in the patch's hidden
@@ -272,11 +278,11 @@ private:
     // Undoable, as the original's focus molecules.
     void audition(mut::Box box)
     {
-        if (!mutator_.hasData(box))
+        if (!mutator().hasData(box))
             return;
         doc_.perform("Audition mutation", [&](g2::Patch& p) {
             const g2::Patch before = p;
-            if (mutator_.audition(p, box)) {
+            if (mutator().audition(p, box)) {
                 // CMutaSynthData::GetFocusIndividMolecules @00142ef8: the
                 // individual in variation 9 (4D x3, 65), then 6A 9.
                 constexpr auto v = static_cast<std::uint8_t>(g2::kAuditionVariation);
@@ -297,7 +303,7 @@ private:
         for (int v = 0; v < g2::kUserVariations; ++v)
             toVariation.addItem(kToVariation + v, "Variation " + juce::String(v + 1));
         juce::PopupMenu m;
-        const bool has = mutator_.hasData(box);
+        const bool has = mutator().hasData(box);
         m.addItem(kMother, "Use as Mother", has && box != mut::kMother);
         m.addItem(kFather, "Use as Father", has && box != mut::kFather);
         m.addItem(kStore, "Store in Gene Bank", has && box.kind == mut::BoxKind::Population);
@@ -312,19 +318,19 @@ private:
             auto& self = *safe;
             g2::Patch scratch = self.doc_.patch();
             if (r == kMother)
-                self.mutator_.copy(scratch, box, mut::kMother);
+                self.mutator().copy(scratch, box, mut::kMother);
             else if (r == kFather)
-                self.mutator_.copy(scratch, box, mut::kFather);
+                self.mutator().copy(scratch, box, mut::kFather);
             else if (r == kStore) {
                 for (int i = 0; i < mut::kGeneBankSize; ++i)
-                    if (!self.mutator_.hasData({mut::BoxKind::GeneBank, i})) {
-                        self.mutator_.copy(scratch, box, {mut::BoxKind::GeneBank, i});
+                    if (!self.mutator().hasData({mut::BoxKind::GeneBank, i})) {
+                        self.mutator().copy(scratch, box, {mut::BoxKind::GeneBank, i});
                         break;
                     }
             } else if (r == kFromVariation)
-                self.mutator_.copy(scratch, self.currentVariation(), box);
+                self.mutator().copy(scratch, self.currentVariation(), box);
             else if (r == kClear)
-                self.mutator_.clear(box);
+                self.mutator().clear(box);
             else if (r >= kToVariation) {
                 const mut::Box target{mut::BoxKind::Variation, r - kToVariation};
                 // GetCopyIndividMolecules @00144528: the variation's dump, then 6A
@@ -332,7 +338,7 @@ private:
                 const auto v = static_cast<std::uint8_t>(target.index);
                 self.doc_.perform("Copy to variation", [&](g2::Patch& p) {
                     const g2::Patch before = p;
-                    self.mutator_.copy(p, box, target);
+                    self.mutator().copy(p, box, target);
                     p.header.activeVariation = v;
                     g2::live::recordVariationDump(before, p, v);
                     g2::live::record(g2::live::VariationSelect{v}, g2::live::VariationSelect{before.header.activeVariation});
@@ -344,7 +350,10 @@ private:
     }
 
     PatchDocument& doc_;
-    mut::Mutator mutator_;
+    // One Mutator per patch (MutatorSet.h): the shown slot's, fresh after a load.
+    MutatorSet mutators_;
+    std::uint32_t seed_ = 1;
+    mut::Mutator& mutator() { return mutators_.get(doc_.isPerformance() ? doc_.slot() : 0, doc_.generation(), doc_.patch(), seed_); }
     juce::TextButton randomize_{"Randomize"}, mutate_{"Mutate"}, cross_{"Cross"}, interpolate_{"Interpolate"};
     juce::OwnedArray<BoxButton> boxes_, bank_;
     juce::OwnedArray<juce::TextButton> rowCopy_, rowClear_;

@@ -1063,6 +1063,8 @@ std::optional<Target> knobTarget(const Patch& patch, int knob)
     if (knob < 0 || static_cast<std::size_t>(knob) >= patch.knobs.size() || !patch.knobs[static_cast<std::size_t>(knob)])
         return std::nullopt;
     const auto& k = *patch.knobs[static_cast<std::size_t>(knob)];
+    if (k.assignType == kKnobToLed)
+        return std::nullopt; // the knob shows a module's LED; it controls no parameter
     return Target{static_cast<Location>(k.location), k.module, k.param};
 }
 
@@ -1467,7 +1469,8 @@ bool repairMorphs(Patch& patch)
 std::optional<int> knobOf(const Patch& patch, Location loc, u8 module, u8 param)
 {
     for (std::size_t i = 0; i < patch.knobs.size(); ++i)
-        if (const auto& k = patch.knobs[i]; k && sameTarget(k->location, k->module, k->param, loc, module, param))
+        if (const auto& k = patch.knobs[i];
+            k && k->assignType != kKnobToLed && sameTarget(k->location, k->module, k->param, loc, module, param))
             return static_cast<int>(i);
     return std::nullopt;
 }
