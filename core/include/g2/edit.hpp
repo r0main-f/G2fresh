@@ -49,10 +49,10 @@ struct Endpoint {
 // Adds a module with default parameters and modes, the lowest free index and
 // a default name ("OscB1", "OscB2", ...). Returns the new module's index
 // (references into the module list are invalidated by later additions).
-u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row);
+u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color = 0); // color: the toolbar's (0..24)
 // addModule, then resolveOverlaps: a module dropped at (col, row). (The
 // original makes room before it creates the module.)
-u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row);
+u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color = 0);
 // Deletes a module (Edit > Clear, Delete). Its cables go and the chains
 // through it are spliced back together (Out->A->X->B minus X: Out->A->B);
 // a chain whose output goes keeps its cables, white
@@ -290,6 +290,13 @@ std::optional<u8> midiCcOf(const Patch& patch, Location loc, u8 module, u8 param
 void assignMidiCc(Patch& patch, u8 cc, Location loc, u8 module, u8 param);
 // Removes an assignment (not a pre-assigned one: throws).
 void clearMidiCc(Patch& patch, u8 cc);
+// Tools > Assign MIDI to Selection (CPatch::InternalAutoAssignMIDICtrl @000d6cc6): each parameter of the modules, in
+// order, that can take a CC and has none gets the lowest valid one not pre-assigned and not in use. Deassign MIDI from
+// Selection (InternalDeassignMIDICtrl @000d67de) removes the modules' CCs, Deassign All MIDI
+// (InternalDeassignMIDICtrlAll @000d64dc) every CC but the pre-assigned ones.
+void autoAssignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules);
+void deassignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules);
+void deassignAllMidiCcs(Patch& patch);
 // The same without the editor's rules, for mirrors of what a synth has.
 void storeMidiCc(Patch& patch, u8 cc, Location loc, u8 module, u8 param);
 void eraseMidiCc(Patch& patch, u8 cc);

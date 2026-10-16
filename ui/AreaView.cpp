@@ -954,6 +954,14 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
         drag_ = Drag::Band;
         return;
     }
+    // The module's Replace button (ResetKnob.h): its menu (CPanel::HandleChangeRequests @000bf2d8).
+    if (!e.mods.isPopupMenu() && !dragHit_.element && onReplaceButton(dragHit_.local.x, dragHit_.local.y)) {
+        if (!isSelected(dragHit_.module))
+            select(dragHit_.module, false);
+        showReplaceMenu(dragHit_.module);
+        dragHit_ = {};
+        return;
+    }
     if (e.mods.isPopupMenu()) {
         if (dragHit_.element && ModulePainter::isJack(*dragHit_.element)) {
             if (const auto jack = jackAt(e.getPosition()))
@@ -1699,6 +1707,48 @@ void AreaView::showBackgroundMenu(juce::Point<int> where)
     });
 }
 
+void AreaView::colourSelection(std::uint8_t colour)
+{
+    if (selection_.empty())
+        return;
+    const auto loc = location_;
+    const auto targets = selection_;
+    doc_.perform("Change module colour", [&](g2::Patch& p) {
+        for (auto index : targets)
+            if (p.area(loc).find(index))
+                g2::edit::setModuleColor(p, loc, index, colour);
+    });
+}
+
+void AreaView::showReplaceMenu(std::uint8_t module)
+{
+    const auto* m = doc_.patch().area(location_).find(module);
+    if (!m)
+        return;
+    juce::PopupMenu replace;
+    for (const auto& item : g2::replace::menu(m->type, location_))
+        replace.addItem(1 + item.type, item.label, item.enabled, item.type == m->type);
+    const auto at = localPointToGlobal(ModulePainter::moduleBounds(*m).getTopLeft());
+    replace.showMenuAsync(juce::PopupMenu::Options().withTargetScreenArea({at.x, at.y + 12, 1, 1}),
+                          [safe = juce::Component::SafePointer<AreaView>(this), module](int result) {
+                              if (safe && result > 0)
+                                  safe->replaceModule(module, static_cast<std::uint8_t>(result - 1));
+                          });
+}
+
+void AreaView::replaceModule(std::uint8_t module, std::uint8_t newType)
+{
+    const auto loc = location_;
+    std::uint8_t replaced = 0;
+    juce::String error;
+    if (doc_.perform("Replace module", [&](g2::Patch& p) { replaced = g2::replace::replaceModule(p, loc, module, newType); }, &error)) {
+        selection_ = {replaced};
+        touch(replaced);
+    } else {
+        status("Cannot replace: " + error);
+    }
+}
+
 void AreaView::showModuleMenu(std::uint8_t module)
 {
     const auto* m = doc_.patch().area(location_).find(module);
@@ -1756,17 +1806,7 @@ void AreaView::showModuleMenu(std::uint8_t module)
             else
                 self.status("Assigned to knobs from " + juce::String(g2::edit::knobName(page * g2::edit::kKnobsPerPage)));
         } else if (result >= kReplaceBase) {
-            const auto newType = static_cast<std::uint8_t>(result - kReplaceBase);
-            std::uint8_t replaced = 0;
-            juce::String error;
-            if (self.doc_.perform("Replace module", [&](g2::Patch& p) {
-                    replaced = g2::replace::replaceModule(p, loc, module, newType);
-                }, &error)) {
-                self.selection_ = {replaced};
-                self.touch(replaced);
-            } else {
-                self.status("Cannot replace: " + error);
-            }
+            self.replaceModule(module, static_cast<std::uint8_t>(result - kReplaceBase));
         } else if (result >= kColourBase) {
             const auto colour = static_cast<std::uint8_t>(result - kColourBase);
             const auto targets = self.selection_.empty() ? std::vector<std::uint8_t>{module} : self.selection_;
@@ -2125,7 +2165,7 @@ void AreaView::addModule(std::uint8_t type, std::optional<juce::Point<int>> wher
     std::uint8_t added = 0;
     juce::String error;
     if (doc_.perform("Add module", [&](g2::Patch& p) {
-            added = g2::edit::dropModule(p, loc, type, static_cast<std::uint8_t>(cell.x), static_cast<std::uint8_t>(cell.y));
+            added = g2::edit::dropModule(p, loc, type, static_cast<std::uint8_t>(cell.x), static_cast<std::uint8_t>(cell.y), newModuleColour_);
         }, &error)) {
         selection_ = {added};
         touch(added);
@@ -2143,7 +2183,7 @@ void AreaView::insertModule(std::uint8_t type)
     std::uint8_t added = 0;
     juce::String error;
     if (doc_.perform("Add module", [&](g2::Patch& p) {
-            added = g2::edit::addModule(p, loc, type, col, row);
+            added = g2::edit::addModule(p, loc, type, col, row, newModuleColour_);
             g2::edit::resolveOverlaps(p, loc, added);
         }, &error)) {
         clearSelection();

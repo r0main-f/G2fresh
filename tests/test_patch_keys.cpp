@@ -96,3 +96,26 @@ TEST_CASE("patch keys: the Mutator's, while it is open")
     CHECK(mutatorKey('u', false, true) == MutatorKey::None);
     CHECK(mutatorKey('a', false, false) == MutatorKey::None);
 }
+
+TEST_CASE("patch keys: the original's command shortcuts G2fresh has the functions for")
+{
+    // Manual p116: Ctrl(Mac: Cmd)+P the Patch Settings, +R the Performance Settings, +J the Textpad (Patch Notes),
+    // +U upload the active slot from the G2.
+    CHECK(commandKey('p', false) == CommandKey::PatchSettings);
+    CHECK(commandKey('R', false) == CommandKey::PerformanceSettings);
+    CHECK(commandKey('j', false) == CommandKey::Textpad);
+    CHECK(commandKey('u', false) == CommandKey::UploadSlot);
+    CHECK(commandKey('p', true) == CommandKey::None); // with Shift: not these
+    CHECK(commandKey('q', false) == CommandKey::None);
+}
+
+TEST_CASE("File > New To, Open To, Save From: a slot of the performance, or of the connected G2")
+{
+    // Manual p98-99 (SMNU File items 110, 107, 113): New To clears a slot for a new patch, Open To opens a file into a
+    // slot, Save From saves a slot's patch. G2fresh has one document: in a performance they act on its slots; with a
+    // patch, on the connected G2's (the new or opened patch is sent there; Save From saves what the G2 has).
+    CHECK(slotTarget(true, false) == SlotTarget::Performance);
+    CHECK(slotTarget(true, true) == SlotTarget::Performance);
+    CHECK(slotTarget(false, true) == SlotTarget::Synth);
+    CHECK(slotTarget(false, false) == SlotTarget::None);
+}

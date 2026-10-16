@@ -27,6 +27,8 @@ enum MenuId {
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
     kRecallInit, kDeleteUnused, kPasteParams, kSaveInitPatch1, kSaveInitPatch2,
+    kNewToBase = 900, kOpenToBase = 910, kSaveFromBase = 920, // + slot
+    kAssignMidiSelection = 930, kDeassignMidiSelection, kDeassignAllMidi,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -230,6 +232,16 @@ MainView::MainView(PatchDocument& doc, bool standalone)
             doc_.setFocusedMorphGroup(id - 1);
     };
     addAndMakeVisible(morphGroup_);
+    colourButton_.setTooltip("Module colour: new modules get it; choosing one paints the selected modules");
+    colourButton_.setColour(juce::TextButton::buttonColourId, ModulePainter::moduleColour(0));
+    colourButton_.onClick = [this] { chooseModuleColour(); };
+    bucketButton_.setTooltip("Paint the selected modules with the module colour");
+    bucketButton_.onClick = [this] {
+        if (auto* a = areaWithSelection())
+            a->colourSelection(moduleColour_);
+    };
+    addAndMakeVisible(colourButton_);
+    addAndMakeVisible(bucketButton_);
     addAndMakeVisible(mutatorButton_);
     // Edit / Live: the patch, or the emulated G2 as an instrument
     editButton_.setTooltip("Edit the patch: modules and cables (Cmd L switches)");
@@ -575,6 +587,17 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kNew, "New Patch", kCmd + "N"));
         m.addItem(item(kNewPerformance, "New Performance"));
         m.addItem(item(kOpen, "Open...", kCmd + "O"));
+        // The original's New To, Open To and Save From (SMNU File 110, 107, 113).
+        const auto target = slotTarget(doc_.isPerformance(), synth_ != nullptr && synth_->ready());
+        juce::PopupMenu newTo, openTo, saveFrom;
+        for (int s = 0; s < 4; ++s) {
+            const auto label = "Slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + s));
+            newTo.addItem(item(kNewToBase + s, label));
+            openTo.addItem(item(kOpenToBase + s, label));
+            saveFrom.addItem(item(kSaveFromBase + s, label));
+        }
+        m.addSubMenu("New To", newTo, target != SlotTarget::None);
+        m.addSubMenu("Open To", openTo, target != SlotTarget::None);
         juce::PopupMenu recent;
         recent_.createPopupMenuItems(recent, kRecentBase, false, true);
         if (recent.getNumItems() > 0) {
@@ -586,10 +609,11 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addSeparator();
         m.addItem(item(kSave, "Save", kCmd + "S"));
         m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S"));
+        m.addSubMenu("Save From", saveFrom, target != SlotTarget::None);
         m.addItem(item(kSaveInitPatch1, "Save InitPatch 1")); // the original's File menu (SMNU, items 108 and 109)
         m.addItem(item(kSaveInitPatch2, "Save InitPatch 2"));
         m.addSeparator();
-        m.addItem(item(kPerformanceSettings, "Performance Settings...", {}, doc_.isPerformance()));
+        m.addItem(item(kPerformanceSettings, "Performance Settings...", kCmd + "R", doc_.isPerformance()));
     } else if (index == 1) {
         const auto& undo = doc_;
         m.addItem(item(kUndo, "Undo", kCmd + "Z", undo.canUndo()));
@@ -620,9 +644,14 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kMutator, "Patch Mutator...", kCmd + "2"));
         m.addSeparator();
         m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
-        m.addItem(item(kPatchNotes, "Patch Notes..."));
+        m.addItem(item(kPatchNotes, "Patch Notes...", kCmd + "J"));
         m.addSeparator();
         m.addItem(item(kDeleteUnused, "Delete Unused Modules")); // the original's Patch menu (SMNU, item 305)
+        m.addSeparator();
+        // The original's Tools menu (SMNU 1086-1088).
+        m.addItem(item(kAssignMidiSelection, "Assign MIDI to Selection", {}, selected));
+        m.addItem(item(kDeassignMidiSelection, "Deassign MIDI from Selection", {}, selected));
+        m.addItem(item(kDeassignAllMidi, "Deassign All MIDI"));
     } else if (index == 2) {
         m.addItem(item(kLiveMode, "Live (Emulated G2 Panel and Keyboard)", kCmd + "L", true, liveMode_));
         m.addSeparator();
@@ -631,7 +660,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kZoomReset, "Actual Size", kCmd + "0"));
         m.addItem(item(kZoomFit, "Zoom to Fit", kShift + kCmd + "0"));
         m.addSeparator();
-        m.addItem(item(kShowSettings, "Show Patch Settings", {}, true, !settings_.isCollapsed()));
+        m.addItem(item(kShowSettings, "Show Patch Settings", kCmd + "P", true, !settings_.isCollapsed()));
         juce::PopupMenu cables;
         static const char* const names[7] = {"Red", "Blue", "Yellow", "Orange", "Green", "Purple", "White"};
         for (int c = 0; c < 7; ++c)
@@ -888,6 +917,21 @@ void MainView::menuItemSelected(int id, int)
         setStatus(gone == 0 ? juce::String("No unused module") : juce::String(static_cast<int>(gone)) + (gone == 1 ? " unused module deleted" : " unused modules deleted"));
         break;
     }
+    case kAssignMidiSelection:
+    case kDeassignMidiSelection:
+        if (auto* a = areaWithSelection()) {
+            const auto loc = a->location();
+            const auto modules = a->selection();
+            doc_.perform(id == kAssignMidiSelection ? "Assign MIDI to selection" : "Deassign MIDI from selection",
+                         [&](g2::Patch& p) {
+                             id == kAssignMidiSelection ? g2::edit::autoAssignMidiCcs(p, loc, modules)
+                                                        : g2::edit::deassignMidiCcs(p, loc, modules);
+                         });
+        }
+        break;
+    case kDeassignAllMidi:
+        doc_.perform("Deassign all MIDI", [](g2::Patch& p) { g2::edit::deassignAllMidiCcs(p); });
+        break;
     case kInsertPatch: insertPatchFile(); break;
     case kRemoveBendPoints:
         doc_.perform("Remove all bend points", [](g2::Patch& p) { g2::edit::clearCableBends(p); });
@@ -901,6 +945,9 @@ void MainView::menuItemSelected(int id, int)
     case kSave: save(false); break;
     case kSaveAs: save(true); break;
     case kSaveInitPatch1: saveInitPatch(1); break;
+    case kNewToBase: case kNewToBase + 1: case kNewToBase + 2: case kNewToBase + 3: newTo(id - kNewToBase); break;
+    case kOpenToBase: case kOpenToBase + 1: case kOpenToBase + 2: case kOpenToBase + 3: openTo(id - kOpenToBase); break;
+    case kSaveFromBase: case kSaveFromBase + 1: case kSaveFromBase + 2: case kSaveFromBase + 3: saveFrom(id - kSaveFromBase); break;
     case kSaveInitPatch2: saveInitPatch(2); break;
     case kClearRecent:
         recent_.clear();
@@ -1062,11 +1109,126 @@ void MainView::slotClicked(int slot)
     updateToolbar();
 }
 
+void MainView::chooseModuleColour()
+{
+    juce::PopupMenu colours;
+    for (int c : ModulePainter::moduleColourMenuOrder()) {
+        juce::PopupMenu::Item item(c == 0 ? juce::String("Default") : juce::String("Colour ") + juce::String(c));
+        item.itemID = 1 + c;
+        item.colour = ModulePainter::moduleColour(c);
+        item.isTicked = moduleColour_ == c;
+        colours.addItem(std::move(item));
+    }
+    colours.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(colourButton_),
+                          [safe = juce::Component::SafePointer<MainView>(this)](int r) {
+                              if (!safe || r <= 0)
+                                  return;
+                              safe->moduleColour_ = static_cast<std::uint8_t>(r - 1);
+                              safe->colourButton_.setColour(juce::TextButton::buttonColourId, ModulePainter::moduleColour(r - 1));
+                              for (auto* area : {&safe->va_, &safe->fx_})
+                                  area->setNewModuleColour(safe->moduleColour_);
+                              if (auto* a = safe->areaWithSelection())
+                                  a->colourSelection(safe->moduleColour_);
+                          });
+}
+
 void MainView::recallVariationInit()
 {
     const auto to = static_cast<std::uint8_t>(doc_.variation());
     doc_.perform("Recall Init", [&](g2::Patch& p) { g2::edit::recallVariationInit(p, to); });
     setStatus("Recalled the Init variation into variation " + juce::String(to + 1));
+}
+
+void MainView::newTo(int slot)
+{
+    const auto letter = juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot));
+    if (doc_.isPerformance()) {
+        // The slot's patch emptied, as one undo step, and focused.
+        doc_.setSlot(slot);
+        if (doc_.perform("New patch in slot " + letter, [](g2::Patch& p) { p = g2::Patch::makeDefault(); }))
+            doc_.setName("No name");
+        return;
+    }
+    if (synth_ == nullptr || !synth_->ready())
+        return;
+    confirmDiscard([this, slot] {
+        doc_.newPatch();
+        setZoom(1.0f);
+        synth_->sendPatch(slot); // the slot cleared for it
+    });
+}
+
+void MainView::openTo(int slot)
+{
+    chooser_ = std::make_unique<juce::FileChooser>("Open a G2 patch into slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)),
+                                                   doc_.file(), "*.pch2");
+    chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [this, slot](const juce::FileChooser& fc) {
+                              const auto f = fc.getResult();
+                              if (f == juce::File())
+                                  return;
+                              if (!doc_.isPerformance()) {
+                                  if (synth_ == nullptr || !synth_->ready())
+                                      return;
+                                  confirmDiscard([this, f, slot] {
+                                      loadFile(f);
+                                      if (!doc_.isPerformance())
+                                          synth_->sendPatch(slot);
+                                  });
+                                  return;
+                              }
+                              // Into the performance's slot, as one undo step (as Open in Slot).
+                              juce::MemoryBlock mb;
+                              g2::Patch patch;
+                              try {
+                                  if (!f.loadFileAsData(mb))
+                                      throw std::runtime_error("cannot read the file");
+                                  const auto* data = static_cast<const std::uint8_t*>(mb.getData());
+                                  auto loaded = g2::load(std::vector<std::uint8_t>(data, data + mb.getSize()), {});
+                                  auto* p = std::get_if<g2::Patch>(&loaded.content);
+                                  if (p == nullptr)
+                                      throw std::runtime_error("not a patch");
+                                  patch = std::move(*p);
+                              } catch (const std::exception& e) {
+                                  setStatus(f.getFileName() + ": " + e.what());
+                                  return;
+                              }
+                              doc_.setSlot(slot);
+                              if (doc_.perform("Open in slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)),
+                                               [&patch](g2::Patch& p) { p = patch; }))
+                                  doc_.setName(f.getFileNameWithoutExtension());
+                          });
+}
+
+void MainView::saveFrom(int slot)
+{
+    g2::Patch patch;
+    juce::String name;
+    if (const auto* perf = doc_.performance()) {
+        patch = doc_.slotPatch(slot);
+        name = PatchDocument::fromG2Bytes(perf->header.slots[static_cast<std::size_t>(slot)].patchName);
+    } else if (const auto onSynth = synth_ != nullptr ? synth_->synthSlotPatch(slot) : std::nullopt) {
+        patch = onSynth->first;
+        name = juce::String(onSynth->second);
+    } else {
+        return;
+    }
+    const auto fileName = juce::String(g2::edit::fileNameForPatch(name.toStdString())).trim();
+    const auto folder = doc_.file() != juce::File() ? doc_.file().getParentDirectory()
+                                                    : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+    chooser_ = std::make_unique<juce::FileChooser>("Save the patch in slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)),
+                                                   folder.getChildFile((fileName.isEmpty() ? juce::String("No name") : fileName) + ".pch2"), "*.pch2");
+    chooser_->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this, patch](const juce::FileChooser& fc) {
+                              auto f = fc.getResult();
+                              if (f == juce::File())
+                                  return;
+                              f = f.hasFileExtension(".pch2") ? f : f.withFileExtension(".pch2");
+                              const auto bytes = g2::savePatch(patch);
+                              setStatus(f.replaceWithData(bytes.data(), bytes.size()) ? "Saved " + f.getFileName()
+                                                                                       : "Could not write " + f.getFullPathName());
+                          });
 }
 
 juce::File MainView::initPatchFile(int n)
@@ -1423,6 +1585,10 @@ void MainView::resized()
     randomizeButton_.setBounds(bar.removeFromRight(92));
     bar.removeFromRight(4);
     morphGroup_.setBounds(bar.removeFromRight(150));
+    bar.removeFromRight(8);
+    bucketButton_.setBounds(bar.removeFromRight(44));
+    bar.removeFromRight(2);
+    colourButton_.setBounds(bar.removeFromRight(28));
     bar.removeFromRight(16);
     varInit_.setBounds(bar.removeFromRight(40));
     bar.removeFromRight(4);
@@ -1559,6 +1725,30 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return setZoom(1.0f), true;
     if (key == juce::KeyPress('0', cmd | juce::ModifierKeys::shiftModifier, 0) || key == juce::KeyPress(')', cmd | juce::ModifierKeys::shiftModifier, 0))
         return zoomToFit(), true;
+    // The original's Ctrl (Mac: Command) shortcuts G2fresh has the functions for (manual p116).
+    if (key.getModifiers().isCommandDown() && !key.getModifiers().isAltDown() && !liveMode_) {
+        const int k = key.getKeyCode();
+        switch (commandKey(k > 0 && k < 128 ? static_cast<char>(k) : 0, key.getModifiers().isShiftDown())) {
+        case CommandKey::PatchSettings:
+            settings_.setCollapsed(!settings_.isCollapsed());
+            return true;
+        case CommandKey::PerformanceSettings:
+            if (doc_.isPerformance())
+                showPerformanceSettings(doc_, this);
+            return true;
+        case CommandKey::Textpad:
+            showPatchNotes(doc_, this);
+            return true;
+        case CommandKey::UploadSlot:
+            if (const int slot = synth_ != nullptr ? synth_->synthFocusedSlot() : -1; slot >= 0)
+                confirmDiscard([this, slot] { synth_->getPatch(slot); });
+            else
+                setStatus("Get Patch: no G2 connected");
+            return true;
+        case CommandKey::None:
+            break;
+        }
+    }
     // ⌘2 is the original's Patch Mutator (⌘1 Dump One and ⌘3 Patch Adjuster are not in G2fresh).
     if (key == juce::KeyPress('2', cmd, 0))
         return showMutator(), true;

@@ -284,7 +284,7 @@ bool filterLoadedNames(Patch& patch)
     return changed;
 }
 
-u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
+u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color)
 {
     Area& area = areaFor(patch, loc);
     const auto* def = db::find(type);
@@ -294,6 +294,8 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
         throw std::invalid_argument(std::string(def->shortName) + " cannot go in this area");
     if (col > 127 || row > 127)
         throw std::invalid_argument("position out of range");
+    if (color > 24)
+        throw std::invalid_argument("no such module colour");
     if (!patchload::canAddModule(patch, loc, type))
         throw std::invalid_argument("the patch is too big: the synth has no room for another module here");
 
@@ -316,6 +318,7 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
     m.type = type;
     m.col = col;
     m.row = row;
+    m.color = color;
     m.locked = def->defaultLocked;
     for (const auto& mode : def->modes)
         m.modes.push_back(mode.defaultValue);
@@ -347,13 +350,13 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
     return index;
 }
 
-u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
+u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color)
 {
     // A module dragged in (CClipboard::Drop @0014d882): the original makes
     // room before it creates the module, so its 34s come first.
     auto* recorded = live::recording();
     const std::size_t start = recorded ? recorded->size() : 0;
-    const u8 index = addModule(patch, loc, type, col, row);
+    const u8 index = addModule(patch, loc, type, col, row, color);
     const std::size_t moves = recorded ? recorded->size() : 0;
     resolveOverlaps(patch, loc, index);
     if (recorded)
@@ -1515,6 +1518,52 @@ void clearKnob(Patch& patch, int knob)
                                                                     held->module, held->param, held->assignType});
         patch.knobs[static_cast<std::size_t>(knob)].reset();
     }
+}
+
+void autoAssignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules)
+{
+    auto used = [&](u8 cc) {
+        return std::any_of(patch.controllers.begin(), patch.controllers.end(), [&](const CtrlAssign& a) { return a.cc == cc; });
+    };
+    for (const u8 module : modules) {
+        const auto* m = patch.area(loc).find(module);
+        const auto* def = m ? db::find(m->type) : nullptr;
+        if (!def)
+            continue;
+        for (std::size_t param = 0; param < def->params.size(); ++param) {
+            const auto p8 = static_cast<u8>(param);
+            if (!canAssignMidiCc(patch, loc, module, p8) || midiCcOf(patch, loc, module, p8))
+                continue;
+            for (int n = 0; n < 120; ++n) {
+                const auto cc = static_cast<u8>(n);
+                if (isValidMidiCc(cc) && !isPreAssignedMidiCc(cc) && !used(cc)) {
+                    assignMidiCc(patch, cc, loc, module, p8);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void deassignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules)
+{
+    std::vector<u8> ccs;
+    for (const auto& a : patch.controllers)
+        if (a.location == static_cast<u8>(loc) && std::find(modules.begin(), modules.end(), a.module) != modules.end()
+            && !isPreAssignedMidiCc(a.cc))
+            ccs.push_back(a.cc);
+    for (const u8 cc : ccs)
+        clearMidiCc(patch, cc);
+}
+
+void deassignAllMidiCcs(Patch& patch)
+{
+    std::vector<u8> ccs;
+    for (const auto& a : patch.controllers)
+        if (!isPreAssignedMidiCc(a.cc))
+            ccs.push_back(a.cc);
+    for (const u8 cc : ccs)
+        clearMidiCc(patch, cc);
 }
 
 std::vector<u8> assignableParams(const db::ModuleDef& def)

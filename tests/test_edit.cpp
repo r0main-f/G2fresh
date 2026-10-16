@@ -689,3 +689,42 @@ TEST_CASE("module Assign: a module's parameters onto a knob page")
     edit::assignModuleToPage(p, Location::Va, seq, 3, true); // Multi Column: 21 knobs from B1
     CHECK(edit::knobOf(p, Location::Va, seq, edit::assignableParams(*seqNote)[20]) == 24 + 20);
 }
+
+TEST_CASE("a new module takes the toolbar's colour")
+{
+    // Manual p60, p82: "the color selector stays in its new selection, causing any new modules that you add to the
+    // Patch window to get the selected color".
+    auto p = g2::Patch::makeDefault();
+    const auto a = edit::addModule(p, Location::Va, 7, 0, 0);
+    CHECK(p.va.find(a)->color == 0);
+    const auto b = edit::addModule(p, Location::Va, 7, 0, 4, 9);
+    CHECK(p.va.find(b)->color == 9);
+    const auto c = edit::dropModule(p, Location::Va, 7, 0, 8, 3);
+    CHECK(p.va.find(c)->color == 3);
+    CHECK_THROWS_AS(edit::addModule(p, Location::Va, 7, 0, 12, 25), std::invalid_argument); // 25 colours: 0..24
+}
+
+TEST_CASE("Tools > Assign MIDI to Selection, Deassign MIDI from Selection, Deassign All MIDI")
+{
+    // CPatch::InternalAutoAssignMIDICtrl @000d6cc6: every parameter of the selected modules without a CC gets the
+    // lowest one that is valid, not pre-assigned and not in use; InternalDeassignMIDICtrl @000d67de takes the
+    // selection's away, InternalDeassignMIDICtrlAll @000d64dc every one but the pre-assigned (SMNU Tools 1086-1088).
+    auto p = g2::Patch::makeDefault();
+    const auto a = edit::addModule(p, Location::Va, 7, 0, 0);  // OscB
+    const auto b = edit::addModule(p, Location::Va, 7, 0, 5);
+    edit::assignMidiCc(p, 2, Location::Va, b, 0);
+    const std::vector<u8> sel{a};
+    edit::autoAssignMidiCcs(p, Location::Va, sel);
+    CHECK(edit::midiCcOf(p, Location::Va, a, 0) == 3); // 0 and 1 are not valid, 2 is in use
+    CHECK(edit::midiCcOf(p, Location::Va, a, 1) == 4);
+    for (u8 i = 0; i < g2::db::find(7)->params.size(); ++i)
+        if (edit::canAssignMidiCc(p, Location::Va, a, i))
+            CHECK(edit::midiCcOf(p, Location::Va, a, i).has_value());
+    edit::deassignMidiCcs(p, Location::Va, sel);
+    CHECK_FALSE(edit::midiCcOf(p, Location::Va, a, 0));
+    CHECK(edit::midiCcOf(p, Location::Va, b, 0) == 2);
+    edit::deassignAllMidiCcs(p);
+    CHECK_FALSE(edit::midiCcOf(p, Location::Va, b, 0));
+    for (const auto& c : p.controllers)
+        CHECK(edit::isPreAssignedMidiCc(c.cc));
+}

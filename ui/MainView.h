@@ -138,6 +138,11 @@ private:
     juce::TextButton zoomOut_{"-"}, zoomReset_{"100%"}, zoomIn_{"+"};
     juce::TextButton randomizeButton_{"Randomize"}, mutatorButton_{"Mutator..."};
     juce::ComboBox morphGroup_;
+    // The original's Color selector and paint bucket (manual p60, p82): the colour new modules get; choosing one or
+    // the bucket paints the selected modules. Not saved.
+    juce::TextButton colourButton_, bucketButton_{"Paint"};
+    std::uint8_t moduleColour_ = 0;
+    void chooseModuleColour();
     std::unique_ptr<MutatorWindow> mutator_;
     MidiOutputTarget* midiOut_ = nullptr;
     SynthSync* synth_ = nullptr;
@@ -183,6 +188,10 @@ private:
     // The two init patches (File > Save InitPatch 1/2, the toolbar's Init 1 and Init 2): files beside the settings.
     static juce::File initPatchFile(int n);
     void saveInitPatch(int n);
+    // File > New To, Open To, Save From (PatchKeys.h slotTarget): a slot of the performance, or of the connected G2.
+    void newTo(int slot);
+    void openTo(int slot);
+    void saveFrom(int slot);
     void recallInitPatch(int n);
     void slotClicked(int slot);
     void saveSelection();

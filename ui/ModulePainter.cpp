@@ -448,10 +448,11 @@ void ModulePainter::paint(juce::Graphics& g, const ModuleContext& c, const Panel
         g.setColour(juce::Colours::black);
         g.drawRect(bounds);
     }
-    // Module name in the title strip.
+    paintReplaceButton(g, c);
+    // Module name in the title strip, after the Replace button.
     g.setColour(juce::Colours::black);
     g.setFont(smallFont(10.0f));
-    g.drawText(juce::String(c.module.name), 3, 0, 120, 13, juce::Justification::centredLeft, true);
+    g.drawText(juce::String(c.module.name), kModuleNameX, 0, 120, 13, juce::Justification::centredLeft, true);
 
     if (c.panel)
         for (const auto& e : c.panel->elements)
@@ -505,6 +506,34 @@ void ModulePainter::paintResetTriangle(juce::Graphics& g, const ModuleContext& c
     juce::Path t;
     t.addTriangle(box.getX(), box.getY(), box.getRight(), box.getY(), box.getCentreX(), box.getBottom());
     g.setColour(lit ? juce::Colour(0xff3478d4) : juce::Colour(0xff8a8f99)); // the Modern look's kAccent, kSubtle
+    g.fillPath(t);
+}
+
+void ModulePainter::paintReplaceButton(juce::Graphics& g, const ModuleContext& c)
+{
+    // CReplaceView: a frame button in the module group's colour with bitmap 0x20a; the Modern look draws its own: a
+    // small box with a down-pointing chevron.
+    const auto r = replaceButton();
+    const juce::Rectangle<int> box{r.x, r.y, r.w, r.h};
+    const auto* def = c.module.def();
+    const auto cats = g2::db::categories();
+    const auto face = def && def->category >= 0 && static_cast<std::size_t>(def->category) < cats.size()
+        ? juce::Colour(cats[static_cast<std::size_t>(def->category)].r, cats[static_cast<std::size_t>(def->category)].g,
+                       cats[static_cast<std::size_t>(def->category)].b)
+        : juce::Colour(0xff9096a0);
+    g.setColour(face);
+    g.fillRect(box);
+    g.setColour(juce::Colour(100, 100, 100));
+    g.drawRect(box, 1);
+    if (c.look == Look::Classic)
+        if (const auto img = Skin::get().cbmp(0x20a); img.isValid()) {
+            g.drawImageAt(img, box.getCentreX() - img.getWidth() / 2, box.getCentreY() - img.getHeight() / 2);
+            return;
+        }
+    const auto m = box.toFloat().getCentre();
+    juce::Path t;
+    t.addTriangle(m.x - 2.5f, m.y - 1.0f, m.x + 2.5f, m.y - 1.0f, m.x, m.y + 2.0f);
+    g.setColour(juce::Colours::black.withAlpha(0.75f));
     g.fillPath(t);
 }
 
@@ -781,9 +810,10 @@ void ModulePainter::paintModern(juce::Graphics& g, const ModuleContext& c, const
     g.setColour(juce::Colour(0xff9ea3ad));
     g.drawRoundedRectangle(body, 5.0f, 1.0f);
 
+    paintReplaceButton(g, c);
     g.setColour(kInk);
     g.setFont(juce::Font(juce::FontOptions(10.5f, juce::Font::bold)));
-    g.drawText(juce::String(c.module.name), 5, 2, 130, 12, juce::Justification::centredLeft, true);
+    g.drawText(juce::String(c.module.name), kModuleNameX + 2, 2, 130, 12, juce::Justification::centredLeft, true);
 
     if (!c.panel)
         return;
