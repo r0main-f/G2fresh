@@ -430,6 +430,7 @@ bool applyToSynth(SynthState& s, const Molecule& molecule)
             },
             [&](const Voices& m) {
                 s.voices = m.voices;
+                s.voicesReceived = true;
                 return true;
             },
             [&](const SlotFlags& m) {

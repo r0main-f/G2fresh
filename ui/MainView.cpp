@@ -1,5 +1,6 @@
 #include "MainView.h"
 
+#include "BackgroundMenu.h"
 #include "BankBrowser.h"
 
 #include "g2/proto/logging_transport.hpp"
@@ -158,6 +159,30 @@ MainView::MainView(PatchDocument& doc, bool standalone)
 
     settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
     settings_.onLayoutChanged = [this] { resized(); };
+    // The background pop-up's synth items (BackgroundMenu.h): a patch to a slot or Local, a performance on or off.
+    for (auto* area : {&va_, &fx_})
+        area->addSynthItems = [this](juce::PopupMenu& m) {
+            if (synth_ == nullptr)
+                return;
+            const auto items = synthItems(synth_->ready(), doc_.isPerformance(), synth_->performanceBound(), synth_->boundSlot());
+            for (std::size_t i = 0; i < items.size(); ++i) {
+                juce::PopupMenu::Item it(items[i].label);
+                it.itemID = 20000 + static_cast<int>(i); // not one of the area's own ids
+                it.isTicked = items[i].ticked;
+                const int slot = static_cast<int>(i);
+                if (doc_.isPerformance())
+                    it.action = [this] { synth_->performanceBound() ? synth_->unbind() : synth_->sendPerformance(); };
+                else if (slot < 4)
+                    it.action = [this, slot] { synth_->sendPatch(slot); };
+                else
+                    it.action = [this] { synth_->unbind(); };
+                m.addItem(std::move(it));
+            }
+        };
+    settings_.voicesOnSynth = [this] {
+        return synth_ != nullptr ? std::pair{synth_->patchConnected(), synth_->currentVoices()}
+                                 : std::pair<bool, std::optional<std::uint8_t>>{false, std::nullopt};
+    };
     addAndMakeVisible(settings_);
     // Into the area last clicked, below its selection (CTabButton::Action).
     browser_.onAdd = [this](std::uint8_t type) { activeArea().insertModule(type); };
@@ -186,7 +211,7 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     zoomReset_.onClick = [this] { setZoom(1.0f); };
     for (auto* b : {&zoomOut_, &zoomReset_, &zoomIn_})
         addAndMakeVisible(b);
-    randomizeButton_.setTooltip("Randomize the current variation (or the selected modules). Locked modules, "
+    randomizeButton_.setTooltip("Randomize the current variation (or the selected modules). Modules excluded from mutation, "
                                 "switches and modes are kept. Undo to go back.");
     randomizeButton_.onClick = [this] { randomize(false); };
     mutatorButton_.setTooltip("Breed new versions of the current variation: randomize, mutate, cross, audition");
@@ -945,7 +970,7 @@ void MainView::randomize(bool mutateOnly)
     setStatus(juce::String(mutateOnly ? "Mutated " : "Randomized ")
               + (scope.modules.empty() ? "variation " + juce::String(doc_.variation() + 1)
                                        : juce::String(static_cast<int>(scope.modules.size())) + " module(s)")
-              + " (locked modules and switches are kept)");
+              + " (modules excluded from mutation, and switches, are kept)");
 }
 
 void MainView::showMutator()
@@ -1168,6 +1193,7 @@ void MainView::changeListenerCallback(juce::ChangeBroadcaster* source)
     if (source == synth_) {
         va_.liveLedsChanged();
         fx_.liveLedsChanged();
+        settings_.synthChanged(); // the voices the synth plays
         updateLoad();
         menuItemsChanged(); // slot names, connection state
         return;
@@ -1246,6 +1272,14 @@ void MainView::Divider::mouseUp(const juce::MouseEvent&)
 {
     if (std::exchange(dragging_, false))
         owner_.splitMoved();
+}
+
+bool MainView::Divider::abortDrag()
+{
+    if (!std::exchange(dragging_, false))
+        return false;
+    owner_.splitMoved();
+    return true;
 }
 
 void MainView::updateToolbar()
@@ -1421,6 +1455,10 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     // The module bar first, as the original hands every key to its toolbar first (CPatchView::HandleKeyDownUp
     // @000f93d4 -> CTBWindow::RouteKeySpec).
     if (!liveMode_ && browser_.routeKey(key, repeat))
+        return true;
+    // Esc aborts every drag (|, not ||), as CPatchView::KeyAbortDragOperations @000f7cde; an area's own Esc comes to it
+    // first.
+    if (code == juce::KeyPress::escapeKey && !liveMode_ && (divider_.abortDrag() | va_.abortDrag() | fx_.abortDrag()))
         return true;
     if (code == juce::KeyPress::spaceKey && !liveMode_ && !repeat) {
         const auto m = key.getModifiers();

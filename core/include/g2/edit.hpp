@@ -180,6 +180,14 @@ std::string settingText(const Patch& patch, Setting s, u8 param, u8 variation);
 enum class VoiceMode : u8 { Poly = 0, Mono = 1, Legato = 2 };
 void setVoices(Patch& patch, VoiceMode mode, u8 polyVoices = 0); // count used for Poly
 std::string voicesText(const Patch& patch);                   // "Mono", "Legato" or the count
+// The toolbar's voices (CPatchToolbar::SetupState @000f38b4): a poly patch's count, or, connected to a synth,
+// "actual (requested)" ("? (n)" until the synth has said how many it plays: `actual` nullopt); "Mono" or "Legato".
+// Red when the synth plays none.
+struct VoicesShown {
+    std::string text;
+    bool red = false;
+};
+VoicesShown voicesShown(const Patch& patch, bool connected, std::optional<u8> actual);
 void setCategory(Patch& patch, u8 category);                   // 0..15
 const char* categoryName(u8 category);
 

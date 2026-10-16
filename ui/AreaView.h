@@ -38,6 +38,10 @@ public:
     // jack popup's Delete).
     bool hasHighlightedCable() const { return highlighted_.has_value(); }
     void deleteHighlightedCable();
+    // Esc: the drag in progress stops and its release does nothing (CPatch::AbortUserActions @000d38d0 ->
+    // CPatchBackground::ReleaseAllDragOperations @000e18d2): no module moves, no cable is made, the rubber band adds
+    // nothing; a knob keeps the value it was dragged to, a held push button is released. False if none.
+    bool abortDrag();
     const std::vector<std::uint8_t>& selection() const { return selection_; }
     void selectAll();
     // The module the parameter focus moved to: selected alone unless it is selected already.
@@ -62,6 +66,8 @@ public:
     std::function<void(AreaView*)> onActivated;
     // The arrow keys, for the patch window's parameter focus (its viewport would scroll with them).
     std::function<bool(const juce::KeyPress&)> onArrowKey;
+    // The synth's part of the background pop-up (BackgroundMenu.h), with what each item does, from the window.
+    std::function<void(juce::PopupMenu&)> addSynthItems;
     // Adds a module at the first free row of the first column, or at `where`.
     void addModule(std::uint8_t type, std::optional<juce::Point<int>> where = std::nullopt);
     // Adds a module from the module bar (double-click or Return), where the
@@ -148,12 +154,15 @@ private:
     void repaintModules();
 
     void setValue(const Hit& h, int value, bool coalesce);
+    // A reset knob's triangle clicked (ResetKnob.h): the centre value, or (morph) the focused group's range cleared.
+    void resetKnob(const Hit& h, bool morph);
     // Push buttons (momentary parameters): pressed while the mouse is down.
     bool isPushButton(const Hit& h) const;
     void pressMomentary(const Hit& h, int value);
     void clickControl(const Hit& h);
     void clickSpecial(const Hit& h, SpecialControls::Hit part);
     void showModuleMenu(std::uint8_t module);
+    void showBackgroundMenu(juce::Point<int> where);
     void showJackMenu(const Jack& jack);
     void showControlMenu(const Hit& h);
     void showCableMenu(const g2::Cable& cable);

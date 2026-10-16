@@ -42,6 +42,7 @@ struct SynthState {
     VersionInfo version;
     SynthSettings settings;
     std::array<u8, 4> voices{};
+    bool voicesReceived = false; // a Voices molecule has come since the link was made
     ClockInfo clock;
     std::optional<MidiLearn> midiLearn;
 

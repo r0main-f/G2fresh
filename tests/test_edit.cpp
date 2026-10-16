@@ -634,3 +634,24 @@ TEST_CASE("Paste Params: the copied modules' values into the selected modules of
     CHECK(edit::pasteParams(p, Location::Va, {osc, envB}, clip, 5) == "Selection does not match the original data");
     CHECK(p.va.find(envB)->params[5][1] != 77);
 }
+
+TEST_CASE("the toolbar's voices: the synth's count, then the patch's")
+{
+    // CPatchToolbar::SetupState @000f38b4: a poly patch shows its count; connected, "? (n)" until the synth says how
+    // many it plays (CPatch::GetCurrentNumberOfVoices), then "actual (requested)", red when none; Mono or Legato.
+    auto p = g2::Patch::makeDefault();
+    edit::setVoices(p, edit::VoiceMode::Poly, 6);
+    CHECK(edit::voicesShown(p, false, std::nullopt).text == "6");
+    CHECK_FALSE(edit::voicesShown(p, false, std::nullopt).red);
+    CHECK(edit::voicesShown(p, true, std::nullopt).text == "? (6)");
+    CHECK_FALSE(edit::voicesShown(p, true, std::nullopt).red);
+    CHECK(edit::voicesShown(p, true, 4).text == "4 (6)");
+    CHECK_FALSE(edit::voicesShown(p, true, 4).red);
+    CHECK(edit::voicesShown(p, true, 0).text == "0 (6)");
+    CHECK(edit::voicesShown(p, true, 0).red);
+    edit::setVoices(p, edit::VoiceMode::Mono);
+    CHECK(edit::voicesShown(p, true, 1).text == "Mono");
+    CHECK(edit::voicesShown(p, true, 0).red);
+    edit::setVoices(p, edit::VoiceMode::Legato);
+    CHECK(edit::voicesShown(p, false, std::nullopt).text == "Legato");
+}
