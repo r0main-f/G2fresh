@@ -375,6 +375,13 @@ struct Inserted {
     std::vector<u8> va, fx;
 };
 Inserted insertPatch(Patch& patch, const Patch& file);
+// Delete Unused Modules (CPatchData::GetDeleteUnusedModulesMolecules @000e8d02): the modules of an area that play into
+// nothing, in the order the original finds them. A module with outputs is unused when none of them is in a cable
+// tree; one without outputs when none of its inputs is fed by an output; keepIfUnused modules never are. Each one
+// found is taken out with its cables and the search starts again, as a removal can leave others unused.
+std::vector<u8> unusedModules(const Patch& patch, Location loc);
+// Deletes them in both areas, as a delete (chains spliced; their knobs, controllers and morphs go).
+void deleteUnusedModules(Patch& patch);
 // Deletes several modules as one selection (delete, cut), splicing as removeModule.
 void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices);
 void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow);

@@ -199,7 +199,7 @@ def generate():
             f"{span('Inputs', 'inputs')}, {span('Outputs', 'outputs')}, "
             f"{span('Params', 'params')}, {span('Modes', 'modes')}, {cstr(descriptions.get(m['shortName']) if m['kind'] == 'module' else None)}, "
             f"{m['toolbarSlot'] if m.get('toolbarSlot') is not None else 255}, "
-            f"{('kLabels' + str(t)) if t in labels else '{}'}, {span('EditOrder', 'editOrder')}, {contexts_bits(fl)}}},")
+            f"{('kLabels' + str(t)) if t in labels else '{}'}, {span('EditOrder', 'editOrder')}, {contexts_bits(fl)}, {'true' if fl.get('keepIfUnused') else 'false'}}},")
     lines += ["};", "", "const CategoryDef kCategories[] = {"]
     for c in mdb["categories"]:
         r, g, b = c["color"]

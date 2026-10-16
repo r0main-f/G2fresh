@@ -25,7 +25,7 @@ enum MenuId {
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
-    kRecallInit,
+    kRecallInit, kDeleteUnused,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -581,6 +581,8 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addSeparator();
         m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
         m.addItem(item(kPatchNotes, "Patch Notes..."));
+        m.addSeparator();
+        m.addItem(item(kDeleteUnused, "Delete Unused Modules")); // the original's Patch menu (SMNU, item 305)
     } else if (index == 2) {
         m.addItem(item(kLiveMode, "Live (Emulated G2 Panel and Keyboard)", kCmd + "L", true, liveMode_));
         m.addSeparator();
@@ -835,6 +837,13 @@ void MainView::menuItemSelected(int id, int)
     case kSelectAll: activeArea().selectAll(); break;
     case kSaveSelection: saveSelection(); break;
     case kRecallInit: recallVariationInit(); break;
+    case kDeleteUnused: {
+        const auto before = doc_.patch().va.modules.size() + doc_.patch().fx.modules.size();
+        doc_.perform("Delete unused modules", [](g2::Patch& p) { g2::edit::deleteUnusedModules(p); });
+        const auto gone = before - (doc_.patch().va.modules.size() + doc_.patch().fx.modules.size());
+        setStatus(gone == 0 ? juce::String("No unused module") : juce::String(static_cast<int>(gone)) + (gone == 1 ? " unused module deleted" : " unused modules deleted"));
+        break;
+    }
     case kInsertPatch: insertPatchFile(); break;
     case kRemoveBendPoints:
         doc_.perform("Remove all bend points", [](g2::Patch& p) { g2::edit::clearCableBends(p); });
