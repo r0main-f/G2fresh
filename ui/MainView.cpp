@@ -25,7 +25,7 @@ enum MenuId {
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
-    kRecallInit, kDeleteUnused,
+    kRecallInit, kDeleteUnused, kPasteParams,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -561,6 +561,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kCopy, "Copy", kCmd + "C", selected));
         m.addItem(item(kPaste, "Paste", kCmd + "V", !AreaView::clipboard().empty()));
         m.addItem(item(kDuplicate, "Duplicate", kCmd + "D", selected));
+        m.addItem(item(kPasteParams, "Paste Params", kCmd + "E", selected && !AreaView::clipboard().empty()));
         m.addItem(item(kDelete, "Delete", "Delete", selected || va_.hasHighlightedCable() || fx_.hasHighlightedCable()));
         m.addItem(item(kSelectAll, "Select All", kCmd + "A"));
         m.addSeparator();
@@ -837,6 +838,10 @@ void MainView::menuItemSelected(int id, int)
     case kSelectAll: activeArea().selectAll(); break;
     case kSaveSelection: saveSelection(); break;
     case kRecallInit: recallVariationInit(); break;
+    case kPasteParams:
+        if (auto* a = areaWithSelection())
+            a->pasteParams(AreaView::clipboard());
+        break;
     case kDeleteUnused: {
         const auto before = doc_.patch().va.modules.size() + doc_.patch().fx.modules.size();
         doc_.perform("Delete unused modules", [](g2::Patch& p) { g2::edit::deleteUnusedModules(p); });
@@ -1318,6 +1323,11 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return copySelection(true), true;
     if (key == juce::KeyPress('v', cmd, 0))
         return pasteClipboard(), true;
+    if (key == juce::KeyPress('e', cmd, 0)) { // Paste Params (the original's Cmd-E)
+        if (auto* a = areaWithSelection())
+            a->pasteParams(AreaView::clipboard());
+        return true;
+    }
     if (key == juce::KeyPress('d', cmd, 0)) {
         if (auto* a = areaWithSelection())
             a->duplicateSelection();

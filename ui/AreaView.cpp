@@ -1867,7 +1867,26 @@ void AreaView::deleteSelected()
 
 g2::edit::Clipboard AreaView::copySelection() const
 {
-    return g2::edit::copyModules(doc_.patch(), location_, selection_);
+    auto clip = g2::edit::copyModules(doc_.patch(), location_, selection_);
+    clip.variation = static_cast<std::uint8_t>(doc_.focusedVariation()); // what Paste Params takes
+    return clip;
+}
+
+void AreaView::pasteParams(const g2::edit::Clipboard& clip)
+{
+    const auto loc = location_;
+    const auto to = static_cast<std::uint8_t>(doc_.focusedVariation());
+    const auto selection = selection_;
+    std::string refused;
+    doc_.perform("Paste params", [&](g2::Patch& p) {
+        refused = g2::edit::pasteParams(p, loc, selection, clip, to);
+        if (!refused.empty())
+            throw std::invalid_argument(refused); // nothing changes, no undo step
+    });
+    if (!refused.empty())
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Paste Params", juce::String(refused), {}, this);
+    else
+        status("Pasted the parameters of " + juce::String(static_cast<int>(clip.modules.size())) + " module(s)");
 }
 
 void AreaView::paste(const g2::edit::Clipboard& clip)

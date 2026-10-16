@@ -353,6 +353,7 @@ struct Clipboard {
     std::vector<Module> modules;
     std::vector<Cable> cables;
     std::vector<std::pair<u8, MorphAssign>> morphs; // (variation, assignment)
+    u8 variation = 0; // the variation shown when it was copied: what Paste Params takes (GetCopyParamsMolecules)
     bool empty() const { return modules.empty(); }
 };
 Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& indices);
@@ -382,6 +383,13 @@ Inserted insertPatch(Patch& patch, const Patch& file);
 std::vector<u8> unusedModules(const Patch& patch, Location loc);
 // Deletes them in both areas, as a delete (chains spliced; their knobs, controllers and morphs go).
 void deleteUnusedModules(Patch& patch);
+// Edit > Paste Params (Cmd-E; manual p68, p100, p116). CClipboard::ValidatePasteParams @0014d556: as many selected
+// modules as copied, of the same types pair by pair (both sorted by column, then row), else the original's alert text
+// is returned and nothing changes. Then (CPatchData::GetCopyParamsMolecules @000e9502) each copied module's values in
+// the variation it was copied from (clip.variation) go into variation `to` of the first selected module of its type
+// not given values yet, with its morphs there (at most 25 parameters morphed). Sent as the area's parameter and morph
+// dumps. Returns "" when done.
+std::string pasteParams(Patch& patch, Location loc, const std::vector<u8>& selection, const Clipboard& clip, u8 to);
 // Deletes several modules as one selection (delete, cut), splicing as removeModule.
 void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices);
 void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow);

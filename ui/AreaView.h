@@ -50,6 +50,8 @@ public:
     // Pastes below the selection (or at the first free row) and selects the result.
     void paste(const g2::edit::Clipboard& clip);
     void duplicateSelection();
+    // Edit > Paste Params (Cmd-E): the clipboard's values into the selected modules of the same types.
+    void pasteParams(const g2::edit::Clipboard& clip);
     // The editor-wide clipboard (shared by both areas).
     static g2::edit::Clipboard& clipboard()
     {
