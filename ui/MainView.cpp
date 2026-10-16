@@ -1460,6 +1460,13 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     // @000f93d4 -> CTBWindow::RouteKeySpec).
     if (!liveMode_ && browser_.routeKey(key, repeat))
         return true;
+    // F5-F8 show the hint boxes while held (CPatchView::KeyHintView*; KeyBringDownHintViews on release).
+    if (!liveMode_ && code >= juce::KeyPress::F5Key && code <= juce::KeyPress::F8Key && !key.getModifiers().isAnyModifierKeyDown()) {
+        const auto mode = hintModeForKey(5 + (code - juce::KeyPress::F5Key));
+        va_.setHintMode(mode);
+        fx_.setHintMode(mode);
+        return true;
+    }
     // Esc aborts every drag (|, not ||), as CPatchView::KeyAbortDragOperations @000f7cde; an area's own Esc comes to it
     // first.
     if (code == juce::KeyPress::escapeKey && !liveMode_ && (divider_.abortDrag() | va_.abortDrag() | fx_.abortDrag()))
@@ -1618,6 +1625,11 @@ bool MainView::keyPressed(const juce::KeyPress& key)
 
 bool MainView::keyStateChanged(bool)
 {
+    if (!juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::F5Key) && !juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::F6Key)
+        && !juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::F7Key) && !juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::F8Key)) {
+        va_.setHintMode(HintMode::None);
+        fx_.setHintMode(HintMode::None);
+    }
     if (heldKey_ != 0 && !juce::KeyPress::isKeyCurrentlyDown(heldKey_))
         heldKey_ = 0;
     if (heldArrow_ != 0 && !juce::KeyPress::isKeyCurrentlyDown(heldArrow_)) {

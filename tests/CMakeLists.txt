@@ -57,6 +57,7 @@ add_executable(g2tests
   test_module_menu.cpp
   test_background_menu.cpp
   test_midi_cc_items.cpp
+  test_hint_overlay.cpp
   test_drag_copy.cpp
   test_paste_layout.cpp
   test_drum_selectors.cpp

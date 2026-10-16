@@ -440,6 +440,54 @@ void AreaView::paintOverlay(juce::Graphics& g)
     }
     paintLiveLeds(g);
     paintCables(g);
+    paintHints(g);
+}
+
+void AreaView::setHintMode(HintMode mode)
+{
+    if (mode == hintMode_)
+        return;
+    hintMode_ = mode;
+    overlay_->repaint();
+}
+
+void AreaView::paintHints(juce::Graphics& g)
+{
+    // Yellow boxes centred on each parameter's control (CPanelItem::GetItemCenter), one per parameter.
+    if (hintMode_ == HintMode::None)
+        return;
+    const auto& patch = doc_.patch();
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    g.setFont(juce::Font(juce::FontOptions(10.0f)));
+    for (const auto& m : patch.area(location_).modules) {
+        const auto* panel = ModulePainter::panelFor(m);
+        if (!panel)
+            continue;
+        const auto origin = ModulePainter::moduleBounds(m).getPosition();
+        std::vector<std::uint8_t> shown;
+        for (const auto& e : panel->elements) {
+            const auto param = focusParam(e);
+            if (!param || std::find(shown.begin(), shown.end(), *param) != shown.end())
+                continue;
+            shown.push_back(*param);
+            const auto text = hintText(patch, hintMode_, location_, m.index, *param, variation);
+            if (!text)
+                continue;
+            const auto lines = juce::StringArray::fromLines(juce::String(*text));
+            int w = 0;
+            for (const auto& l : lines)
+                w = std::max(w, juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), l));
+            const auto centre = ModulePainter::elementBounds(e).translated(origin.x, origin.y).getCentre();
+            const int h = lines.size() * 12 + 2;
+            const juce::Rectangle<int> box(centre.x - (w + 6) / 2, centre.y - h / 2, w + 6, h);
+            g.setColour(juce::Colour(0xffffffa0));
+            g.fillRect(box);
+            g.setColour(juce::Colours::black);
+            g.drawRect(box);
+            for (int i = 0; i < lines.size(); ++i)
+                g.drawText(lines[i], box.getX(), box.getY() + 1 + i * 12, box.getWidth(), 12, juce::Justification::centred);
+        }
+    }
 }
 
 void AreaView::paintLiveLeds(juce::Graphics& g)
