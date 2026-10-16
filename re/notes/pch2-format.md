@@ -282,7 +282,7 @@ layout seen at the wrong bit offsets.
 | per knob: 1 bit "assigned"; if 1: | |
 | 2 | location |
 | 8 | module index |
-| 2 | `EDeviceAssignType`, clamped to ≤ 1. Verhue calls it `IsLed`. Probably 0 = rotary knob, 1 = button [?] |
+| 2 | `EDeviceAssignType`, clamped to ≤ 1. Verhue calls it `IsLed`. 0 = a parameter, 1 = a module's LED: `CKnobMap::GetAssignKnobToLedMolecules @000f1848` builds `CBarbTargetSpec(..., 1)` (audit K3, 2026-10-16) |
 | 7 | parameter index |
 | 2 | slot (**only in `5F`**) |
 
