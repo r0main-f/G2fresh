@@ -958,6 +958,29 @@ std::optional<u8> targetFromText(const Patch& patch, Target t, u8 variation, con
     return best;
 }
 
+std::string targetEditText(const Patch& patch, Target t, u8 variation)
+{
+    const auto text = targetText(patch, t, variation);
+    const auto first = text.find_first_not_of(' ');
+    if (first == std::string::npos)
+        return {};
+    const auto last = text.find_last_not_of(' ');
+    std::string s = text.substr(first, last - first + 1);
+    // A number first (a sign, digits and a point, then letters for its unit): only that part.
+    std::size_t i = 0;
+    if (i < s.size() && (s[i] == '+' || s[i] == '-'))
+        ++i;
+    const std::size_t digits = i;
+    while (i < s.size() && (std::isdigit(static_cast<unsigned char>(s[i])) || s[i] == '.'))
+        ++i;
+    if (i == digits || !std::any_of(s.begin() + static_cast<std::ptrdiff_t>(digits), s.begin() + static_cast<std::ptrdiff_t>(i),
+                                    [](char c) { return std::isdigit(static_cast<unsigned char>(c)); }))
+        return s;
+    while (i < s.size() && std::isalpha(static_cast<unsigned char>(s[i])))
+        ++i;
+    return s.substr(0, i);
+}
+
 std::string targetName(const Patch& patch, Target t)
 {
     if (t.location == Location::Settings) {

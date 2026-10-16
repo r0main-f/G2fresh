@@ -21,6 +21,21 @@
 
 namespace g2ui {
 
+// The folders the library starts with: the ones chosen before; on a first use (none chosen, and the default never
+// added), the default folder (~/Documents/G2 Patches, which the caller creates). Once added, it is not added again: a
+// list the user emptied stays empty.
+struct StartingFolders {
+    std::vector<std::string> folders;
+    bool addedDefault = false;
+};
+inline StartingFolders startingFolders(const std::vector<std::string>& stored, bool defaultAddedBefore,
+                                       const std::string& defaultFolder)
+{
+    if (!stored.empty() || defaultAddedBefore)
+        return {stored, false};
+    return {{defaultFolder}, true};
+}
+
 class PatchLibraryModel {
 public:
     using Entry = g2::library::Entry;

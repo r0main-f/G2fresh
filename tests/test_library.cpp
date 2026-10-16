@@ -801,3 +801,20 @@ TEST_CASE("library: scan timing", "[.bench]")
         CHECK(sink.index.size() == stats.files);
     }
 }
+
+TEST_CASE("Patch Library: a first use starts on the default folder, once")
+{
+    // Asked for after hand testing: on first use the library starts on ~/Documents/G2 Patches instead of asking for
+    // a folder. Once that was done, a list the user emptied stays empty.
+    using g2ui::startingFolders;
+    const std::string def = "/Users/x/Documents/G2 Patches";
+    auto s = startingFolders({}, false, def);
+    CHECK(s.folders == std::vector<std::string>{def});
+    CHECK(s.addedDefault);
+    s = startingFolders({}, true, def); // the default was added before, and the user removed it
+    CHECK(s.folders.empty());
+    CHECK_FALSE(s.addedDefault);
+    s = startingFolders({"/Volumes/Patches"}, false, def); // folders chosen before this version: kept as they are
+    CHECK(s.folders == std::vector<std::string>{"/Volumes/Patches"});
+    CHECK_FALSE(s.addedDefault);
+}

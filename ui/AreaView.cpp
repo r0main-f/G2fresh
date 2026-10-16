@@ -1676,9 +1676,10 @@ void AreaView::showControlMenu(const Hit& h)
             const g2::edit::Target target{loc, module, param};
             const auto name = juce::String(g2::edit::targetName(doc.patch(), target));
             auto* w = new juce::AlertWindow("Type a Value", name + " (as displayed: a name, a number with or without its unit, "
-                                                                   "or #n for the raw value):",
+                                                                   "or #n for the raw value; when its display shows two "
+                                                                   "numbers, the first is this parameter's):",
                                             juce::MessageBoxIconType::NoIcon);
-            w->addTextEditor("value", juce::String(g2::edit::targetText(doc.patch(), target, variation)).trim());
+            w->addTextEditor("value", juce::String(g2::edit::targetEditText(doc.patch(), target, variation)));
             w->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
             w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
             w->enterModalState(true, juce::ModalCallbackFunction::create([safe, h, target, variation, name, w](int res) {
