@@ -38,6 +38,10 @@ public:
     // jack popup's Delete).
     bool hasHighlightedCable() const { return highlighted_.has_value(); }
     void deleteHighlightedCable();
+    // Esc: the drag in progress stops and its release does nothing (CPatch::AbortUserActions @000d38d0 ->
+    // CPatchBackground::ReleaseAllDragOperations @000e18d2): no module moves, no cable is made, the rubber band adds
+    // nothing; a knob keeps the value it was dragged to, a held push button is released. False if none.
+    bool abortDrag();
     const std::vector<std::uint8_t>& selection() const { return selection_; }
     void selectAll();
     // The module the parameter focus moved to: selected alone unless it is selected already.

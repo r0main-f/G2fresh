@@ -1311,8 +1311,40 @@ void AreaView::deleteHighlightedCable()
     doc_.perform("Delete cables", [&](g2::Patch& p) { g2::edit::deleteChain(p, loc, jack); });
 }
 
+bool AreaView::abortDrag()
+{
+    bool aborted = false;
+    if (incDec_) {
+        incDec_.reset();
+        incDecRepeat_.stopTimer();
+        aborted = true;
+    }
+    if (std::exchange(pushed_, false)) {
+        pressMomentary(dragHit_, 0); // CPanel::ReleaseAllDragOperations releases it
+        aborted = true;
+    }
+    if (drag_ != Drag::None) {
+        drag_ = Drag::None;
+        cableFrom_.reset();
+        moveDrag_ = false;
+        aborted = true;
+    }
+    if (!aborted)
+        return false;
+    doc_.endCoalescing();
+    dragHit_ = {}; // the release clicks nothing
+    heldChain_.clear();
+    setMouseCursor(juce::MouseCursor::NormalCursor);
+    status({});
+    overlay_->repaint();
+    repaintModules();
+    return true;
+}
+
 bool AreaView::keyPressed(const juce::KeyPress& key)
 {
+    if (key == juce::KeyPress::escapeKey && abortDrag())
+        return true;
     if (onArrowKey && (key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::downKey)
                        || key.isKeyCode(juce::KeyPress::leftKey) || key.isKeyCode(juce::KeyPress::rightKey)))
         return onArrowKey(key);

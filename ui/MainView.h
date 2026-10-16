@@ -208,6 +208,8 @@ private:
         void mouseDown(const juce::MouseEvent&) override;
         void mouseDrag(const juce::MouseEvent&) override;
         void mouseUp(const juce::MouseEvent&) override;
+        // Esc during a drag: the bar stays where it got to, and the drag ends (CSplitterView::Release @000f6e7e).
+        bool abortDrag();
 
     private:
         // 0, 1, 2: the button under x (FX only, Voice only, back); -1: the bar.

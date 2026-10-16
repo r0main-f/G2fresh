@@ -1248,6 +1248,14 @@ void MainView::Divider::mouseUp(const juce::MouseEvent&)
         owner_.splitMoved();
 }
 
+bool MainView::Divider::abortDrag()
+{
+    if (!std::exchange(dragging_, false))
+        return false;
+    owner_.splitMoved();
+    return true;
+}
+
 void MainView::updateToolbar()
 {
     // The split bar where this patch has it (each slot's patch its own).
@@ -1421,6 +1429,10 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     // The module bar first, as the original hands every key to its toolbar first (CPatchView::HandleKeyDownUp
     // @000f93d4 -> CTBWindow::RouteKeySpec).
     if (!liveMode_ && browser_.routeKey(key, repeat))
+        return true;
+    // Esc aborts every drag (|, not ||), as CPatchView::KeyAbortDragOperations @000f7cde; an area's own Esc comes to it
+    // first.
+    if (code == juce::KeyPress::escapeKey && !liveMode_ && (divider_.abortDrag() | va_.abortDrag() | fx_.abortDrag()))
         return true;
     if (code == juce::KeyPress::spaceKey && !liveMode_ && !repeat) {
         const auto m = key.getModifiers();
