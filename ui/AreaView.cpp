@@ -5,6 +5,7 @@
 #include "DrumSelectors.h"
 #include "CableColours.h"
 #include "CableCurve.h"
+#include "BackgroundMenu.h"
 #include "IncDec.h"
 #include "ModuleMenu.h"
 #include "ResetKnob.h"
@@ -894,8 +895,10 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
     }
     highlightCable(std::nullopt);
     if (!dragHit_.module) {
-        if (e.mods.isPopupMenu())
+        if (e.mods.isPopupMenu()) {
+            showBackgroundMenu(e.getPosition());
             return;
+        }
         // Empty background: start a rubber-band selection.
         if (!e.mods.isShiftDown())
             clearSelection();
@@ -1603,6 +1606,49 @@ void AreaView::rename(std::uint8_t module)
                                      });
                                  }),
                        true);
+}
+
+void AreaView::showBackgroundMenu(juce::Point<int> where)
+{
+    // The original's background pop-up (BackgroundMenu.h). Insert puts the module where the menu was opened; the
+    // original arms it, and the next click places it.
+    enum { kCut = 1, kCopy, kPaste, kInsertBase = 10000 };
+    juce::PopupMenu menu;
+    const auto edits = editItems(hasSelection(), !clipboard().empty());
+    for (int i = 0; i < 3; ++i)
+        menu.addItem(kCut + i, edits[static_cast<std::size_t>(i)].label, edits[static_cast<std::size_t>(i)].enabled);
+    menu.addSeparator();
+    juce::PopupMenu insert;
+    for (const auto& g : insertGroups(location_)) {
+        juce::PopupMenu modules;
+        for (const auto& m : g.modules)
+            modules.addItem(kInsertBase + m.type, m.label, m.enabled);
+        insert.addSubMenu(g.name, modules);
+    }
+    menu.addSubMenu("Insert", insert);
+    if (addSynthItems) {
+        juce::PopupMenu synth;
+        addSynthItems(synth);
+        if (synth.getNumItems() > 0) {
+            menu.addSeparator();
+            for (juce::PopupMenu::MenuItemIterator it(synth); it.next();)
+                menu.addItem(it.getItem());
+        }
+    }
+    menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), where](int result) {
+        if (!safe || result <= 0)
+            return;
+        auto& self = *safe;
+        if (result == kCut || result == kCopy) {
+            clipboard() = self.copySelection();
+            if (result == kCut)
+                self.deleteSelected();
+        } else if (result == kPaste) {
+            self.paste(clipboard());
+        } else if (result >= kInsertBase && result < kInsertBase + 256) {
+            self.addModule(static_cast<std::uint8_t>(result - kInsertBase), where);
+        }
+    });
 }
 
 void AreaView::showModuleMenu(std::uint8_t module)

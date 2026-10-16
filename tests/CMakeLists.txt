@@ -55,6 +55,7 @@ add_executable(g2tests
   test_button_press.cpp
   test_patch_keys.cpp
   test_module_menu.cpp
+  test_background_menu.cpp
   test_drag_copy.cpp
   test_paste_layout.cpp
   test_drum_selectors.cpp

@@ -66,6 +66,8 @@ public:
     std::function<void(AreaView*)> onActivated;
     // The arrow keys, for the patch window's parameter focus (its viewport would scroll with them).
     std::function<bool(const juce::KeyPress&)> onArrowKey;
+    // The synth's part of the background pop-up (BackgroundMenu.h), with what each item does, from the window.
+    std::function<void(juce::PopupMenu&)> addSynthItems;
     // Adds a module at the first free row of the first column, or at `where`.
     void addModule(std::uint8_t type, std::optional<juce::Point<int>> where = std::nullopt);
     // Adds a module from the module bar (double-click or Return), where the
@@ -160,6 +162,7 @@ private:
     void clickControl(const Hit& h);
     void clickSpecial(const Hit& h, SpecialControls::Hit part);
     void showModuleMenu(std::uint8_t module);
+    void showBackgroundMenu(juce::Point<int> where);
     void showJackMenu(const Jack& jack);
     void showControlMenu(const Hit& h);
     void showCableMenu(const g2::Cable& cable);

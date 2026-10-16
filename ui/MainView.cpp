@@ -1,5 +1,6 @@
 #include "MainView.h"
 
+#include "BackgroundMenu.h"
 #include "BankBrowser.h"
 
 #include "g2/proto/logging_transport.hpp"
@@ -158,6 +159,26 @@ MainView::MainView(PatchDocument& doc, bool standalone)
 
     settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
     settings_.onLayoutChanged = [this] { resized(); };
+    // The background pop-up's synth items (BackgroundMenu.h): a patch to a slot or Local, a performance on or off.
+    for (auto* area : {&va_, &fx_})
+        area->addSynthItems = [this](juce::PopupMenu& m) {
+            if (synth_ == nullptr)
+                return;
+            const auto items = synthItems(synth_->ready(), doc_.isPerformance(), synth_->performanceBound(), synth_->boundSlot());
+            for (std::size_t i = 0; i < items.size(); ++i) {
+                juce::PopupMenu::Item it(items[i].label);
+                it.itemID = 20000 + static_cast<int>(i); // not one of the area's own ids
+                it.isTicked = items[i].ticked;
+                const int slot = static_cast<int>(i);
+                if (doc_.isPerformance())
+                    it.action = [this] { synth_->performanceBound() ? synth_->unbind() : synth_->sendPerformance(); };
+                else if (slot < 4)
+                    it.action = [this, slot] { synth_->sendPatch(slot); };
+                else
+                    it.action = [this] { synth_->unbind(); };
+                m.addItem(std::move(it));
+            }
+        };
     settings_.voicesOnSynth = [this] {
         return synth_ != nullptr ? std::pair{synth_->patchConnected(), synth_->currentVoices()}
                                  : std::pair<bool, std::optional<std::uint8_t>>{false, std::nullopt};
