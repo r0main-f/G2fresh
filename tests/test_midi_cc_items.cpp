@@ -54,3 +54,10 @@ TEST_CASE("patch keys: L learns the last MIDI CC")
     CHECK(patchKey('l', false, false, false).kind == PatchKey::Kind::LearnMidi);
     CHECK(patchKey('L', true, false, false).kind == PatchKey::Kind::None);
 }
+
+TEST_CASE("patch keys: M opens the focused parameter's MIDI controllers")
+{
+    // InitializeShortcutKeys @000fafd8: KeyAssignMidi (CDialogMIDIControl; manual p90 "(M key)").
+    CHECK(patchKey('m', false, false, false).kind == PatchKey::Kind::AssignMidi);
+    CHECK(patchKey('m', false, true, false).kind == PatchKey::Kind::None);
+}

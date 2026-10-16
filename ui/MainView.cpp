@@ -1570,6 +1570,12 @@ bool MainView::keyPressed(const juce::KeyPress& key)
             return doc_.setVariation(k.index), true;
         if (k.kind == PatchKey::Kind::Slot)
             return doc_.setSlot(k.index), true;
+        if (k.kind == PatchKey::Kind::AssignMidi) {
+            const auto f = doc_.focus();
+            if (g2::edit::canAssignMidiCc(doc_.patch(), f.location, f.module, f.param))
+                showMidiCcDialog(doc_, f.location, f.module, f.param, this);
+            return true;
+        }
         if (k.kind == PatchKey::Kind::LearnMidi) {
             // The focused parameter takes the last CC the synth received, unless it holds a pre-assigned one
             // (CPatchView::KeyLearnMidi @000f99fe).
