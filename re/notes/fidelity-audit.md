@@ -12,6 +12,53 @@ still open there: the Perf button's `3E`, MIDI learn (`80`), parameter focus (`2
 Brought up to date 2026-10-14 (at 1f1dd80): items closed since are marked **Closed**, with the date and where it is
 described; the rest of this audit is as written on 2026-10-11.
 
+## Status on 2026-10-16 (audit pass, before 1.0)
+
+A full pass over every row against the code on main after #36 (read, not run). **This section supersedes the rows
+below where they disagree**: most of part B (F1, C1-C10, MO1-MO8, K1, K8, K9, G4-G10, NM1, R1, R2, R8, P2, P5, P7
+within an area, U2, most of U3, V4, M9, the whole live-editing table §4.1 and most of §4.2) was closed between
+775fc55 and #36, and the rows still describe the old code. Sizes are rough.
+
+**Still open, wrong result** (patch, file or synth state):
+1. K3: LED knob targets (`assignType` 1, `CKnobMap::GetAssignKnobToLedMolecules @000f1848`) are read as parameters
+   (`edit::knobTarget`, `knobOf`, AutomationBank). 0.5 d.
+2. P3: module context not enforced: Fx-In is FX-only and a paste past 127 modules is refused in the original
+   (`CutForMergingWith @000e60a2`, `IsValidContext`); G2fresh lets Fx-In into the voice area. 1-2 h.
+3. N3: a new performance is "Empty perf" with MIDI channel 0 on every slot (`CreateNewPerformance @000fe694`);
+   G2fresh: channels 0-3, slots "New patch", name "Performance". 30 min.
+4. N2: a new patch is "No name" (SSTR 41; call site not re-traced); G2fresh "New patch". 15 min.
+5. L11: Performance Settings' rules (one slot at least, keyboard off a disabled slot, lower <= upper:
+   `ToggleSlot @000397da`, `ToggleKeyb @0003986e`, `ValidateKeyboardRange @000398be`). 2-3 h.
+6. K2: knob names "Page A1..E3" (SMNU, manual p19); G2fresh "1A-3", and the DAW sees "Knob 1A-1". 1 h.
+7. Performance changes from the synth (`11/07/0F/29/1C/1D`) reach the mirror only, not the document. 0.5-1 d.
+8. R3, R4: a module added while the Mutator is open joins its population in the original (`AddModule @00141c08`);
+   one Mutator per patch, not per window. 4 h.
+9. S2: the drum preset selector's state is keyed by module index and never cleared (AreaView.h:231). 1 h.
+10. L9: no Perf toggle (the toolbar's Perf button sends `3E`, `CTBWindow::SetPerformanceMode @0012a306`). 2-3 h.
+
+**Still open, missing features**: P9 Paste Params; M12 Delete Unused Modules; K7 MIDI Learn (L), the CC dialog (M),
+Assign/Deassign MIDI to Selection; K4-K6 Parameter Pages, Overview, module Assign, global knobs (load/save only);
+M2/M3 New To / Open To / Save From; V2 Var Init recall; N4 Init 1&2 and Save InitPatch; V6/L10 toolbar voices "%d (%d)"
+and master clock; L6 slot Shift/Ctrl-click; P4 background pop-up; P12 module pop-up items; B5-B7 Synth Memory delete,
+sort, bank up/download; U1 per-slot undo (not in the README); U3/U4 F/V keys and the split bar, Esc aborting a drag,
+Z note; G1/G2 knob control modes; G6 reset triangle hit area; V8 Patch Adjuster; B9/B10 Controller Snapshot, Dump
+One, Virtual Keyboard; R5 Mutator gestures and keys; M11/M13 Textpad and the settings controls' menus; P11/P13 colour
+selector, Replace button; M14/D6 help (Clavia's text cannot ship); M1/M7/L5 one document, no Window menu, first G2
+only (to list in the README). New since the audit: Options > Color Scheme and Maximize Windows (DITL 133); toolbar
+Synth Name, Performance Name, Perf, Color; ⌘N while live clears the focused slot (manual p116).
+
+**Still open, look**: U6 Modern look at every launch and the selection as an outline, not the filled name bar; D2
+DXRouter's algorithm picture; U8 module bar icons and preview; R9 Mutator labels; F5 load-error wording; Live view:
+LCD font and CGRAM, no pedals or aftertouch, dial acceleration, velocity; mono sum and the output/input levels
+unverified (listed).
+
+**Listed deviations, though on by default against rule 1**: cable animation (kept by the user's decision,
+2026-10-15) and the Modern look at every launch.
+
+**Corrected here**: part A §6's "Loading a patch" (the original sends a void performance,
+`CreateDownloadPerformanceFromPatch @000fe478`, as `SynthSync::sendPatchAlone` does); `2F` editor to synth is done;
+G7 steps on mouse-down; V4 is plain 1-8; A-D no longer select a disabled slot (`KeySelectSlot @000f992e`).
+
 ## Ranked gaps (both parts)
 
 **Wrong results: a different patch, file or sound**

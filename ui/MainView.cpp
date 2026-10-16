@@ -115,7 +115,7 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     variationLabel_.setColour(juce::Label::textColourId, juce::Colour(0xffa8adb6));
     variationLabel_.setJustificationType(juce::Justification::centredRight);
     variationLabel_.setTooltip("A patch holds 8 variations: complete sets of knob and setting values, switchable "
-                               "live. Pick the one to see and edit (Cmd 1-8).");
+                               "live. Pick the one to see and edit (keys 1-8).");
     addAndMakeVisible(variationLabel_);
     for (int i = 0; i < g2::kUserVariations; ++i) {
         auto* b = variations_.add(new juce::TextButton(juce::String(i + 1)));
@@ -568,7 +568,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         const juce::String target = selected ? "Selected Modules" : "Variation " + juce::String(doc_.variation() + 1);
         m.addItem(item(kRandomize, "Randomize " + target));
         m.addItem(item(kMutate, "Mutate " + target));
-        m.addItem(item(kMutator, "Patch Mutator..."));
+        m.addItem(item(kMutator, "Patch Mutator...", kCmd + "2"));
         m.addSeparator();
         m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
         m.addItem(item(kPatchNotes, "Patch Notes..."));
@@ -1286,9 +1286,13 @@ bool MainView::keyPressed(const juce::KeyPress& key)
     if (!liveMode_) {
         const auto c = key.getTextCharacter();
         const auto m = key.getModifiers();
+        std::array<bool, 4> enabled{true, true, true, true};
+        if (const auto* perf = doc_.performance())
+            for (std::size_t s = 0; s < 4; ++s)
+                enabled[s] = perf->header.slots[s].enabled != 0;
         const auto k = patchKey(c > 0 && c < 128 ? static_cast<char>(c) : 0,
                                 m.isCommandDown() || m.isCtrlDown() || m.isAltDown() || m.isShiftDown(), repeat,
-                                doc_.isPerformance());
+                                doc_.isPerformance(), enabled);
         if (k.kind == PatchKey::Kind::Variation)
             return doc_.setVariation(k.index), true;
         if (k.kind == PatchKey::Kind::Slot)
