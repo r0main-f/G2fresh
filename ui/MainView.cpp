@@ -25,7 +25,7 @@ enum MenuId {
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
-    kRecallInit, kDeleteUnused,
+    kRecallInit, kDeleteUnused, kPasteParams, kSaveInitPatch1, kSaveInitPatch2,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -215,6 +215,15 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     editButton_.setToggleState(true, juce::dontSendNotification);
     editButton_.onClick = [this] { setLiveMode(false); };
     liveButton_.onClick = [this] { setLiveMode(true); };
+    // The original's Init 1 and Init 2, after New (manual p59): the init patch, into the active slot of a performance.
+    for (auto [b, n] : {std::pair{&init1_, 1}, std::pair{&init2_, 2}}) {
+        b->setTooltip("Init " + juce::String(n) + ": a new patch from Init Patch " + juce::String(n)
+                      + " (File > Save InitPatch " + juce::String(n) + " makes it)");
+        b->onClick = [this, n] { recallInitPatch(n); };
+        addAndMakeVisible(b);
+    }
+    init1_.setConnectedEdges(juce::Button::ConnectedOnRight);
+    init2_.setConnectedEdges(juce::Button::ConnectedOnLeft);
     addChildComponent(live_);
     vaPort_.setScrollBarsShown(true, true);
     fxPort_.setScrollBarsShown(true, true);
@@ -224,9 +233,8 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     fxPane_.setText("FX AREA", "Monophonic: runs once, shared by all voices. Put effects here (reverb, chorus, delay...).",
                     "The FX area processes the mix of all voices once. Route voices here with the Fx/Bus outputs of "
                     "the voice area, e.g. 2-Out set to Fx.");
-    layout_.setItemLayout(0, 60, -1.0, -0.62);
-    layout_.setItemLayout(1, 6, 6, 6);
-    layout_.setItemLayout(2, 60, -1.0, -0.38);
+    divider_.setTooltip("Drag to share the window between the areas. Its buttons: only the FX Area, only the Voice "
+                        "Area, back to before (keys F and V switch too)");
 
     setWantsKeyboardFocus(true);
     doc_.addChangeListener(this);
@@ -549,6 +557,8 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addSeparator();
         m.addItem(item(kSave, "Save", kCmd + "S"));
         m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S"));
+        m.addItem(item(kSaveInitPatch1, "Save InitPatch 1")); // the original's File menu (SMNU, items 108 and 109)
+        m.addItem(item(kSaveInitPatch2, "Save InitPatch 2"));
         m.addSeparator();
         m.addItem(item(kPerformanceSettings, "Performance Settings...", {}, doc_.isPerformance()));
     } else if (index == 1) {
@@ -561,6 +571,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kCopy, "Copy", kCmd + "C", selected));
         m.addItem(item(kPaste, "Paste", kCmd + "V", !AreaView::clipboard().empty()));
         m.addItem(item(kDuplicate, "Duplicate", kCmd + "D", selected));
+        m.addItem(item(kPasteParams, "Paste Params", kCmd + "E", selected && !AreaView::clipboard().empty()));
         m.addItem(item(kDelete, "Delete", "Delete", selected || va_.hasHighlightedCable() || fx_.hasHighlightedCable()));
         m.addItem(item(kSelectAll, "Select All", kCmd + "A"));
         m.addSeparator();
@@ -837,6 +848,10 @@ void MainView::menuItemSelected(int id, int)
     case kSelectAll: activeArea().selectAll(); break;
     case kSaveSelection: saveSelection(); break;
     case kRecallInit: recallVariationInit(); break;
+    case kPasteParams:
+        if (auto* a = areaWithSelection())
+            a->pasteParams(AreaView::clipboard());
+        break;
     case kDeleteUnused: {
         const auto before = doc_.patch().va.modules.size() + doc_.patch().fx.modules.size();
         doc_.perform("Delete unused modules", [](g2::Patch& p) { g2::edit::deleteUnusedModules(p); });
@@ -856,6 +871,8 @@ void MainView::menuItemSelected(int id, int)
     case kPatchLibrary: showLibrary(); break;
     case kSave: save(false); break;
     case kSaveAs: save(true); break;
+    case kSaveInitPatch1: saveInitPatch(1); break;
+    case kSaveInitPatch2: saveInitPatch(2); break;
     case kClearRecent:
         recent_.clear();
         userSettings().setValue("recentFiles", recent_.toString());
@@ -1023,6 +1040,71 @@ void MainView::recallVariationInit()
     setStatus("Recalled the Init variation into variation " + juce::String(to + 1));
 }
 
+juce::File MainView::initPatchFile(int n)
+{
+    return userSettings().getFile().getParentDirectory().getChildFile(initPatchFileName(n));
+}
+
+void MainView::saveInitPatch(int n)
+{
+    // CEditorApp::HandleDefaultPatchSave @00149e1c: the top patch (in a performance, the focused slot's), as it is.
+    const auto f = initPatchFile(n);
+    const auto bytes = g2::savePatch(doc_.patch());
+    if (f.getParentDirectory().createDirectory() && f.replaceWithData(bytes.data(), bytes.size()))
+        setStatus("Saved \"" + doc_.name() + "\" as Init Patch " + juce::String(n));
+    else
+        setStatus("Could not write " + f.getFullPathName());
+}
+
+void MainView::recallInitPatch(int n)
+{
+    // CEditorApp::HandleDefaultPatchOpen @0014a5c8: nothing without the file; else, after asking about unsaved
+    // changes, the file as a new patch (if connected, into the focused slot). The file stays the template: Save asks
+    // where, rather than overwrite it.
+    const auto f = initPatchFile(n);
+    juce::MemoryBlock mb;
+    if (!f.existsAsFile() || !f.loadFileAsData(mb)) {
+        setStatus("No Init Patch " + juce::String(n) + " yet: File > Save InitPatch " + juce::String(n) + " makes one");
+        return;
+    }
+    const auto* data = static_cast<const std::uint8_t*>(mb.getData());
+    const std::vector<std::uint8_t> bytes(data, data + mb.getSize());
+    const auto name = f.getFileNameWithoutExtension(); // a patch file's name is its file name
+    if (doc_.isPerformance()) {
+        // Into the focused slot, as one undo step (as Open in Slot).
+        g2::Patch patch;
+        try {
+            auto loaded = g2::load(bytes, {});
+            auto* p = std::get_if<g2::Patch>(&loaded.content);
+            if (p == nullptr)
+                throw std::runtime_error("not a patch");
+            patch = std::move(*p);
+        } catch (const std::exception& e) {
+            setStatus(f.getFileName() + ": " + e.what());
+            return;
+        }
+        if (doc_.perform("Init " + juce::String(n), [&patch](g2::Patch& p) { p = patch; })) {
+            doc_.setName(name);
+            setStatus("Init Patch " + juce::String(n) + " is in slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + doc_.slot())));
+        }
+        return;
+    }
+    confirmDiscard([this, bytes, name, n] {
+        try {
+            doc_.loadBytes(bytes);
+        } catch (const std::exception& e) {
+            setStatus("Init Patch " + juce::String(n) + ": " + e.what());
+            return;
+        }
+        doc_.setFile({});
+        doc_.setName(name);
+        doc_.markSaved(); // just recalled: nothing to lose
+        setStatus("New patch from Init Patch " + juce::String(n));
+        updateToolbar();
+        setZoom(1.0f); // as Open
+    });
+}
+
 void MainView::zoomToFit()
 {
     // G2fresh's own (ZoomFit.h): the largest zoom at which both areas' modules fit their panes, from their tops.
@@ -1094,8 +1176,85 @@ void MainView::changeListenerCallback(juce::ChangeBroadcaster* source)
     menuItemsChanged(); // undo/redo state
 }
 
+int MainView::splitTotal() const
+{
+    return fxPane_.getBottom() - vaPane_.getY();
+}
+
+void MainView::splitMoved()
+{
+    resized();
+    const auto pos = static_cast<std::uint16_t>(split_.position);
+    if (doc_.patch().header.splitterPos != pos)
+        doc_.performLive([pos](g2::Patch& p) { p.header.splitterPos = pos; });
+}
+
+void MainView::Divider::paint(juce::Graphics& g)
+{
+    const auto r = getLocalBounds();
+    g.fillAll(juce::Colour(0xff25272b));
+    g.setColour(juce::Colour(0xff3a3d44));
+    g.drawHorizontalLine(0, 0.0f, static_cast<float>(r.getWidth()));
+    g.drawHorizontalLine(r.getBottom() - 1, 0.0f, static_cast<float>(r.getWidth()));
+    // The three buttons at the left: the bar up (only the FX Area), down (only the Voice Area), back.
+    g.setColour(juce::Colour(0xffa8adb6));
+    for (int b = 0; b < 3; ++b) {
+        const auto box = juce::Rectangle<float>(static_cast<float>(b * SplitBar::kHeight), 0.0f, SplitBar::kHeight, SplitBar::kHeight).reduced(2.5f);
+        juce::Path p;
+        if (b == 0)
+            p.addTriangle(box.getCentreX(), box.getY(), box.getRight(), box.getBottom(), box.getX(), box.getBottom());
+        else if (b == 1)
+            p.addTriangle(box.getX(), box.getY(), box.getRight(), box.getY(), box.getCentreX(), box.getBottom());
+        else {
+            p.addTriangle(box.getCentreX(), box.getY(), box.getRight(), box.getCentreY() - 0.5f, box.getX(), box.getCentreY() - 0.5f);
+            p.addTriangle(box.getX(), box.getCentreY() + 0.5f, box.getRight(), box.getCentreY() + 0.5f, box.getCentreX(), box.getBottom());
+        }
+        g.fillPath(p);
+    }
+}
+
+void MainView::Divider::mouseMove(const juce::MouseEvent& e)
+{
+    setMouseCursor(buttonAt(e.x) >= 0 ? juce::MouseCursor::NormalCursor : juce::MouseCursor::UpDownResizeCursor);
+}
+
+void MainView::Divider::mouseDown(const juce::MouseEvent& e)
+{
+    const int total = owner_.splitTotal();
+    switch (buttonAt(e.x)) {
+    case 0: owner_.split_.toFx(total); break;
+    case 1: owner_.split_.toVoice(total); break;
+    case 2: owner_.split_.restore(); break;
+    default:
+        dragging_ = true;
+        grab_ = e.y;
+        owner_.split_.beginDrag(total);
+        return;
+    }
+    owner_.splitMoved();
+}
+
+void MainView::Divider::mouseDrag(const juce::MouseEvent& e)
+{
+    if (!dragging_)
+        return;
+    owner_.split_.dragTo(e.getEventRelativeTo(&owner_).y - grab_ - owner_.vaPane_.getY(), owner_.splitTotal());
+    owner_.resized();
+}
+
+void MainView::Divider::mouseUp(const juce::MouseEvent&)
+{
+    if (std::exchange(dragging_, false))
+        owner_.splitMoved();
+}
+
 void MainView::updateToolbar()
 {
+    // The split bar where this patch has it (each slot's patch its own).
+    if (const int pos = doc_.patch().header.splitterPos; pos != split_.position) {
+        split_.position = pos;
+        resized();
+    }
     // While the Patch Mutator plays an individual in variation 9, no
     // variation button is lit (the original focuses variation 9).
     for (int i = 0; i < variations_.size(); ++i)
@@ -1205,6 +1364,9 @@ void MainView::resized()
     edited_.setBounds(bar.removeFromLeft(70));
     editButton_.setBounds(bar.removeFromLeft(48));
     liveButton_.setBounds(bar.removeFromLeft(48));
+    bar.removeFromLeft(10);
+    init1_.setBounds(bar.removeFromLeft(48));
+    init2_.setBounds(bar.removeFromLeft(48));
 
     zoomIn_.setBounds(bar.removeFromRight(28));
     zoomReset_.setBounds(bar.removeFromRight(54));
@@ -1243,8 +1405,9 @@ void MainView::resized()
     }
     settings_.setBounds(r.removeFromTop(settings_.preferredHeight(r.getWidth())));
     browser_.setBounds(r.removeFromTop(62));
-    juce::Component* parts[] = {&vaPane_, &divider_, &fxPane_};
-    layout_.layOutComponents(parts, 3, r.getX(), r.getY(), r.getWidth(), r.getHeight(), true, true);
+    vaPane_.setBounds(r.removeFromTop(SplitBar::shown(split_.position, r.getHeight())));
+    divider_.setBounds(r.removeFromTop(SplitBar::kHeight));
+    fxPane_.setBounds(r);
     for (auto [port, area] : {std::pair{&vaPort_, &va_}, std::pair{&fxPort_, &fx_}})
         area->setMinimumSize(juce::roundToInt(static_cast<float>(port->getWidth()) / zoom_),
                              juce::roundToInt(static_cast<float>(port->getHeight()) / zoom_));
@@ -1318,6 +1481,11 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         return copySelection(true), true;
     if (key == juce::KeyPress('v', cmd, 0))
         return pasteClipboard(), true;
+    if (key == juce::KeyPress('e', cmd, 0)) { // Paste Params (the original's Cmd-E)
+        if (auto* a = areaWithSelection())
+            a->pasteParams(AreaView::clipboard());
+        return true;
+    }
     if (key == juce::KeyPress('d', cmd, 0)) {
         if (auto* a = areaWithSelection())
             a->duplicateSelection();
@@ -1360,6 +1528,10 @@ bool MainView::keyPressed(const juce::KeyPress& key)
             return doc_.setVariation(k.index), true;
         if (k.kind == PatchKey::Kind::Slot)
             return doc_.setSlot(k.index), true;
+        if (k.kind == PatchKey::Kind::ShowVoice || k.kind == PatchKey::Kind::ShowFx) {
+            k.kind == PatchKey::Kind::ShowVoice ? split_.showVoice(splitTotal()) : split_.showFx(splitTotal());
+            return splitMoved(), true;
+        }
     }
     return false;
 }

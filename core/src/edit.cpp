@@ -2123,6 +2123,66 @@ void deleteUnusedModules(Patch& patch)
             removeModules(patch, loc, unused);
 }
 
+std::string pasteParams(Patch& patch, Location loc, const std::vector<u8>& selection, const Clipboard& clip, u8 to)
+{
+    const char* const mismatch = "Selection does not match the original data";
+    if (loc == Location::Settings || to >= kFileVariations)
+        return mismatch;
+    const Area& area = patch.area(loc);
+    std::vector<const Module*> src, dst;
+    for (const auto& m : clip.modules)
+        src.push_back(&m);
+    for (const u8 index : selection)
+        if (const Module* m = area.find(index))
+            dst.push_back(m);
+    auto byPlace = [](const Module* a, const Module* b) { return std::pair(a->col, a->row) < std::pair(b->col, b->row); };
+    std::stable_sort(src.begin(), src.end(), byPlace);
+    std::stable_sort(dst.begin(), dst.end(), byPlace);
+    if (src.size() != dst.size() || src.empty())
+        return mismatch;
+    for (std::size_t i = 0; i < src.size(); ++i)
+        if (src[i]->type != dst[i]->type)
+            return mismatch;
+    Patch next = patch;
+    Area& out = areaFor(next, loc);
+    auto& morphs = next.morphs[to].assigns;
+    std::vector<u8> given;
+    for (const Module* s : src) {
+        const auto it = std::find_if(dst.begin(), dst.end(), [&](const Module* d) {
+            return d->type == s->type && std::find(given.begin(), given.end(), d->index) == given.end();
+        });
+        if (it == dst.end() || clip.variation >= s->params.size())
+            continue;
+        const u8 index = (*it)->index;
+        given.push_back(index);
+        Module* d = out.find(index);
+        if (to >= d->params.size())
+            continue;
+        d->params[to] = s->params[clip.variation];
+        // Its morphs in that variation are the copied module's (the others' count toward the 25).
+        std::erase_if(morphs, [&](const MorphAssign& a) { return a.location == static_cast<u8>(loc) && a.module == index; });
+        for (const auto& [var, a] : clip.morphs) {
+            if (var != clip.variation || a.module != s->index || a.range == 0)
+                continue;
+            MorphAssign copy = a;
+            copy.location = static_cast<u8>(loc);
+            copy.module = index;
+            const bool already = std::any_of(morphs.begin(), morphs.end(), [&](const MorphAssign& m) {
+                return m.location == copy.location && m.module == copy.module && m.param == copy.param;
+            });
+            if (!already && morphedParamCount(next, to) >= kMaxMorphedParams)
+                continue;
+            putMorph(morphs, copy);
+        }
+    }
+    if (live::recording()) {
+        live::record(live::Section{live::variationParams(next, loc, to)}, live::Section{live::variationParams(patch, loc, to)});
+        live::record(live::Section{live::variationMorphs(next, to)}, live::Section{live::variationMorphs(patch, to)});
+    }
+    patch = std::move(next);
+    return {};
+}
+
 Patch selectionPatch(const Patch& patch, Location loc, const std::vector<u8>& indices)
 {
     Patch out = Patch::makeDefault();

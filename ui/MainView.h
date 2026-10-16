@@ -15,6 +15,7 @@
 #include "MutatorWindow.h"
 #include "PatchDocument.h"
 #include "PatchSettingsBar.h"
+#include "SplitBar.h"
 #include "Theme.h"
 #include "ZoomHolder.h"
 
@@ -165,6 +166,7 @@ private:
     void startForLive();
     bool liveMode_ = false;
     juce::TextButton editButton_{"Edit"}, liveButton_{"Live"};
+    juce::TextButton init1_{"Init 1"}, init2_{"Init 2"};
     LiveView live_{nullptr};
     void updateLoad();
     juce::PopupMenu synthMenu();
@@ -178,6 +180,10 @@ private:
     void showFocus();
     void zoomToFit();
     void recallVariationInit();
+    // The two init patches (File > Save InitPatch 1/2, the toolbar's Init 1 and Init 2): files beside the settings.
+    static juce::File initPatchFile(int n);
+    void saveInitPatch(int n);
+    void recallInitPatch(int n);
     void slotClicked(int slot);
     void saveSelection();
     void insertPatchFile();
@@ -192,8 +198,31 @@ private:
     float zoom_ = 1.0f;
     AreaView* activeArea_ = nullptr; // last clicked area: target of Edit commands
     g2::mutate::Random random_{static_cast<std::uint32_t>(juce::Time::currentTimeMillis())};
-    juce::StretchableLayoutManager layout_;
-    juce::StretchableLayoutResizerBar divider_{&layout_, 1, false};
+    // The split bar between the areas (SplitBar.h): dragged, or its three buttons (only the FX Area, only the Voice
+    // Area, back), as the original's CSplitterView. The position is the patch's (its header's splitterPos).
+    class Divider : public juce::Component, public juce::SettableTooltipClient {
+    public:
+        explicit Divider(MainView& owner) : owner_(owner) { setMouseCursor(juce::MouseCursor::UpDownResizeCursor); }
+        void paint(juce::Graphics&) override;
+        void mouseMove(const juce::MouseEvent&) override;
+        void mouseDown(const juce::MouseEvent&) override;
+        void mouseDrag(const juce::MouseEvent&) override;
+        void mouseUp(const juce::MouseEvent&) override;
+
+    private:
+        // 0, 1, 2: the button under x (FX only, Voice only, back); -1: the bar.
+        int buttonAt(int x) const { return x >= 0 && x < 3 * SplitBar::kHeight ? x / SplitBar::kHeight : -1; }
+        MainView& owner_;
+        bool dragging_ = false;
+        int grab_ = 0;
+    };
+    friend class Divider;
+    SplitBar split_;
+    Divider divider_{*this};
+    int splitTotal() const;
+    // After the bar was moved by the user: the layout, and the patch header (not an undo step, as the original's
+    // RequestPatchHeaderChange).
+    void splitMoved();
     std::unique_ptr<juce::FileChooser> chooser_;
     juce::RecentlyOpenedFilesList recent_;
 };

@@ -608,3 +608,29 @@ TEST_CASE("Init recalls the init variation into the variation shown")
     CHECK(p.va.find(mix)->params[3][0] == 90); // other variations untouched
     CHECK(p.va.find(mix)->params[8][0] == 33);
 }
+
+TEST_CASE("Paste Params: the copied modules' values into the selected modules of the same types")
+{
+    // Audit P9 (manual p68, p100, p116: Edit > Paste Params, Cmd-E). CClipboard::ValidatePasteParams @0014d556: as many
+    // modules as copied, the same types pair by pair, else "Selection does not match the original data". PasteParams
+    // @0014d048 -> CPatchData::GetCopyParamsMolecules @000e9502: each copied module's values in the variation it was
+    // copied from go into the current variation of the first selected module of its type, with its morphs.
+    Patch p = Patch::makeDefault();
+    const u8 mixA = edit::addModule(p, Location::Va, 19, 0, 0), envA = edit::addModule(p, Location::Va, 20, 0, 4);
+    const u8 mixB = edit::addModule(p, Location::Va, 19, 2, 0), envB = edit::addModule(p, Location::Va, 20, 2, 4);
+    edit::setParam(p, Location::Va, mixA, 0, 1, 99); // variation 2's values (index 1)
+    edit::setParam(p, Location::Va, envA, 1, 1, 77);
+    edit::setMorph(p, 1, Location::Va, mixA, 0, 3, 10);
+    auto clip = edit::copyModules(p, Location::Va, {mixA, envA});
+    clip.variation = 1;
+    CHECK(edit::pasteParams(p, Location::Va, {envB, mixB}, clip, 4).empty());
+    CHECK(p.va.find(mixB)->params[4][0] == 99);
+    CHECK(p.va.find(envB)->params[4][1] == 77);
+    CHECK(edit::morphRange(p, 4, Location::Va, mixB, 0, 3) == 10);
+    CHECK(p.va.find(mixB)->params[1][0] != 99); // only the current variation
+    // A selection that doesn't match: refused, nothing changes.
+    CHECK(edit::pasteParams(p, Location::Va, {mixB}, clip, 5) == "Selection does not match the original data");
+    const u8 osc = edit::addModule(p, Location::Va, 7, 4, 0);
+    CHECK(edit::pasteParams(p, Location::Va, {osc, envB}, clip, 5) == "Selection does not match the original data");
+    CHECK(p.va.find(envB)->params[5][1] != 77);
+}

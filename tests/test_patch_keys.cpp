@@ -51,3 +51,22 @@ TEST_CASE("slot buttons: a click focuses, Shift-click turns the slot on or off, 
     CHECK(slotClick(false, true) == SlotClick::ToggleKeyboard);
     CHECK(slotClick(true, true) == SlotClick::ToggleActive);
 }
+
+TEST_CASE("init patches: two files beside the settings, InitPatch1 and InitPatch2")
+{
+    // Audit N4: CEditorApp saves the top patch as "InitPatch" + n in the preferences folder (Save InitPatch 1/2) and
+    // recalls it from there (the toolbar's Init 1 and Init 2; manual p59, p99). G2fresh adds .pch2.
+    CHECK(initPatchFileName(1) == "InitPatch1.pch2");
+    CHECK(initPatchFileName(2) == "InitPatch2.pch2");
+}
+
+TEST_CASE("patch keys: V shows the Voice Area, F the FX Area")
+{
+    // InitializeShortcutKeys @000fafd8 binds them as the variations' keys (KeyShowPolyPart, KeyShowMonoPart; manual
+    // p61-62, p115), in a patch as in a performance.
+    CHECK(patchKey('v', false, false, false).kind == Kind::ShowVoice);
+    CHECK(patchKey('V', false, false, true).kind == Kind::ShowVoice);
+    CHECK(patchKey('f', false, false, false).kind == Kind::ShowFx);
+    CHECK(patchKey('f', true, false, false).kind == Kind::None);
+    CHECK(patchKey('v', false, true, false).kind == Kind::None);
+}

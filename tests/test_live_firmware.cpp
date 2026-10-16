@@ -428,6 +428,13 @@ TEST_CASE("Live editing on the user's G2 OS: modules, as the original sends them
     e.roundTrip("paste with a chain spliced and a chain left white", [&](g2::Patch& x) {
         g2::edit::pasteModules(x, Location::Va, spliced, 6, 0);
     });
+    // Paste Params: OscA's values (variation 1) into a new OscA, sent as the area's parameter and morph dumps.
+    auto params = g2::edit::copyModules(e.doc, Location::Va, {osc});
+    params.variation = 0;
+    e.roundTrip("paste params into a module of the same type", [&](g2::Patch& x) {
+        const g2::u8 copy = g2::edit::addModule(x, Location::Va, moduleNamed("OscA").typeId, 7, 0);
+        REQUIRE(g2::edit::pasteParams(x, Location::Va, {copy}, params, 0).empty());
+    });
     e.roundTrip("replace (OscA -> OscB, cables, knob, controller and morphs follow)", [&](g2::Patch& x) {
         g2::replace::replaceModule(x, Location::Va, osc, moduleNamed("OscB").typeId);
     });
