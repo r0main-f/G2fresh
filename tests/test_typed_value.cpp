@@ -67,3 +67,20 @@ TEST_CASE("typed value: #n sets the raw value; a patch setting works too")
     REQUIRE_FALSE(text.empty());
     CHECK(edit::targetFromText(f.p, glideTime, 0, text) == edit::targetValue(f.p, glideTime, 0));
 }
+
+TEST_CASE("typed value: the dialog starts with the parameter's own value, not a neighbour's")
+{
+    // Found by hand testing: OscB's Coarse displays "-24   +0", its semitones then its Fine; the dialog showed both, and
+    // changing the second did nothing (it is Fine's). It starts with the first number only, with its unit.
+    Fixture f;
+    const u8 osc = f.add(kOscB), env = f.add(kEnvAdsr), out = f.add(k2Out);
+    edit::setParam(f.p, Location::Va, osc, 0, 0, 40);
+    CHECK(edit::targetEditText(f.p, {Location::Va, osc, 0}, 0) == "-24");
+    CHECK(edit::targetEditText(f.p, {Location::Va, env, 1}, 0) == "0.5m"); // " 0.5m": trimmed, the unit kept
+    CHECK(edit::targetEditText(f.p, {Location::Va, osc, 8}, 0) == "Saw"); // a name as it is (OscB starts on Saw)
+    CHECK(edit::targetEditText(f.p, {Location::Va, out, 0}, 0) == "Out 1/2"); // a name with digits, whole
+    // What it gives reads back as the same value.
+    CHECK(f.typed(osc, 0, edit::targetEditText(f.p, {Location::Va, osc, 0}, 0)) == 40);
+    // Typing both numbers: the first counts.
+    CHECK(f.typed(osc, 0, "-12   +0") == 52);
+}

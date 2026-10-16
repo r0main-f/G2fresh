@@ -385,6 +385,9 @@ std::string targetText(const Patch& patch, Target t, u8 variation);
 // (m or ms, s, Hz, kHz), the numbers as written otherwise. A value of the parameter's range, or nullopt when nothing
 // matches.
 std::optional<u8> targetFromText(const Patch& patch, Target t, u8 variation, const std::string& text);
+// What Type a Value starts with: the display text, trimmed; for a display that starts with a number and goes on
+// (OscB's Coarse shows "-24   +0", its semitones then its Fine), only that first number with its unit.
+std::string targetEditText(const Patch& patch, Target t, u8 variation);
 // "Osc1 Pitch", "Morph Wheel", "Glide Rate".
 std::string targetName(const Patch& patch, Target t);
 void setTargetValue(Patch& patch, Target t, u8 variation, u8 value); // clamped to the range
