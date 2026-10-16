@@ -127,6 +127,12 @@ private:
     juce::Label variationLabel_{{}, "Variation"};
     juce::OwnedArray<juce::TextButton> variations_;
     juce::TextButton varInit_{"Init"};
+    // The red line on top of a slot button the keyboard plays (manual p58).
+    struct KeyboardMark : juce::Component {
+        KeyboardMark() { setInterceptsMouseClicks(false, false); }
+        void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xffe03030)); }
+    };
+    juce::OwnedArray<KeyboardMark> keyboardMarks_;
     juce::OwnedArray<juce::TextButton> slots_; // performance slots A-D
     juce::TextButton zoomOut_{"-"}, zoomReset_{"100%"}, zoomIn_{"+"};
     juce::TextButton randomizeButton_{"Randomize"}, mutatorButton_{"Mutator..."};
@@ -172,6 +178,7 @@ private:
     void showFocus();
     void zoomToFit();
     void recallVariationInit();
+    void slotClicked(int slot);
     void saveSelection();
     void insertPatchFile();
     void showFocusStatus();

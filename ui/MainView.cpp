@@ -58,9 +58,11 @@ juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String&
 #if JUCE_MAC
 const juce::String kCmd = juce::String::fromUTF8("\xe2\x8c\x98");   // ⌘
 const juce::String kShift = juce::String::fromUTF8("\xe2\x87\xa7"); // ⇧
+const juce::String kMorphKeyName = "Option";
 #else
 const juce::String kCmd = "Ctrl+";
 const juce::String kShift = "Shift+";
+const juce::String kMorphKeyName = "Ctrl";
 #endif
 
 } // namespace
@@ -136,8 +138,9 @@ MainView::MainView(PatchDocument& doc, bool standalone)
         b->setClickingTogglesState(true);
         b->setRadioGroupId(2);
         b->setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff3070c0));
-        b->onClick = [this, i] { doc_.setSlot(i); };
+        b->onClick = [this, i] { slotClicked(i); };
         addChildComponent(b);
+        addChildComponent(keyboardMarks_.add(new KeyboardMark()));
     }
     status_.setFont(theme::font());
     status_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff26282c));
@@ -977,6 +980,33 @@ void MainView::setAnimation(bool on)
 
 // ---- Zoom ----------------------------------------------------------------------
 
+void MainView::slotClicked(int slot)
+{
+    const auto m = juce::ModifierKeys::getCurrentModifiers();
+#if JUCE_MAC
+    const bool morph = m.isAltDown();
+#else
+    const bool morph = m.isCtrlDown();
+#endif
+    std::string refused;
+    switch (slotClick(m.isShiftDown(), morph)) {
+    case SlotClick::Focus:
+        doc_.setSlot(slot);
+        break;
+    case SlotClick::ToggleActive:
+        doc_.editPerformance([&](g2::file::PerfHeader& h) { refused = g2::edit::toggleSlotEnabled(h, slot); });
+        if (const auto* perf = doc_.performance(); perf && perf->header.focusedSlot != doc_.slot())
+            doc_.setSlot(perf->header.focusedSlot); // a slot turned on takes the focus, one turned off gives it
+        break;
+    case SlotClick::ToggleKeyboard:
+        doc_.editPerformance([&](g2::file::PerfHeader& h) { refused = g2::edit::toggleSlotKeyboard(h, slot); });
+        break;
+    }
+    if (!refused.empty())
+        setStatus(juce::String(refused));
+    updateToolbar();
+}
+
 void MainView::recallVariationInit()
 {
     const auto to = static_cast<std::uint8_t>(doc_.variation());
@@ -1067,9 +1097,14 @@ void MainView::updateToolbar()
         b->setVisible(perf != nullptr);
         if (perf) {
             const auto name = PatchDocument::fromG2Bytes(perf->header.slots[static_cast<std::size_t>(i)].patchName);
-            b->setTooltip("Slot " + b->getButtonText() + (name.isNotEmpty() ? ": " + name : juce::String()));
+            b->setTooltip("Slot " + b->getButtonText() + (name.isNotEmpty() ? ": " + name : juce::String())
+                          + ". Click: edit it; Shift-click: on or off; " + kMorphKeyName + "-click: on the keyboard or not");
         }
         b->setToggleState(i == doc_.slot(), juce::dontSendNotification);
+        // As the original's slot buttons (manual p58): active slots blue, a red line on top of those the keyboard plays.
+        const auto& s = perf ? perf->header.slots[static_cast<std::size_t>(i)] : g2::file::SlotSettings{};
+        b->setColour(juce::TextButton::buttonColourId, perf && s.enabled ? juce::Colour(0xff2a4466) : juce::Colour(0xff3a3d44));
+        keyboardMarks_[i]->setVisible(perf != nullptr && s.keyboard != 0);
     }
     // In a performance: "<performance file>  A:" then the slot's patch name.
     if (perf) {
@@ -1168,7 +1203,10 @@ void MainView::resized()
     bar.removeFromRight(16);
     if (doc_.isPerformance()) {
         for (int i = slots_.size(); --i >= 0;)
+        {
             slots_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
+            keyboardMarks_[i]->setBounds(slots_[i]->getBounds().withHeight(3).reduced(3, 0));
+        }
         bar.removeFromRight(16);
     }
     mutatorButton_.setBounds(bar.removeFromRight(92));

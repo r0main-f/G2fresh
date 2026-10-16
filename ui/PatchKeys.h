@@ -30,4 +30,14 @@ inline PatchKey patchKey(char c, bool modifier, bool repeat, bool performance,
     return {};
 }
 
+// A click on a performance's slot button (manual p58): it focuses the slot; Shift-click turns it on or off; the morph
+// modifier (Option on the Mac, Ctrl elsewhere: the manual's Ctrl) assigns the keyboard to it or not.
+enum class SlotClick { Focus, ToggleActive, ToggleKeyboard };
+inline SlotClick slotClick(bool shift, bool morphModifier)
+{
+    if (shift)
+        return SlotClick::ToggleActive;
+    return morphModifier ? SlotClick::ToggleKeyboard : SlotClick::Focus;
+}
+
 } // namespace g2ui

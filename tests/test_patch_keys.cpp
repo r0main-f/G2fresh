@@ -40,3 +40,14 @@ TEST_CASE("patch keys: a disabled slot is not selected")
     CHECK(patchKey('c', false, false, true, abOnly).kind == Kind::None);
     CHECK(patchKey('d', false, false, true, abOnly).kind == Kind::None);
 }
+
+TEST_CASE("slot buttons: a click focuses, Shift-click turns the slot on or off, the morph modifier assigns the keyboard")
+{
+    // Audit L6, manual p58: "You can activate/deactivate several Slots ... by Shift-clicking on the corresponding Slot
+    // buttons ... to change the Keyboard Assign settings, Ctrl-click the Slot button(s)". The manual's Ctrl is Option
+    // on the Mac, as in the key table (CShortcutKeys::Add turns modifier 5 into Option).
+    CHECK(slotClick(false, false) == SlotClick::Focus);
+    CHECK(slotClick(true, false) == SlotClick::ToggleActive);
+    CHECK(slotClick(false, true) == SlotClick::ToggleKeyboard);
+    CHECK(slotClick(true, true) == SlotClick::ToggleActive);
+}
