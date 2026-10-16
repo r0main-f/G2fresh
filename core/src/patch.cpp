@@ -450,4 +450,18 @@ Loaded load(std::span<const u8> bytes, LoadOptions options)
     return out;
 }
 
+Performance Performance::makeNew()
+{
+    Performance perf;
+    for (std::size_t i = 0; i < perf.slots.size(); ++i) {
+        perf.slots[i] = Patch::makeDefault();
+        auto& slot = perf.header.slots[i];
+        slot.patchName = kNewPatchName;
+        slot.enabled = 1;
+        slot.keyboard = i == 0 ? 1 : 0;
+        slot.midiChannel = 0;
+    }
+    return perf;
+}
+
 } // namespace g2

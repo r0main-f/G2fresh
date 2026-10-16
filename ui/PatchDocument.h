@@ -203,8 +203,8 @@ private:
     std::array<g2::focus::Focus, 4> focus_{g2::focus::kDefault, g2::focus::kDefault, g2::focus::kDefault,
                                            g2::focus::kDefault};
     juce::File file_;
-    juce::String name_ = "New patch"; // patch name (performances use slot names)
-    juce::String perfName_ = "Performance";
+    juce::String name_ = g2::kNewPatchName; // patch name (performances use slot names)
+    juce::String perfName_ = g2::kNewPerformanceName;
     EditListener* editListener_ = nullptr;
     bool dirty_ = false;
     juce::String loadReport_;

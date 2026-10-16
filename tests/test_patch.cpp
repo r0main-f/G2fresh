@@ -147,3 +147,21 @@ TEST_CASE("load() goes by the file's content, not its name")
     CHECK_THROWS_AS(load(damaged), ChecksumError);
     CHECK_NOTHROW(load(damaged, {true}));
 }
+
+TEST_CASE("a new patch and a new performance, as the original makes them")
+{
+    // CPerformanceManager::CreateNewPerformance @000fe694: named "Empty perf", the four slots enabled with an initial
+    // patch each, the keyboard on slot A (Slot::kOne = 0); the slot settings' MIDI channel byte is 0 on every slot
+    // (CSlotSettings::CSlotSettings @00064138). A new patch is "No name" (SSTR 128, {Patch} 41; the call site was not
+    // traced).
+    CHECK(std::string(g2::kNewPatchName) == "No name");
+    CHECK(std::string(g2::kNewPerformanceName) == "Empty perf");
+    const auto perf = g2::Performance::makeNew();
+    for (std::size_t s = 0; s < 4; ++s) {
+        CAPTURE(s);
+        CHECK(perf.header.slots[s].enabled == 1);
+        CHECK(perf.header.slots[s].keyboard == (s == 0 ? 1 : 0));
+        CHECK(perf.header.slots[s].midiChannel == 0);
+        CHECK(perf.header.slots[s].patchName == "No name");
+    }
+}
