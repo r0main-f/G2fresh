@@ -170,6 +170,9 @@ private:
     void clickSpecial(const Hit& h, SpecialControls::Hit part);
     void showModuleMenu(std::uint8_t module);
     void showBackgroundMenu(juce::Point<int> where);
+    // The module's Replace button: the modules of its group (g2::replace::menu), and the replacement as one undo step.
+    void showReplaceMenu(std::uint8_t module);
+    void replaceModule(std::uint8_t module, std::uint8_t newType);
     void showJackMenu(const Jack& jack);
     void showControlMenu(const Hit& h);
     void showCableMenu(const g2::Cable& cable);

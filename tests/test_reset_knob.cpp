@@ -40,3 +40,15 @@ TEST_CASE("reset knob: the centre value, and the lit triangle")
     CHECK(resetLit(64, 127));
     CHECK_FALSE(resetLit(63, 127));
 }
+
+TEST_CASE("the Replace button: 11 x 11 at the module's top left, the name after it")
+{
+    // CPanel::CPanel @000c2b6a: CReplaceView at (1, 1), 11 x 11 (CReplaceView::CReplaceView @000d00d6), on every
+    // module (CBuildModule::HasReplaceButton is set by every constructor); the name bar from kWidth + 1.
+    CHECK(replaceButton() == IncDecRect{1, 1, 11, 11});
+    CHECK(onReplaceButton(1, 1));
+    CHECK(onReplaceButton(11, 11));
+    CHECK_FALSE(onReplaceButton(12, 5));
+    CHECK_FALSE(onReplaceButton(0, 5));
+    CHECK(kModuleNameX == 12);
+}

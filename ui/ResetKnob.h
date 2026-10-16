@@ -40,4 +40,12 @@ inline bool onResetStrip(std::string_view type, int x, int y)
 inline int resetValue(int max) { return (max + 1) >> 1; }
 inline bool resetLit(int value, int max) { return value == resetValue(max); }
 
+// The Replace button every module has at its top left (CReplaceView, 11 x 11 at (1, 1), framed in the module's group
+// colour; CPanel::CPanel @000c2b6a): a click opens the Replace menu (CModuleReplaceMenu::DoReplaceMenu from
+// CPanel::HandleChangeRequests @000bf2d8). The name bar starts right of it, at the button's width + 1 (CNameBar at
+// kWidth + 1, taken as 12: not confirmed).
+inline IncDecRect replaceButton() { return {1, 1, 11, 11}; }
+inline bool onReplaceButton(int x, int y) { return replaceButton().contains(x, y); }
+inline constexpr int kModuleNameX = 12;
+
 } // namespace g2ui
