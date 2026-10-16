@@ -1202,6 +1202,23 @@ void AreaView::mouseUp(const juce::MouseEvent& e)
         const int dCol = cell.x - grabbed->col, dRow = cell.y - grabbed->row;
         const auto loc = location_;
         const auto moved = selection_;
+        // The drag-copy key (Option on the Mac) copies instead (CClipboard::GetCopyOrMove @0014cb82).
+#if JUCE_MAC
+        const bool copy = e.mods.isAltDown();
+#else
+        const bool copy = e.mods.isCtrlDown();
+#endif
+        if (copy) {
+            std::vector<std::uint8_t> copies;
+            juce::String error;
+            if (doc_.perform(moved.size() > 1 ? "Copy modules" : "Copy module",
+                             [&](g2::Patch& p) { copies = g2::edit::copyModulesBy(p, loc, moved, dCol, dRow); }, &error))
+                selection_ = copies;
+            else
+                status("Cannot copy: " + error);
+            repaintModules();
+            return;
+        }
         doc_.perform(moved.size() > 1 ? "Move modules" : "Move module",
                      [&](g2::Patch& p) { g2::edit::moveModules(p, loc, moved, dCol, dRow); });
         return;

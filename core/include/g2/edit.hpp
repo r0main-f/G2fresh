@@ -340,6 +340,9 @@ struct Clipboard {
 Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& indices);
 // Pastes at (col, row), giving the modules new indices; returns them.
 std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 row);
+// Option-drag (CClipboard::GetCopyOrMove @0014cb82): copies of the modules `dCol` columns and `dRow` rows from where
+// they are (never left of column 0 or above row 0), pasted with what Copy keeps of their cables; returns the copies.
+std::vector<u8> copyModulesBy(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow);
 // A selection saved as a patch file (G2fresh's own: the original has no such command; its CClipboardFilePort
 // Save/Load @0006c730/@0006c736 are empty): a new patch holding copies of the modules, from its area's top-left
 // corner, with what Copy keeps of their cables and their morphs.
