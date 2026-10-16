@@ -190,7 +190,7 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     zoomReset_.onClick = [this] { setZoom(1.0f); };
     for (auto* b : {&zoomOut_, &zoomReset_, &zoomIn_})
         addAndMakeVisible(b);
-    randomizeButton_.setTooltip("Randomize the current variation (or the selected modules). Locked modules, "
+    randomizeButton_.setTooltip("Randomize the current variation (or the selected modules). Modules excluded from mutation, "
                                 "switches and modes are kept. Undo to go back.");
     randomizeButton_.onClick = [this] { randomize(false); };
     mutatorButton_.setTooltip("Breed new versions of the current variation: randomize, mutate, cross, audition");
@@ -949,7 +949,7 @@ void MainView::randomize(bool mutateOnly)
     setStatus(juce::String(mutateOnly ? "Mutated " : "Randomized ")
               + (scope.modules.empty() ? "variation " + juce::String(doc_.variation() + 1)
                                        : juce::String(static_cast<int>(scope.modules.size())) + " module(s)")
-              + " (locked modules and switches are kept)");
+              + " (modules excluded from mutation, and switches, are kept)");
 }
 
 void MainView::showMutator()

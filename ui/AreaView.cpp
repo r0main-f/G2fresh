@@ -6,6 +6,7 @@
 #include "CableColours.h"
 #include "CableCurve.h"
 #include "IncDec.h"
+#include "ModuleMenu.h"
 #include "ResetKnob.h"
 #include "ModernIcons.h"
 #include "ModuleBrowser.h"
@@ -1609,7 +1610,9 @@ void AreaView::showModuleMenu(std::uint8_t module)
     const auto* m = doc_.patch().area(location_).find(module);
     if (!m)
         return;
-    enum { kRename = 1, kDuplicate, kCopy, kCut, kDelete, kLock, kColourBase = 100, kReplaceBase = 1000 };
+    // The original's items and order, then G2fresh's own (ModuleMenu.h).
+    using Id = ModuleMenuItem::Id;
+    enum { kColourBase = 100, kReplaceBase = 1000 };
     const bool many = selection_.size() > 1;
     juce::PopupMenu colours;
     for (int c : ModulePainter::moduleColourMenuOrder()) {
@@ -1624,16 +1627,16 @@ void AreaView::showModuleMenu(std::uint8_t module)
     for (const auto& item : g2::replace::menu(m->type, location_))
         replace.addItem(kReplaceBase + item.type, item.label, item.enabled, item.type == m->type);
     juce::PopupMenu menu;
-    menu.addItem(kRename, "Rename...", !many);
-    menu.addSubMenu("Replace With", replace, !many && replace.getNumItems() > 1);
-    menu.addSubMenu(many ? "Colour (selection)" : "Colour", colours);
-    menu.addItem(kLock, "Lock (keep when randomizing)", true, m->locked);
-    menu.addSeparator();
-    menu.addItem(kCopy, many ? "Copy Modules" : "Copy");
-    menu.addItem(kCut, many ? "Cut Modules" : "Cut");
-    menu.addItem(kDuplicate, many ? "Duplicate Modules" : "Duplicate");
-    menu.addSeparator();
-    menu.addItem(kDelete, many ? "Delete Modules" : "Delete");
+    for (const auto& item : moduleMenu({!clipboard().empty(), m->locked, many})) {
+        if (item.id == Id::Separator)
+            menu.addSeparator();
+        else if (item.id == Id::Replace)
+            menu.addSubMenu(item.label, replace, item.enabled && replace.getNumItems() > 1);
+        else if (item.id == Id::Colour)
+            menu.addSubMenu(many ? "Colour (selection)" : "Colour", colours);
+        else
+            menu.addItem(static_cast<int>(item.id), item.label, item.enabled, item.ticked);
+    }
     menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), module](int result) {
         if (!safe || result <= 0)
             return;
@@ -1658,24 +1661,28 @@ void AreaView::showModuleMenu(std::uint8_t module)
                 for (auto index : targets)
                     g2::edit::setModuleColor(p, loc, index, colour);
             });
-        } else if (result == kLock) {
+        } else if (result == static_cast<int>(Id::Exclude)) {
             const auto targets = self.selection_.empty() ? std::vector<std::uint8_t>{module} : self.selection_;
             const auto* first = self.doc_.patch().area(loc).find(module);
             const bool lock = first && !first->locked;
-            self.doc_.perform(lock ? "Lock modules" : "Unlock modules", [&](g2::Patch& p) {
+            self.doc_.perform(lock ? "Exclude from mutation" : "Include in mutation", [&](g2::Patch& p) {
                 for (auto index : targets)
                     if (p.area(loc).find(index))
                         g2::edit::setLocked(p, loc, index, lock);
             });
-        } else if (result == kRename) {
+        } else if (result == static_cast<int>(Id::Rename)) {
             self.rename(module);
-        } else if (result == kCopy || result == kCut) {
+        } else if (result == static_cast<int>(Id::Copy) || result == static_cast<int>(Id::Cut)) {
             clipboard() = self.copySelection();
-            if (result == kCut)
+            if (result == static_cast<int>(Id::Cut))
                 self.deleteSelected();
-        } else if (result == kDuplicate) {
+        } else if (result == static_cast<int>(Id::Paste)) {
+            self.paste(clipboard());
+        } else if (result == static_cast<int>(Id::PasteParams)) {
+            self.pasteParams(clipboard());
+        } else if (result == static_cast<int>(Id::Duplicate)) {
             self.duplicateSelection();
-        } else if (result == kDelete) {
+        } else if (result == static_cast<int>(Id::Delete)) {
             self.deleteSelected();
         }
     });
