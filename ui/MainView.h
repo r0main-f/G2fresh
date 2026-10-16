@@ -188,6 +188,10 @@ private:
     // The two init patches (File > Save InitPatch 1/2, the toolbar's Init 1 and Init 2): files beside the settings.
     static juce::File initPatchFile(int n);
     void saveInitPatch(int n);
+    // File > New To, Open To, Save From (PatchKeys.h slotTarget): a slot of the performance, or of the connected G2.
+    void newTo(int slot);
+    void openTo(int slot);
+    void saveFrom(int slot);
     void recallInitPatch(int n);
     void slotClicked(int slot);
     void saveSelection();

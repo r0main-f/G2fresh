@@ -82,6 +82,14 @@ inline CommandKey commandKey(char c, bool shift)
     }
 }
 
+// File > New To, Open To and Save From (manual p98-99): which slots they offer. G2fresh has one document, so in a
+// performance they act on its four slots; with a patch, on the connected G2's (None: not offered).
+enum class SlotTarget { None, Performance, Synth };
+inline SlotTarget slotTarget(bool performance, bool synthReady)
+{
+    return performance ? SlotTarget::Performance : synthReady ? SlotTarget::Synth : SlotTarget::None;
+}
+
 // A click on a performance's slot button (manual p58): it focuses the slot; Shift-click turns it on or off; the morph
 // modifier (Option on the Mac, Ctrl elsewhere: the manual's Ctrl) assigns the keyboard to it or not.
 enum class SlotClick { Focus, ToggleActive, ToggleKeyboard };

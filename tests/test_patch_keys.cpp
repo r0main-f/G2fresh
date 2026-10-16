@@ -108,3 +108,14 @@ TEST_CASE("patch keys: the original's command shortcuts G2fresh has the function
     CHECK(commandKey('p', true) == CommandKey::None); // with Shift: not these
     CHECK(commandKey('q', false) == CommandKey::None);
 }
+
+TEST_CASE("File > New To, Open To, Save From: a slot of the performance, or of the connected G2")
+{
+    // Manual p98-99 (SMNU File items 110, 107, 113): New To clears a slot for a new patch, Open To opens a file into a
+    // slot, Save From saves a slot's patch. G2fresh has one document: in a performance they act on its slots; with a
+    // patch, on the connected G2's (the new or opened patch is sent there; Save From saves what the G2 has).
+    CHECK(slotTarget(true, false) == SlotTarget::Performance);
+    CHECK(slotTarget(true, true) == SlotTarget::Performance);
+    CHECK(slotTarget(false, true) == SlotTarget::Synth);
+    CHECK(slotTarget(false, false) == SlotTarget::None);
+}

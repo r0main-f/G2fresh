@@ -27,6 +27,7 @@ enum MenuId {
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
     kRecallInit, kDeleteUnused, kPasteParams, kSaveInitPatch1, kSaveInitPatch2,
+    kNewToBase = 900, kOpenToBase = 910, kSaveFromBase = 920, // + slot
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -585,6 +586,17 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addItem(item(kNew, "New Patch", kCmd + "N"));
         m.addItem(item(kNewPerformance, "New Performance"));
         m.addItem(item(kOpen, "Open...", kCmd + "O"));
+        // The original's New To, Open To and Save From (SMNU File 110, 107, 113).
+        const auto target = slotTarget(doc_.isPerformance(), synth_ != nullptr && synth_->ready());
+        juce::PopupMenu newTo, openTo, saveFrom;
+        for (int s = 0; s < 4; ++s) {
+            const auto label = "Slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + s));
+            newTo.addItem(item(kNewToBase + s, label));
+            openTo.addItem(item(kOpenToBase + s, label));
+            saveFrom.addItem(item(kSaveFromBase + s, label));
+        }
+        m.addSubMenu("New To", newTo, target != SlotTarget::None);
+        m.addSubMenu("Open To", openTo, target != SlotTarget::None);
         juce::PopupMenu recent;
         recent_.createPopupMenuItems(recent, kRecentBase, false, true);
         if (recent.getNumItems() > 0) {
@@ -596,6 +608,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
         m.addSeparator();
         m.addItem(item(kSave, "Save", kCmd + "S"));
         m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S"));
+        m.addSubMenu("Save From", saveFrom, target != SlotTarget::None);
         m.addItem(item(kSaveInitPatch1, "Save InitPatch 1")); // the original's File menu (SMNU, items 108 and 109)
         m.addItem(item(kSaveInitPatch2, "Save InitPatch 2"));
         m.addSeparator();
@@ -911,6 +924,9 @@ void MainView::menuItemSelected(int id, int)
     case kSave: save(false); break;
     case kSaveAs: save(true); break;
     case kSaveInitPatch1: saveInitPatch(1); break;
+    case kNewToBase: case kNewToBase + 1: case kNewToBase + 2: case kNewToBase + 3: newTo(id - kNewToBase); break;
+    case kOpenToBase: case kOpenToBase + 1: case kOpenToBase + 2: case kOpenToBase + 3: openTo(id - kOpenToBase); break;
+    case kSaveFromBase: case kSaveFromBase + 1: case kSaveFromBase + 2: case kSaveFromBase + 3: saveFrom(id - kSaveFromBase); break;
     case kSaveInitPatch2: saveInitPatch(2); break;
     case kClearRecent:
         recent_.clear();
@@ -1100,6 +1116,98 @@ void MainView::recallVariationInit()
     const auto to = static_cast<std::uint8_t>(doc_.variation());
     doc_.perform("Recall Init", [&](g2::Patch& p) { g2::edit::recallVariationInit(p, to); });
     setStatus("Recalled the Init variation into variation " + juce::String(to + 1));
+}
+
+void MainView::newTo(int slot)
+{
+    const auto letter = juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot));
+    if (doc_.isPerformance()) {
+        // The slot's patch emptied, as one undo step, and focused.
+        doc_.setSlot(slot);
+        if (doc_.perform("New patch in slot " + letter, [](g2::Patch& p) { p = g2::Patch::makeDefault(); }))
+            doc_.setName("No name");
+        return;
+    }
+    if (synth_ == nullptr || !synth_->ready())
+        return;
+    confirmDiscard([this, slot] {
+        doc_.newPatch();
+        setZoom(1.0f);
+        synth_->sendPatch(slot); // the slot cleared for it
+    });
+}
+
+void MainView::openTo(int slot)
+{
+    chooser_ = std::make_unique<juce::FileChooser>("Open a G2 patch into slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)),
+                                                   doc_.file(), "*.pch2");
+    chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [this, slot](const juce::FileChooser& fc) {
+                              const auto f = fc.getResult();
+                              if (f == juce::File())
+                                  return;
+                              if (!doc_.isPerformance()) {
+                                  if (synth_ == nullptr || !synth_->ready())
+                                      return;
+                                  confirmDiscard([this, f, slot] {
+                                      loadFile(f);
+                                      if (!doc_.isPerformance())
+                                          synth_->sendPatch(slot);
+                                  });
+                                  return;
+                              }
+                              // Into the performance's slot, as one undo step (as Open in Slot).
+                              juce::MemoryBlock mb;
+                              g2::Patch patch;
+                              try {
+                                  if (!f.loadFileAsData(mb))
+                                      throw std::runtime_error("cannot read the file");
+                                  const auto* data = static_cast<const std::uint8_t*>(mb.getData());
+                                  auto loaded = g2::load(std::vector<std::uint8_t>(data, data + mb.getSize()), {});
+                                  auto* p = std::get_if<g2::Patch>(&loaded.content);
+                                  if (p == nullptr)
+                                      throw std::runtime_error("not a patch");
+                                  patch = std::move(*p);
+                              } catch (const std::exception& e) {
+                                  setStatus(f.getFileName() + ": " + e.what());
+                                  return;
+                              }
+                              doc_.setSlot(slot);
+                              if (doc_.perform("Open in slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)),
+                                               [&patch](g2::Patch& p) { p = patch; }))
+                                  doc_.setName(f.getFileNameWithoutExtension());
+                          });
+}
+
+void MainView::saveFrom(int slot)
+{
+    g2::Patch patch;
+    juce::String name;
+    if (const auto* perf = doc_.performance()) {
+        patch = doc_.slotPatch(slot);
+        name = PatchDocument::fromG2Bytes(perf->header.slots[static_cast<std::size_t>(slot)].patchName);
+    } else if (const auto onSynth = synth_ != nullptr ? synth_->synthSlotPatch(slot) : std::nullopt) {
+        patch = onSynth->first;
+        name = juce::String(onSynth->second);
+    } else {
+        return;
+    }
+    const auto fileName = juce::String(g2::edit::fileNameForPatch(name.toStdString())).trim();
+    const auto folder = doc_.file() != juce::File() ? doc_.file().getParentDirectory()
+                                                    : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+    chooser_ = std::make_unique<juce::FileChooser>("Save the patch in slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)),
+                                                   folder.getChildFile((fileName.isEmpty() ? juce::String("No name") : fileName) + ".pch2"), "*.pch2");
+    chooser_->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this, patch](const juce::FileChooser& fc) {
+                              auto f = fc.getResult();
+                              if (f == juce::File())
+                                  return;
+                              f = f.hasFileExtension(".pch2") ? f : f.withFileExtension(".pch2");
+                              const auto bytes = g2::savePatch(patch);
+                              setStatus(f.replaceWithData(bytes.data(), bytes.size()) ? "Saved " + f.getFileName()
+                                                                                       : "Could not write " + f.getFullPathName());
+                          });
 }
 
 juce::File MainView::initPatchFile(int n)
