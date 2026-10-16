@@ -42,3 +42,25 @@ TEST_CASE("move: a moved group keeps its arrangement too")
     CHECK(p.va.find(b)->row == 4);
     CHECK(p.va.find(c)->row >= 6);
 }
+
+TEST_CASE("paste and duplicate: the copies go, whole, where they fit below the selection; nothing moves")
+{
+    // G2fresh's own placement (the original places a paste with the mouse; manual p100). Found by hand testing: a
+    // copy dropped below the selection was interleaved with the modules there.
+    Patch p = Patch::makeDefault();
+    const u8 a = edit::addModule(p, Location::Va, kMix4, 0, 0), b = edit::addModule(p, Location::Va, kMix4, 1, 2);
+    const u8 c = edit::addModule(p, Location::Va, kMix4, 1, 4); // just below b
+    const auto clip = edit::copyModules(p, Location::Va, {a, b});
+    // Below a (the selection): row 2 would put b's copy on c, so the block goes down until both copies fit.
+    const u8 row = edit::blockFreeRow(p, Location::Va, clip, 0, 2);
+    CHECK(row == 4);
+    const auto added = edit::pasteModules(p, Location::Va, clip, 0, row);
+    REQUIRE(added.size() == 2);
+    CHECK(p.va.find(added[0])->row == 4);
+    CHECK(p.va.find(added[1])->row == 6); // two rows below a's copy, as b is below a
+    CHECK(p.va.find(a)->row == 0);        // nothing moved
+    CHECK(p.va.find(b)->row == 2);
+    CHECK(p.va.find(c)->row == 4);
+    // Where it fits at once, it stays there.
+    CHECK(edit::blockFreeRow(p, Location::Va, edit::copyModules(p, Location::Va, {a}), 3, 0) == 0);
+}

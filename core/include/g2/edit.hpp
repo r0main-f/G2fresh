@@ -338,6 +338,10 @@ struct Clipboard {
     bool empty() const { return modules.empty(); }
 };
 Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& indices);
+// The first row from `fromRow` down at which the clipboard's modules, from column `col` and in their arrangement,
+// overlap no module of the area: where Paste and Duplicate put them, so that nothing has to move (G2fresh's own
+// placement; the original places a paste with the mouse, manual p100). 127 at the most.
+u8 blockFreeRow(const Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 fromRow);
 // Pastes at (col, row), giving the modules new indices; returns them.
 std::vector<u8> pasteModules(Patch& patch, Location loc, const Clipboard& clip, u8 col, u8 row);
 // Option-drag (CClipboard::GetCopyOrMove @0014cb82): copies of the modules `dCol` columns and `dRow` rows from where

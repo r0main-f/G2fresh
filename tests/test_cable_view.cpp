@@ -72,19 +72,19 @@ TEST_CASE("cable opacity: G2fresh's own setting, opaque unless one of its steps 
 TEST_CASE("modern cables: the area's seed varies their sag and lean, so Shake shows there too")
 {
     // G2fresh's own hanging cable (the Modern look): Shake gives a new seed (CCableRenderer::Shake @0001a8ec), which
-    // here changes the sag between 75% and 125% of its base and the lean of its arms.
+    // here changes the sag between 40% and 160% of its base and the lean of its arms (made stronger after hand testing).
     const ModernCurve base = modernCurve(200.0f, 0);
     CHECK(base.sag > 0.0f);
     bool differs = false;
     for (int seed = 0; seed < 256; ++seed) {
         const auto c = modernCurve(200.0f, seed);
-        CHECK(c.sag >= 0.75f * 56.0f - 0.01f); // base sag at 200 px: min(90, 12 + 0.22 * 200) = 56
-        CHECK(c.sag <= 1.25f * 56.0f + 0.01f);
-        CHECK(c.lean >= 0.05f);
-        CHECK(c.lean <= 0.25f);
+        CHECK(c.sag >= 0.4f * 56.0f - 0.01f); // base sag at 200 px: min(90, 12 + 0.22 * 200) = 56
+        CHECK(c.sag <= 1.6f * 56.0f + 0.01f);
+        CHECK(c.lean >= 0.0f);
+        CHECK(c.lean <= 0.35f);
         differs = differs || c.sag != base.sag || c.lean != base.lean;
     }
     CHECK(differs);
     CHECK(modernCurve(200.0f, 17).sag == modernCurve(200.0f, 17).sag); // the same seed, the same cable
-    CHECK(modernCurve(1000.0f, 0).sag <= 1.25f * 90.0f + 0.01f);      // the base sag stops at 90 px
+    CHECK(modernCurve(1000.0f, 0).sag <= 1.6f * 90.0f + 0.01f);      // the base sag stops at 90 px
 }
