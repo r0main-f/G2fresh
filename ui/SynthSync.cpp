@@ -1,5 +1,7 @@
 #include "SynthSync.h"
 
+#include "PerfSync.h"
+
 #include "ModulePainter.h"
 #include "Skin.h"
 
@@ -42,22 +44,6 @@ std::uint64_t nowMs()
 
 // The performance header as a 11 carries it, without what other messages
 // set: the slots' patch names (27 to each slot) and the focused slot (09).
-g2::file::PerfHeader settingsOf(g2::file::PerfHeader h)
-{
-    for (auto& slot : h.slots)
-        slot.patchName.clear();
-    h.focusedSlot = 0;
-    return h;
-}
-
-bool sameSettings(const g2::file::PerfHeader& a, const g2::file::PerfHeader& b)
-{
-    auto bytes = [](const g2::file::PerfHeader& h) {
-        return g2::file::encodeSection(g2::file::Section{g2::file::kPerfHeader, settingsOf(h), 0, {}});
-    };
-    return bytes(a) == bytes(b);
-}
-
 } // namespace
 
 SynthSync::SynthSync(PatchDocument& doc) : doc_(doc)
@@ -684,6 +670,18 @@ void SynthSync::performanceChanged()
     // and shows that slot's patch (CPerformance @00100582).
     // (Not the focus of a performance that is only auditioned.)
     if (ready() && binding_ == Binding::Performance && doc_.isPerformance() && audition_ != Audition::Performance) {
+        // Its settings (11) and name (29), changed on the synth, come into the document. What G2fresh knows the synth has
+        // is updated first, so the document's change is not sent back to it (PerfSync.h).
+        const auto& state = link_->state();
+        if (state.perfName != sentPerfName_) {
+            sentPerfName_ = state.perfName;
+            doc_.setPerformanceName(juce::String(state.perfName));
+        }
+        if (!sameSettings(state.perfHeader, sentPerf_)) {
+            takeSettings(sentPerf_, state.perfHeader);
+            const auto synthHeader = state.perfHeader;
+            doc_.editPerformance([&](g2::file::PerfHeader& h) { takeSettings(h, synthHeader); });
+        }
         const int focus = link_->state().slotFocus;
         if (focus < 4 && focus != sentFocus_) {
             sentFocus_ = focus;
