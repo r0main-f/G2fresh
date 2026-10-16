@@ -126,6 +126,7 @@ private:
     juce::Label slotPrefix_, name_, edited_;
     juce::Label variationLabel_{{}, "Variation"};
     juce::OwnedArray<juce::TextButton> variations_;
+    juce::TextButton varInit_{"Init"};
     juce::OwnedArray<juce::TextButton> slots_; // performance slots A-D
     juce::TextButton zoomOut_{"-"}, zoomReset_{"100%"}, zoomIn_{"+"};
     juce::TextButton randomizeButton_{"Randomize"}, mutatorButton_{"Mutator..."};
@@ -170,6 +171,7 @@ private:
     bool focusKeyPressed(g2ui::FocusKey key);
     void showFocus();
     void zoomToFit();
+    void recallVariationInit();
     void saveSelection();
     void insertPatchFile();
     void showFocusStatus();

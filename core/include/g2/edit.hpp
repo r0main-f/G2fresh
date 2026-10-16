@@ -319,6 +319,9 @@ bool hasCableBends(const Patch& patch);
 // Copies every value of a variation (modules, settings, morphs) to another.
 // Variation 8 is the "init" variation.
 void copyVariation(Patch& patch, u8 from, u8 to);
+// The toolbar's Init button ("recall variation init", CPatchToolbar::HandleChangeRequests @000f622a): the init
+// variation (8) copied into `variation`, as CMParamSettingCopy(8, variation).
+inline void recallVariationInit(Patch& patch, u8 variation) { copyVariation(patch, 8, variation); }
 
 // The audition variation: the original's patches have a tenth variation
 // (index 9), never saved in files, where the Patch Mutator plays the

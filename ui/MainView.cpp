@@ -25,6 +25,7 @@ enum MenuId {
     kRandomize, kMutate, kMutator,
     kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
     kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
+    kRecallInit,
     kRecentBase = 100,       // + index into the recent files list
     kCopyVariationBase = 200, // + target variation (8 = init)
     kCablesBase = 300,        // + cable colour
@@ -126,6 +127,10 @@ MainView::MainView(PatchDocument& doc, bool standalone)
         b->onClick = [this, i] { doc_.setVariation(i); };
         addAndMakeVisible(b);
     }
+    // The original's Init button beside the variations: the init variation into the one shown.
+    varInit_.setTooltip("Init: recall the variation init (the Init variation's values into this variation)");
+    varInit_.onClick = [this] { recallVariationInit(); };
+    addAndMakeVisible(varInit_);
     for (int i = 0; i < 4; ++i) {
         auto* b = slots_.add(new juce::TextButton(juce::String::charToString(static_cast<juce::juce_wchar>('A' + i))));
         b->setClickingTogglesState(true);
@@ -565,6 +570,7 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             variations.addItem(item(kCopyVariationBase + v, v < g2::kUserVariations ? "Variation " + juce::String(v + 1) : juce::String("Init"),
                                     {}, v != doc_.variation()));
         m.addSubMenu("Copy Variation " + juce::String(doc_.variation() + 1) + " To", variations);
+        m.addItem(item(kRecallInit, "Recall Init into Variation " + juce::String(doc_.variation() + 1)));
         const juce::String target = selected ? "Selected Modules" : "Variation " + juce::String(doc_.variation() + 1);
         m.addItem(item(kRandomize, "Randomize " + target));
         m.addItem(item(kMutate, "Mutate " + target));
@@ -825,6 +831,7 @@ void MainView::menuItemSelected(int id, int)
         break;
     case kSelectAll: activeArea().selectAll(); break;
     case kSaveSelection: saveSelection(); break;
+    case kRecallInit: recallVariationInit(); break;
     case kInsertPatch: insertPatchFile(); break;
     case kRemoveBendPoints:
         doc_.perform("Remove all bend points", [](g2::Patch& p) { g2::edit::clearCableBends(p); });
@@ -969,6 +976,13 @@ void MainView::setAnimation(bool on)
 }
 
 // ---- Zoom ----------------------------------------------------------------------
+
+void MainView::recallVariationInit()
+{
+    const auto to = static_cast<std::uint8_t>(doc_.variation());
+    doc_.perform("Recall Init", [&](g2::Patch& p) { g2::edit::recallVariationInit(p, to); });
+    setStatus("Recalled the Init variation into variation " + juce::String(to + 1));
+}
 
 void MainView::zoomToFit()
 {
@@ -1163,6 +1177,8 @@ void MainView::resized()
     bar.removeFromRight(4);
     morphGroup_.setBounds(bar.removeFromRight(150));
     bar.removeFromRight(16);
+    varInit_.setBounds(bar.removeFromRight(40));
+    bar.removeFromRight(4);
     for (int i = variations_.size(); --i >= 0;)
         variations_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
     variationLabel_.setBounds(bar.removeFromRight(textWidth(variationLabel_)));
