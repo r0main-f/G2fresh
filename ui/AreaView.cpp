@@ -1658,7 +1658,7 @@ void AreaView::showModuleMenu(std::uint8_t module)
         return;
     // The original's items and order, then G2fresh's own (ModuleMenu.h).
     using Id = ModuleMenuItem::Id;
-    enum { kColourBase = 100, kReplaceBase = 1000 };
+    enum { kColourBase = 100, kReplaceBase = 1000, kAssignBase = 2000, kAssignMultiBase = 2100 };
     const bool many = selection_.size() > 1;
     juce::PopupMenu colours;
     for (int c : ModulePainter::moduleColourMenuOrder()) {
@@ -1678,7 +1678,17 @@ void AreaView::showModuleMenu(std::uint8_t module)
             menu.addSeparator();
         else if (item.id == Id::Replace)
             menu.addSubMenu(item.label, replace, item.enabled && replace.getNumItems() > 1);
-        else if (item.id == Id::Colour)
+        else if (item.id == Id::Assign) {
+            juce::PopupMenu assign;
+            if (const auto* def = g2::db::find(m->type))
+                for (const auto& page : assignMenu(doc_.patch(), *def)) {
+                    juce::PopupMenu columns;
+                    for (const auto& a : page.items)
+                        columns.addItem((a.multi ? kAssignMultiBase : kAssignBase) + a.page, a.label);
+                    assign.addSubMenu(page.label, columns);
+                }
+            menu.addSubMenu(item.label, assign, item.enabled);
+        } else if (item.id == Id::Colour)
             menu.addSubMenu(many ? "Colour (selection)" : "Colour", colours);
         else
             menu.addItem(static_cast<int>(item.id), item.label, item.enabled, item.ticked);
@@ -1688,7 +1698,16 @@ void AreaView::showModuleMenu(std::uint8_t module)
             return;
         auto& self = *safe;
         const auto loc = self.location_;
-        if (result >= kReplaceBase) {
+        if (result >= kAssignBase && result < kAssignMultiBase + 15) {
+            const bool multi = result >= kAssignMultiBase;
+            const int page = result - (multi ? kAssignMultiBase : kAssignBase);
+            juce::String error;
+            if (!self.doc_.perform("Assign module to knobs",
+                                   [&](g2::Patch& p) { g2::edit::assignModuleToPage(p, loc, module, page, multi); }, &error))
+                self.status("Cannot assign: " + error);
+            else
+                self.status("Assigned to knobs from " + juce::String(g2::edit::knobName(page * g2::edit::kKnobsPerPage)));
+        } else if (result >= kReplaceBase) {
             const auto newType = static_cast<std::uint8_t>(result - kReplaceBase);
             std::uint8_t replaced = 0;
             juce::String error;

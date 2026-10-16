@@ -22,9 +22,9 @@ const ConnectorDef kInputs3[] = {
     {"In4", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams3[] = {
-    {"Dest", 0, 2, 0, true, 183, {255, 255}, "Dst_2", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Pad", 0, 1, 0, true, 180, {255, 255}, "Pad_1", false, true},
+    {"Dest", 0, 2, 0, true, 183, {255, 255}, "Dst_2", false, true, 0},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 1},
+    {"Pad", 0, 1, 0, true, 180, {255, 255}, "Pad_1", false, true, 255},
 };
 const std::uint8_t kEditOrder3[] = {0, 2, 1};
 const ConnectorDef kInputs4[] = {
@@ -32,9 +32,9 @@ const ConnectorDef kInputs4[] = {
     {"InR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams4[] = {
-    {"Dest", 0, 5, 0, true, 182, {255, 255}, "Dst_1", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Pad", 0, 1, 0, true, 180, {255, 255}, "Pad_1", false, true},
+    {"Dest", 0, 5, 0, true, 182, {255, 255}, "Dst_1", false, true, 0},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 1},
+    {"Pad", 0, 1, 0, true, 180, {255, 255}, "Pad_1", false, true, 255},
 };
 const std::uint8_t kEditOrder4[] = {0, 2, 1};
 const ConnectorDef kInputs5[] = {
@@ -46,22 +46,22 @@ const ConnectorDef kOutputs5[] = {
     {"Out2", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams6[] = {
-    {"Wheel", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
-    {"Vel", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
-    {"Keyb", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
-    {"Aft.Tch", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
-    {"Sust.Pd", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
-    {"Ctrl.Pd", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
-    {"P.Stick", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
-    {"G.Wh 2", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true},
-    {"Src Gr1", 0, 1, 1, false, 221, {255, 255}, nullptr, false, true},
-    {"Src Gr2", 0, 1, 1, false, 222, {255, 255}, nullptr, false, true},
-    {"Src Gr3", 0, 1, 1, false, 223, {255, 255}, nullptr, false, true},
-    {"Src Gr4", 0, 1, 1, false, 224, {255, 255}, nullptr, false, true},
-    {"Src Gr5", 0, 2, 1, false, 225, {255, 255}, nullptr, false, true},
-    {"Src Gr6", 0, 1, 1, false, 226, {255, 255}, nullptr, false, true},
-    {"Src Gr7", 0, 1, 1, false, 227, {255, 255}, nullptr, false, true},
-    {"Src Gr8", 0, 1, 1, false, 228, {255, 255}, nullptr, false, true},
+    {"Wheel", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true, 8},
+    {"Vel", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true, 9},
+    {"Keyb", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true, 10},
+    {"Aft.Tch", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true, 11},
+    {"Sust.Pd", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true, 12},
+    {"Ctrl.Pd", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true, 13},
+    {"P.Stick", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true, 14},
+    {"G.Wh 2", 0, 127, 0, false, 0, {255, 255}, nullptr, false, true, 15},
+    {"Src Gr1", 0, 1, 1, false, 221, {255, 255}, nullptr, false, true, 255},
+    {"Src Gr2", 0, 1, 1, false, 222, {255, 255}, nullptr, false, true, 255},
+    {"Src Gr3", 0, 1, 1, false, 223, {255, 255}, nullptr, false, true, 255},
+    {"Src Gr4", 0, 1, 1, false, 224, {255, 255}, nullptr, false, true, 255},
+    {"Src Gr5", 0, 2, 1, false, 225, {255, 255}, nullptr, false, true, 255},
+    {"Src Gr6", 0, 1, 1, false, 226, {255, 255}, nullptr, false, true, 255},
+    {"Src Gr7", 0, 1, 1, false, 227, {255, 255}, nullptr, false, true, 255},
+    {"Src Gr8", 0, 1, 1, false, 228, {255, 255}, nullptr, false, true, 255},
 };
 const std::uint8_t kEditOrder6[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 const ConnectorDef kInputs7[] = {
@@ -75,17 +75,17 @@ const ConnectorDef kOutputs7[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams7[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
-    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW", false, true},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Wave", 0, 4, 2, true, 156, {255, 255}, "OscBWaveForm", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true, 4},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 10},
+    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW", false, true, 255},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Wave", 0, 4, 2, true, 156, {255, 255}, "OscBWaveForm", false, true, 8},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 9},
+    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true, 255},
 };
 const std::uint8_t kEditOrder7[] = {0, 1, 3, 8, 6, 7, 5, 9, 10, 2, 4};
 const ConnectorDef kInputs8[] = {
@@ -99,16 +99,16 @@ const ConnectorDef kOutputs8[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams8[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
-    {"FM Amt", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW", false, true},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true, 4},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"FM Amt", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 9},
+    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW", false, true, 255},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 8},
+    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true, 255},
 };
 const std::uint8_t kEditOrder8[] = {0, 1, 3, 5, 6, 7, 8, 2, 9, 4};
 const ModeDef kModes8[] = {
@@ -124,14 +124,14 @@ const ConnectorDef kOutputs9[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams9[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
-    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true, 3},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 6},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 5},
+    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder9[] = {0, 1, 7, 4, 5, 6, 2, 3};
 const ModeDef kModes9[] = {
@@ -146,10 +146,10 @@ const ConnectorDef kOutputs12[] = {
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams12[] = {
-    {"Time", 0, 127, 64, true, 107, {128, 255}, "ReverbTime", false, true},
-    {"Bright", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Mix", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Time", 0, 127, 64, true, 107, {128, 255}, "ReverbTime", false, true, 255},
+    {"Bright", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Mix", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 3},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder12[] = {0, 1, 2, 3};
 const ModeDef kModes12[] = {
@@ -164,14 +164,14 @@ const ConnectorDef kOutputs13[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams13[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
-    {"Decay", 0, 127, 80, true, 0, {255, 255}, "Level_100", false, true},
-    {"Damp", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true, 4},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"Decay", 0, 127, 80, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Damp", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder13[] = {0, 1, 3, 5, 6, 7, 2, 4};
 const LabelDef kLabels15[] = {
@@ -192,7 +192,7 @@ const ConnectorDef kOutputs15[] = {
     {"Control", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams15[] = {
-    {"Source", 0, 7, 0, true, 64, {255, 255}, "sw_3_in", false, true},
+    {"Source", 0, 7, 0, true, 64, {255, 255}, "sw_3_in", false, true, 0},
 };
 const std::uint8_t kEditOrder15[] = {0};
 const ConnectorDef kInputs17[] = {
@@ -204,7 +204,7 @@ const ConnectorDef kOutputs17[] = {
     {"OutOff", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams17[] = {
-    {"Value", 0, 63, 0, true, 114, {255, 255}, "ValSwVal", false, true},
+    {"Value", 0, 63, 0, true, 114, {255, 255}, "ValSwVal", false, true, 255},
 };
 const std::uint8_t kEditOrder17[] = {0};
 const ConnectorDef kInputs18[] = {
@@ -216,9 +216,9 @@ const ConnectorDef kOutputs18[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams18[] = {
-    {"XFadeM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"XFade", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
-    {"Log/Lin", 0, 1, 0, true, 157, {255, 255}, "LogLin", false, true},
+    {"XFadeM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"XFade", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true, 2},
+    {"Log/Lin", 0, 1, 0, true, 157, {255, 255}, "LogLin", false, true, 255},
 };
 const std::uint8_t kEditOrder18[] = {1, 0, 2};
 const ConnectorDef kInputs19[] = {
@@ -232,11 +232,11 @@ const ConnectorDef kOutputs19[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams19[] = {
-    {"Level 1", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
-    {"Level 2", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
-    {"Level 3", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
-    {"Level 4", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+    {"Level 1", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true, 255},
+    {"Level 2", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true, 255},
+    {"Level 3", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true, 255},
+    {"Level 4", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true, 255},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true, 255},
 };
 const std::uint8_t kEditOrder19[] = {0, 1, 2, 3, 4};
 const ConnectorDef kInputs20[] = {
@@ -249,14 +249,14 @@ const ConnectorDef kOutputs20[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams20[] = {
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Sustain", 0, 127, 100, true, 16, {255, 255}, "EnvLevel", false, true},
-    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
-    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv", false, true},
-    {"KBG", 0, 1, 1, true, 47, {255, 255}, "OffOn", false, true},
-    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true, 5},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true, 7},
+    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Sustain", 0, 127, 100, true, 16, {255, 255}, "EnvLevel", false, true, 255},
+    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv", false, true, 255},
+    {"KBG", 0, 1, 1, true, 47, {255, 255}, "OffOn", false, true, 255},
+    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true, 255},
 };
 const std::uint8_t kEditOrder20[] = {1, 2, 3, 4, 5, 6, 7, 0};
 const ConnectorDef kInputs21[] = {
@@ -280,7 +280,7 @@ const ConnectorDef kOutputs22[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams22[] = {
-    {"Range", 0, 127, 127, true, 68, {255, 255}, "PartialRange", false, true},
+    {"Range", 0, 127, 127, true, 68, {255, 255}, "PartialRange", false, true, 255},
 };
 const std::uint8_t kEditOrder22[] = {0};
 const ConnectorDef kInputs23[] = {
@@ -297,16 +297,16 @@ const ConnectorDef kOutputs23[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams23[] = {
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Sustain", 0, 127, 100, true, 16, {255, 255}, "EnvLevel", false, true},
-    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Atk M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Dcy M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Sust M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Rel M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv", false, true},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Sustain", 0, 127, 100, true, 16, {255, 255}, "EnvLevel", false, true, 255},
+    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Atk M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Dcy M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Sust M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Rel M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv", false, true, 255},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder23[] = {0, 4, 1, 5, 2, 6, 3, 7, 8, 9};
 const ConnectorDef kInputs24[] = {
@@ -316,11 +316,11 @@ const ConnectorDef kOutputs24[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams24[] = {
-    {"Rate", 0, 127, 64, true, 103, {3, 255}, "LfoRate_3", false, true},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true},
-    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Rate", 0, 127, 64, true, 103, {3, 255}, "LfoRate_3", false, true, 3},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true, 1},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true, 2},
+    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 4},
 };
 const std::uint8_t kEditOrder24[] = {0, 1, 2, 4, 3};
 const ModeDef kModes24[] = {
@@ -339,18 +339,18 @@ const ConnectorDef kOutputs25[] = {
     {"Snc", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams25[] = {
-    {"Rate", 0, 127, 64, true, 103, {1, 255}, "LfoRate_4", false, true},
-    {"Range", 0, 4, 1, true, 104, {255, 255}, "LfoRange_4", false, true},
-    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Shape", 0, 127, 64, true, 128, {255, 255}, "LfoShpAPW", false, true},
-    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Phase", 0, 127, 0, true, 163, {255, 255}, "Phase", false, true},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true},
-    {"Wave", 0, 5, 0, true, 165, {255, 255}, "LfoShpA__WaveForm", false, true},
+    {"Rate", 0, 127, 64, true, 103, {1, 255}, "LfoRate_4", false, true, 1},
+    {"Range", 0, 4, 1, true, 104, {255, 255}, "LfoRange_4", false, true, 255},
+    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true, 2},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 4},
+    {"Shape", 0, 127, 64, true, 128, {255, 255}, "LfoShpAPW", false, true, 255},
+    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Phase", 0, 127, 0, true, 163, {255, 255}, "Phase", false, true, 255},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true, 9},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true, 10},
+    {"Wave", 0, 5, 0, true, 165, {255, 255}, "LfoShpA__WaveForm", false, true, 255},
 };
 const std::uint8_t kEditOrder25[] = {0, 3, 11, 2, 9, 5, 8, 7, 6, 10, 4, 1};
 const ConnectorDef kInputs26[] = {
@@ -361,14 +361,14 @@ const ConnectorDef kOutputs26[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams26[] = {
-    {"Rate", 0, 127, 64, true, 103, {7, 255}, "LfoRate_3", false, true},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
-    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Wave", 0, 5, 0, true, 106, {255, 255}, "LfoA_WaveForm", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true},
-    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true},
+    {"Rate", 0, 127, 64, true, 103, {7, 255}, "LfoRate_3", false, true, 7},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true, 1},
+    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true, 2},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Wave", 0, 5, 0, true, 106, {255, 255}, "LfoA_WaveForm", false, true, 4},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 5},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true, 6},
+    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true, 255},
 };
 const std::uint8_t kEditOrder26[] = {0, 3, 4, 2, 1, 6, 5, 7};
 const ConnectorDef kInputs27[] = {
@@ -379,11 +379,11 @@ const ConnectorDef kOutputs27[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams27[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Tune Md", 0, 2, 0, true, 63, {255, 255}, "FreqMode_2", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true, 3},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Tune Md", 0, 2, 0, true, 63, {255, 255}, "FreqMode_2", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder27[] = {0, 1, 2, 3, 4};
 const ConnectorDef kInputs28[] = {
@@ -394,10 +394,10 @@ const ConnectorDef kOutputs28[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams28[] = {
-    {"Sat", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Sat M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"Curve", 0, 3, 0, true, 2, {255, 255}, "SaturateCurve", false, true},
+    {"Sat", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Sat M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"Curve", 0, 3, 0, true, 2, {255, 255}, "SaturateCurve", false, true, 255},
 };
 const std::uint8_t kEditOrder28[] = {0, 1, 3, 2};
 const ConnectorDef kInputs29[] = {
@@ -408,11 +408,11 @@ const ConnectorDef kOutputs29[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams29[] = {
-    {"Color", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Freq", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"ColorM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Color", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Freq", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 255},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"ColorM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder29[] = {1, 0, 2, 3, 4};
 const ConnectorDef kOutputs30[] = {
@@ -428,8 +428,8 @@ const ConnectorDef kOutputs31[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams31[] = {
-    {"Color", 0, 127, 0, true, 0, {255, 255}, "NoiseColor", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Color", 0, 127, 0, true, 0, {255, 255}, "NoiseColor", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder31[] = {0, 1};
 const ConnectorDef kInputs32[] = {
@@ -439,12 +439,12 @@ const ConnectorDef kOutputs32[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams32[] = {
-    {"Lo Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
-    {"Hi Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
-    {"Level", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"Lo Freq", 0, 2, 0, true, 213, {255, 255}, "EqLoFreq", false, true},
-    {"Hi Freq", 0, 2, 2, true, 214, {255, 255}, "EqHiFreq", false, true},
+    {"Lo Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true, 4},
+    {"Hi Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true, 5},
+    {"Level", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"Lo Freq", 0, 2, 0, true, 213, {255, 255}, "EqLoFreq", false, true, 255},
+    {"Hi Freq", 0, 2, 2, true, 214, {255, 255}, "EqHiFreq", false, true, 255},
 };
 const std::uint8_t kEditOrder32[] = {0, 4, 1, 5, 2, 3};
 const ConnectorDef kInputs33[] = {
@@ -454,14 +454,14 @@ const ConnectorDef kOutputs33[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams33[] = {
-    {"Lo", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
-    {"Mid", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
-    {"Mid Frq", 0, 127, 93, true, 184, {255, 255}, "EqMidFreq", false, true},
-    {"Hi", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
-    {"Level", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"Lo Freq", 0, 2, 0, true, 213, {255, 255}, "EqLoFreq", false, true},
-    {"Hi Freq", 0, 2, 2, true, 214, {255, 255}, "EqHiFreq", false, true},
+    {"Lo", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true, 6},
+    {"Mid", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true, 255},
+    {"Mid Frq", 0, 127, 93, true, 184, {255, 255}, "EqMidFreq", false, true, 255},
+    {"Hi", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true, 7},
+    {"Level", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"Lo Freq", 0, 2, 0, true, 213, {255, 255}, "EqLoFreq", false, true, 255},
+    {"Hi Freq", 0, 2, 2, true, 214, {255, 255}, "EqHiFreq", false, true, 255},
 };
 const std::uint8_t kEditOrder33[] = {0, 6, 1, 2, 3, 7, 4, 5};
 const ConnectorDef kInputs34[] = {
@@ -472,10 +472,10 @@ const ConnectorDef kOutputs34[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams34[] = {
-    {"Shape", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"Curve", 0, 3, 0, true, 192, {255, 255}, "ShpExpCurve", false, true},
+    {"Shape", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"Curve", 0, 3, 0, true, 192, {255, 255}, "ShpExpCurve", false, true, 255},
 };
 const std::uint8_t kEditOrder34[] = {0, 1, 3, 2};
 const ConnectorDef kInputs35[] = {
@@ -486,8 +486,8 @@ const ConnectorDef kOutputs35[] = {
     {"Out1", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams35[] = {
-    {"Embouch", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
-    {"Stiffn", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
+    {"Embouch", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true, 255},
+    {"Stiffn", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true, 255},
 };
 const ModeDef kModes35[] = {
     {"Driver T", 0, 3, 0, 0, "Driver_range"},
@@ -503,7 +503,7 @@ const ConnectorDef kOutputs36[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams36[] = {
-    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
+    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true, 0},
 };
 const std::uint8_t kEditOrder36[] = {0};
 const ConnectorDef kInputs38[] = {
@@ -514,9 +514,9 @@ const ConnectorDef kOutputs38[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams38[] = {
-    {"Time", 0, 127, 1, true, 122, {2, 255}, "LogicTime", false, true},
-    {"Time M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Range", 0, 2, 0, true, 30, {255, 255}, "LogicRange", false, true},
+    {"Time", 0, 127, 1, true, 122, {2, 255}, "LogicTime", false, true, 2},
+    {"Time M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Range", 0, 2, 0, true, 30, {255, 255}, "LogicRange", false, true, 255},
 };
 const std::uint8_t kEditOrder38[] = {0, 1, 2};
 const ModeDef kModes38[] = {
@@ -537,16 +537,16 @@ const ConnectorDef kOutputs40[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams40[] = {
-    {"Level 1", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 2", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 3", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 4", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 5", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 6", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 7", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 8", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
-    {"Pad", 0, 2, 0, true, 188, {255, 255}, "Pad_3", false, true},
+    {"Level 1", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 255},
+    {"Level 2", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 255},
+    {"Level 3", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 255},
+    {"Level 4", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 255},
+    {"Level 5", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 255},
+    {"Level 6", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 255},
+    {"Level 7", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 255},
+    {"Level 8", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 255},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true, 255},
+    {"Pad", 0, 2, 0, true, 188, {255, 255}, "Pad_3", false, true, 255},
 };
 const std::uint8_t kEditOrder40[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 const ConnectorDef kInputs41[] = {
@@ -559,8 +559,8 @@ const ConnectorDef kOutputs41[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams41[] = {
-    {"HldTime", 0, 127, 32, true, 28, {255, 255}, "EnvTime", false, true},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
+    {"HldTime", 0, 127, 32, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true, 1},
 };
 const std::uint8_t kEditOrder41[] = {0, 1};
 const ConnectorDef kInputs42[] = {
@@ -571,9 +571,9 @@ const ConnectorDef kOutputs42[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams42[] = {
-    {"Time", 0, 127, 64, true, 122, {2, 255}, "LogicTime", false, true},
-    {"Time M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Range", 0, 2, 1, true, 30, {255, 255}, "LogicRange", false, true},
+    {"Time", 0, 127, 64, true, 122, {2, 255}, "LogicTime", false, true, 2},
+    {"Time M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Range", 0, 2, 1, true, 30, {255, 255}, "LogicRange", false, true, 255},
 };
 const std::uint8_t kEditOrder42[] = {0, 1, 2};
 const ModeDef kModes42[] = {
@@ -583,8 +583,8 @@ const ConnectorDef kOutputs43[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams43[] = {
-    {"Level", 0, 127, 64, true, 96, {1, 255}, "LevBipUni", false, true},
-    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni", false, true},
+    {"Level", 0, 127, 64, true, 96, {1, 255}, "LevBipUni", false, true, 1},
+    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni", false, true, 255},
 };
 const std::uint8_t kEditOrder43[] = {0, 1};
 const ConnectorDef kInputs44[] = {
@@ -603,16 +603,16 @@ const ConnectorDef kOutputs45[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams45[] = {
-    {"Vowel 1", 0, 8, 0, true, 78, {255, 255}, "Vowel", false, true},
-    {"Vowel 2", 0, 8, 1, true, 78, {255, 255}, "Vowel", false, true},
-    {"Vowel 3", 0, 8, 2, true, 78, {255, 255}, "Vowel", false, true},
-    {"Level", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
-    {"Nav", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Nav M", 0, 127, 0, true, 0, {255, 255}, "Bipolar_127", false, true},
-    {"Freq", 0, 127, 64, true, 17, {255, 255}, "Level_100", false, true},
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Bipolar_127", false, true},
-    {"Res", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Vowel 1", 0, 8, 0, true, 78, {255, 255}, "Vowel", false, true, 255},
+    {"Vowel 2", 0, 8, 1, true, 78, {255, 255}, "Vowel", false, true, 255},
+    {"Vowel 3", 0, 8, 2, true, 78, {255, 255}, "Vowel", false, true, 255},
+    {"Level", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Nav", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Nav M", 0, 127, 0, true, 0, {255, 255}, "Bipolar_127", false, true, 255},
+    {"Freq", 0, 127, 64, true, 17, {255, 255}, "Level_100", false, true, 255},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Bipolar_127", false, true, 255},
+    {"Res", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder45[] = {6, 7, 0, 1, 2, 8, 4, 5, 3, 9};
 const ConnectorDef kInputs46[] = {
@@ -625,13 +625,13 @@ const ConnectorDef kOutputs46[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams46[] = {
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Hold", 0, 127, 32, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Trigged", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
-    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true, 5},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true, 3},
+    {"Hold", 0, 127, 32, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Trigged", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true, 255},
+    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true, 255},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder46[] = {1, 2, 4, 5, 6, 3, 0};
 const ConnectorDef kInputs47[] = {
@@ -643,9 +643,9 @@ const ConnectorDef kOutputs47[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams47[] = {
-    {"Pan M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Pan", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
-    {"Log/Lin", 0, 1, 0, true, 157, {255, 255}, "LogLin", false, true},
+    {"Pan M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Pan", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true, 2},
+    {"Log/Lin", 0, 1, 0, true, 157, {255, 255}, "LogLin", false, true, 255},
 };
 const std::uint8_t kEditOrder47[] = {1, 0, 2};
 const ConnectorDef kInputs48[] = {
@@ -661,19 +661,19 @@ const ConnectorDef kOutputs48[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams48[] = {
-    {"Lvl 1", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
-    {"Lvl 2", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
-    {"Lvl 3", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
-    {"Lvl 4", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
-    {"Lvl 5", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
-    {"Lvl 6", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
-    {"Pan 1", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
-    {"Pan 2", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
-    {"Pan 3", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
-    {"Pan 4", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
-    {"Pan 5", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
-    {"Pan 6", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true},
-    {"Master", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true},
+    {"Lvl 1", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Lvl 2", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Lvl 3", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Lvl 4", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Lvl 5", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Lvl 6", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Pan 1", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true, 255},
+    {"Pan 2", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true, 255},
+    {"Pan 3", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true, 255},
+    {"Pan 4", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true, 255},
+    {"Pan 5", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true, 255},
+    {"Pan 6", 0, 127, 64, true, 19, {255, 255}, "Bipolar_127", false, true, 255},
+    {"Master", 0, 127, 100, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder48[] = {0, 6, 1, 7, 2, 8, 3, 9, 4, 10, 5, 11, 12};
 const ConnectorDef kInputs49[] = {
@@ -687,13 +687,13 @@ const ConnectorDef kOutputs49[] = {
     {"HP", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams49[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
-    {"Freq M", 0, 127, 0, true, 191, {255, 255}, "Level_200", false, true},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
-    {"GComp", 0, 1, 1, true, 72, {255, 255}, "GcOffOn", false, true},
-    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1", false, true},
-    {"dB/Oct", 0, 1, 1, true, 73, {255, 255}, "FltSlope_1", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true, 2},
+    {"Freq M", 0, 127, 0, true, 191, {255, 255}, "Level_200", false, true, 255},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true, 255},
+    {"GComp", 0, 1, 1, true, 72, {255, 255}, "GcOffOn", false, true, 255},
+    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1", false, true, 3},
+    {"dB/Oct", 0, 1, 1, true, 73, {255, 255}, "FltSlope_1", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder49[] = {0, 1, 4, 5, 6, 2, 3};
 const LabelDef kLabels50[] = {
@@ -703,9 +703,9 @@ const ConnectorDef kOutputs50[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams50[] = {
-    {"Value", 0, 127, 64, true, 96, {2, 255}, "LevBipUni", false, true},
-    {"State", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
-    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni", false, true},
+    {"Value", 0, 127, 64, true, 96, {2, 255}, "LevBipUni", false, true, 1},
+    {"State", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni", false, true, 255},
 };
 const std::uint8_t kEditOrder50[] = {0, 2, 1};
 const ConnectorDef kInputs51[] = {
@@ -719,16 +719,16 @@ const ConnectorDef kOutputs51[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams51[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
-    {"Pitch M", 0, 127, 0, true, 191, {255, 255}, "Level_200", false, true},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
-    {"GComp", 0, 1, 1, true, 72, {255, 255}, "GcOffOn", false, true},
-    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1", false, true},
-    {"dB/Oct", 0, 1, 1, true, 74, {255, 255}, "FltSlope_2", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"FrqLinM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Type", 0, 3, 0, true, 75, {255, 255}, "LpBpHpBr", false, true},
-    {"Res M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true, 2},
+    {"Pitch M", 0, 127, 0, true, 191, {255, 255}, "Level_200", false, true, 255},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true, 255},
+    {"GComp", 0, 1, 1, true, 72, {255, 255}, "GcOffOn", false, true, 255},
+    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1", false, true, 3},
+    {"dB/Oct", 0, 1, 1, true, 74, {255, 255}, "FltSlope_2", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"FrqLinM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Type", 0, 3, 0, true, 75, {255, 255}, "LpBpHpBr", false, true, 255},
+    {"Res M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder51[] = {0, 1, 7, 8, 4, 9, 5, 6, 2, 3};
 const ConnectorDef kInputs52[] = {
@@ -741,19 +741,19 @@ const ConnectorDef kOutputs52[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams52[] = {
-    {"Level 1", 0, 127, 127, true, 137, {10, 255}, "EnvLevel", false, true},
-    {"Level 2", 0, 127, 45, true, 137, {10, 255}, "EnvLevel", false, true},
-    {"Level 3", 0, 127, 64, true, 137, {10, 255}, "EnvLevel", false, true},
-    {"Level 4", 0, 127, 0, true, 137, {10, 255}, "EnvLevel", false, true},
-    {"Time 1", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Time 2", 0, 127, 30, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Time 3", 0, 127, 30, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Time 4", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
-    {"SusPlac", 0, 3, 2, true, 50, {255, 255}, "SustainMode_2", false, true},
-    {"OutType", 0, 4, 0, true, 46, {255, 255}, "PosNegInvBip", false, true},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
+    {"Level 1", 0, 127, 127, true, 137, {10, 255}, "EnvLevel", false, true, 255},
+    {"Level 2", 0, 127, 45, true, 137, {10, 255}, "EnvLevel", false, true, 255},
+    {"Level 3", 0, 127, 64, true, 137, {10, 255}, "EnvLevel", false, true, 255},
+    {"Level 4", 0, 127, 0, true, 137, {10, 255}, "EnvLevel", false, true, 255},
+    {"Time 1", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true, 8},
+    {"Time 2", 0, 127, 30, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Time 3", 0, 127, 30, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Time 4", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true, 255},
+    {"SusPlac", 0, 3, 2, true, 50, {255, 255}, "SustainMode_2", false, true, 255},
+    {"OutType", 0, 4, 0, true, 46, {255, 255}, "PosNegInvBip", false, true, 255},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true, 10},
 };
 const std::uint8_t kEditOrder52[] = {4, 0, 5, 1, 6, 2, 7, 3, 8, 9, 10, 11, 12};
 const ConnectorDef kInputs53[] = {
@@ -770,11 +770,11 @@ const ConnectorDef kOutputs54[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams54[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
-    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1", false, true},
-    {"Type", 0, 2, 0, true, 75, {255, 255}, "LpBpHp", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"GComp", 0, 1, 0, true, 72, {255, 255}, "GcOffOn", false, true},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true, 255},
+    {"Res", 0, 127, 0, true, 124, {255, 255}, "Res_1", false, true, 255},
+    {"Type", 0, 2, 0, true, 75, {255, 255}, "LpBpHp", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"GComp", 0, 1, 0, true, 72, {255, 255}, "GcOffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder54[] = {0, 1, 2, 3, 4};
 const ConnectorDef kInputs55[] = {
@@ -787,8 +787,8 @@ const ConnectorDef kOutputs55[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams55[] = {
-    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
+    {"Decay", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true, 1},
 };
 const std::uint8_t kEditOrder55[] = {0, 1};
 const ConnectorDef kInputs56[] = {
@@ -801,16 +801,16 @@ const ConnectorDef kOutputs56[] = {
     {"Out2", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams56[] = {
-    {"Course", 0, 127, 64, false, 61, {255, 255}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, false, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, false, 26, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, false, 0, {255, 255}, "Level_100", false, true},
-    {"Tune Md", 0, 3, 0, false, 63, {255, 255}, "FreqMode_3", false, true},
-    {"Decay", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
-    {"Damp", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
-    {"On/Off", 0, 1, 1, false, 7, {255, 255}, "OffOn", false, true},
-    {"Pos", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true},
-    {"Algorithm", 0, 4, 0, false, 0, {255, 255}, "reson_alg", false, true},
+    {"Course", 0, 127, 64, false, 61, {255, 255}, "FreqCoarse", false, true, 255},
+    {"Fine", 0, 127, 64, false, 59, {255, 255}, "FreqFine", false, true, 255},
+    {"KBT", 0, 1, 1, false, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Pitch M", 0, 127, 0, false, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Tune Md", 0, 3, 0, false, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"Decay", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true, 255},
+    {"Damp", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true, 255},
+    {"On/Off", 0, 1, 1, false, 7, {255, 255}, "OffOn", false, true, 255},
+    {"Pos", 0, 127, 0, false, 0, {255, 255}, "EnvLevel", false, true, 255},
+    {"Algorithm", 0, 4, 0, false, 0, {255, 255}, "reson_alg", false, true, 255},
 };
 const ConnectorDef kInputs57[] = {
     {"In", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
@@ -819,10 +819,10 @@ const ConnectorDef kOutputs57[] = {
     {"Out", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams57[] = {
-    {"Control", 0, 127, 7, false, 179, {255, 255}, "MidiData", false, false},
-    {"Value", 0, 127, 64, true, 179, {255, 255}, "MidiData", false, false},
-    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true},
-    {"Echo", 0, 1, 0, false, 211, {255, 255}, "OffOn", false, true},
+    {"Control", 0, 127, 7, false, 179, {255, 255}, "MidiData", false, false, 255},
+    {"Value", 0, 127, 64, true, 179, {255, 255}, "MidiData", false, false, 255},
+    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true, 255},
+    {"Echo", 0, 1, 0, false, 211, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder57[] = {0, 1, 2, 3};
 const ConnectorDef kInputs58[] = {
@@ -834,22 +834,22 @@ const ConnectorDef kOutputs58[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams58[] = {
-    {"MstTune", 0, 127, 42, true, 22, {255, 255}, "DrumSynthFreq", false, true},
-    {"SlvTune", 0, 127, 15, true, 23, {255, 255}, "DrumSynthRatio", false, true},
-    {"MstDcy", 0, 127, 46, true, 28, {255, 255}, "EnvTime", false, true},
-    {"SlvDcy", 0, 127, 50, true, 28, {255, 255}, "EnvTime", false, true},
-    {"MstLvl", 0, 127, 120, true, 0, {255, 255}, "Level_100", false, true},
-    {"SlvLvl", 0, 127, 102, true, 0, {255, 255}, "Level_100", false, true},
-    {"FltFreq", 0, 127, 57, true, 21, {255, 255}, "DrumSynthNoiseFlt", false, true},
-    {"FltRes", 0, 127, 32, true, 0, {255, 255}, "Level_100", false, true},
-    {"FltSwp", 0, 127, 39, true, 0, {255, 255}, "Level_100", false, true},
-    {"FltDcy", 0, 127, 49, true, 28, {255, 255}, "EnvTime", false, true},
-    {"FltType", 0, 2, 1, true, 218, {255, 255}, "LpBpHp", false, true},
-    {"BendAmt", 0, 127, 68, true, 0, {255, 255}, "Level_100", false, true},
-    {"BendDcy", 0, 127, 61, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Click", 0, 127, 79, true, 0, {255, 255}, "Level_100", false, true},
-    {"Noise", 0, 127, 115, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"MstTune", 0, 127, 42, true, 22, {255, 255}, "DrumSynthFreq", false, true, 255},
+    {"SlvTune", 0, 127, 15, true, 23, {255, 255}, "DrumSynthRatio", false, true, 255},
+    {"MstDcy", 0, 127, 46, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"SlvDcy", 0, 127, 50, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"MstLvl", 0, 127, 120, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"SlvLvl", 0, 127, 102, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"FltFreq", 0, 127, 57, true, 21, {255, 255}, "DrumSynthNoiseFlt", false, true, 255},
+    {"FltRes", 0, 127, 32, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"FltSwp", 0, 127, 39, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"FltDcy", 0, 127, 49, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"FltType", 0, 2, 1, true, 218, {255, 255}, "LpBpHp", false, true, 255},
+    {"BendAmt", 0, 127, 68, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"BendDcy", 0, 127, 61, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Click", 0, 127, 79, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Noise", 0, 127, 115, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder58[] = {0, 2, 4, 1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 const ConnectorDef kInputs59[] = {
@@ -859,7 +859,7 @@ const ConnectorDef kOutputs59[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams59[] = {
-    {"Level", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
+    {"Level", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true, 255},
 };
 const std::uint8_t kEditOrder59[] = {0};
 const ConnectorDef kInputs60[] = {
@@ -877,7 +877,7 @@ const ConnectorDef kOutputs60[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams60[] = {
-    {"X-Fade", 0, 127, 0, true, 56, {255, 255}, "Level_100", false, true},
+    {"X-Fade", 0, 127, 0, true, 56, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder60[] = {0};
 const ConnectorDef kInputs61[] = {
@@ -888,10 +888,10 @@ const ConnectorDef kOutputs61[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams61[] = {
-    {"Clip M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Clip", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Shape", 0, 1, 0, true, 82, {255, 255}, "ClipShape", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Clip M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Clip", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Shape", 0, 1, 0, true, 82, {255, 255}, "ClipShape", false, true, 2},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 3},
 };
 const std::uint8_t kEditOrder61[] = {1, 0, 2, 3};
 const ConnectorDef kInputs62[] = {
@@ -902,11 +902,11 @@ const ConnectorDef kOutputs62[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams62[] = {
-    {"Drive M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Drive", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"Type", 0, 3, 0, false, 167, {255, 255}, "OverdriveType", false, true},
-    {"Shape", 0, 1, 1, true, 168, {255, 255}, "ClipShape", false, true},
+    {"Drive M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Drive", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 2},
+    {"Type", 0, 3, 0, false, 167, {255, 255}, "OverdriveType", false, true, 255},
+    {"Shape", 0, 1, 1, true, 168, {255, 255}, "ClipShape", false, true, 255},
 };
 const std::uint8_t kEditOrder62[] = {1, 0, 3, 4, 2};
 const ConnectorDef kInputs63[] = {
@@ -917,10 +917,10 @@ const ConnectorDef kOutputs63[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams63[] = {
-    {"P Ratio", 0, 127, 80, true, 209, {255, 255}, "ScratchRatio", false, true},
-    {"Ratio M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Delay", 0, 3, 2, true, 202, {255, 255}, "ScratchDelay", false, true},
-    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"P Ratio", 0, 127, 80, true, 209, {255, 255}, "ScratchRatio", false, true, 255},
+    {"Ratio M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Delay", 0, 3, 2, true, 202, {255, 255}, "ScratchDelay", false, true, 255},
+    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder63[] = {0, 1, 2, 3};
 const ConnectorDef kInputs64[] = {
@@ -946,11 +946,11 @@ const ConnectorDef kOutputs66[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams66[] = {
-    {"Inv 1", 0, 1, 0, true, 5, {255, 255}, "MixInvert", false, true},
-    {"Gain 1", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
-    {"Inv 2", 0, 1, 0, true, 5, {255, 255}, "MixInvert", false, true},
-    {"Gain 2", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+    {"Inv 1", 0, 1, 0, true, 5, {255, 255}, "MixInvert", false, true, 255},
+    {"Gain 1", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true, 255},
+    {"Inv 2", 0, 1, 0, true, 5, {255, 255}, "MixInvert", false, true, 255},
+    {"Gain 2", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true, 255},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true, 255},
 };
 const std::uint8_t kEditOrder66[] = {1, 0, 3, 2, 4};
 const ConnectorDef kInputs68[] = {
@@ -963,11 +963,11 @@ const ConnectorDef kOutputs68[] = {
     {"Sync", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams68[] = {
-    {"Tempo", 0, 127, 64, true, 110, {1, 2}, "RateBpm", false, true},
-    {"On/Off", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Source", 0, 1, 0, true, 187, {255, 255}, "InternalMaster", false, true},
-    {"Sync", 0, 5, 2, true, 166, {255, 255}, "ClkGenBeatSync", false, true},
-    {"Swing", 0, 127, 0, true, 190, {255, 255}, "ClkGenSwing", false, true},
+    {"Tempo", 0, 127, 64, true, 110, {1, 2}, "RateBpm", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 1},
+    {"Source", 0, 1, 0, true, 187, {255, 255}, "InternalMaster", false, true, 2},
+    {"Sync", 0, 5, 2, true, 166, {255, 255}, "ClkGenBeatSync", false, true, 255},
+    {"Swing", 0, 127, 0, true, 190, {255, 255}, "ClkGenSwing", false, true, 255},
 };
 const std::uint8_t kEditOrder68[] = {0, 3, 1, 2, 4};
 const ConnectorDef kInputs69[] = {
@@ -978,7 +978,7 @@ const ConnectorDef kOutputs69[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams69[] = {
-    {"Divider", 0, 127, 0, true, 2, {255, 255}, "Range_128", false, true},
+    {"Divider", 0, 127, 0, true, 2, {255, 255}, "Range_128", false, true, 255},
 };
 const std::uint8_t kEditOrder69[] = {0};
 const ModeDef kModes69[] = {
@@ -991,8 +991,8 @@ const ConnectorDef kOutputs71[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams71[] = {
-    {"Attack", 0, 127, 0, true, 129, {255, 255}, "EnvFollowAttack", false, true},
-    {"Release", 0, 127, 20, true, 130, {255, 255}, "EnvFollowRelease", false, true},
+    {"Attack", 0, 127, 0, true, 129, {255, 255}, "EnvFollowAttack", false, true, 255},
+    {"Release", 0, 127, 20, true, 130, {255, 255}, "EnvFollowRelease", false, true, 255},
 };
 const std::uint8_t kEditOrder71[] = {0, 1};
 const ConnectorDef kInputs72[] = {
@@ -1002,7 +1002,7 @@ const ConnectorDef kOutputs72[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams72[] = {
-    {"Range", 0, 127, 0, true, 69, {255, 255}, "NoteRange", false, true},
+    {"Range", 0, 127, 0, true, 69, {255, 255}, "NoteRange", false, true, 255},
 };
 const std::uint8_t kEditOrder72[] = {0};
 const ConnectorDef kInputs74[] = {
@@ -1013,9 +1013,9 @@ const ConnectorDef kOutputs74[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams74[] = {
-    {"Wrap M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"WrpGain", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Wrap M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"WrpGain", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 2},
 };
 const std::uint8_t kEditOrder74[] = {1, 0, 2};
 const ConnectorDef kInputs75[] = {
@@ -1025,8 +1025,8 @@ const ConnectorDef kOutputs75[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams75[] = {
-    {"Range", 0, 127, 127, true, 35, {255, 255}, "NoteRange", false, true},
-    {"Notes", 0, 127, 0, true, 11, {255, 255}, "NoteQuantNotes", false, true},
+    {"Range", 0, 127, 127, true, 35, {255, 255}, "NoteRange", false, true, 255},
+    {"Notes", 0, 127, 0, true, 11, {255, 255}, "NoteQuantNotes", false, true, 255},
 };
 const std::uint8_t kEditOrder75[] = {0, 1};
 const LabelDef kLabels76[] = {
@@ -1040,7 +1040,7 @@ const ConnectorDef kOutputs76[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams76[] = {
-    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
+    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true, 0},
 };
 const std::uint8_t kEditOrder76[] = {0};
 const LabelDef kLabels78[] = {
@@ -1061,7 +1061,7 @@ const ConnectorDef kOutputs78[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams78[] = {
-    {"Dest", 0, 7, 0, true, 64, {255, 255}, "sw_3_in", false, true},
+    {"Dest", 0, 7, 0, true, 64, {255, 255}, "sw_3_in", false, true, 0},
 };
 const std::uint8_t kEditOrder78[] = {0};
 const LabelDef kLabels79[] = {
@@ -1078,7 +1078,7 @@ const ConnectorDef kOutputs79[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams79[] = {
-    {"Source", 0, 3, 0, true, 64, {255, 255}, "sw_2_in", false, true},
+    {"Source", 0, 3, 0, true, 64, {255, 255}, "sw_2_in", false, true, 255},
 };
 const std::uint8_t kEditOrder79[] = {0};
 const ConnectorDef kInputs81[] = {
@@ -1088,8 +1088,8 @@ const ConnectorDef kOutputs81[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams81[] = {
-    {"Gain", 0, 127, 64, true, 147, {1, 255}, "LevAmpGain", false, true},
-    {"Type", 0, 1, 0, true, 148, {255, 255}, "LinDB", false, true},
+    {"Gain", 0, 127, 64, true, 147, {1, 255}, "LevAmpGain", false, true, 255},
+    {"Type", 0, 1, 0, true, 148, {255, 255}, "LinDB", false, true, 255},
 };
 const std::uint8_t kEditOrder81[] = {0, 1};
 const ConnectorDef kInputs82[] = {
@@ -1099,8 +1099,8 @@ const ConnectorDef kOutputs82[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams82[] = {
-    {"Type", 0, 3, 0, true, 83, {255, 255}, "RectMode", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Type", 0, 3, 0, true, 83, {255, 255}, "RectMode", false, true, 0},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 1},
 };
 const std::uint8_t kEditOrder82[] = {0, 1};
 const ConnectorDef kInputs83[] = {
@@ -1110,8 +1110,8 @@ const ConnectorDef kOutputs83[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams83[] = {
-    {"Curve", 0, 3, 1, true, 84, {255, 255}, "ShpStaticMode", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Curve", 0, 3, 1, true, 84, {255, 255}, "ShpStaticMode", false, true, 0},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 1},
 };
 const std::uint8_t kEditOrder83[] = {0, 1};
 const ConnectorDef kInputs84[] = {
@@ -1125,14 +1125,14 @@ const ConnectorDef kOutputs84[] = {
     {"End", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams84[] = {
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
-    {"Dcy/Rel", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Trigged", 0, 1, 1, false, 43, {255, 255}, "TrigGate", false, true},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Type", 0, 1, 0, true, 139, {255, 255}, "AdAr", false, true},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true, 5},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true, 2},
+    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true, 255},
+    {"Dcy/Rel", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true, 7},
+    {"Trigged", 0, 1, 1, false, 43, {255, 255}, "TrigGate", false, true, 255},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true, 255},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 4},
+    {"Type", 0, 1, 0, true, 139, {255, 255}, "AdAr", false, true, 255},
 };
 const std::uint8_t kEditOrder84[] = {1, 3, 4, 2, 5, 6, 7, 0};
 const ConnectorDef kInputs85[] = {
@@ -1144,8 +1144,8 @@ const ConnectorDef kOutputs85[] = {
     {"Gate", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams85[] = {
-    {"From", 0, 127, 40, true, 16, {255, 255}, "Range_64", false, true},
-    {"To", 0, 127, 80, true, 16, {255, 255}, "Range_64", false, true},
+    {"From", 0, 127, 40, true, 16, {255, 255}, "Range_64", false, true, 255},
+    {"To", 0, 127, 80, true, 16, {255, 255}, "Range_64", false, true, 255},
 };
 const std::uint8_t kEditOrder85[] = {0, 1};
 const ConnectorDef kInputs86[] = {
@@ -1170,10 +1170,10 @@ const ConnectorDef kOutputs87[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams87[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true, 2},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder87[] = {0, 1, 3, 2};
 const ModeDef kModes87[] = {
@@ -1193,7 +1193,7 @@ const ConnectorDef kOutputs88[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams88[] = {
-    {"Dest", 0, 3, 0, true, 64, {255, 255}, "sw_2_in", false, true},
+    {"Dest", 0, 3, 0, true, 64, {255, 255}, "sw_2_in", false, true, 255},
 };
 const std::uint8_t kEditOrder88[] = {0};
 const ConnectorDef kInputs89[] = {
@@ -1203,10 +1203,10 @@ const ConnectorDef kOutputs89[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams89[] = {
-    {"Rate", 0, 127, 64, true, 215, {255, 255}, "FlangerRate", false, true},
-    {"Range", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Rate", 0, 127, 64, true, 215, {255, 255}, "FlangerRate", false, true, 255},
+    {"Range", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder89[] = {0, 1, 2, 3};
 const LabelDef kLabels90[] = {
@@ -1221,7 +1221,7 @@ const ConnectorDef kOutputs90[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams90[] = {
-    {"Dest", 0, 1, 0, true, 64, {255, 255}, "Sw_1_in", false, true},
+    {"Dest", 0, 1, 0, true, 64, {255, 255}, "Sw_1_in", false, true, 0},
 };
 const std::uint8_t kEditOrder90[] = {0};
 const ConnectorDef kInputs91[] = {
@@ -1245,12 +1245,12 @@ const ConnectorDef kOutputs92[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams92[] = {
-    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true},
-    {"Freq M", 0, 127, 0, true, 191, {255, 255}, "Level_200", false, true},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
-    {"Res", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"dB/Oct", 0, 2, 2, true, 93, {255, 255}, "ClassicSlope", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Freq", 0, 127, 75, true, 123, {255, 255}, "FltFreq", false, true, 2},
+    {"Freq M", 0, 127, 0, true, 191, {255, 255}, "Level_200", false, true, 255},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true, 255},
+    {"Res", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"dB/Oct", 0, 2, 2, true, 93, {255, 255}, "ClassicSlope", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder92[] = {0, 1, 3, 4, 5, 2};
 const ConnectorDef kInputs94[] = {
@@ -1261,14 +1261,14 @@ const ConnectorDef kOutputs94[] = {
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams94[] = {
-    {"Detune", 0, 127, 20, true, 0, {255, 255}, "Level_100", false, true},
-    {"Amount", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Detune", 0, 127, 20, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Amount", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true, 2},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder94[] = {0, 1, 2};
 const ParamDef kParams95[] = {
-    {"Level", 0, 127, 100, true, 118, {255, 255}, nullptr, false, true},
-    {"On/Off", 0, 1, 1, false, 7, {255, 255}, nullptr, false, true},
+    {"Level", 0, 127, 100, true, 118, {255, 255}, nullptr, false, true, 1},
+    {"On/Off", 0, 1, 1, false, 7, {255, 255}, nullptr, false, true, 1},
 };
 const std::uint8_t kEditOrder95[] = {0, 1};
 const ConnectorDef kInputs96[] = {
@@ -1278,11 +1278,11 @@ const ConnectorDef kOutputs96[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams96[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true, 3},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 4},
 };
 const std::uint8_t kEditOrder96[] = {0, 1, 4, 2, 3};
 const ModeDef kModes96[] = {
@@ -1296,13 +1296,13 @@ const ConnectorDef kOutputs97[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams97[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 6}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Wave", 0, 5, 2, true, 58, {255, 255}, "OscA_WaveForm", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 6}, "FreqCoarse", false, true, 6},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Wave", 0, 5, 2, true, 58, {255, 255}, "OscA_WaveForm", false, true, 4},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 5},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
 };
 const std::uint8_t kEditOrder97[] = {0, 1, 3, 4, 5, 2, 6};
 const ConnectorDef kInputs98[] = {
@@ -1314,10 +1314,10 @@ const ConnectorDef kOutputs98[] = {
     {"Up", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams98[] = {
-    {"Shift", 0, 127, 0, true, 142, {2, 255}, "FreqShiftFreq", false, true},
-    {"Shift M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Range", 0, 2, 2, true, 30, {255, 255}, "FreqShiftRange", false, true},
-    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Shift", 0, 127, 0, true, 142, {2, 255}, "FreqShiftFreq", false, true, 255},
+    {"Shift M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Range", 0, 2, 2, true, 30, {255, 255}, "FreqShiftRange", false, true, 255},
+    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder98[] = {0, 1, 2, 3};
 const LabelDef kLabels100[] = {
@@ -1332,7 +1332,7 @@ const ConnectorDef kOutputs100[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams100[] = {
-    {"Source", 0, 1, 0, true, 64, {255, 255}, "Sw_1_in", false, true},
+    {"Source", 0, 1, 0, true, 64, {255, 255}, "Sw_1_in", false, true, 0},
 };
 const std::uint8_t kEditOrder100[] = {0};
 const ConnectorDef kInputs102[] = {
@@ -1346,17 +1346,17 @@ const ConnectorDef kOutputs102[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams102[] = {
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Freq", 0, 127, 64, true, 39, {255, 255}, "Freq_2", false, true},
-    {"SpreadM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"FB", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
-    {"Notch", 0, 5, 2, true, 2, {255, 255}, "FltPhaseNotchCount", false, true},
-    {"Spread", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"In Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
-    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Type", 0, 2, 0, true, 172, {255, 255}, "FltPhaseType", false, true},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 10},
+    {"Freq", 0, 127, 64, true, 39, {255, 255}, "Freq_2", false, true, 255},
+    {"SpreadM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"FB", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true, 255},
+    {"Notch", 0, 5, 2, true, 2, {255, 255}, "FltPhaseNotchCount", false, true, 255},
+    {"Spread", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"In Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Type", 0, 2, 0, true, 172, {255, 255}, "FltPhaseType", false, true, 255},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true, 255},
 };
 const std::uint8_t kEditOrder102[] = {1, 0, 5, 2, 3, 8, 4, 6, 7, 9, 10};
 const ConnectorDef kInputs103[] = {
@@ -1366,11 +1366,11 @@ const ConnectorDef kOutputs103[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams103[] = {
-    {"Freq", 0, 127, 60, true, 38, {255, 255}, "Freq_3", false, true},
-    {"Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true},
-    {"BWidth", 0, 127, 64, true, 76, {255, 255}, "EqPeakBandwidth", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"In Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
+    {"Freq", 0, 127, 60, true, 38, {255, 255}, "Freq_3", false, true, 255},
+    {"Gain", 0, 127, 64, true, 36, {255, 255}, "EqdB", false, true, 255},
+    {"BWidth", 0, 127, 64, true, 76, {255, 255}, "EqPeakBandwidth", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"In Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder103[] = {0, 1, 2, 4, 3};
 const ConnectorDef kInputs105[] = {
@@ -1382,7 +1382,7 @@ const ConnectorDef kOutputs105[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams105[] = {
-    {"Value", 0, 63, 0, true, 114, {255, 255}, "ValSwVal", false, true},
+    {"Value", 0, 63, 0, true, 114, {255, 255}, "ValSwVal", false, true, 255},
 };
 const std::uint8_t kEditOrder105[] = {0};
 const ConnectorDef kInputs106[] = {
@@ -1394,14 +1394,14 @@ const ConnectorDef kOutputs106[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams106[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
-    {"Width M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Width", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true, 4},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"Width M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Width", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder106[] = {0, 1, 3, 2, 4, 6, 5, 7};
 const ConnectorDef kInputs108[] = {
@@ -1412,24 +1412,24 @@ const ConnectorDef kOutputs108[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams108[] = {
-    {"Band 1", 0, 16, 1, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 2", 0, 16, 2, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 3", 0, 16, 3, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 4", 0, 16, 4, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 5", 0, 16, 5, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 6", 0, 16, 6, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 7", 0, 16, 7, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 8", 0, 16, 8, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 9", 0, 16, 9, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 10", 0, 16, 10, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 11", 0, 16, 11, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 12", 0, 16, 12, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 13", 0, 16, 13, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 14", 0, 16, 14, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 15", 0, 16, 15, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Band 16", 0, 16, 16, false, 79, {255, 255}, "VocoderBand", false, true},
-    {"Emphas", 0, 1, 0, false, 80, {255, 255}, "OffOn", false, true},
-    {"Monitor", 0, 1, 0, false, 81, {255, 255}, "ActiveMonitor", false, true},
+    {"Band 1", 0, 16, 1, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 2", 0, 16, 2, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 3", 0, 16, 3, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 4", 0, 16, 4, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 5", 0, 16, 5, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 6", 0, 16, 6, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 7", 0, 16, 7, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 8", 0, 16, 8, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 9", 0, 16, 9, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 10", 0, 16, 10, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 11", 0, 16, 11, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 12", 0, 16, 12, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 13", 0, 16, 13, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 14", 0, 16, 14, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 15", 0, 16, 15, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Band 16", 0, 16, 16, false, 79, {255, 255}, "VocoderBand", false, true, 255},
+    {"Emphas", 0, 1, 0, false, 80, {255, 255}, "OffOn", false, true, 255},
+    {"Monitor", 0, 1, 0, false, 81, {255, 255}, "ActiveMonitor", false, true, 255},
 };
 const std::uint8_t kEditOrder108[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
 const ConnectorDef kInputs112[] = {
@@ -1439,8 +1439,8 @@ const ConnectorDef kOutputs112[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams112[] = {
-    {"Offset", 0, 127, 64, true, 96, {1, 255}, "LevBipUni", false, true},
-    {"Pol", 0, 1, 1, true, 18, {255, 255}, "BipUni", false, true},
+    {"Offset", 0, 127, 64, true, 96, {1, 255}, "LevBipUni", false, true, 1},
+    {"Pol", 0, 1, 1, true, 18, {255, 255}, "BipUni", false, true, 255},
 };
 const std::uint8_t kEditOrder112[] = {0, 1};
 const ConnectorDef kInputs113[] = {
@@ -1452,8 +1452,8 @@ const ConnectorDef kOutputs113[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams113[] = {
-    {"Out Lvl", 0, 127, 64, true, 53, {255, 255}, "Fade12Mix", false, true},
-    {"Fade M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Out Lvl", 0, 127, 64, true, 53, {255, 255}, "Fade12Mix", false, true, 255},
+    {"Fade M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder113[] = {0, 1};
 const ConnectorDef kInputs114[] = {
@@ -1465,8 +1465,8 @@ const ConnectorDef kOutputs114[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams114[] = {
-    {"In Lvl", 0, 127, 64, true, 52, {255, 255}, "Fade21Mix", false, true},
-    {"Fade M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"In Lvl", 0, 127, 64, true, 52, {255, 255}, "Fade21Mix", false, true, 255},
+    {"Fade M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder114[] = {0, 1};
 const ConnectorDef kInputs115[] = {
@@ -1478,10 +1478,10 @@ const ConnectorDef kOutputs115[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams115[] = {
-    {"L.Gain", 0, 127, 64, true, 70, {255, 255}, "LevScaledB", false, true},
-    {"BrkPnt", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"R.Gain", 0, 127, 64, true, 70, {255, 255}, "LevScaledB", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
+    {"L.Gain", 0, 127, 64, true, 70, {255, 255}, "LevScaledB", false, true, 255},
+    {"BrkPnt", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 255},
+    {"R.Gain", 0, 127, 64, true, 70, {255, 255}, "LevScaledB", false, true, 255},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder115[] = {0, 1, 2, 3};
 const ConnectorDef kInputs116[] = {
@@ -1498,7 +1498,7 @@ const ConnectorDef kOutputs116[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams116[] = {
-    {"Pad", 0, 2, 0, true, 57, {255, 255}, "Pad_3", false, true},
+    {"Pad", 0, 2, 0, true, 57, {255, 255}, "Pad_3", false, true, 255},
 };
 const std::uint8_t kEditOrder116[] = {0};
 const ConnectorDef kInputs117[] = {
@@ -1510,8 +1510,8 @@ const ConnectorDef kOutputs117[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams117[] = {
-    {"Depth M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Depth", 0, 127, 64, true, 55, {255, 255}, "LevModAmRm", false, true},
+    {"Depth M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Depth", 0, 127, 64, true, 55, {255, 255}, "LevModAmRm", false, true, 255},
 };
 const std::uint8_t kEditOrder117[] = {1, 0};
 const ConnectorDef kInputs118[] = {
@@ -1522,10 +1522,10 @@ const ConnectorDef kOutputs118[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams118[] = {
-    {"Bits", 0, 12, 11, true, 195, {255, 255}, "DigitizerBits", false, true},
-    {"Rate", 0, 127, 64, true, 88, {255, 255}, "DigitizerRate", false, true},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Bits", 0, 12, 11, true, 195, {255, 255}, "DigitizerBits", false, true, 255},
+    {"Rate", 0, 127, 64, true, 88, {255, 255}, "DigitizerRate", false, true, 255},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder118[] = {0, 1, 2, 3};
 const ConnectorDef kInputs119[] = {
@@ -1538,17 +1538,17 @@ const ConnectorDef kOutputs119[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams119[] = {
-    {"KBG", 0, 1, 1, true, 47, {255, 255}, "OffOn", false, true},
-    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true},
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Decay 1", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Break 1", 0, 127, 100, true, 16, {255, 255}, "EnvLevel", false, true},
-    {"Decay 2", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Break 2", 0, 127, 70, true, 16, {255, 255}, "EnvLevel", false, true},
-    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
-    {"SusPlac", 0, 1, 1, true, 49, {255, 255}, "SustainMode_1", false, true},
-    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv", false, true},
-    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true},
+    {"KBG", 0, 1, 1, true, 47, {255, 255}, "OffOn", false, true, 255},
+    {"Shape", 0, 3, 0, true, 136, {255, 255}, "EnvShape_3", false, true, 9},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true, 10},
+    {"Decay 1", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Break 1", 0, 127, 100, true, 16, {255, 255}, "EnvLevel", false, true, 255},
+    {"Decay 2", 0, 127, 54, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Break 2", 0, 127, 70, true, 16, {255, 255}, "EnvLevel", false, true, 255},
+    {"Release", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"SusPlac", 0, 1, 1, true, 49, {255, 255}, "SustainMode_1", false, true, 255},
+    {"OutType", 0, 5, 0, true, 46, {255, 255}, "PosNegInvBipInv", false, true, 255},
+    {"Reset", 0, 1, 0, true, 138, {255, 255}, "EnvNR", false, true, 255},
 };
 const std::uint8_t kEditOrder119[] = {2, 3, 4, 5, 6, 7, 8, 9, 0, 10, 1};
 const ConnectorDef kInputs121[] = {
@@ -1567,43 +1567,43 @@ const ConnectorDef kOutputs121[] = {
     {"Trig", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams121[] = {
-    {"Step 1", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 2", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 3", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 4", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 5", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 6", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 7", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 8", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 9", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 10", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 11", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 12", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 13", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 14", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 15", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Step 16", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true},
-    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true},
-    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
-    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
-    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
+    {"Step 1", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 16},
+    {"Step 2", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 17},
+    {"Step 3", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 18},
+    {"Step 4", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 19},
+    {"Step 5", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 20},
+    {"Step 6", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 21},
+    {"Step 7", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 22},
+    {"Step 8", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 23},
+    {"Step 9", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 24},
+    {"Step 10", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 25},
+    {"Step 11", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 26},
+    {"Step 12", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 27},
+    {"Step 13", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 28},
+    {"Step 14", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 29},
+    {"Step 15", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 30},
+    {"Step 16", 0, 127, 64, true, 13, {255, 255}, "FreqCoarse", false, true, 31},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true, 255},
+    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true, 255},
+    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true, 255},
+    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true, 35},
+    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true, 36},
 };
 const std::uint8_t kEditOrder121[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 34, 32, 33, 36, 35, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 const LabelDef kLabels123[] = {
@@ -1623,16 +1623,16 @@ const ConnectorDef kOutputs123[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams123[] = {
-    {"Level 1", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true},
-    {"Level 2", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true},
-    {"Level 3", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true},
-    {"Level 4", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true},
-    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Pad", 0, 1, 0, true, 188, {255, 255}, "Pad_2", false, true},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+    {"Level 1", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true, 4},
+    {"Level 2", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true, 5},
+    {"Level 3", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true, 6},
+    {"Level 4", 0, 127, 100, true, 102, {9, 255}, "MixLevel", false, true, 7},
+    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Pad", 0, 1, 0, true, 188, {255, 255}, "Pad_2", false, true, 8},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true, 255},
 };
 const std::uint8_t kEditOrder123[] = {0, 4, 1, 5, 2, 6, 3, 7, 8, 9};
 const ConnectorDef kInputs124[] = {
@@ -1657,9 +1657,9 @@ const ConnectorDef kOutputs125[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams125[] = {
-    {"Sweep M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Sweep", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Sweep M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Sweep", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder125[] = {1, 0, 2};
 const ConnectorDef kOutputs127[] = {
@@ -1667,9 +1667,9 @@ const ConnectorDef kOutputs127[] = {
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams127[] = {
-    {"Bus", 0, 1, 0, true, 152, {255, 255}, "Source_1", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4", false, true},
+    {"Bus", 0, 1, 0, true, 152, {255, 255}, "Source_1", false, true, 0},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 1},
+    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4", false, true, 2},
 };
 const std::uint8_t kEditOrder127[] = {0, 2, 1};
 const ConnectorDef kInputs128[] = {
@@ -1728,36 +1728,36 @@ const ConnectorDef kOutputs134[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams134[] = {
-    {"Freq", 0, 127, 60, true, 123, {255, 255}, "FltFreq", false, true},
-    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Freq", 0, 127, 60, true, 123, {255, 255}, "FltFreq", false, true, 2},
+    {"Freq M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder134[] = {0, 1, 3, 2};
 const ModeDef kModes134[] = {
     {"SlopeMode", 0, 5, 0, 0, "HpLpSlopeMode"},
 };
 const ParamDef kParams135[] = {
-    {"Enable", 0, 2, 0, false, 116, {255, 255}, nullptr, false, true},
-    {"Rate", 0, 127, 28, false, 115, {255, 255}, nullptr, false, true},
+    {"Enable", 0, 2, 0, false, 116, {255, 255}, nullptr, false, true, 255},
+    {"Rate", 0, 127, 28, false, 115, {255, 255}, nullptr, false, true, 255},
 };
 const std::uint8_t kEditOrder135[] = {0, 1};
 const ParamDef kParams136[] = {
-    {"Run", 0, 1, 0, false, 3, {255, 255}, nullptr, false, true},
-    {"Rate", 0, 3, 3, false, 112, {255, 255}, nullptr, false, true},
-    {"Mode", 0, 3, 0, false, 113, {255, 255}, nullptr, false, true},
-    {"Range", 0, 3, 0, false, 111, {255, 255}, nullptr, false, true},
+    {"Run", 0, 1, 0, false, 3, {255, 255}, nullptr, false, true, 255},
+    {"Rate", 0, 3, 3, false, 112, {255, 255}, nullptr, false, true, 255},
+    {"Mode", 0, 3, 0, false, 113, {255, 255}, nullptr, false, true, 255},
+    {"Range", 0, 3, 0, false, 111, {255, 255}, nullptr, false, true, 255},
 };
 const std::uint8_t kEditOrder136[] = {0, 1, 2, 3};
 const ParamDef kParams137[] = {
-    {"Enable", 0, 1, 1, false, 117, {255, 255}, nullptr, false, true},
-    {"Range", 0, 23, 1, false, 162, {255, 255}, nullptr, false, true},
+    {"Enable", 0, 1, 1, false, 117, {255, 255}, nullptr, false, true, 255},
+    {"Range", 0, 23, 1, false, 162, {255, 255}, nullptr, false, true, 255},
 };
 const std::uint8_t kEditOrder137[] = {0, 1};
 const ParamDef kParams138[] = {
-    {"Enable", 0, 2, 0, false, 120, {255, 255}, nullptr, false, true},
-    {"Range", 0, 100, 50, false, 119, {255, 255}, nullptr, false, true},
-    {"Rate", 0, 127, 64, false, 171, {255, 255}, nullptr, false, true},
+    {"Enable", 0, 2, 0, false, 120, {255, 255}, nullptr, false, true, 255},
+    {"Range", 0, 100, 50, false, 119, {255, 255}, nullptr, false, true, 255},
+    {"Rate", 0, 127, 64, false, 171, {255, 255}, nullptr, false, true, 255},
 };
 const std::uint8_t kEditOrder138[] = {0, 1, 2};
 const ConnectorDef kInputs139[] = {
@@ -1790,15 +1790,15 @@ const ConnectorDef kOutputs140[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams140[] = {
-    {"Level 1", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 2", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 3", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"Level 4", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true},
-    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+    {"Level 1", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 4},
+    {"Level 2", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 5},
+    {"Level 3", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 6},
+    {"Level 4", 0, 127, 100, true, 102, {8, 255}, "MixLevel", false, true, 7},
+    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true, 255},
 };
 const std::uint8_t kEditOrder140[] = {0, 4, 1, 5, 2, 6, 3, 7, 8};
 const ConnectorDef kInputs141[] = {
@@ -1809,9 +1809,9 @@ const ConnectorDef kOutputs141[] = {
     {"Send", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams141[] = {
-    {"Control", 0, 127, 1, false, 179, {255, 255}, "MidiData", false, false},
-    {"Value", 0, 127, 0, true, 179, {255, 255}, "MidiData", false, false},
-    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true},
+    {"Control", 0, 127, 1, false, 179, {255, 255}, "MidiData", false, false, 255},
+    {"Value", 0, 127, 0, true, 179, {255, 255}, "MidiData", false, false, 255},
+    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true, 255},
 };
 const std::uint8_t kEditOrder141[] = {0, 1, 2};
 const ConnectorDef kInputs142[] = {
@@ -1822,8 +1822,8 @@ const ConnectorDef kOutputs142[] = {
     {"Send", SignalType::Logic, ConnColor::Yellow, Bandwidth::Static},
 };
 const ParamDef kParams142[] = {
-    {"Program", 0, 127, 0, true, 179, {255, 255}, "MidiData", false, true},
-    {"Channel", 0, 16, 0, false, 108, {255, 255}, "MidiCh_16", false, true},
+    {"Program", 0, 127, 0, true, 179, {255, 255}, "MidiData", false, true, 255},
+    {"Channel", 0, 16, 0, false, 108, {255, 255}, "MidiCh_16", false, true, 255},
 };
 const std::uint8_t kEditOrder142[] = {0, 1};
 const ConnectorDef kInputs143[] = {
@@ -1832,9 +1832,9 @@ const ConnectorDef kInputs143[] = {
     {"Note", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams143[] = {
-    {"Vel", 0, 127, 100, true, 179, {255, 255}, "MidiData", false, true},
-    {"Note", 0, 127, 64, true, 13, {255, 255}, "MidiData", false, true},
-    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true},
+    {"Vel", 0, 127, 100, true, 179, {255, 255}, "MidiData", false, true, 255},
+    {"Note", 0, 127, 64, true, 13, {255, 255}, "MidiData", false, true, 255},
+    {"Channel", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true, 255},
 };
 const std::uint8_t kEditOrder143[] = {0, 1, 2};
 const ConnectorDef kInputs144[] = {
@@ -1851,42 +1851,42 @@ const ConnectorDef kOutputs144[] = {
     {"Trig2", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams144[] = {
-    {"Step 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Step 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true},
-    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true},
-    {"PulseUp", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
-    {"PulseLo", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
+    {"Step 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 16},
+    {"Step 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 17},
+    {"Step 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 18},
+    {"Step 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 19},
+    {"Step 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 20},
+    {"Step 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 21},
+    {"Step 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 22},
+    {"Step 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 23},
+    {"Step 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 24},
+    {"Step 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 25},
+    {"Step 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 26},
+    {"Step 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 27},
+    {"Step 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 28},
+    {"Step 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 29},
+    {"Step 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 30},
+    {"Step 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 31},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true, 255},
+    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true, 255},
+    {"PulseUp", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true, 35},
+    {"PulseLo", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true, 255},
 };
 const std::uint8_t kEditOrder144[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 34, 32, 33, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 35};
 const ConnectorDef kInputs145[] = {
@@ -1903,44 +1903,44 @@ const ConnectorDef kOutputs145[] = {
     {"Trig", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams145[] = {
-    {"Step 1", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 2", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 3", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 4", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 5", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 6", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 7", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 8", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 9", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 10", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 11", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 12", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 13", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 14", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 15", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 16", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true},
-    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true},
-    {"Pol", 0, 1, 0, true, 18, {255, 255}, "BipUni", false, true},
-    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
-    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
-    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
+    {"Step 1", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 16},
+    {"Step 2", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 17},
+    {"Step 3", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 18},
+    {"Step 4", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 19},
+    {"Step 5", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 20},
+    {"Step 6", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 21},
+    {"Step 7", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 22},
+    {"Step 8", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 23},
+    {"Step 9", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 24},
+    {"Step 10", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 25},
+    {"Step 11", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 26},
+    {"Step 12", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 27},
+    {"Step 13", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 28},
+    {"Step 14", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 29},
+    {"Step 15", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 30},
+    {"Step 16", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 31},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true, 255},
+    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true, 255},
+    {"Pol", 0, 1, 0, true, 18, {255, 255}, "BipUni", false, true, 255},
+    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true, 255},
+    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true, 36},
+    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true, 37},
 };
 const std::uint8_t kEditOrder145[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 35, 32, 33, 37, 36, 34, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 const ConnectorDef kInputs146[] = {
@@ -1957,44 +1957,44 @@ const ConnectorDef kOutputs146[] = {
     {"Trig", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams146[] = {
-    {"Step 1", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 2", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 3", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 4", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 5", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 6", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 7", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 8", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 9", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 10", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 11", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 12", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 13", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 14", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 15", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Step 16", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true},
-    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true},
-    {"Pol", 0, 1, 1, false, 18, {255, 255}, "BipUni", false, true},
-    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
-    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
-    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
+    {"Step 1", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 16},
+    {"Step 2", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 17},
+    {"Step 3", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 18},
+    {"Step 4", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 19},
+    {"Step 5", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 20},
+    {"Step 6", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 21},
+    {"Step 7", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 22},
+    {"Step 8", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 23},
+    {"Step 9", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 24},
+    {"Step 10", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 25},
+    {"Step 11", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 26},
+    {"Step 12", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 27},
+    {"Step 13", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 28},
+    {"Step 14", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 29},
+    {"Step 15", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 30},
+    {"Step 16", 0, 127, 0, true, 96, {34, 255}, "LevBipUni", false, true, 31},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Cycles", 0, 1, 1, true, 9, {255, 255}, "LoopOnce", false, true, 255},
+    {"Length", 0, 15, 15, true, 2, {255, 255}, "SeqLen", false, true, 255},
+    {"Pol", 0, 1, 1, false, 18, {255, 255}, "BipUni", false, true, 255},
+    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true, 255},
+    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true, 36},
+    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true, 37},
 };
 const std::uint8_t kEditOrder146[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 35, 32, 33, 37, 36, 34, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 const ConnectorDef kOutputs147[] = {
@@ -2002,8 +2002,8 @@ const ConnectorDef kOutputs147[] = {
     {"Val", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams147[] = {
-    {"Control", 0, 127, 7, false, 179, {255, 255}, "MidiData", false, false},
-    {"Channel", 0, 16, 0, false, 109, {255, 255}, "MidiCh_16", false, true},
+    {"Control", 0, 127, 7, false, 179, {255, 255}, "MidiData", false, false, 255},
+    {"Channel", 0, 16, 0, false, 109, {255, 255}, "MidiCh_16", false, true, 255},
 };
 const std::uint8_t kEditOrder147[] = {0, 1};
 const ConnectorDef kOutputs148[] = {
@@ -2012,17 +2012,17 @@ const ConnectorDef kOutputs148[] = {
     {"RelVel", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams148[] = {
-    {"Note", 0, 127, 64, false, 13, {255, 255}, "MidiData", false, true},
-    {"Channel", 0, 17, 0, false, 109, {255, 255}, "MidiCh_17", false, true},
+    {"Note", 0, 127, 64, false, 13, {255, 255}, "MidiData", false, true, 255},
+    {"Channel", 0, 17, 0, false, 109, {255, 255}, "MidiCh_17", false, true, 255},
 };
 const std::uint8_t kEditOrder148[] = {0, 1};
 const ParamDef kParams149[] = {
-    {"RcvChan", 0, 17, 0, false, 109, {255, 255}, "MidiCh_17", false, true},
-    {"NoteMin", 0, 127, 0, false, 13, {255, 255}, "MidiData", false, true},
-    {"NoteMax", 0, 127, 127, false, 13, {255, 255}, "MidiData", false, true},
-    {"Transp", 0, 127, 64, false, 17, {255, 255}, "Bipolar_127", false, true},
-    {"SndChan", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true},
-    {"Filter", 0, 1, 0, false, 210, {255, 255}, "NoteZoneThru", false, true},
+    {"RcvChan", 0, 17, 0, false, 109, {255, 255}, "MidiCh_17", false, true, 255},
+    {"NoteMin", 0, 127, 0, false, 13, {255, 255}, "MidiData", false, true, 255},
+    {"NoteMax", 0, 127, 127, false, 13, {255, 255}, "MidiData", false, true, 255},
+    {"Transp", 0, 127, 64, false, 17, {255, 255}, "Bipolar_127", false, true, 255},
+    {"SndChan", 0, 20, 0, false, 108, {255, 255}, "MidiCh_20", false, true, 255},
+    {"Filter", 0, 1, 0, false, 210, {255, 255}, "NoteZoneThru", false, true, 255},
 };
 const std::uint8_t kEditOrder149[] = {0, 1, 2, 3, 4, 5};
 const ConnectorDef kInputs150[] = {
@@ -2035,13 +2035,13 @@ const ConnectorDef kOutputs150[] = {
     {"OutL", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams150[] = {
-    {"Thres", 0, 42, 18, false, 176, {255, 255}, "Treshold_42", false, true},
-    {"Ratio", 0, 66, 20, false, 177, {255, 255}, "CompressorRatio", false, true},
-    {"Attack", 0, 127, 1, true, 174, {255, 255}, "CompressorAttack", false, true},
-    {"Release", 0, 127, 20, true, 175, {255, 255}, "CompressorRelease", false, true},
-    {"Output", 0, 42, 30, false, 178, {255, 255}, "CompressorRefLevel", false, true},
-    {"SideChn", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Thres", 0, 42, 18, false, 176, {255, 255}, "Treshold_42", false, true, 255},
+    {"Ratio", 0, 66, 20, false, 177, {255, 255}, "CompressorRatio", false, true, 255},
+    {"Attack", 0, 127, 1, true, 174, {255, 255}, "CompressorAttack", false, true, 255},
+    {"Release", 0, 127, 20, true, 175, {255, 255}, "CompressorRelease", false, true, 255},
+    {"Output", 0, 42, 30, false, 178, {255, 255}, "CompressorRefLevel", false, true, 6},
+    {"SideChn", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder150[] = {0, 1, 2, 3, 4, 5, 6};
 const ConnectorDef kInputs152[] = {
@@ -2051,25 +2051,25 @@ const ConnectorDef kOutputs152[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams152[] = {
-    {"Range", 0, 127, 127, true, 132, {255, 255}, "NoteRange", false, true},
-    {"Capture", 0, 1, 0, false, 194, {255, 255}, "KeyQuantCapture", false, true},
-    {"Note E", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note F", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note F#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note G", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note G#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note A", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note Bb", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note B", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note C", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note C#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note D", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
-    {"Note D#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true},
+    {"Range", 0, 127, 127, true, 132, {255, 255}, "NoteRange", false, true, 255},
+    {"Capture", 0, 1, 0, false, 194, {255, 255}, "KeyQuantCapture", false, true, 1},
+    {"Note E", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 2},
+    {"Note F", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 3},
+    {"Note F#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 4},
+    {"Note G", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 5},
+    {"Note G#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 6},
+    {"Note A", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 7},
+    {"Note Bb", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 8},
+    {"Note B", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 9},
+    {"Note C", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 10},
+    {"Note C#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 11},
+    {"Note D", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 12},
+    {"Note D#", 0, 1, 0, false, 3, {255, 255}, "OffOn", false, true, 13},
 };
 const std::uint8_t kEditOrder152[] = {0, 10, 11, 12, 13, 2, 3, 4, 5, 6, 7, 8, 9, 1};
 const ParamDef kParams153[] = {
-    {"OctShft", 0, 4, 2, false, 121, {255, 255}, nullptr, false, true},
-    {"Sustain", 0, 1, 1, false, 3, {255, 255}, nullptr, false, true},
+    {"OctShft", 0, 4, 2, false, 121, {255, 255}, nullptr, false, true, 255},
+    {"Sustain", 0, 1, 1, false, 3, {255, 255}, nullptr, false, true, 255},
 };
 const std::uint8_t kEditOrder153[] = {0, 1};
 const ConnectorDef kInputs154[] = {
@@ -2082,43 +2082,43 @@ const ConnectorDef kOutputs154[] = {
     {"Trig", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams154[] = {
-    {"Step 1", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 2", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 3", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 4", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 5", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 6", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 7", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 8", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 9", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 10", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 11", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 12", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 13", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 14", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 15", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Step 16", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true},
-    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true},
-    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true},
-    {"Pol", 0, 1, 0, true, 18, {255, 255}, "BipUni", false, true},
-    {"XFade", 0, 3, 0, true, 134, {255, 255}, "SeqCtrlXFade", false, true},
-    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
-    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true},
+    {"Step 1", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 16},
+    {"Step 2", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 17},
+    {"Step 3", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 18},
+    {"Step 4", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 19},
+    {"Step 5", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 20},
+    {"Step 6", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 21},
+    {"Step 7", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 22},
+    {"Step 8", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 23},
+    {"Step 9", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 24},
+    {"Step 10", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 25},
+    {"Step 11", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 26},
+    {"Step 12", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 27},
+    {"Step 13", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 28},
+    {"Step 14", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 29},
+    {"Step 15", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 30},
+    {"Step 16", 0, 127, 0, true, 96, {33, 255}, "LevBipUni", false, true, 31},
+    {"Evnt 1", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 2", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 3", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 4", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 5", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 6", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 7", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 8", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 9", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 10", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 11", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 12", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 13", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 14", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 15", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Evnt 16", 0, 1, 0, true, 47, {255, 255}, "SeqOffOn", false, true, 255},
+    {"Pulse", 0, 1, 0, true, 43, {255, 255}, "TrigGate", false, true, 255},
+    {"Pol", 0, 1, 0, true, 18, {255, 255}, "BipUni", false, true, 255},
+    {"XFade", 0, 3, 0, true, 134, {255, 255}, "SeqCtrlXFade", false, true, 255},
+    {"Random", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true, 35},
+    {"Clear", 0, 1, 0, true, 47, {255, 255}, "OffOn", true, true, 36},
 };
 const std::uint8_t kEditOrder154[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 32, 34, 36, 35, 33, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 const ConnectorDef kOutputs156[] = {
@@ -2127,7 +2127,7 @@ const ConnectorDef kOutputs156[] = {
     {"RelVel", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams156[] = {
-    {"Note", 0, 127, 64, false, 13, {255, 255}, "FreqCoarse", false, true},
+    {"Note", 0, 127, 64, false, 13, {255, 255}, "FreqCoarse", false, true, 255},
 };
 const std::uint8_t kEditOrder156[] = {0};
 const ConnectorDef kInputs157[] = {
@@ -2137,8 +2137,8 @@ const ConnectorDef kOutputs157[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams157[] = {
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "PosNegInvBipInv", false, true},
-    {"InType", 0, 2, 0, false, 127, {255, 255}, "BipPosNeg", false, true},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "PosNegInvBipInv", false, true, 255},
+    {"InType", 0, 2, 0, false, 127, {255, 255}, "BipPosNeg", false, true, 255},
 };
 const std::uint8_t kEditOrder157[] = {1, 0};
 const ConnectorDef kInputs158[] = {
@@ -2149,9 +2149,9 @@ const ConnectorDef kOutputs158[] = {
     {"Out", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams158[] = {
-    {"Time", 0, 127, 64, true, 217, {2, 255}, "GlideTime", false, true},
-    {"Active", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Shape", 0, 1, 0, true, 157, {255, 255}, "LogLin", false, true},
+    {"Time", 0, 127, 64, true, 217, {2, 255}, "GlideTime", false, true, 1},
+    {"Active", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Shape", 0, 1, 0, true, 157, {255, 255}, "LogLin", false, true, 255},
 };
 const std::uint8_t kEditOrder158[] = {0, 1, 2};
 const ConnectorDef kInputs159[] = {
@@ -2192,24 +2192,24 @@ const ConnectorDef kOutputs161[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams161[] = {
-    {"Level 1", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
-    {"Level 2", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
-    {"Level 3", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
-    {"Level 4", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
-    {"Level 5", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
-    {"Level 6", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
-    {"Level 7", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
-    {"Level 8", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true},
-    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 5", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 6", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 7", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"On 8", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
-    {"Pad", 0, 2, 0, true, 188, {255, 255}, "Pad_3", false, true},
+    {"Level 1", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true, 8},
+    {"Level 2", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true, 9},
+    {"Level 3", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true, 10},
+    {"Level 4", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true, 11},
+    {"Level 5", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true, 12},
+    {"Level 6", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true, 13},
+    {"Level 7", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true, 14},
+    {"Level 8", 0, 127, 100, true, 102, {16, 255}, "MixLevel", false, true, 15},
+    {"On 1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 3", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 4", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 5", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 6", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 7", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On 8", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true, 16},
+    {"Pad", 0, 2, 0, true, 188, {255, 255}, "Pad_3", false, true, 17},
 };
 const std::uint8_t kEditOrder161[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
 const ConnectorDef kInputs162[] = {
@@ -2222,14 +2222,14 @@ const ConnectorDef kOutputs162[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams162[] = {
-    {"Freq", 0, 127, 64, true, 173, {255, 255}, "Freq_1", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true},
-    {"FB", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true},
-    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Type", 0, 2, 0, true, 172, {255, 255}, "CombType", false, true},
-    {"Inp lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Freq", 0, 127, 64, true, 173, {255, 255}, "Freq_1", false, true, 2},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"KBT", 0, 4, 0, true, 71, {255, 255}, "KBT_4", false, true, 255},
+    {"FB", 0, 127, 64, true, 17, {255, 255}, "Bipolar_127", false, true, 255},
+    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Type", 0, 2, 0, true, 172, {255, 255}, "CombType", false, true, 255},
+    {"Inp lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder162[] = {0, 1, 3, 4, 5, 6, 7, 2};
 const ConnectorDef kInputs163[] = {
@@ -2243,17 +2243,17 @@ const ConnectorDef kOutputs163[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams163[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
-    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true},
-    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW", false, true},
-    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Wave", 0, 5, 0, true, 155, {255, 255}, "OscShpA_WaveForm", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true, 4},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"FM M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 6},
+    {"FM PTrk", 0, 1, 0, true, 125, {255, 255}, "FmLinTrk", false, true, 255},
+    {"Shape", 0, 127, 0, true, 126, {255, 255}, "PW", false, true, 255},
+    {"Shape M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Wave", 0, 5, 0, true, 155, {255, 255}, "OscShpA_WaveForm", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder163[] = {0, 1, 3, 9, 7, 8, 5, 10, 2, 4, 6};
 const ConnectorDef kInputs164[] = {
@@ -2267,20 +2267,20 @@ const ConnectorDef kOutputs164[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams164[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
-    {"Sqr Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
-    {"PW M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Saw Lvl", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Saw Ph", 0, 127, 0, true, 185, {255, 255}, "Phase", false, true},
-    {"Sub Lvl", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Sqr PW", 0, 127, 0, true, 126, {255, 255}, "PW", false, true},
-    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"SoftSqr", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 4}, "FreqCoarse", false, true, 4},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"Sqr Lvl", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"PW M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Saw Lvl", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Saw Ph", 0, 127, 0, true, 185, {255, 255}, "Phase", false, true, 255},
+    {"Sub Lvl", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 13},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 10},
+    {"Sqr PW", 0, 127, 0, true, 126, {255, 255}, "PW", false, true, 255},
+    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"SoftSqr", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder164[] = {0, 1, 3, 5, 11, 6, 7, 8, 12, 9, 13, 10, 2, 4};
 const ConnectorDef kInputs165[] = {
@@ -2301,8 +2301,8 @@ const ConnectorDef kOutputs165[] = {
     {"Main", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams165[] = {
-    {"Algortm", 0, 31, 0, false, 2, {255, 255}, "DxAlgorithm", false, true},
-    {"FeedBk", 0, 7, 0, false, 179, {255, 255}, "DxFeedback", false, true},
+    {"Algortm", 0, 31, 0, false, 2, {255, 255}, "DxAlgorithm", false, true, 255},
+    {"FeedBk", 0, 7, 0, false, 179, {255, 255}, "DxFeedback", false, true, 255},
 };
 const std::uint8_t kEditOrder165[] = {0, 1};
 const ConnectorDef kInputs167[] = {
@@ -2313,11 +2313,11 @@ const ConnectorDef kOutputs167[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams167[] = {
-    {"Coarse", 0, 127, 64, true, 61, {255, 255}, "PShiftCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "PShiftFine", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Delay", 0, 3, 2, true, 202, {255, 255}, "ScratchDelay", false, true},
-    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Coarse", 0, 127, 64, true, 61, {255, 255}, "PShiftCoarse", false, true, 255},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "PShiftFine", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Delay", 0, 3, 2, true, 202, {255, 255}, "ScratchDelay", false, true, 255},
+    {"Active", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder167[] = {0, 1, 2, 3, 4};
 const ConnectorDef kInputs169[] = {
@@ -2333,14 +2333,14 @@ const ConnectorDef kOutputs169[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams169[] = {
-    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Hold", 0, 127, 32, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Decay", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true},
-    {"Atk M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Hold M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Dcy M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"Attack", 0, 127, 0, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Hold", 0, 127, 32, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Decay", 0, 127, 14, true, 28, {255, 255}, "EnvTime", false, true, 255},
+    {"Atk M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Hold M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Dcy M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"OutType", 0, 3, 0, true, 46, {255, 255}, "PosNegInv", false, true, 255},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder169[] = {0, 3, 1, 4, 2, 5, 6, 7};
 const ConnectorDef kOutputs170[] = {
@@ -2348,9 +2348,9 @@ const ConnectorDef kOutputs170[] = {
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams170[] = {
-    {"Source", 0, 3, 0, true, 150, {255, 255}, "Source_2", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4", false, true},
+    {"Source", 0, 3, 0, true, 150, {255, 255}, "Source_2", false, true, 0},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 1},
+    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4", false, true, 2},
 };
 const std::uint8_t kEditOrder170[] = {0, 2, 1};
 const ConnectorDef kOutputs171[] = {
@@ -2360,9 +2360,9 @@ const ConnectorDef kOutputs171[] = {
     {"Out4", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams171[] = {
-    {"Source", 0, 1, 0, true, 151, {255, 255}, "Source_3", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4", false, true},
+    {"Source", 0, 1, 0, true, 151, {255, 255}, "Source_3", false, true, 0},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 1},
+    {"Pad", 0, 3, 1, true, 149, {255, 255}, "Pad_4", false, true, 2},
 };
 const std::uint8_t kEditOrder171[] = {0, 1, 2};
 const ConnectorDef kInputs172[] = {
@@ -2372,7 +2372,7 @@ const ConnectorDef kOutputs172[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams172[] = {
-    {"Time", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true},
+    {"Time", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true, 255},
 };
 const std::uint8_t kEditOrder172[] = {0};
 const ModeDef kModes172[] = {
@@ -2386,8 +2386,8 @@ const ConnectorDef kOutputs173[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams173[] = {
-    {"Time", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true},
-    {"Time M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true, 255},
+    {"Time M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder173[] = {0, 1};
 const ModeDef kModes173[] = {
@@ -2403,10 +2403,10 @@ const ConnectorDef kOutputs174[] = {
     {"Out2", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams174[] = {
-    {"Time1", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true},
-    {"Time1 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Time2", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true},
-    {"Time2 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time1", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true, 255},
+    {"Time1 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Time2", 0, 127, 64, true, 141, {128, 255}, "DelayTime_3", false, true, 255},
+    {"Time2 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder174[] = {0, 1, 2, 3};
 const ModeDef kModes174[] = {
@@ -2427,15 +2427,15 @@ const ConnectorDef kOutputs175[] = {
     {"Out4", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams175[] = {
-    {"Time1", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true},
-    {"Time1 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Time2", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true},
-    {"Time2 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Time3", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true},
-    {"Time3 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Time4", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true},
-    {"Time4 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true},
+    {"Time1", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true, 255},
+    {"Time1 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Time2", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true, 255},
+    {"Time2 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Time3", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true, 255},
+    {"Time3 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Time4", 0, 127, 64, true, 140, {8, 128}, "DelayTime_3", false, true, 255},
+    {"Time4 M", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true, 255},
 };
 const std::uint8_t kEditOrder175[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 const ModeDef kModes175[] = {
@@ -2448,12 +2448,12 @@ const ConnectorDef kOutputs176[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams176[] = {
-    {"Time", 0, 127, 64, true, 143, {5, 128}, "DelayTime_2", false, true},
-    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Flt LP", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true},
+    {"Time", 0, 127, 64, true, 143, {5, 128}, "DelayTime_2", false, true, 255},
+    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Flt LP", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 4},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true, 255},
 };
 const std::uint8_t kEditOrder176[] = {0, 1, 2, 3, 5, 4};
 const ModeDef kModes176[] = {
@@ -2468,15 +2468,15 @@ const ConnectorDef kOutputs177[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams177[] = {
-    {"Time", 0, 127, 64, true, 143, {4, 128}, "DelayTime_2", false, true},
-    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Flt LP", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
-    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true},
-    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"DryWetM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"Flt HP", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time", 0, 127, 64, true, 143, {4, 128}, "DelayTime_2", false, true, 255},
+    {"FB", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Flt LP", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 7},
+    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true, 255},
+    {"FB M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"DryWetM", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"Flt HP", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder177[] = {0, 1, 2, 8, 3, 4, 5, 6, 7};
 const ModeDef kModes177[] = {
@@ -2490,7 +2490,7 @@ const ConnectorDef kOutputs178[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams178[] = {
-    {"Delay", 0, 127, 0, true, 2, {255, 255}, "Range_128", false, true},
+    {"Delay", 0, 127, 0, true, 2, {255, 255}, "Range_128", false, true, 255},
 };
 const std::uint8_t kEditOrder178[] = {0};
 const ConnectorDef kInputs179[] = {
@@ -2520,31 +2520,31 @@ const ConnectorDef kOutputs180[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams180[] = {
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Sync", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
-    {"Tune Md", 0, 1, 0, true, 200, {255, 255}, "RatioFixed", false, true},
-    {"Coarse", 0, 31, 1, false, 198, {4, 2}, "OpFreqCoarse", false, true},
-    {"Fine", 0, 99, 0, false, 179, {255, 255}, "OpFreqFine", false, true},
-    {"Detune", 0, 14, 7, true, 196, {255, 255}, "OpFreqDetune", false, true},
-    {"KeyVel", 0, 7, 0, true, 179, {255, 255}, "OpVel", false, true},
-    {"RScale", 0, 7, 0, true, 179, {255, 255}, "OpRateScale", false, true},
-    {"R1", 0, 99, 90, false, 179, {255, 255}, "OpTime", false, true},
-    {"L1", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true},
-    {"R2", 0, 99, 80, false, 179, {255, 255}, "OpTime", false, true},
-    {"L2", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true},
-    {"R3", 0, 99, 70, false, 179, {255, 255}, "OpTime", false, true},
-    {"L3", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true},
-    {"R4", 0, 99, 70, false, 179, {255, 255}, "OpTime", false, true},
-    {"L4", 0, 99, 0, false, 179, {255, 255}, "OpLevel", false, true},
-    {"A-Mod", 0, 7, 0, true, 179, {255, 255}, "OpAmod", false, true},
-    {"BreakP", 0, 99, 50, false, 197, {255, 255}, "OpBrPpoint", false, true},
-    {"L-Curve", 0, 3, 0, true, 199, {255, 255}, "OpDepthMode", false, true},
-    {"L-Depth", 0, 99, 0, true, 179, {255, 255}, "OpDepth", false, true},
-    {"R-Curve", 0, 3, 0, true, 199, {255, 255}, "OpDepthMode", false, true},
-    {"R-Depth", 0, 99, 0, true, 179, {255, 255}, "OpDepth", false, true},
-    {"Level", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Sync", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Tune Md", 0, 1, 0, true, 200, {255, 255}, "RatioFixed", false, true, 255},
+    {"Coarse", 0, 31, 1, false, 198, {4, 2}, "OpFreqCoarse", false, true, 2},
+    {"Fine", 0, 99, 0, false, 179, {255, 255}, "OpFreqFine", false, true, 255},
+    {"Detune", 0, 14, 7, true, 196, {255, 255}, "OpFreqDetune", false, true, 255},
+    {"KeyVel", 0, 7, 0, true, 179, {255, 255}, "OpVel", false, true, 255},
+    {"RScale", 0, 7, 0, true, 179, {255, 255}, "OpRateScale", false, true, 255},
+    {"R1", 0, 99, 90, false, 179, {255, 255}, "OpTime", false, true, 7},
+    {"L1", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true, 255},
+    {"R2", 0, 99, 80, false, 179, {255, 255}, "OpTime", false, true, 255},
+    {"L2", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true, 255},
+    {"R3", 0, 99, 70, false, 179, {255, 255}, "OpTime", false, true, 255},
+    {"L3", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true, 255},
+    {"R4", 0, 99, 70, false, 179, {255, 255}, "OpTime", false, true, 255},
+    {"L4", 0, 99, 0, false, 179, {255, 255}, "OpLevel", false, true, 255},
+    {"A-Mod", 0, 7, 0, true, 179, {255, 255}, "OpAmod", false, true, 255},
+    {"BreakP", 0, 99, 50, false, 197, {255, 255}, "OpBrPpoint", false, true, 255},
+    {"L-Curve", 0, 3, 0, true, 199, {255, 255}, "OpDepthMode", false, true, 255},
+    {"L-Depth", 0, 99, 0, true, 179, {255, 255}, "OpDepth", false, true, 18},
+    {"R-Curve", 0, 3, 0, true, 199, {255, 255}, "OpDepthMode", false, true, 255},
+    {"R-Depth", 0, 99, 0, true, 179, {255, 255}, "OpDepth", false, true, 20},
+    {"Level", 0, 99, 99, false, 179, {255, 255}, "OpLevel", false, true, 23},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 255},
+    {"KBG", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder180[] = {0, 1, 2, 3, 4, 5, 6, 7, 24, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
 const ConnectorDef kInputs181[] = {
@@ -2561,7 +2561,7 @@ const ConnectorDef kOutputs181[] = {
     {"Out8", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams181[] = {
-    {"Time", 0, 127, 0, true, 145, {128, 255}, "DelayTime_3", false, true},
+    {"Time", 0, 127, 0, true, 145, {128, 255}, "DelayTime_3", false, true, 255},
 };
 const std::uint8_t kEditOrder181[] = {0};
 const ModeDef kModes181[] = {
@@ -2575,17 +2575,17 @@ const ConnectorDef kOutputs182[] = {
     {"OutR", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams182[] = {
-    {"Time L", 0, 127, 64, true, 146, {6, 128}, "DelayTime_1", false, true},
-    {"Time R", 0, 127, 64, true, 146, {6, 128}, "DelayTime_1", false, true},
-    {"FB L", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"FB R", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"X-FB L", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"X-FB R", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true},
-    {"Flt LP", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true},
-    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
-    {"Flt HP", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Time L", 0, 127, 64, true, 146, {6, 128}, "DelayTime_1", false, true, 255},
+    {"Time R", 0, 127, 64, true, 146, {6, 128}, "DelayTime_1", false, true, 255},
+    {"FB L", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"FB R", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"X-FB L", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"X-FB R", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Time Md", 0, 1, 0, true, 144, {255, 255}, "TimeClk", false, true, 255},
+    {"Flt LP", 0, 127, 127, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Dry/Wet", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 9},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
+    {"Flt HP", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder182[] = {0, 1, 2, 3, 4, 5, 6, 7, 10, 8, 9};
 const ModeDef kModes182[] = {
@@ -2601,13 +2601,13 @@ const ConnectorDef kOutputs183[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams183[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true},
-    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true},
-    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 3}, "FreqCoarse", false, true, 3},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 2},
+    {"KBT", 0, 1, 1, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Tune Md", 0, 3, 0, true, 63, {255, 255}, "FreqMode_3", false, true, 255},
+    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 5},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder183[] = {0, 1, 6, 4, 5, 2, 3};
 const ModeDef kModes183[] = {
@@ -2624,9 +2624,9 @@ const ConnectorDef kOutputs184[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams184[] = {
-    {"Level", 0, 127, 100, true, 102, {2, 255}, "MixLevel", false, true},
-    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+    {"Level", 0, 127, 100, true, 102, {2, 255}, "MixLevel", false, true, 1},
+    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true, 255},
 };
 const std::uint8_t kEditOrder184[] = {0, 1, 2};
 const LabelDef kLabels185[] = {
@@ -2643,9 +2643,9 @@ const ConnectorDef kOutputs185[] = {
     {"OutR", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams185[] = {
-    {"Level", 0, 127, 100, true, 102, {2, 255}, "MixLevel", false, true},
-    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+    {"Level", 0, 127, 100, true, 102, {2, 255}, "MixLevel", false, true, 1},
+    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true, 255},
 };
 const std::uint8_t kEditOrder185[] = {0, 1, 2};
 const LabelDef kLabels186[] = {
@@ -2660,7 +2660,7 @@ const ConnectorDef kOutputs186[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams186[] = {
-    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
+    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true, 0},
 };
 const std::uint8_t kEditOrder186[] = {0};
 const LabelDef kLabels187[] = {
@@ -2675,7 +2675,7 @@ const ConnectorDef kOutputs187[] = {
     {"Ctrl", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams187[] = {
-    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
+    {"Switch", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true, 0},
 };
 const std::uint8_t kEditOrder187[] = {0};
 const LabelDef kLabels188[] = {
@@ -2685,9 +2685,9 @@ const ConnectorDef kOutputs188[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams188[] = {
-    {"Value", 0, 127, 64, true, 96, {2, 255}, "LevBipUni", false, true},
-    {"State", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
-    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni", false, true},
+    {"Value", 0, 127, 64, true, 96, {2, 255}, "LevBipUni", false, true, 1},
+    {"State", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true, 255},
+    {"Pol", 0, 1, 0, false, 18, {255, 255}, "BipUni", false, true, 255},
 };
 const std::uint8_t kEditOrder188[] = {0, 2, 1};
 const ConnectorDef kInputs189[] = {
@@ -2698,10 +2698,10 @@ const ConnectorDef kOutputs189[] = {
     {"Env", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams189[] = {
-    {"Thresh", 0, 127, 20, true, 220, {255, 255}, "Treshold_127", false, true},
-    {"Attack", 0, 127, 0, true, 159, {255, 255}, "NoiseGateAttack", false, true},
-    {"Release", 0, 127, 64, true, 160, {255, 255}, "NoiseGateRelease", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Thresh", 0, 127, 20, true, 220, {255, 255}, "Treshold_127", false, true, 255},
+    {"Attack", 0, 127, 0, true, 159, {255, 255}, "NoiseGateAttack", false, true, 255},
+    {"Release", 0, 127, 64, true, 160, {255, 255}, "NoiseGateRelease", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder189[] = {1, 2, 0, 3};
 const ConnectorDef kInputs190[] = {
@@ -2715,16 +2715,16 @@ const ConnectorDef kOutputs190[] = {
     {"Sync", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams190[] = {
-    {"Rate", 0, 127, 64, true, 103, {2, 255}, "LfoRate_4", false, true},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Range", 0, 4, 1, true, 104, {255, 255}, "LfoRange_4", false, true},
-    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true},
-    {"Wave", 0, 3, 0, true, 164, {255, 255}, "LfoB_WaveForm", false, true},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
-    {"Phase", 0, 127, 0, true, 163, {255, 255}, "Phase", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true},
-    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Rate", 0, 127, 64, true, 103, {2, 255}, "LfoRate_4", false, true, 2},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Range", 0, 4, 1, true, 104, {255, 255}, "LfoRange_4", false, true, 255},
+    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true, 3},
+    {"Wave", 0, 3, 0, true, 164, {255, 255}, "LfoB_WaveForm", false, true, 4},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true, 5},
+    {"Phase", 0, 127, 0, true, 163, {255, 255}, "Phase", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 7},
+    {"OutType", 0, 5, 4, true, 46, {255, 255}, "OutTypeLfo", false, true, 255},
+    {"Phase M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder190[] = {0, 1, 2, 4, 3, 5, 6, 9, 8, 7};
 const ConnectorDef kInputs192[] = {
@@ -2734,10 +2734,10 @@ const ConnectorDef kOutputs192[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams192[] = {
-    {"Type", 0, 1, 0, true, 170, {255, 255}, "PhaserType", false, true},
-    {"Rate", 0, 127, 64, true, 216, {255, 255}, "PhaserFreq", false, true},
-    {"FB", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true},
+    {"Type", 0, 1, 0, true, 170, {255, 255}, "PhaserType", false, true, 255},
+    {"Rate", 0, 127, 64, true, 216, {255, 255}, "PhaserFreq", false, true, 255},
+    {"FB", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 8, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder192[] = {0, 1, 2, 3};
 const ConnectorDef kInputs193[] = {
@@ -2762,11 +2762,11 @@ const ConnectorDef kOutputs194[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams194[] = {
-    {"Level1", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
-    {"On1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Level2", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true},
-    {"On2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true},
+    {"Level1", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true, 1},
+    {"On1", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Level2", 0, 127, 100, true, 102, {4, 255}, "MixLevel", false, true, 3},
+    {"On2", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Lin/Exp", 0, 2, 0, true, 169, {255, 255}, "ExpLin_2", false, true, 255},
 };
 const std::uint8_t kEditOrder194[] = {0, 1, 2, 3, 4};
 const LabelDef kLabels195[] = {
@@ -2780,10 +2780,10 @@ const ConnectorDef kOutputs195[] = {
     {"Out", SignalType::Audio, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams195[] = {
-    {"Amount", 0, 127, 100, true, 102, {2, 255}, "Level_100", false, true},
-    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true},
-    {"Lin/Exp", 0, 1, 0, true, 169, {255, 255}, "ExpLin_1", false, true},
-    {"Mode", 0, 1, 0, true, 189, {255, 255}, "ModAmtInvert", false, true},
+    {"Amount", 0, 127, 100, true, 102, {2, 255}, "Level_100", false, true, 1},
+    {"On", 0, 1, 1, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"Lin/Exp", 0, 1, 0, true, 169, {255, 255}, "ExpLin_1", false, true, 255},
+    {"Mode", 0, 1, 0, true, 189, {255, 255}, "ModAmtInvert", false, true, 255},
 };
 const std::uint8_t kEditOrder195[] = {0, 1, 2, 3};
 const ConnectorDef kInputs196[] = {
@@ -2795,15 +2795,15 @@ const ConnectorDef kOutputs196[] = {
     {"Out", SignalType::Audio, ConnColor::Red, Bandwidth::Static},
 };
 const ParamDef kParams196[] = {
-    {"Coarse", 0, 127, 64, true, 60, {1, 2}, "FreqCoarse", false, true},
-    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true},
-    {"Tune Md", 0, 3, 0, true, 0, {255, 255}, "FreqMode_3", false, true},
-    {"KBT", 0, 1, 0, true, 26, {255, 255}, "OffOn", false, true},
-    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Decay", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Click", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true},
-    {"Punch", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Coarse", 0, 127, 64, true, 60, {1, 2}, "FreqCoarse", false, true, 2},
+    {"Fine", 0, 127, 64, true, 59, {255, 255}, "FreqFine", false, true, 3},
+    {"Tune Md", 0, 3, 0, true, 0, {255, 255}, "FreqMode_3", false, true, 255},
+    {"KBT", 0, 1, 0, true, 26, {255, 255}, "OffOn", false, true, 255},
+    {"Pitch M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Decay", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Click", 0, 127, 64, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Punch", 0, 1, 0, true, 3, {255, 255}, "OffOn", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder196[] = {0, 1, 4, 5, 6, 7, 8, 2, 3};
 const ConnectorDef kOutputs197[] = {
@@ -2820,7 +2820,7 @@ const ConnectorDef kOutputs198[] = {
     {"Gate", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams198[] = {
-    {"Thresh", 0, 127, 20, true, 220, {255, 255}, "Treshold_127", false, true},
+    {"Thresh", 0, 127, 20, true, 220, {255, 255}, "Treshold_127", false, true, 255},
 };
 const std::uint8_t kEditOrder198[] = {0};
 const ConnectorDef kOutputs199[] = {
@@ -2829,7 +2829,7 @@ const ConnectorDef kOutputs199[] = {
     {"Vel", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams199[] = {
-    {"Priorty", 0, 2, 0, false, 181, {255, 255}, "MonoKeyMode", false, true},
+    {"Priorty", 0, 2, 0, false, 181, {255, 255}, "MonoKeyMode", false, true, 255},
 };
 const std::uint8_t kEditOrder199[] = {0};
 const ConnectorDef kInputs200[] = {
@@ -2839,13 +2839,13 @@ const ConnectorDef kOutputs200[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams200[] = {
-    {"Rate", 0, 127, 64, true, 103, {3, 255}, "LfoRate_3", false, true},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
-    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"Edge", 0, 4, 4, true, 203, {255, 255}, "RndEdge", false, true},
-    {"Step", 0, 3, 3, true, 207, {255, 255}, "RandomAStepProb", false, true},
+    {"Rate", 0, 127, 64, true, 103, {3, 255}, "LfoRate_3", false, true, 3},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true, 1},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true, 2},
+    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 4},
+    {"Edge", 0, 4, 4, true, 203, {255, 255}, "RndEdge", false, true, 255},
+    {"Step", 0, 3, 3, true, 207, {255, 255}, "RandomAStepProb", false, true, 255},
 };
 const std::uint8_t kEditOrder200[] = {0, 1, 5, 2, 4, 3, 6};
 const ConnectorDef kInputs201[] = {
@@ -2862,15 +2862,15 @@ const ConnectorDef kOutputs202[] = {
     {"Out", SignalType::Control, ConnColor::Blue, Bandwidth::Static},
 };
 const ParamDef kParams202[] = {
-    {"Rate", 0, 127, 64, true, 103, {7, 255}, "LfoRate_3", false, true},
-    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true},
-    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true},
-    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
-    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true},
-    {"Edge", 0, 4, 4, true, 203, {255, 255}, "RndEdge", false, true},
+    {"Rate", 0, 127, 64, true, 103, {7, 255}, "LfoRate_3", false, true, 7},
+    {"Mode", 0, 1, 0, false, 4, {255, 255}, "PolyMono", false, true, 1},
+    {"KBT", 0, 4, 0, true, 105, {255, 255}, "KBT_4", false, true, 2},
+    {"Rate M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 5},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true, 6},
+    {"Range", 0, 3, 1, true, 104, {255, 255}, "LfoRange_3", false, true, 255},
+    {"Edge", 0, 4, 4, true, 203, {255, 255}, "RndEdge", false, true, 255},
 };
 const std::uint8_t kEditOrder202[] = {0, 3, 4, 2, 1, 6, 5, 7, 8};
 const ConnectorDef kInputs203[] = {
@@ -2891,11 +2891,11 @@ const ConnectorDef kOutputs204[] = {
     {"Out", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams204[] = {
-    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100", false, true},
-    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono", false, true},
-    {"Dice", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
-    {"Active", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100", false, true, 255},
+    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono", false, true, 255},
+    {"Dice", 0, 1, 0, true, 3, {255, 255}, "OffOn", true, true, 255},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true, 255},
+    {"Active", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder204[] = {0, 1, 2, 3, 4};
 const ConnectorDef kInputs205[] = {
@@ -2908,10 +2908,10 @@ const ConnectorDef kOutputs205[] = {
     {"Out", SignalType::Logic, ConnColor::YellowOrange, Bandwidth::Dynamic},
 };
 const ParamDef kParams205[] = {
-    {"Prob", 0, 127, 64, true, 212, {255, 255}, "Level_100", false, true},
-    {"Prob M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"On/Off", 0, 1, 1, true, 0, {255, 255}, "OffOn", false, true},
-    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono", false, true},
+    {"Prob", 0, 127, 64, true, 212, {255, 255}, "Level_100", false, true, 255},
+    {"Prob M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 0, {255, 255}, "OffOn", false, true, 255},
+    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono", false, true, 255},
 };
 const std::uint8_t kEditOrder205[] = {0, 1, 2, 3};
 const ConnectorDef kInputs206[] = {
@@ -2924,11 +2924,11 @@ const ConnectorDef kOutputs206[] = {
     {"Out", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams206[] = {
-    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100", false, true},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
-    {"On/Off", 0, 1, 1, true, 0, {255, 255}, "OffOn", false, true},
-    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono", false, true},
-    {"Step M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
+    {"Step", 0, 127, 127, true, 205, {255, 255}, "Level_100", false, true, 255},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 0, {255, 255}, "OffOn", false, true, 255},
+    {"Mode", 0, 1, 0, true, 4, {255, 255}, "PolyMono", false, true, 255},
+    {"Step M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
 };
 const std::uint8_t kEditOrder206[] = {0, 1, 2, 3, 4};
 const ModeDef kModes206[] = {
@@ -2945,13 +2945,13 @@ const ConnectorDef kOutputs208[] = {
     {"Out", SignalType::Control, ConnColor::BlueRed, Bandwidth::Dynamic},
 };
 const ParamDef kParams208[] = {
-    {"Pattern", 0, 127, 64, true, 17, {255, 255}, "RangeBip_128", false, true},
-    {"Bank", 0, 127, 64, true, 17, {255, 255}, "Level_100", false, true},
-    {"Step", 0, 127, 127, true, 205, {255, 255}, "RangeBip_128", false, true},
-    {"Loop", 0, 127, 15, true, 2, {255, 255}, "Range_128", false, true},
-    {"Step M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true},
-    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true},
-    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true},
+    {"Pattern", 0, 127, 64, true, 17, {255, 255}, "RangeBip_128", false, true, 255},
+    {"Bank", 0, 127, 64, true, 17, {255, 255}, "Level_100", false, true, 255},
+    {"Step", 0, 127, 127, true, 205, {255, 255}, "RangeBip_128", false, true, 255},
+    {"Loop", 0, 127, 15, true, 2, {255, 255}, "Range_128", false, true, 255},
+    {"Step M", 0, 127, 0, true, 0, {255, 255}, "Level_100", false, true, 255},
+    {"OutType", 0, 2, 0, true, 204, {255, 255}, "BipPosNeg", false, true, 255},
+    {"On/Off", 0, 1, 1, true, 7, {255, 255}, "OffOn", false, true, 255},
 };
 const std::uint8_t kEditOrder208[] = {0, 1, 3, 2, 4, 5, 6};
 const ModeDef kModes208[] = {

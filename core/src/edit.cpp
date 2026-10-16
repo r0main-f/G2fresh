@@ -1517,6 +1517,48 @@ void clearKnob(Patch& patch, int knob)
     }
 }
 
+std::vector<u8> assignableParams(const db::ModuleDef& def)
+{
+    std::vector<u8> out;
+    for (const u8 param : def.editOrder) {
+        bool button = false;
+        for (std::size_t q = 0; q < def.params.size() && !button; ++q)
+            button = def.params[q].knobButtonParam == param && def.params[q].knobButtonParam != q;
+        if (!button)
+            out.push_back(param);
+    }
+    return out;
+}
+
+void assignModuleToPage(Patch& patch, Location loc, u8 module, int page, bool multi)
+{
+    const auto* m = patch.area(loc).find(module);
+    const auto* def = m ? db::find(m->type) : nullptr;
+    if (!def)
+        throw std::invalid_argument("no such module");
+    if (page < 0 || page >= kKnobCount / kKnobsPerPage)
+        throw std::invalid_argument("no such knob page");
+    auto params = assignableParams(*def);
+    if (!multi && params.size() > static_cast<std::size_t>(kKnobsPerPage))
+        params.resize(kKnobsPerPage);
+    const int first = page * kKnobsPerPage;
+    if (first + static_cast<int>(params.size()) > kKnobCount)
+        params.resize(static_cast<std::size_t>(kKnobCount - first));
+    for (std::size_t i = 0; i < params.size(); ++i) {
+        if (const auto old = knobOf(patch, loc, module, params[i]))
+            clearKnob(patch, *old);
+        assignKnob(patch, first + static_cast<int>(i), loc, module, params[i]);
+    }
+}
+
+bool isKnobPageUsed(const Patch& patch, int page)
+{
+    for (int k = page * kKnobsPerPage; k < (page + 1) * kKnobsPerPage && k < kKnobCount; ++k)
+        if (patch.knobs[static_cast<std::size_t>(k)])
+            return true;
+    return false;
+}
+
 std::string knobName(int knob)
 {
     // The original's pages: "Page A1" .. "Page E3", eight knobs each (SMNU Knob menu, ids 2010-2024; manual p19).

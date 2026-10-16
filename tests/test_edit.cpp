@@ -655,3 +655,37 @@ TEST_CASE("the toolbar's voices: the synth's count, then the patch's")
     edit::setVoices(p, edit::VoiceMode::Legato);
     CHECK(edit::voicesShown(p, false, std::nullopt).text == "Legato");
 }
+
+TEST_CASE("module Assign: a module's parameters onto a knob page")
+{
+    // CKnobMap::GetAssignModuleToPageMolecules @000f24d4 and CKnobAssignMenu::GetNoOfAssignableParams @000bb8b4: the
+    // parameters in the module's edit order, without those that are another parameter's button (param spec +0x0E);
+    // knob page * 8 + i; at most 8 unless Multi Column, which runs on into the next pages; a knob's old target and the
+    // parameter's old knob are freed first.
+    const auto* oscB = g2::db::find(7);
+    REQUIRE(oscB != nullptr);
+    CHECK(edit::assignableParams(*oscB) == std::vector<u8>{0, 1, 3, 8, 6, 7, 5, 9});
+
+    auto p = g2::Patch::makeDefault();
+    const auto osc = edit::dropModule(p, Location::Va, 7, 0, 0);
+    const auto seq = edit::dropModule(p, Location::Va, 121, 2, 0);
+    edit::assignKnob(p, 9, Location::Va, seq, 0); // page A2, knob 2: freed by the assignment below
+    edit::assignKnob(p, 40, Location::Va, osc, 0); // the oscillator's first parameter elsewhere: moves
+    CHECK_FALSE(edit::isKnobPageUsed(p, 2));
+    edit::assignModuleToPage(p, Location::Va, osc, 1, false); // Page A, Column 2
+    CHECK(edit::knobOf(p, Location::Va, osc, 0) == 8);
+    CHECK(edit::knobOf(p, Location::Va, osc, 1) == 9);
+    CHECK(edit::knobOf(p, Location::Va, osc, 9) == 15);
+    CHECK_FALSE(edit::knobOf(p, Location::Va, osc, 2)); // a button parameter
+    CHECK_FALSE(edit::knobOf(p, Location::Va, seq, 0));
+    CHECK_FALSE(p.knobs[40].has_value());
+    CHECK(edit::isKnobPageUsed(p, 1));
+
+    const auto* seqNote = g2::db::find(121);
+    REQUIRE(edit::assignableParams(*seqNote).size() == 21);
+    edit::assignModuleToPage(p, Location::Va, seq, 3, false); // Page B, Column 1: the first 8 only
+    CHECK(edit::knobOf(p, Location::Va, seq, edit::assignableParams(*seqNote)[7]) == 31);
+    CHECK_FALSE(edit::knobOf(p, Location::Va, seq, edit::assignableParams(*seqNote)[8]));
+    edit::assignModuleToPage(p, Location::Va, seq, 3, true); // Multi Column: 21 knobs from B1
+    CHECK(edit::knobOf(p, Location::Va, seq, edit::assignableParams(*seqNote)[20]) == 24 + 20);
+}
