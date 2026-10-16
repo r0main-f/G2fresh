@@ -1570,6 +1570,12 @@ bool MainView::keyPressed(const juce::KeyPress& key)
             return doc_.setVariation(k.index), true;
         if (k.kind == PatchKey::Kind::Slot)
             return doc_.setSlot(k.index), true;
+        if (k.kind == PatchKey::Kind::ToggleClock) {
+            doc_.editPerformance([](g2::file::PerfHeader& h) { h.masterClockRun = h.masterClockRun != 0 ? 0 : 1; });
+            if (const auto* perf = doc_.performance())
+                setStatus(perf->header.masterClockRun != 0 ? "Master clock running" : "Master clock stopped");
+            return true;
+        }
         if (k.kind == PatchKey::Kind::AssignMidi) {
             const auto f = doc_.focus();
             if (g2::edit::canAssignMidiCc(doc_.patch(), f.location, f.module, f.param))

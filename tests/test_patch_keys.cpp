@@ -70,3 +70,11 @@ TEST_CASE("patch keys: V shows the Voice Area, F the FX Area")
     CHECK(patchKey('f', true, false, false).kind == Kind::None);
     CHECK(patchKey('v', false, true, false).kind == Kind::None);
 }
+
+TEST_CASE("patch keys: R starts or stops a performance's master clock")
+{
+    // CPatchView::KeyToggleMasterClock @000fc64a: the performance header's Run, only in a performance.
+    CHECK(patchKey('r', false, false, true).kind == Kind::ToggleClock);
+    CHECK(patchKey('r', false, false, false).kind == Kind::None);
+    CHECK(patchKey('r', true, false, true).kind == Kind::None);
+}

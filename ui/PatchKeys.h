@@ -2,7 +2,8 @@
 // The patch window's single keys, as Clavia's editor v1.62 binds them (CPatchView::InitializeShortcutKeys @000fafd8;
 // manual p115-116): 1 to 8 select the variation, A to D a performance's slot, V and F show the Voice or the FX Area
 // (SplitBar.h), L learns a MIDI controller and M
-// opens the MIDI controller dialog, on key down and with no modifier.
+// opens the MIDI controller dialog, R runs or stops a performance's
+// master clock, on key down and with no modifier.
 // Plain C++.
 
 #include <array>
@@ -12,7 +13,7 @@
 namespace g2ui {
 
 struct PatchKey {
-    enum class Kind { None, Variation, Slot, ShowVoice, ShowFx, LearnMidi, AssignMidi };
+    enum class Kind { None, Variation, Slot, ShowVoice, ShowFx, LearnMidi, AssignMidi, ToggleClock };
     Kind kind = Kind::None;
     int index = 0;
 };
@@ -38,6 +39,8 @@ inline PatchKey patchKey(char c, bool modifier, bool repeat, bool performance,
         return {PatchKey::Kind::LearnMidi}; // the focused parameter takes the last CC received (KeyLearnMidi @000f99fe)
     if (l == 'm')
         return {PatchKey::Kind::AssignMidi}; // its MIDI controller dialog (KeyAssignMidi @000fa154)
+    if (l == 'r' && performance)
+        return {PatchKey::Kind::ToggleClock}; // the master clock's Run (KeyToggleMasterClock @000fc64a)
     return {};
 }
 
