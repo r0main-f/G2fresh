@@ -155,6 +155,18 @@ void setMode(Patch& patch, Location loc, u8 module, u8 mode, u8 value);
 // Display text of a parameter, as the original editor shows it.
 std::string paramText(const Patch& patch, Location loc, u8 module, u8 param, u8 variation);
 
+// ---- Performance Settings ------------------------------------------------------
+//
+// The original dialog's rules (CDialogPerformance). Each returns "" when done, or the original's alert text when
+// it refuses (and changes nothing).
+// ToggleSlot @000397da: the last active slot is not disabled; a slot disabled gives its keyboard and the focus to the
+// first other active slot; a slot enabled takes the focus.
+std::string toggleSlotEnabled(file::PerfHeader& header, int slot);
+// ToggleKeyb @0003986e: the keyboard is not taken off the only slot that has it.
+std::string toggleSlotKeyboard(file::PerfHeader& header, int slot);
+// ValidateKeyboardRange @000398be: both ends within 0..127, the lower end no higher than the upper.
+void validateKeyboardRange(file::PerfHeader& header, int slot);
+
 // ---- Patch settings -------------------------------------------------------
 
 // The patch-settings pseudo modules (file location 2), by index.

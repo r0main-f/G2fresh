@@ -544,3 +544,38 @@ TEST_CASE("modules go only where the original allows them: Fx-In in the FX area"
     // A module whose contexts the data doesn't give goes anywhere.
     CHECK(driver->contexts == 0b111);
 }
+
+TEST_CASE("Performance Settings: a slot stays active, the keyboard moves off a disabled slot, lower <= upper")
+{
+    // Audit L11: CDialogPerformance::ToggleSlot @000397da, ToggleKeyb @0003986e, ValidateKeyboardRange @000398be.
+    auto perf = Performance::makeNew(); // four slots active, the keyboard on A
+    auto& h = perf.header;
+    // Disabling the slot with the keyboard: the keyboard and the focus go to the first other active slot.
+    CHECK(edit::toggleSlotEnabled(h, 0).empty());
+    CHECK(h.slots[0].enabled == 0);
+    CHECK(h.slots[0].keyboard == 0);
+    CHECK(h.slots[1].keyboard == 1);
+    CHECK(h.focusedSlot == 1);
+    // The last active slot is not disabled.
+    CHECK(edit::toggleSlotEnabled(h, 2).empty());
+    CHECK(edit::toggleSlotEnabled(h, 3).empty());
+    CHECK(edit::toggleSlotEnabled(h, 1) == "At least one slot must be active.");
+    CHECK(h.slots[1].enabled == 1);
+    // Enabling a slot focuses it.
+    CHECK(edit::toggleSlotEnabled(h, 2).empty());
+    CHECK(h.slots[2].enabled == 1);
+    CHECK(h.focusedSlot == 2);
+    // The keyboard: not off the only slot that has it; on and off elsewhere.
+    CHECK(edit::toggleSlotKeyboard(h, 1) == "At least one slot must be active.");
+    CHECK(h.slots[1].keyboard == 1);
+    CHECK(edit::toggleSlotKeyboard(h, 2).empty());
+    CHECK(h.slots[2].keyboard == 1);
+    CHECK(edit::toggleSlotKeyboard(h, 1).empty());
+    CHECK(h.slots[1].keyboard == 0);
+    // The keyboard range: an upper end below the lower end pulls the lower end down.
+    h.slots[0].kbdRangeLower = 60;
+    h.slots[0].kbdRangeUpper = 40;
+    edit::validateKeyboardRange(h, 0);
+    CHECK(h.slots[0].kbdRangeLower == 40);
+    CHECK(h.slots[0].kbdRangeUpper == 40);
+}

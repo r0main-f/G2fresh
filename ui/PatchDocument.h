@@ -92,6 +92,8 @@ public:
     // The parameter focus of the patch being edited (g2/focus.hpp): one per patch, shared by its areas and
     // settings, Morph dial 1 at first and after a load. Not an undo step and not saved. A focus whose module
     // goes back to Morph dial 1 without a message, as the original's CPatch::RemoveFocusFrom @000da8bc.
+    // Counts the documents loaded or made (every load and New): what was kept for the previous one is stale.
+    int generation() const { return generation_; }
     g2::focus::Focus focus() const { return focus_[static_cast<std::size_t>(perf_ ? slot_ : 0)]; }
     void setFocus(const g2::focus::Focus& f);
     // Hide All (the H button, Space): whether the patch's cables are shown, over its colours' own flags. Per patch, in
@@ -200,6 +202,7 @@ private:
     int variation_ = 0;
     int morphGroup_ = 0;
     std::array<bool, 4> cablesShown_{true, true, true, true};
+    int generation_ = 0;
     std::array<g2::focus::Focus, 4> focus_{g2::focus::kDefault, g2::focus::kDefault, g2::focus::kDefault,
                                            g2::focus::kDefault};
     juce::File file_;
