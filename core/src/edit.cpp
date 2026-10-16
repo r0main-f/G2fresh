@@ -1155,6 +1155,15 @@ std::string voicesText(const Patch& patch)
     }
 }
 
+VoicesShown voicesShown(const Patch& patch, bool connected, std::optional<u8> actual)
+{
+    const bool known = connected && actual.has_value();
+    VoicesShown out{voicesText(patch), known && *actual == 0};
+    if (patch.header.monoMode == 0 && connected)
+        out.text = (known ? std::to_string(*actual) : std::string("?")) + " (" + out.text + ")";
+    return out;
+}
+
 void setCategory(Patch& patch, u8 category)
 {
     if (category > 15)

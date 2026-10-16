@@ -158,6 +158,10 @@ MainView::MainView(PatchDocument& doc, bool standalone)
 
     settings_.onStatus = [this](const juce::String& s) { setStatus(s); };
     settings_.onLayoutChanged = [this] { resized(); };
+    settings_.voicesOnSynth = [this] {
+        return synth_ != nullptr ? std::pair{synth_->patchConnected(), synth_->currentVoices()}
+                                 : std::pair<bool, std::optional<std::uint8_t>>{false, std::nullopt};
+    };
     addAndMakeVisible(settings_);
     // Into the area last clicked, below its selection (CTabButton::Action).
     browser_.onAdd = [this](std::uint8_t type) { activeArea().insertModule(type); };
@@ -1168,6 +1172,7 @@ void MainView::changeListenerCallback(juce::ChangeBroadcaster* source)
     if (source == synth_) {
         va_.liveLedsChanged();
         fx_.liveLedsChanged();
+        settings_.synthChanged(); // the voices the synth plays
         updateLoad();
         menuItemsChanged(); // slot names, connection state
         return;

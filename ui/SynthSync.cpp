@@ -726,6 +726,13 @@ std::optional<int> SynthSync::ledValue(g2::Location location, std::uint8_t modul
     return std::nullopt;
 }
 
+std::optional<std::uint8_t> SynthSync::currentVoices() const
+{
+    if (!patchConnected() || !link_->state().voicesReceived)
+        return std::nullopt;
+    return link_->state().voices[static_cast<std::size_t>(synthSlotFor(doc_.slot()))];
+}
+
 std::optional<g2::patchload::Load> SynthSync::reportedLoad() const
 {
     if (!ready() || !bound())

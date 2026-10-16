@@ -28,6 +28,8 @@ public:
     std::function<int()> get;
     std::function<int()> max;
     std::function<juce::String(int)> text; // text of any value
+    std::function<juce::String()> shown;   // optional: the text shown instead of the value's
+    std::function<bool()> alert;           // optional: shown on red
     std::function<void(int value, bool coalesce)> set;
     std::function<void()> onRename;        // optional: double-click the name
     std::function<void()> onPress;         // optional: any click, before the control acts
@@ -97,14 +99,14 @@ public:
         }
         auto box = r.reduced(3.0f, 0.0f).withSizeKeepingCentre(r.getWidth() - 6.0f, kBoxHeight);
         const bool on = kind == Kind::Toggle && v != 0;
-        g.setColour(on ? kAccent : juce::Colour(0xff3a3d44));
+        g.setColour(alert && alert() ? juce::Colour(0xffc03030) : on ? kAccent : juce::Colour(0xff3a3d44));
         g.fillRoundedRectangle(box, 4.0f);
         g.setColour(hovered_ ? juce::Colour(0xffff8c1a) : juce::Colour(0xff555a64));
         g.drawRoundedRectangle(box.reduced(0.5f), 4.0f, 1.0f);
         g.setColour(on ? juce::Colours::white : kInk);
         g.setFont(theme::font());
         if (kind == Kind::Menu) {
-            g.drawFittedText(text(v), box.withTrimmedRight(12.0f).toNearestInt(), juce::Justification::centred, 1, 0.7f);
+            g.drawFittedText(shown ? shown() : text(v), box.withTrimmedRight(12.0f).toNearestInt(), juce::Justification::centred, 1, 0.7f);
             juce::Path p;
             const float x = box.getRight() - 8.0f, y = box.getCentreY();
             p.addTriangle(x - 3.5f, y - 2.0f, x + 3.5f, y - 2.0f, x, y + 2.5f);
@@ -303,6 +305,9 @@ PatchSettingsBar::PatchSettingsBar(PatchDocument& doc) : doc_(doc)
         };
         c->max = [] { return 33; };
         c->text = [](int v) { return v == 0 ? juce::String("Legato") : v == 1 ? juce::String("Mono") : juce::String(v - 1); };
+        // As the original's toolbar: with the patch on a synth, the voices it plays, then the patch's.
+        c->shown = [this] { return juce::String(edit::voicesShown(doc_.patch(), liveVoices().first, liveVoices().second).text); };
+        c->alert = [this] { return edit::voicesShown(doc_.patch(), liveVoices().first, liveVoices().second).red; };
         c->set = [this](int v, bool) {
             doc_.perform("Change voices", [v](g2::Patch& p) {
                 if (v == 0)

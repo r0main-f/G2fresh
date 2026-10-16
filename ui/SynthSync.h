@@ -123,6 +123,10 @@ public:
 
     // The patch load the synth reports for the slot shown, while bound.
     std::optional<g2::patchload::Load> reportedLoad() const;
+    // Whether the patch shown plays on the synth, and how many voices the synth gives it (nullopt until it has said:
+    // CPatch::GetCurrentNumberOfVoices @000d458c).
+    bool patchConnected() const { return ready() && bound() && synthSlotFor(doc_.slot()) >= 0; }
+    std::optional<std::uint8_t> currentVoices() const;
 
     // An alert the original shows when the synth reports an exception (7E):
     // title and text. Set by the editor window.
