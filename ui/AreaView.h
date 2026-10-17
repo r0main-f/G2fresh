@@ -256,6 +256,7 @@ private:
     std::map<std::uint8_t, g2::special::DrumPresetSelector> drumSelectors_;
     int shownGeneration_ = -1, shownSlot_ = -1; // the document and slot the selectors belong to
     std::optional<juce::Point<int>> dropCell_; // browser drag-over preview
+    int dropRows_ = 2;                         // its height: the dragged module's, in grid rows
 
     std::unique_ptr<ModulesLayer> modules_;
     std::unique_ptr<Overlay> overlay_;
