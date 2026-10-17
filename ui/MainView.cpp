@@ -8,8 +8,10 @@
 
 #include "Dialogs.h"
 #include "LiveShow.h"
+#include "MenuIds.h"
 #include "PatchKeys.h"
 #include "PatchLibrary.h"
+#include "PatchLibraryModel.h"
 #include "SynthSettingsWindow.h"
 #include "ZoomFit.h"
 
@@ -20,32 +22,8 @@ namespace {
 
 const juce::String kOpenPattern = "*.pch2;*.prf2";
 
-enum MenuId {
-    kNew = 1, kOpen, kSave, kSaveAs, kClearRecent, kNewPerformance, kPerformanceSettings, kPatchLibrary,
-    kUndo, kRedo, kDelete, kRename, kCut, kCopy, kPaste, kDuplicate, kSelectAll, kPatchNotes,
-    kRandomize, kMutate, kMutator,
-    kZoomIn, kZoomOut, kZoomReset, kShowSettings, kClassicLook, kAnimateCables,
-    kAudioSettings, kRemoveBendPoints, kLiveMode, kHideAllCables, kShakeCables, kZoomFit, kSaveSelection, kInsertPatch,
-    kRecallInit, kDeleteUnused, kPasteParams, kSaveInitPatch1, kSaveInitPatch2,
-    kNewToBase = 900, kOpenToBase = 910, kSaveFromBase = 920, // + slot
-    kAssignMidiSelection = 930, kDeassignMidiSelection, kDeassignAllMidi,
-    kRecentBase = 100,       // + index into the recent files list
-    kCopyVariationBase = 200, // + target variation (8 = init)
-    kCablesBase = 300,        // + cable colour
-    kCableStyleBase = 310,    // + CableStyle
-    kCableOpacityBase = 320,  // + index into kCableOpacities
-    kMidiOutOff = 400, kMidiOutBase = 401, // + index into the device list
-    kMidiChannelBase = 600,   // + channel (0: as played)
-    kSynthG2 = 700, kSynthVirtual, kSynthDisconnect, kSendPerformance, kGetPerformance, kUnbind, kSynthMemory, kShowUsbLog, kFullUsbLog,
-    kSynthSettings,
-    kSendPatchBase = 710,     // + slot
-    kGetPatchBase = 720,      // + slot
-    kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34, kEmulatorExpansion,
-    kEmulatorBufferBase = 740, // + buffer (EmulatorHost::emulatorBuffer)
-    // Opt-in deviations from the original editor (View menu).
-    kWheelEditsKnobs = 800, kDoubleClickMorph, kDoubleClickReset, kDoubleClickNothing, kShowLoadEstimate,
-    kMorphGroupColours,
-};
+using namespace menuid;
+
 
 juce::PopupMenu::Item item(int id, const juce::String& text, const juce::String& shortcut = {}, bool enabled = true,
                            bool ticked = false)
@@ -74,7 +52,7 @@ MainView::MainView(PatchDocument& doc, bool standalone)
     : doc_(doc), standalone_(standalone), va_(doc, g2::Location::Va), fx_(doc, g2::Location::Fx)
 {
     setLookAndFeel(&lookAndFeel_.get());
-    recent_.setMaxNumberOfItems(12);
+    recent_.setMaxNumberOfItems(kRecentMax);
     recent_.restoreFromString(userSettings().getValue("recentFiles"));
 
     if (standalone_) {
@@ -882,7 +860,7 @@ void MainView::menuItemSelected(int id, int)
                   + (to < g2::kUserVariations ? "variation " + juce::String(to + 1) : juce::String("the init variation")));
         return;
     }
-    if (id >= kRecentBase) {
+    if (isRecentFileItem(id)) {
         const auto f = recent_.getFile(id - kRecentBase);
         confirmDiscard([this, f] { openFile(f); });
         return;
@@ -1139,6 +1117,14 @@ void MainView::recallVariationInit()
     setStatus("Recalled the Init variation into variation " + juce::String(to + 1));
 }
 
+juce::File MainView::dialogFolder() const
+{
+    // The document's folder, else G2fresh/Patches in the Music folder (PatchLibraryModel.h), else Documents.
+    const auto music = juce::File::getSpecialLocation(juce::File::userMusicDirectory).getFullPathName().toStdString();
+    const juce::File folder{juce::String(g2ui::dialogFolder(doc_.file().getFullPathName().toStdString(), defaultPatchFolder(music)))};
+    return folder.isDirectory() ? folder : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+}
+
 void MainView::newTo(int slot)
 {
     const auto letter = juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot));
@@ -1161,7 +1147,7 @@ void MainView::newTo(int slot)
 void MainView::openTo(int slot)
 {
     chooser_ = std::make_unique<juce::FileChooser>("Open a G2 patch into slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)),
-                                                   doc_.file(), "*.pch2");
+                                                   dialogFolder(), "*.pch2");
     chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                           [this, slot](const juce::FileChooser& fc) {
                               const auto f = fc.getResult();
@@ -1214,8 +1200,7 @@ void MainView::saveFrom(int slot)
         return;
     }
     const auto fileName = juce::String(g2::edit::fileNameForPatch(name.toStdString())).trim();
-    const auto folder = doc_.file() != juce::File() ? doc_.file().getParentDirectory()
-                                                    : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+    const auto folder = dialogFolder();
     chooser_ = std::make_unique<juce::FileChooser>("Save the patch in slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)),
                                                    folder.getChildFile((fileName.isEmpty() ? juce::String("No name") : fileName) + ".pch2"), "*.pch2");
     chooser_->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
@@ -1999,7 +1984,7 @@ void MainView::newPatch()
 void MainView::open()
 {
     confirmDiscard([this] {
-        chooser_ = std::make_unique<juce::FileChooser>("Open a G2 patch or performance", doc_.file(), kOpenPattern);
+        chooser_ = std::make_unique<juce::FileChooser>("Open a G2 patch or performance", doc_.file() != juce::File() ? doc_.file() : dialogFolder(), kOpenPattern);
         chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                               [this](const juce::FileChooser& fc) {
                                   if (fc.getResult() != juce::File())
@@ -2131,8 +2116,7 @@ void MainView::save(bool saveAs)
         return;
     }
     const auto ext = doc_.fileExtension();
-    const auto folder = doc_.file() != juce::File() ? doc_.file().getParentDirectory()
-                                                    : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+    const auto folder = dialogFolder();
     const auto suggested = doc_.isPerformance() && doc_.file() != juce::File()
                                ? doc_.file()
                                : folder.getChildFile(suggestedFileName() + ext);
@@ -2154,8 +2138,7 @@ void MainView::saveSelection()
     if (!area)
         return;
     const auto part = g2::edit::selectionPatch(doc_.patch(), area->location(), area->selection());
-    const auto folder = doc_.file() != juce::File() ? doc_.file().getParentDirectory()
-                                                    : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+    const auto folder = dialogFolder();
     chooser_ = std::make_unique<juce::FileChooser>("Save the selection as a G2 patch", folder.getChildFile("Selection.pch2"),
                                                    "*.pch2");
     chooser_->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
@@ -2176,7 +2159,7 @@ void MainView::saveSelection()
 
 void MainView::insertPatchFile()
 {
-    chooser_ = std::make_unique<juce::FileChooser>("Insert the modules of a G2 patch", doc_.file(), "*.pch2");
+    chooser_ = std::make_unique<juce::FileChooser>("Insert the modules of a G2 patch", dialogFolder(), "*.pch2");
     chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                           [this](const juce::FileChooser& fc) {
                               const auto f = fc.getResult();
