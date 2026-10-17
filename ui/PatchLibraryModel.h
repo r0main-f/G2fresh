@@ -32,6 +32,14 @@ inline std::string defaultPatchFolder(const std::string& musicDir)
     return dir + "G2fresh" + sep + "Patches";
 }
 
+// Where the Open and Save dialogs start: the document's folder, or for a document never saved the default patch folder
+// (round-4 hand tests). Either separator.
+inline std::string dialogFolder(const std::string& documentFile, const std::string& defaultFolder)
+{
+    const auto cut = documentFile.find_last_of("/\\");
+    return documentFile.empty() || cut == std::string::npos ? defaultFolder : documentFile.substr(0, cut);
+}
+
 // The folders the library starts with: the ones chosen before; on a first use (none chosen, and the default never
 // added), the default folder (defaultPatchFolder, which the caller creates). Once added, it is not added again: a
 // list the user emptied stays empty.

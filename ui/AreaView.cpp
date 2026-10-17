@@ -436,7 +436,7 @@ void AreaView::paintOverlay(juce::Graphics& g)
     if (dropCell_) {
         g.setColour(juce::Colours::white.withAlpha(0.3f));
         g.fillRoundedRectangle(juce::Rectangle<int>(dropCell_->x * kModuleWidth, dropCell_->y * kRowHeight, kModuleWidth,
-                                                    2 * kRowHeight).toFloat(), 5.0f);
+                                                    dropRows_ * kRowHeight).toFloat(), 5.0f);
     }
     paintLiveLeds(g);
     paintCables(g);
@@ -2201,6 +2201,10 @@ bool AreaView::isInterestedInDragSource(const SourceDetails& d)
 void AreaView::itemDragMove(const SourceDetails& d)
 {
     dropCell_ = gridCell(d.localPosition);
+    // The frame as tall as the module dragged (round-4 hand tests: it was always two rows).
+    const int type = d.description.toString().fromFirstOccurrenceOf(kModuleDragPrefix, false, false).getIntValue();
+    const auto* def = g2::db::find(static_cast<std::uint8_t>(type));
+    dropRows_ = def != nullptr ? std::max<int>(1, def->height) : 2;
     overlay_->repaint();
 }
 
