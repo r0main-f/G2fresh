@@ -61,6 +61,8 @@ public:
     virtual void playNote(u8 note, bool on) = 0;
     // The synth settings (Client::setSynthSettings).
     virtual void setSynthSettings(const SynthSettings& settings) { (void)settings; }
+    // The toolbar's Perf (Client::setPerformanceMode).
+    virtual void setPerformanceMode(bool on, bool shift) { (void)on; (void)shift; }
     virtual void edit(int slot, std::vector<Molecule> molecules) = 0;
 };
 
@@ -121,6 +123,7 @@ public:
     void storeToFlash(int slot, u8 bank, u8 prog) override { client_.storeToFlash(slot, bank, prog); }
     void playNote(u8 note, bool on) override { client_.playNote(note, on); }
     void setSynthSettings(const SynthSettings& settings) override { client_.setSynthSettings(settings); }
+    void setPerformanceMode(bool on, bool shift) override { client_.setPerformanceMode(on, shift); }
     void edit(int slot, std::vector<Molecule> molecules) override { client_.edit(slot, std::move(molecules)); }
 
 private:

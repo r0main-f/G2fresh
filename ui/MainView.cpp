@@ -242,6 +242,20 @@ MainView::MainView(PatchDocument& doc, bool standalone)
         b->onClick = [this, n] { recallInitPatch(n); };
         addAndMakeVisible(b);
     }
+    perfButton_.setTooltip("Perf: the G2's performance mode (lit when on). A click switches it; the G2 then plays its "
+                           "performance, or its patch-mode slots again");
+    perfButton_.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff3070c0));
+    perfButton_.onClick = [this] {
+        if (synth_ == nullptr || !synth_->ready())
+            return;
+        const bool on = !synth_->performanceMode();
+        // CPerfButton::Click @000774fe: the opposite of the mode shown, and whether Shift is held.
+        synth_->setPerformanceMode(on, juce::ModifierKeys::currentModifiers.isShiftDown());
+        setStatus(on ? "The G2 is in performance mode: Synth > Get Performance to edit what it plays"
+                     : "The G2 is in patch mode: Synth > Get Patch to edit one of its slots");
+        updateSynthStatus();
+    };
+    addChildComponent(perfButton_);
     init1_.setConnectedEdges(juce::Button::ConnectedOnRight);
     init2_.setConnectedEdges(juce::Button::ConnectedOnLeft);
     addChildComponent(live_);
@@ -400,6 +414,13 @@ void MainView::updateSynthStatus()
     else if (synth_->performanceBound())
         text << "  |  live: performance";
     synthStatus_.setText(text, juce::dontSendNotification);
+    // The Perf button, with a G2 to switch.
+    const bool showPerf = synth_->ready();
+    perfButton_.setToggleState(showPerf && synth_->performanceMode(), juce::dontSendNotification);
+    if (perfButton_.isVisible() != showPerf) {
+        perfButton_.setVisible(showPerf);
+        resized();
+    }
     const auto colour = synth_->ready() ? (synth_->bound() ? juce::Colour(0xff6fd06f) : juce::Colour(0xffd0d0d0))
                                         : juce::Colour(0xff9a9ea6);
     synthStatus_.setColour(juce::Label::textColourId, colour);
@@ -1576,6 +1597,10 @@ void MainView::resized()
             slots_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
             keyboardMarks_[i]->setBounds(slots_[i]->getBounds().withHeight(3).reduced(3, 0));
         }
+        bar.removeFromRight(16);
+    }
+    if (perfButton_.isVisible()) {
+        perfButton_.setBounds(bar.removeFromRight(44));
         bar.removeFromRight(16);
     }
     mutatorButton_.setBounds(bar.removeFromRight(92));

@@ -688,3 +688,26 @@ TEST_CASE("Live on the user's G2 OS: the display shows the name of the patch sen
     INFO(rig.m->panel().displays[0].text(0) << " / " << rig.m->panel().displays[0].text(1));
     CHECK(rig.m->panel().displays[0].text(1).find("PianoStringz") != std::string::npos);
 }
+
+TEST_CASE("Live on the user's G2 OS: the Perf button puts the synth into performance mode and back", "[g2emu][firmware][live]")
+{
+    // The toolbar's Perf (manual p58; CTBWindow::SetPerformanceMode @0012a306 -> CSynth::SendPerformanceModeChange
+    // @0011dfae: 3E, sent only when the mode changes, Shift as its second byte). The OS answers with a new performance
+    // (1F) and no synth settings, so the client keeps the mode it asked for, as the original's synth map; the slots
+    // then hold the recalled performance, and the patch-mode slots come back on the way out (manual p46).
+    Rig rig;
+    if(!rig.boot()) SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .dmg, or unpack it into original/firmware)");
+    const auto patch = testPatch();
+    rig.client->sendPerformance(g2::Performance::playing(patch, "Probe"), "Probe", false);
+    rig.settle(0.5);
+    REQUIRE_FALSE(rig.client->state().settings.perfMode);
+    rig.client->setPerformanceMode(true, false);
+    rig.settle(1.5);
+    CHECK(rig.client->state().settings.perfMode);
+    CHECK(rig.client->state().slots[0].name != "Probe"); // the performance the synth recalled
+    rig.client->setPerformanceMode(false, false);
+    rig.settle(1.5);
+    CHECK_FALSE(rig.client->state().settings.perfMode);
+    CHECK(rig.client->state().slots[0].name == "Probe");
+    CHECK(rig.client->state().slots[0].patch.va.modules.size() == patch.va.modules.size());
+}

@@ -178,6 +178,10 @@ public:
     // Synth Settings dialog (CSynth::TrySendingSynthDataSystemInfo 0x11e06c) and to change perfMode. The OS reads
     // every field (CSynthMap::ReadStream) and answers with an ack only.
     void setSynthSettings(const SynthSettings& settings);
+    // 3E CMPerformanceModeChange, the toolbar's Perf (CSynth::SendPerformanceModeChange @0011dfae): sent only when
+    // the mode changes, `shift` (Shift held on the button) as its second byte. The OS answers with a new performance
+    // (1F) and no synth settings, so the mirror keeps the mode asked for, as the original's synth map.
+    void setPerformanceMode(bool on, bool shift);
     // Any patch edit: applied to the slot's mirror, sent as one T bubble.
     // Slot kSlotSynth: a performance edit, one P bubble.
     void edit(int slot, std::vector<Molecule> molecules);

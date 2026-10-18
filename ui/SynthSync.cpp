@@ -110,6 +110,16 @@ void SynthSync::connectEmulated(std::unique_ptr<g2::proto::SynthLink> link)
     startLink(std::move(link), Kind::Emulated);
 }
 
+void SynthSync::setPerformanceMode(bool on, bool shift)
+{
+    if (!ready() || performanceMode() == on)
+        return;
+    leaveAuditionFor(4);
+    unbind();
+    link_->setPerformanceMode(on, shift);
+    sendChangeMessage();
+}
+
 void SynthSync::setSynthSettings(const g2::proto::SynthSettings& settings)
 {
     if (ready())

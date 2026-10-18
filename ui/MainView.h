@@ -172,6 +172,8 @@ private:
     bool liveMode_ = false;
     juce::TextButton editButton_{"Edit"}, liveButton_{"Live"};
     juce::TextButton init1_{"Init 1"}, init2_{"Init 2"};
+    // The original's Perf (manual p58): lit while the G2 is in performance mode; a click switches it (SynthSync).
+    juce::TextButton perfButton_{"Perf"};
     LiveView live_{nullptr};
     void updateLoad();
     juce::PopupMenu synthMenu();

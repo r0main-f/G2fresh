@@ -141,6 +141,10 @@ public:
         const auto& s = link_->state().slots[static_cast<std::size_t>(slot)];
         return std::pair{s.patch, s.name};
     }
+    // The toolbar's Perf: the G2's performance mode, and the switch (3E). The synth then plays other patches (the
+    // performance it recalls, or its patch-mode slots again): the document is taken off it, not replaced.
+    bool performanceMode() const { return ready() && link_->state().settings.perfMode; }
+    void setPerformanceMode(bool on, bool shift);
     int synthFocusedSlot() const { return ready() && link_->state().slotFocus < 4 ? link_->state().slotFocus : -1; }
 
     // An alert the original shows when the synth reports an exception (7E):

@@ -996,6 +996,15 @@ void Client::playNote(u8 note, bool on)
     enqueueUser([note, on] { return Bubble::synth({PlayNote{!on, static_cast<u8>(note & 0x7F)}}); });
 }
 
+void Client::setPerformanceMode(bool on, bool shift)
+{
+    if (state_.settings.perfMode == on)
+        return;
+    state_.settings.perfMode = on;
+    applied(kSlotSynth, SynthData{state_.settings});
+    enqueueUser([on, shift] { return Bubble::synth({PerformanceMode{static_cast<u8>(on ? 1 : 0), static_cast<u8>(shift ? 1 : 0)}}); });
+}
+
 void Client::setSynthSettings(const SynthSettings& settings)
 {
     // The performance mode stays what it is when the bubble goes out (an
