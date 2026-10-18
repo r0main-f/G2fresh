@@ -6,6 +6,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "StandaloneAudio.h"
+#include "Skin.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
@@ -55,15 +56,7 @@ private:
 
 class G2App final : public juce::JUCEApplication, private juce::ChangeListener {
 public:
-    G2App()
-    {
-        juce::PropertiesFile::Options options;
-        options.applicationName = JucePlugin_Name;
-        options.filenameSuffix = ".settings";
-        options.osxLibrarySubFolder = "Application Support";
-        options.folderName = JucePlugin_Name;
-        properties_.setStorageParameters(options);
-    }
+    G2App() = default;
 
     const juce::String getApplicationName() override { return JucePlugin_Name; }
     const juce::String getApplicationVersion() override { return JucePlugin_VersionString; }
@@ -76,7 +69,10 @@ public:
         startOnOutputAlone();
         // The holder runs the (silent) processor and restores the last
         // session's patch from the settings.
-        holder_ = std::make_unique<juce::StandalonePluginHolder>(properties_.getUserSettings(), false);
+        // G2fresh's one settings object (g2ui::userSettings): a second PropertiesFile on the same G2fresh.settings
+        // would save its own copy over the other's changes (PropertiesFile::save writes what it holds, without
+        // reading the file again), so a session's Clear Menu or zoom was lost when the other one saved last.
+        holder_ = std::make_unique<juce::StandalonePluginHolder>(&g2ui::userSettings(), false);
         // The emulated G2's MIDI OUT goes to the MIDI output chosen in Audio/MIDI Settings (JUCE shows the choice
         // because the processor produces MIDI). The dialog's own label says "MIDI Output:"; here it names the
         // jack, so that it is not taken for Options > Forward MIDI to a Hardware G2, which sends the incoming MIDI
@@ -91,7 +87,7 @@ public:
         // inputs until the user says otherwise, against feedback through an effect, and has saved that default since
         // before G2fresh had inputs. A G2 plays its inputs only where a patch has an In module, so they are live from
         // the first start with inputs on; from then on "Mute audio input" in Audio Settings is the user's.
-        if (auto* settings = properties_.getUserSettings(); settings != nullptr && !settings->getBoolValue("audioInputsLive")) {
+        if (auto* settings = &g2ui::userSettings(); !settings->getBoolValue("audioInputsLive")) {
             settings->setValue("audioInputsLive", true);
             holder_->getMuteInputValue().setValue(false);
         }
@@ -104,9 +100,7 @@ public:
     // the user chose an input (g2io::standaloneStart). Only the device list is read: nothing is opened here.
     void startOnOutputAlone()
     {
-        auto* settings = properties_.getUserSettings();
-        if (settings == nullptr)
-            return;
+        auto* settings = &g2ui::userSettings();
         auto xml = settings->getXmlValue("audioSetup");
         if (xml != nullptr && !xml->hasTagName("DEVICESETUP"))
             xml = nullptr;
@@ -164,7 +158,7 @@ public:
             holder_->savePluginState();
         window_ = nullptr;
         holder_ = nullptr;
-        properties_.saveIfNeeded();
+        g2ui::userSettings().saveIfNeeded();
     }
 
     void systemRequestedQuit() override
@@ -199,7 +193,6 @@ private:
             out->startBackgroundThread();
     }
 
-    juce::ApplicationProperties properties_;
     std::unique_ptr<juce::StandalonePluginHolder> holder_;
     std::unique_ptr<MainWindow> window_;
 };

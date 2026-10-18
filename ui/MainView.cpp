@@ -952,6 +952,7 @@ void MainView::menuItemSelected(int id, int)
     case kClearRecent:
         recent_.clear();
         userSettings().setValue("recentFiles", recent_.toString());
+        menuItemsChanged(); // the native menu bar shows the list it was given until told
         break;
     case kUndo: doc_.undo(); break;
     case kRedo: doc_.redo(); break;
