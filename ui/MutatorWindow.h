@@ -19,6 +19,9 @@ public:
     void closeButtonPressed() override { setVisible(false); }
     // The Mutator's keys (PatchKeys.h), as the patch window hands them over while the Mutator is open.
     void keyAction(MutatorKey k);
+    // The window passes the keys on when nothing inside it has the keyboard focus (round-5 hand tests: N, pressed right
+    // after opening it, went nowhere).
+    bool keyPressed(const juce::KeyPress& key) override;
 
 private:
     class Panel;

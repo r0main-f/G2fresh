@@ -52,3 +52,12 @@ TEST_CASE("the Replace button: 11 x 11 at the module's top left, the name after 
     CHECK_FALSE(onReplaceButton(0, 5));
     CHECK(kModuleNameX == 12);
 }
+
+TEST_CASE("reset knob: the triangle is drawn centred over the knob")
+{
+    // Round-5 hand tests: it sat right of the knob in both looks. The hit strip stays the original's; the drawing is
+    // centred on the knob as drawn (19 px small, 21 px medium).
+    CHECK(resetTriangle("Reset", 19) == IncDecRect{4, 0, 11, 5});
+    CHECK(resetTriangle("Reset/medium", 21) == IncDecRect{5, 0, 11, 6});
+    CHECK_FALSE(resetTriangle("Small", 19));
+}

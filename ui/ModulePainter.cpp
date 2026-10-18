@@ -489,15 +489,15 @@ void ModulePainter::paintFocus(juce::Graphics& g, const ModuleContext& c, const 
 
 void ModulePainter::paintResetTriangle(juce::Graphics& g, const ModuleContext& c, const PanelElement& e, int value, int max)
 {
-    // CPnlIndicatorKnob::Draw @000cc686: in the strip above the knob, lit (bitmap 0x213) at the centre value, else
+    // CPnlIndicatorKnob::Draw @000cc686: in the strip above the knob, centred over it (ResetKnob.h), lit (bitmap 0x213) at the centre value, else
     // 0x214. The Modern look draws its own: a small triangle pointing at the knob.
-    const auto strip = resetStrip(e.type.toStdString());
+    const auto strip = resetTriangle(e.type.toStdString(), knobSprite(e.type).size);
     if (!strip)
         return;
     const bool lit = resetLit(value, max);
     if (c.look == Look::Classic)
         if (const auto img = Skin::get().cbmp(lit ? 0x213 : 0x214); img.isValid()) {
-            g.drawImageAt(img, e.x + strip->x, e.y);
+            g.drawImageAt(img, e.x + strip->x + (strip->w - img.getWidth()) / 2, e.y);
             return;
         }
     const auto box = juce::Rectangle<float>(static_cast<float>(e.x + strip->x), static_cast<float>(e.y),

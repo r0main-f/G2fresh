@@ -437,6 +437,11 @@ void MutatorWindow::keyAction(MutatorKey k)
     panel_->keyAction(k);
 }
 
+bool MutatorWindow::keyPressed(const juce::KeyPress& key)
+{
+    return panel_->keyPressed(key) || juce::DocumentWindow::keyPressed(key);
+}
+
 MutatorWindow::~MutatorWindow()
 {
     clearContentComponent();

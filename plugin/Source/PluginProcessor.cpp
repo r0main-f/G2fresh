@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
 
+#include "EmulatorFollow.h"
+
 #include <algorithm>
 #include "AudioIo.h"
 #include "PluginEditor.h"
@@ -413,7 +415,7 @@ void G2EditorProcessor::timerCallback()
     // The emulated G2 runs but the link gave up on it (it ran too slowly to answer in time, e.g. while the host
     // loaded a project): talk to it again, and send it the patch once it answers.
     if (synth_.kind() == g2ui::SynthSync::Kind::Emulated && synth_.linkFailed()) {
-        emulatedSent_ = false;
+        emulatedSentGeneration_ = -1;
         emulatedLocal_ = false;
         synth_.restartLink();
         return;
@@ -480,7 +482,7 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
     engine->machine().panelAnalog(g2emu::PanelAnalog::MasterLevel, masterLevel_); // the knob where it was left
     flashSeen_ = engine->flashChanges();
     synth_.connectEmulated(g2emu::emulatedG2Link(engine->machine()));
-    emulatedSent_ = false;
+    emulatedSentGeneration_ = -1;
     emulatedLocal_ = false;
     emulatorWanted_ = true;
     dropoutsShown_ = 0;
@@ -684,9 +686,10 @@ void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
             emulatedLocal_ = true;
             applySynthSettings();
         }
-        // Once up, the emulated G2 plays the document (later, the user sends what they want).
-        if (synth_.kind() == Kind::Emulated && synth_.ready() && !synth_.bound() && !emulatedSent_) {
-            emulatedSent_ = true;
+        // Once up, the emulated G2 plays the document, and each one opened or made since (EmulatorFollow.h).
+        if (g2io::emulatorSendsDocument(synth_.kind() == Kind::Emulated, synth_.ready(), synth_.bound(),
+                                        document_.generation(), emulatedSentGeneration_)) {
+            emulatedSentGeneration_ = document_.generation();
             if (document_.isPerformance())
                 synth_.sendPerformance();
             else
@@ -854,7 +857,8 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         document_.setConvertedFrom(static_cast<int>(state.getProperty("convertedFrom", 0)));
         document_.applyLayoutJson(state["layout"].toString());
         midiOut_.restore(state["midiOut"].toString(), state["midiOutName"].toString(), state["midiChannel"]);
-        emulatorWanted_ = static_cast<bool>(state.getProperty("emulated", true));
+        emulatorWanted_ = g2io::emulatorAtLaunch(wrapperType == wrapperType_Standalone,
+                                                 static_cast<bool>(state.getProperty("emulated", true)));
         hostClockOn_ = static_cast<bool>(state.getProperty("hostClock", false));
         masterLevel_ = static_cast<float>(state.getProperty("masterLevel", 1.0f));
         setMixOut34(static_cast<bool>(state.getProperty("mixOut34", false)));
