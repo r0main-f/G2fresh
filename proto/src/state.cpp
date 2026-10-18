@@ -234,6 +234,12 @@ void SynthState::setPerformance(const Performance& perf, const std::string& name
     globalKnobs.resize(kKnobCount);
 }
 
+bool isPatchEdit(const Molecule& m)
+{
+    Patch scratch;
+    return applyToPatch(scratch, m);
+}
+
 bool applyToPatch(Patch& p, const Molecule& molecule)
 {
     // Edits referring to something the patch does not have are ignored, as a

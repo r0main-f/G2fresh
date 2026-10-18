@@ -16,6 +16,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "PerfSync.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -639,4 +641,50 @@ TEST_CASE("Live editing on the user's G2 OS: the performance's settings, name an
     CHECK(int(s.perfHeader.slots[2].enabled) == 0);
     CHECK(int(s.perfHeader.slots[1].kbdRangeLower) == 40);
     CHECK(int(s.slotFocus) == 1);
+}
+
+TEST_CASE("Live on the user's G2 OS: a new performance comes back from the synth as it was sent", "[g2emu][firmware][live]")
+{
+    // Round-6 report: after File > New Performance, untouched, opening a file asked about unsaved changes. The synth's
+    // answer to the new performance must hold the settings and name sent, or SynthSync takes it for a change made on the
+    // synth (PerfSync.h) and the document becomes edited.
+    Rig rig;
+    if(!rig.boot()) SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .dmg, or unpack it into original/firmware)");
+    const auto perf = g2::Performance::makeNew();
+    rig.client->sendPerformance(perf, "Empty perf", true);
+    rig.settle(0.5);
+    const auto& state = rig.client->state();
+    CHECK(state.perfName == "Empty perf");
+    CHECK(g2ui::sameSettings(state.perfHeader, perf.header));
+    if(!g2ui::sameSettings(state.perfHeader, perf.header))
+    {
+        const auto a = g2ui::settingsOf(state.perfHeader), b = g2ui::settingsOf(perf.header);
+        INFO("synth: clock " << int(a.masterClockBpm) << " run " << int(a.masterClockRun) << " / sent: clock " << int(b.masterClockBpm)
+                             << " run " << int(b.masterClockRun));
+        for(std::size_t s = 0; s < 4; ++s)
+            INFO("slot " << s << " synth enabled " << int(a.slots[s].enabled) << " kb " << int(a.slots[s].keyboard)
+                         << " ch " << int(a.slots[s].midiChannel) << " / sent " << int(b.slots[s].enabled) << " "
+                         << int(b.slots[s].keyboard) << " " << int(b.slots[s].midiChannel));
+        CHECK(false);
+    }
+}
+
+TEST_CASE("Live on the user's G2 OS: the display shows the name of the patch sent after another", "[g2emu][firmware][live]")
+{
+    // Round-5 report: the Live view's display said "No name" while a named patch played. At launch the emulated G2
+    // gets the session's patch (a new one is "No name", SynthSync::sendPatchAlone); a file opened then goes to the
+    // same slot as a whole (SynthSync::push -> sendPatch), with its name.
+    Rig rig;
+    if(!rig.boot()) SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .dmg, or unpack it into original/firmware)");
+    rig.client->sendPerformance(g2::Performance::playing(testPatch(), "No name"), "No name", false);
+    rig.settle(0.3);
+    INFO(rig.m->panel().displays[0].text(0) << " / " << rig.m->panel().displays[0].text(1));
+    REQUIRE(rig.m->panel().displays[0].text(1).find("No name") != std::string::npos);
+
+    auto other = testPatch();
+    g2::edit::addModule(other, Location::Va, moduleNamed("OscB").typeId, 4, 0);
+    rig.client->sendPatch(0, other, "PianoStringz");
+    rig.settle(0.3);
+    INFO(rig.m->panel().displays[0].text(0) << " / " << rig.m->panel().displays[0].text(1));
+    CHECK(rig.m->panel().displays[0].text(1).find("PianoStringz") != std::string::npos);
 }

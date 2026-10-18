@@ -82,6 +82,8 @@ public:
     bool bound() const { return binding_ != Binding::None; }
     // The slot a patch document is bound to, or -1 (unbound or performance).
     int boundSlot() const { return binding_ == Binding::Patch ? slot_ : -1; }
+    // The synth slot the patch was last sent to or got from, bound or not (LiveEditing.h).
+    int lastSlot() const { return slot_; }
     bool performanceBound() const { return binding_ == Binding::Performance; }
     // A slot's patch name on the synth ("" when unknown).
     juce::String slotName(int slot) const;
