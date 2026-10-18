@@ -181,6 +181,10 @@ inline void cpuRelax()
 // ring() after every change a waiter may wait for: it costs a fence and a load while nobody sleeps.
 class Doorbell {
 public:
+    // `timeout`: how long a sleep lasts without a ring, only a safety net (ring() does not miss one); a test makes it
+    // long to show that no ring is lost.
+    explicit Doorbell(std::chrono::microseconds timeout = std::chrono::milliseconds(2)) : timeout_(timeout) {}
+
     void ring()
     {
         std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -213,13 +217,13 @@ public:
         {
             const auto seq = seq_;
             // the timeout only bounds the damage of a missed ring; ring() does not miss one (see above)
-            if(!cv_.wait_for(lock, std::chrono::milliseconds(2), [&] { return seq_ != seq; }))
+            if(!cv_.wait_for(lock, timeout_, [&] { return seq_ != seq; }))
                 timeouts_.fetch_add(1, std::memory_order_relaxed);
         }
         sleepers_.fetch_sub(1, std::memory_order_seq_cst);
     }
 
-    // sleeps that ended without a ring (a waiter that waited for more than 2 ms, or a lost ring)
+    // sleeps that ended without a ring (a waiter that waited longer than the timeout, or a lost ring)
     std::uint64_t timeouts() const { return timeouts_.load(std::memory_order_relaxed); }
 
 private:
@@ -228,6 +232,7 @@ private:
     std::mutex mutex_;
     std::condition_variable cv_;
     std::uint64_t seq_ = 0;  // guarded by mutex_
+    const std::chrono::microseconds timeout_;
 };
 
 } // namespace g2emu
