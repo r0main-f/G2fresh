@@ -7,6 +7,7 @@
 #include "CableLayout.h"
 
 #include "Dialogs.h"
+#include "LiveEditing.h"
 #include "LiveShow.h"
 #include "MenuIds.h"
 #include "PatchKeys.h"
@@ -536,8 +537,10 @@ juce::PopupMenu MainView::synthMenu()
     m.addItem(item(kGetPerformance, "Get Performance from G2", {}, ready));
     m.addItem(item(kSynthMemory, "Synth Memory (Banks)...", {}, true));
     m.addSeparator();
-    m.addItem(item(kUnbind, synth_->bound() ? "Stop Live Editing" : "Live Editing (send or get a patch first)", {},
-                   synth_->bound(), synth_->bound()));
+    // Live Editing (LiveEditing.h): stops it, or sends the document again to start it (round-6 hand tests).
+    const auto live = liveEditingItem(ready, synth_->bound(), doc_.isPerformance(), synth_->kind() == Kind::Emulated,
+                                      juce::jlimit(0, 3, synth_->lastSlot()));
+    m.addItem(item(kUnbind, live.label, {}, live.enabled, live.ticked));
     m.addSeparator();
     m.addItem(item(kShowUsbLog, "Show USB Log (for bug reports)"));
     m.addItem(item(kFullUsbLog, "Full USB Log (includes patch data)", {}, true, SynthSync::fullUsbLog()));
@@ -787,8 +790,17 @@ void MainView::menuItemSelected(int id, int)
             synth_->sendPerformance();
         else if (id == kGetPerformance)
             confirmDiscard([this] { synth_->getPerformance(); });
-        else if (id == kUnbind)
-            synth_->unbind();
+        else if (id == kUnbind) {
+            const auto live = liveEditingItem(synth_->ready(), synth_->bound(), doc_.isPerformance(),
+                                              synth_->kind() == SynthSync::Kind::Emulated, juce::jlimit(0, 3, synth_->lastSlot()));
+            switch (live.action) {
+            case LiveEditingAction::Stop: synth_->unbind(); break;
+            case LiveEditingAction::SendPatch: synth_->sendPatch(live.slot); break;
+            case LiveEditingAction::SendPatchAlone: synth_->sendPatchAlone(); break;
+            case LiveEditingAction::SendPerformance: synth_->sendPerformance(); break;
+            case LiveEditingAction::None: break;
+            }
+        }
         else if (id == kShowUsbLog) {
             // Written by g2bridge while it talks to a real G2.
             const juce::File log{juce::String(g2::proto::defaultUsbLogPath())};

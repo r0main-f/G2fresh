@@ -667,6 +667,7 @@ TEST_CASE("Live on the user's G2 OS: a new performance comes back from the synth
                          << int(b.slots[s].keyboard) << " " << int(b.slots[s].midiChannel));
         CHECK(false);
     }
+}
 
 TEST_CASE("Live on the user's G2 OS: the display shows the name of the patch sent after another", "[g2emu][firmware][live]")
 {

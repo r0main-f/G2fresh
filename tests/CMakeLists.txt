@@ -60,6 +60,7 @@ add_executable(g2tests
   test_hint_overlay.cpp
   test_menu_ids.cpp
   test_emulator_follow.cpp
+  test_live_editing.cpp
   test_drag_copy.cpp
   test_paste_layout.cpp
   test_drum_selectors.cpp
