@@ -23,6 +23,15 @@ inline std::optional<IncDecRect> resetStrip(std::string_view type)
     return std::nullopt;
 }
 
+// Where the triangle is drawn: the strip's width and height, centred over the knob as drawn (`knobWidth` px wide).
+inline std::optional<IncDecRect> resetTriangle(std::string_view type, int knobWidth)
+{
+    auto s = resetStrip(type);
+    if (s)
+        s->x = (knobWidth - s->w) / 2;
+    return s;
+}
+
 // How far below the control's top the knob is: the strip's height, 0 for the other knobs.
 inline int knobTop(std::string_view type)
 {
