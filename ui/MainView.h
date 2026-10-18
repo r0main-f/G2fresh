@@ -189,6 +189,8 @@ private:
     static juce::File initPatchFile(int n);
     void saveInitPatch(int n);
     // File > New To, Open To, Save From (PatchKeys.h slotTarget): a slot of the performance, or of the connected G2.
+    // Where the file dialogs start (PatchLibraryModel.h dialogFolder).
+    juce::File dialogFolder() const;
     void newTo(int slot);
     void openTo(int slot);
     void saveFrom(int slot);
