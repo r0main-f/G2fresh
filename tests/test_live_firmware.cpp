@@ -667,4 +667,23 @@ TEST_CASE("Live on the user's G2 OS: a new performance comes back from the synth
                          << int(b.slots[s].keyboard) << " " << int(b.slots[s].midiChannel));
         CHECK(false);
     }
+
+TEST_CASE("Live on the user's G2 OS: the display shows the name of the patch sent after another", "[g2emu][firmware][live]")
+{
+    // Round-5 report: the Live view's display said "No name" while a named patch played. At launch the emulated G2
+    // gets the session's patch (a new one is "No name", SynthSync::sendPatchAlone); a file opened then goes to the
+    // same slot as a whole (SynthSync::push -> sendPatch), with its name.
+    Rig rig;
+    if(!rig.boot()) SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .dmg, or unpack it into original/firmware)");
+    rig.client->sendPerformance(g2::Performance::playing(testPatch(), "No name"), "No name", false);
+    rig.settle(0.3);
+    INFO(rig.m->panel().displays[0].text(0) << " / " << rig.m->panel().displays[0].text(1));
+    REQUIRE(rig.m->panel().displays[0].text(1).find("No name") != std::string::npos);
+
+    auto other = testPatch();
+    g2::edit::addModule(other, Location::Va, moduleNamed("OscB").typeId, 4, 0);
+    rig.client->sendPatch(0, other, "PianoStringz");
+    rig.settle(0.3);
+    INFO(rig.m->panel().displays[0].text(0) << " / " << rig.m->panel().displays[0].text(1));
+    CHECK(rig.m->panel().displays[0].text(1).find("PianoStringz") != std::string::npos);
 }
