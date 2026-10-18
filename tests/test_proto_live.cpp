@@ -414,3 +414,11 @@ TEST_CASE("live: the bubbles Clavia's editor sent to a real G2X, byte for byte (
     CHECK(frame(0, {lv::ModuleNew{Location::Va, osc}}) == vector(4));
     CHECK(frame(1, {lv::CtrlAssign{16, Location::Va, 1, 7}}) == vector(5));
 }
+
+TEST_CASE("live: the synth's load report is not an edit of the patch")
+{
+    // Round-6 report: an untouched new patch or performance asked to be saved. The synth sends its load report (72)
+    // after each upload, twice a slot, through patchEdited; taken for an edit, it marked the document edited.
+    CHECK_FALSE(g2::proto::isPatchEdit(g2::proto::Molecule{g2::proto::PatchLoad{}}));
+    CHECK(g2::proto::isPatchEdit(g2::proto::Molecule{g2::proto::ParamChange{}}));
+}

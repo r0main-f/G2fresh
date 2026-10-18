@@ -805,6 +805,10 @@ void SynthSync::animateVirtualLeds()
 
 void SynthSync::patchEdited(int slot, const g2::proto::Molecule& m)
 {
+    // Only what edits a patch: the load report the synth sends after each upload (72) is not a change of the
+    // document (round-6 hand tests: an untouched new patch asked to be saved).
+    if (!g2::proto::isPatchEdit(m))
+        return;
     fromSynth(slot, [&m](g2::Patch& p) { g2::proto::applyToPatch(p, m); });
 }
 

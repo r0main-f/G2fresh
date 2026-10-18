@@ -76,6 +76,8 @@ struct SynthState {
 // molecules that do not edit a patch. Edits naming a module or parameter the
 // patch does not have are ignored (they return true).
 bool applyToPatch(Patch& patch, const Molecule& m);
+// Whether a molecule edits a patch at all (applyToPatch's answer): not the synth's load report (72), LEDs, focus...
+bool isPatchEdit(const Molecule& m);
 // Applies a molecule to a slot: applyToPatch, plus the slot's name (27), page
 // (2D), parameter focus (2F), load report (72) and LEDs (39 / 3A).
 bool applyToSlot(SlotState& slot, const Molecule& m);
