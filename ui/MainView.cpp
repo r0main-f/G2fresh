@@ -13,7 +13,9 @@
 #include "PatchKeys.h"
 #include "PatchLibrary.h"
 #include "PatchLibraryModel.h"
+#include "PerfSwitch.h"
 #include "SynthSettingsWindow.h"
+#include "ToolbarLayout.h"
 #include "ZoomFit.h"
 
 #include "g2/patch_load.hpp"
@@ -250,10 +252,26 @@ MainView::MainView(PatchDocument& doc, bool standalone)
             return;
         const bool on = !synth_->performanceMode();
         // CPerfButton::Click @000774fe: the opposite of the mode shown, and whether Shift is held.
-        synth_->setPerformanceMode(on, juce::ModifierKeys::currentModifiers.isShiftDown());
-        setStatus(on ? "The G2 is in performance mode: Synth > Get Performance to edit what it plays"
-                     : "The G2 is in patch mode: Synth > Get Patch to edit one of its slots");
-        updateSynthStatus();
+        const bool shift = juce::ModifierKeys::currentModifiers.isShiftDown();
+        const bool live = synth_->bound();
+        auto doSwitch = [this, on, shift, live] {
+            if (synth_ == nullptr || !synth_->ready() || synth_->performanceMode() == on)
+                return;
+            synth_->setPerformanceMode(on, shift);
+            // A document live on the synth becomes what it now plays, once it is read again (PerfSwitch.h).
+            if (live)
+                setStatus(on ? "The G2 is in performance mode: opening the performance it plays"
+                             : "The G2 is in patch mode: opening the patch it plays");
+            else
+                setStatus(on ? "The G2 is in performance mode: Synth > Get Performance to edit what it plays"
+                             : "The G2 is in patch mode: Synth > Get Patch to edit one of its slots");
+            updateSynthStatus();
+        };
+        // The document live on the synth is replaced: unsaved changes are asked about first, as for Get Patch.
+        if (live)
+            confirmDiscard(doSwitch);
+        else
+            doSwitch();
     };
     addChildComponent(perfButton_);
     init1_.setConnectedEdges(juce::Button::ConnectedOnRight);
@@ -1569,7 +1587,11 @@ void MainView::resized()
     auto r = getLocalBounds();
     if (menuBar_)
         menuBar_->setBounds(r.removeFromTop(24));
-    auto bar = r.removeFromTop(34).reduced(6, 4);
+    // The toolbar: the document's items on the left of the first row, the groups on the right (ToolbarLayout.h), on
+    // as many rows as the width needs.
+    constexpr int kRowHeight = 26, kRowStep = 30;
+    const auto top = r.reduced(6, 4).withHeight(kRowHeight);
+    auto bar = top;
     if (!standalone_) {
         menuButton_.setBounds(bar.removeFromLeft(64));
         bar.removeFromLeft(10);
@@ -1587,37 +1609,52 @@ void MainView::resized()
     init1_.setBounds(bar.removeFromLeft(48));
     init2_.setBounds(bar.removeFromLeft(48));
 
-    zoomIn_.setBounds(bar.removeFromRight(28));
-    zoomReset_.setBounds(bar.removeFromRight(54));
-    zoomOut_.setBounds(bar.removeFromRight(28));
-    bar.removeFromRight(16);
+    // Each group's items from left to right: a component and its width, or a space (nullptr).
+    using Items = std::vector<std::pair<juce::Component*, int>>;
+    std::vector<Items> groups;
+    std::vector<ToolbarGroup> sizes;
+    auto add = [&](Items items, int gapBefore) {
+        int width = 0;
+        for (const auto& item : items)
+            width += item.second;
+        sizes.push_back({width, gapBefore});
+        groups.push_back(std::move(items));
+    };
+    {
+        Items v{{&variationLabel_, textWidth(variationLabel_)}};
+        for (auto* b : variations_)
+            v.push_back({nullptr, 2}), v.push_back({b, 28});
+        v.push_back({nullptr, 4});
+        v.push_back({&varInit_, 40});
+        add(std::move(v), 0);
+    }
+    add({{&colourButton_, 28}, {nullptr, 2}, {&bucketButton_, 44}}, 16);
+    add({{&morphGroup_, 150}}, 8);
+    add({{&randomizeButton_, 92}, {nullptr, 4}, {&mutatorButton_, 92}}, 4);
+    if (perfButton_.isVisible())
+        add({{&perfButton_, 44}}, 16);
     if (doc_.isPerformance()) {
-        for (int i = slots_.size(); --i >= 0;)
-        {
-            slots_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
-            keyboardMarks_[i]->setBounds(slots_[i]->getBounds().withHeight(3).reduced(3, 0));
+        Items s;
+        for (auto* b : slots_)
+            s.push_back({nullptr, 2}), s.push_back({b, 28});
+        add(std::move(s), 16);
+    }
+    add({{&zoomOut_, 28}, {&zoomReset_, 54}, {&zoomIn_, 28}}, 16);
+
+    const auto layout = layoutToolbar(top.getWidth(), bar.getX() - top.getX(), sizes);
+    for (std::size_t g = 0; g < groups.size(); ++g) {
+        auto x = top.getX() + layout.groups[g].x;
+        const auto y = top.getY() + layout.groups[g].row * kRowStep;
+        for (const auto& [component, width] : groups[g]) {
+            if (component != nullptr)
+                component->setBounds(x, y, width, kRowHeight);
+            x += width;
         }
-        bar.removeFromRight(16);
     }
-    if (perfButton_.isVisible()) {
-        perfButton_.setBounds(bar.removeFromRight(44));
-        bar.removeFromRight(16);
-    }
-    mutatorButton_.setBounds(bar.removeFromRight(92));
-    bar.removeFromRight(4);
-    randomizeButton_.setBounds(bar.removeFromRight(92));
-    bar.removeFromRight(4);
-    morphGroup_.setBounds(bar.removeFromRight(150));
-    bar.removeFromRight(8);
-    bucketButton_.setBounds(bar.removeFromRight(44));
-    bar.removeFromRight(2);
-    colourButton_.setBounds(bar.removeFromRight(28));
-    bar.removeFromRight(16);
-    varInit_.setBounds(bar.removeFromRight(40));
-    bar.removeFromRight(4);
-    for (int i = variations_.size(); --i >= 0;)
-        variations_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
-    variationLabel_.setBounds(bar.removeFromRight(textWidth(variationLabel_)));
+    if (doc_.isPerformance())
+        for (int i = 0; i < slots_.size(); ++i)
+            keyboardMarks_[i]->setBounds(slots_[i]->getBounds().withHeight(3).reduced(3, 0));
+    r.removeFromTop(34 + (layout.rows - 1) * kRowStep);
 
     {
         auto bottom = r.removeFromBottom(24);

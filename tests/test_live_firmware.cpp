@@ -41,8 +41,9 @@ std::filesystem::path firmwarePath()
 
 struct Events : g2::proto::Client::Listener
 {
-    int slotReads = 0, errors = 0;
+    int slotReads = 0, errors = 0, syncs = 0;
     void slotChanged(int) override { ++slotReads; }
+    void synced() override { ++syncs; }
     void error(u8) override { ++errors; }
 };
 
@@ -694,19 +695,28 @@ TEST_CASE("Live on the user's G2 OS: the Perf button puts the synth into perform
     // The toolbar's Perf (manual p58; CTBWindow::SetPerformanceMode @0012a306 -> CSynth::SendPerformanceModeChange
     // @0011dfae: 3E, sent only when the mode changes, Shift as its second byte). The OS answers with a new performance
     // (1F) and no synth settings, so the client keeps the mode it asked for, as the original's synth map; the slots
-    // then hold the recalled performance, and the patch-mode slots come back on the way out (manual p46).
+    // then hold the recalled performance, and the patch-mode slots come back on the way out (manual p46). Each 1F is a
+    // performance release: everything is read again and the client says so (synced), when SynthSync opens what the
+    // synth now plays (PerfSwitch.h).
     Rig rig;
     if(!rig.boot()) SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .dmg, or unpack it into original/firmware)");
     const auto patch = testPatch();
     rig.client->sendPerformance(g2::Performance::playing(patch, "Probe"), "Probe", false);
     rig.settle(0.5);
     REQUIRE_FALSE(rig.client->state().settings.perfMode);
+    int syncs = rig.events.syncs;
     rig.client->setPerformanceMode(true, false);
     rig.settle(1.5);
+    CHECK(rig.events.syncs > syncs);
+    CHECK(rig.client->synced());
     CHECK(rig.client->state().settings.perfMode);
     CHECK(rig.client->state().slots[0].name != "Probe"); // the performance the synth recalled
+    syncs = rig.events.syncs;
     rig.client->setPerformanceMode(false, false);
     rig.settle(1.5);
+    CHECK(rig.events.syncs > syncs);
+    CHECK(rig.client->synced());
+    CHECK(rig.client->state().slotFocus < 4);
     CHECK_FALSE(rig.client->state().settings.perfMode);
     CHECK(rig.client->state().slots[0].name == "Probe");
     CHECK(rig.client->state().slots[0].patch.va.modules.size() == patch.va.modules.size());

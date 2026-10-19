@@ -61,6 +61,8 @@ add_executable(g2tests
   test_menu_ids.cpp
   test_emulator_follow.cpp
   test_live_editing.cpp
+  test_toolbar_layout.cpp
+  test_perf_switch.cpp
   test_drag_copy.cpp
   test_paste_layout.cpp
   test_drum_selectors.cpp

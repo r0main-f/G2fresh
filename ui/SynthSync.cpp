@@ -1,5 +1,6 @@
 #include "SynthSync.h"
 
+#include "PerfSwitch.h"
 #include "PerfSync.h"
 
 #include "ModulePainter.h"
@@ -66,6 +67,7 @@ void SynthSync::startLink(std::unique_ptr<g2::proto::SynthLink> link, Kind kind)
     unbind();
     audition_ = Audition::None; // nothing to put back on a synth that is gone
     putBack_.reset();
+    perfSwitchWasLive_.reset();
     if (link_)
         link_->setListener(nullptr);
     link_ = std::move(link);
@@ -115,6 +117,7 @@ void SynthSync::setPerformanceMode(bool on, bool shift)
     if (!ready() || performanceMode() == on)
         return;
     leaveAuditionFor(4);
+    perfSwitchWasLive_ = bound();
     unbind();
     link_->setPerformanceMode(on, shift);
     sendChangeMessage();
@@ -133,6 +136,7 @@ void SynthSync::restartLink()
     unbind();
     audition_ = Audition::None;
     putBack_.reset();
+    perfSwitchWasLive_.reset();
     wasReady_ = false;
     link_->restart();
     sendChangeMessage();
@@ -610,6 +614,16 @@ void SynthSync::synced()
     if (pendingOpen_ == 4) {
         pendingOpen_ = -1;
         getPerformance();
+    }
+    // After a Perf switch the OS released the performance (1F) and everything was read again: a document that was live
+    // becomes what the synth now plays (PerfSwitch.h).
+    if (perfSwitchWasLive_) {
+        const int open = openAfterPerfSwitch(performanceMode(), *perfSwitchWasLive_, link_->state().slotFocus);
+        perfSwitchWasLive_.reset();
+        if (open == kOpenPerformance)
+            getPerformance();
+        else if (open != kOpenNothing)
+            getPatch(open);
     }
     sendChangeMessage();
 }

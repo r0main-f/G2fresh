@@ -142,7 +142,8 @@ public:
         return std::pair{s.patch, s.name};
     }
     // The toolbar's Perf: the G2's performance mode, and the switch (3E). The synth then plays other patches (the
-    // performance it recalls, or its patch-mode slots again): the document is taken off it, not replaced.
+    // performance it recalls, or its patch-mode slots again): a document live on it becomes what it plays once it is
+    // read again (PerfSwitch.h); one not live stays.
     bool performanceMode() const { return ready() && link_->state().settings.perfMode; }
     void setPerformanceMode(bool on, bool shift);
     int synthFocusedSlot() const { return ready() && link_->state().slotFocus < 4 ? link_->state().slotFocus : -1; }
@@ -227,6 +228,7 @@ private:
     std::uint32_t ledGeneration_ = 0;
     double lastVirtualLeds_ = 0.0;
     int pendingOpen_ = -1; // a slot (4: the performance) to open once the synth has loaded it
+    std::optional<bool> perfSwitchWasLive_; // a Perf switch sent, until the synth is read again: was the document live
     Audition audition_ = Audition::None;
     int auditionSlot_ = 0; // Audition::Slot: the synth slot
     g2::Patch auditionedPatch_; // ... and what plays there
