@@ -851,37 +851,46 @@ TEST_CASE("ColdFire core: run()'s dispatch and specialised handlers do what step
 TEST_CASE("Doorbell: no wake-up is lost between threads that wait for each other", "[g2emu]")
 {
     // A ping-pong of a counter: each side waits for its turn, takes it and rings. One side dawdles (0.2 ms) every
-    // other round, so that the other spins out and sleeps; a lost ring would show as a sleep that timed out.
+    // other round, so that the other spins out and sleeps. The bell's timeout (2 ms in the machine, a safety net) is
+    // an hour here: a lost ring would leave a waiter asleep, and the rounds would not finish. Finishing is the fact
+    // that holds on any machine; counting the 2 ms timeouts did not, as a busy scheduler alone makes many of them
+    // (it failed under load).
     for(const int spin : {0, 50})
     {
-        Doorbell bell;
+        Doorbell bell{std::chrono::hours(1)};
         std::atomic<int> turn{0};
+        std::atomic<bool> abandon{false};
         constexpr int rounds = 2000;
         std::thread other([&] {
-            for(int i = 0; i < rounds; ++i)
+            for(int i = 0; i < rounds && !abandon; ++i)
             {
-                bell.wait([&] { return turn.load() == 2 * i + 1; }, spin);
+                bell.wait([&] { return turn.load() == 2 * i + 1 || abandon.load(); }, spin);
                 if(i & 1) std::this_thread::sleep_for(std::chrono::microseconds(200));
                 turn.store(2 * i + 2);
                 bell.ring();
             }
         });
-        for(int i = 0; i < rounds; ++i)
-        {
-            bell.wait([&] { return turn.load() == 2 * i; }, spin);
-            if(!(i & 1)) std::this_thread::sleep_for(std::chrono::microseconds(200));
-            turn.store(2 * i + 1);
-            bell.ring();
-        }
-        other.join();
-        INFO("spin " << spin << " us");
+        std::thread self([&] {
+            for(int i = 0; i < rounds && !abandon; ++i)
+            {
+                bell.wait([&] { return turn.load() == 2 * i || abandon.load(); }, spin);
+                if(!(i & 1)) std::this_thread::sleep_for(std::chrono::microseconds(200));
+                turn.store(2 * i + 1);
+                bell.ring();
+            }
+        });
+        // 2000 rounds take about half a second; two minutes is far beyond any machine's slowness, and well short of
+        // the hour a lost ring would sleep.
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(2);
+        while(turn.load() < 2 * rounds && std::chrono::steady_clock::now() < deadline)
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        INFO("spin " << spin << " us: " << turn.load() << " of " << 2 * rounds << " turns taken");
         CHECK(turn.load() == 2 * rounds);
-        // A timeout is a sleep that ended without a ring after 2 ms: a lost ring, or (on a busy shared machine such as
-        // a CI runner) a waiter the scheduler left asleep that long. Lost rings would show in every round. Windows'
-        // timer is too coarse for the count to mean anything (the test's 0.2 ms naps last milliseconds there).
-#ifndef _WIN32
-        CHECK(bell.timeouts() < rounds / 50);
-#endif
+        abandon = true;
+        for(int k = 0; k < 4; ++k) bell.ring(); // a stuck waiter, if any, is asleep and counted now: it wakes and leaves
+        other.join();
+        self.join();
+        CHECK(bell.timeouts() == 0);
     }
 }
 
@@ -2561,6 +2570,7 @@ TEST_CASE("The user's G2 OS in real time: the reserve and the reader's block are
     CHECK(first >= 92);
     CHECK(first < 92 + 960);
     // the machine was never further ahead of the reader than the latency says (what MIDI and the inputs rely on)
+    INFO("the machine was at most " << most << " frames ahead of the reader");
     CHECK(most <= runner.latencyFrames());
 
     // The reserve changed while it runs: the latency follows, and the note's own time stays what it was
@@ -2572,6 +2582,8 @@ TEST_CASE("The user's G2 OS in real time: the reserve and the reader's block are
     const double second = note(4800) - double(runner.latencyFrames());
     INFO("with a reserve of 10 ms: " << second << " frames after the latency");
     CHECK(std::fabs(second - first) < 48);  // (the OS takes its MIDI bytes within half a millisecond)
+    INFO("then at most " << most << " frames ahead; " << runner.stats().framesMissing << " frames missing, "
+                         << runner.stats().shortReads << " short reads");
     CHECK(most <= runner.latencyFrames());
     CHECK(runner.stats().framesMissing == 0);
     CHECK(runner.stats().shortReads == 0);
