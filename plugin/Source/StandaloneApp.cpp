@@ -75,7 +75,7 @@ public:
         holder_ = std::make_unique<juce::StandalonePluginHolder>(&g2ui::userSettings(), false);
         // The emulated G2's MIDI OUT goes to the MIDI output chosen in Audio/MIDI Settings (JUCE shows the choice
         // because the processor produces MIDI). The dialog's own label says "MIDI Output:"; here it names the
-        // jack, so that it is not taken for Options > Forward MIDI to a Hardware G2, which sends the incoming MIDI
+        // jack, so that it is not taken for Setup > Forward MIDI to a Hardware G2, which sends the incoming MIDI
         // to a real G2 instead.
         if (holder_->processor != nullptr && holder_->processor->producesMidi()) {
             juce::LocalisedStrings::setCurrentMappings(

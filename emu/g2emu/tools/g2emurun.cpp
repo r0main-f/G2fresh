@@ -631,7 +631,7 @@ int main(int argc, char** argv)
 
     // USB and our protocol client, clocked by emulated time
     std::unique_ptr<proto::Transport> transportPtr = std::make_unique<g2emu::MachineTransport>(m);
-    if(const char* log = std::getenv("G2EMU_USBLOG"))  // the protocol traffic, as Synth > Full USB Log writes it
+    if(const char* log = std::getenv("G2EMU_USBLOG"))  // the protocol traffic, as Help > Full USB Log writes it
         transportPtr = std::make_unique<proto::LoggingTransport>(std::move(transportPtr), log, proto::LogData::Full);
     auto& transport = *transportPtr;
     proto::ManualClock clock;

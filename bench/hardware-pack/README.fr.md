@@ -69,11 +69,11 @@ Complète le reste de `form.fr.txt`, mets-le dans un dossier avec tes fichiers W
 *Il faut G2fresh v0.10.2 ou plus récent. Sous Windows, G2fresh a besoin du pilote WinUSB pour le G2 (voir le README de G2fresh).*
 
 1. Quitte l'éditeur de Clavia : un seul programme à la fois peut parler au G2.
-2. Lance G2fresh et choisis **Synth > Connect to G2 (USB)**. La barre d'état affiche la version du G2.
+2. Lance G2fresh et choisis **Synth > G2 or G2X (USB)**. La barre d'état affiche la version du G2.
 3. Choisis **Synth > Get Patch from Slot > A**. Le patch du slot A doit apparaître.
 4. Tourne un potentiomètre dans G2fresh et écoute ; puis tourne un potentiomètre sur le G2 et regarde G2fresh suivre.
 5. Choisis **Synth > Send Patch to Slot > B**.
 6. Ouvre **Synth > Synth Memory (Banks)...**, explore, et mémorise un patch dans un emplacement vide.
 7. Slots : choisis **Synth > Get Performance from G2**. Des boutons **A B C D** apparaissent dans la barre d'outils de G2fresh. Clique sur **B**, puis sur **C**. Sur le G2, le bouton Slot allumé suit-il chaque clic, et quand tu joues une touche, quel slot entends-tu (Q21) ?
-8. **À faire en dernier, après avoir sauvegardé ton travail dans le G2.** Choisis **Edit > Patch Notes...**, tape quelques mots et clique sur OK. Tourne ensuite un potentiomètre dans G2fresh : le G2 suit-il encore (Q22) ? Une personne a signalé que ce message avait figé son G2. Si le tien ne répond plus, rien n'est abîmé : éteins-le, rallume-le, et dis-le-nous. Ce que tu n'avais pas mémorisé dans le G2 est perdu, d'où la place de cette étape à la fin.
-9. Quoi qu'il se soit passé, choisis **Synth > Show USB Log** et envoie-nous `usb.log` (et `usb.log.1` s'il existe) avec quelques mots sur ce qui a marché ou non. Le journal ne contient que le trafic USB, sans le contenu de tes patchs.
+8. **À faire en dernier, après avoir sauvegardé ton travail dans le G2.** Choisis **Patch > Patch Notes...**, tape quelques mots et clique sur OK. Tourne ensuite un potentiomètre dans G2fresh : le G2 suit-il encore (Q22) ? Une personne a signalé que ce message avait figé son G2. Si le tien ne répond plus, rien n'est abîmé : éteins-le, rallume-le, et dis-le-nous. Ce que tu n'avais pas mémorisé dans le G2 est perdu, d'où la place de cette étape à la fin.
+9. Quoi qu'il se soit passé, choisis **Help > Show USB Log** et envoie-nous `usb.log` (et `usb.log.1` s'il existe) avec quelques mots sur ce qui a marché ou non. Le journal ne contient que le trafic USB, sans le contenu de tes patchs.

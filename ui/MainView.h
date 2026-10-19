@@ -38,7 +38,7 @@ public:
 
     // Stand-alone app only: opens the audio/MIDI device settings.
     std::function<void()> onAudioSettings;
-    // Where Options > Forward MIDI to a Hardware G2 sends the MIDI (nullptr: no such menu).
+    // Where Setup > Forward MIDI to a Hardware G2 sends the MIDI (nullptr: no such menu).
     void setMidiOutput(MidiOutputTarget* target)
     {
         midiOut_ = target;
@@ -174,7 +174,9 @@ private:
     juce::TextButton init1_{"Init 1"}, init2_{"Init 2"};
     LiveView live_{nullptr};
     void updateLoad();
-    juce::PopupMenu synthMenu();
+    juce::PopupMenu buildMenu(const std::string& name);
+    void addMenuItem(juce::PopupMenu& m, int id);
+    bool liveAvailable() const;
     void showMutator();
     juce::Label status_, load_;
     PatchSettingsBar settings_{doc_};

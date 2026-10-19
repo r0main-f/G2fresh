@@ -201,7 +201,7 @@ int G2EditorProcessor::emulatorsInHost() const
 
 namespace {
 
-// The buffer the user chose for this computer (Synth > Emulated G2 Buffer), from the settings every instance
+// The buffer the user chose for this computer (Synth > Emulated G2 > Buffer), from the settings every instance
 // shares. The environment variable G2FRESH_EMULATOR_BUFFER (low, normal or safe) goes first: for tests, which do
 // not touch the user's settings.
 g2io::Buffer chosenBuffer()
@@ -211,7 +211,7 @@ g2io::Buffer chosenBuffer()
     return g2io::bufferFromKey(key.toStdString(), g2io::kDefaultBuffer);
 }
 
-// Whether the user fitted the voice expansion board (Synth > Emulated G2 Voice Expansion Board), from the settings
+// Whether the user fitted the voice expansion board (Synth > Emulated G2 > Voice Expansion Board), from the settings
 // every instance shares: a choice for this computer, which must run twice the DSPs. G2FRESH_EMULATOR_EXPANSION (on or
 // off) goes first: for tests, which do not touch the user's settings.
 bool chosenExpansion()
@@ -443,7 +443,7 @@ void G2EditorProcessor::autoStartEmulator()
         return; // the editor talks to another synth
     const juce::File firmware{g2ui::userSettings().getValue("emulatorFirmware")};
     if (!firmware.exists())
-        return; // never set up: Synth > Connect to Emulated G2 asks for it
+        return; // never set up: Synth > Emulated G2 asks for it
     // One emulated G2 starts by itself per host: each takes about 1.5 cores, and a few of them overload a laptop
     // (they then drop out, which sounds like distortion). The others start from the Synth menu or the Live view.
     if (EmulatedSoundEngine::running() > 0)

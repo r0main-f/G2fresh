@@ -26,6 +26,7 @@ enum MenuId {
     kGetPatchBase = 720,      // + slot
     kSynthEmulated = 730, kEmulatorFirmware, kHostClock, kMixOut34, kEmulatorExpansion,
     kEmulatorBufferBase = 740, // + buffer (EmulatorHost::emulatorBuffer)
+    kEmulatedMenu = 750,       // Synth > Emulated G2, a submenu (MenuBar.h)
     // Opt-in deviations from the original editor (View menu).
     kWheelEditsKnobs = 800, kDoubleClickMorph, kDoubleClickReset, kDoubleClickNothing, kShowLoadEstimate,
     kMorphGroupColours,

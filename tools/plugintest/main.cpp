@@ -577,7 +577,7 @@ struct Transport final : juce::AudioPlayHead {
 // NoteSend (note 72, velocity 90, channel 2), a CtrlSend (controller 21 = 99, channel 3) and a PCSend (program 6,
 // channel 4). A note into the plugin comes back as those three messages, at the samples of the sound it made; a
 // System Exclusive patch request is answered with the patch's dump, whole messages at the pace of a MIDI cable; the
-// dump goes back in. With `followTempo`, the same while the G2 follows the host's tempo (Synth > Emulated G2 Follows
+// dump goes back in. With `followTempo`, the same while the G2 follows the host's tempo (Synth > Emulated G2 > Follow
 // the Host's Tempo: MIDI clock into its MIDI IN, from a transport playing at 100 BPM).
 void midiOutput(const juce::String& path, const juce::File& patch, bool followTempo)
 {
