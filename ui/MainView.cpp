@@ -9,11 +9,13 @@
 #include "Dialogs.h"
 #include "LiveEditing.h"
 #include "LiveShow.h"
+#include "MenuBar.h"
 #include "MenuIds.h"
 #include "PatchKeys.h"
 #include "PatchLibrary.h"
 #include "PatchLibraryModel.h"
 #include "SynthSettingsWindow.h"
+#include "ToolbarLayout.h"
 #include "ZoomFit.h"
 
 #include "g2/patch_load.hpp"
@@ -380,20 +382,24 @@ juce::String MainView::emulatorBufferName(int buffer) const
 
 void MainView::updateSynthStatus()
 {
+    // The Live view is the Emulated G2's: not with a G2 on USB (LiveShow.h).
+    liveButton_.setEnabled(liveAvailable());
+    if (liveMode_ && !liveAvailable())
+        setLiveMode(false);
     if (synth_ == nullptr)
         return;
     juce::String text = synth_->statusText();
     if (emulator_ != nullptr && emulator_->emulatorAvailable()) {
         const int others = emulator_->emulatorsInHost() - (emulator_->emulatorRunning() ? 1 : 0);
         if (synth_->kind() == SynthSync::Kind::None && others > 0)
-            text = "Not connected: another G2fresh here runs the Emulated G2 (Synth > Connect to Emulated G2 starts one "
+            text = "Not connected: another G2fresh here runs the Emulated G2 (Synth > Emulated G2 starts one "
                    "more, about 1.5 cores each)";
         else if (emulator_->emulatorRunning() && others > 0)
             text << "  |  " << (others + 1) << " Emulated G2s run in this host: heavy on the CPU";
         // the emulated G2 was late for the host: heard as clicks or gaps, and for the user to know
         if (const int dropouts = emulator_->emulatorRunning() ? emulator_->emulatorDropouts() : 0; dropouts > 0)
             text << "  |  " << dropouts << (dropouts == 1 ? " dropout" : " dropouts")
-                 << (emulator_->emulatorBuffer() < 2 ? ": try Synth > Emulated G2 Buffer" : ": the computer is too busy for the Emulated G2");
+                 << (emulator_->emulatorBuffer() < 2 ? ": try Synth > Emulated G2 > Buffer" : ": the computer is too busy for the Emulated G2");
     }
     if (synth_->boundSlot() >= 0)
         text << "  |  live: slot " << juce::String::charToString(static_cast<juce::juce_wchar>('A' + synth_->boundSlot()));
@@ -465,10 +471,10 @@ void MainView::startForLive()
         setStatus("This build of G2fresh has no Emulated G2: the Live panel plays nothing");
         break;
     case LiveShow::OtherSynth:
-        setStatus("The Live panel plays the Emulated G2: Synth > Connect to Emulated G2 to play it");
+        setStatus("The Live panel plays the Emulated G2: Synth > Emulated G2 to play it");
         break;
     case LiveShow::OtherInstance:
-        setStatus("Another G2fresh in this host runs an Emulated G2: Synth > Connect to Emulated G2 starts this "
+        setStatus("Another G2fresh in this host runs an Emulated G2: Synth > Emulated G2 starts this "
                   "one too (two at once can drop out)");
         break;
     }
@@ -476,6 +482,10 @@ void MainView::startForLive()
 
 void MainView::setLiveMode(bool live)
 {
+    if (live && !liveAvailable()) {
+        setStatus("The Live panel and keyboard are the Emulated G2's: a G2 on USB has its own");
+        live = false;
+    }
     liveMode_ = live;
     (live ? liveButton_ : editButton_).setToggleState(true, juce::dontSendNotification);
     for (juce::Component* c : std::initializer_list<juce::Component*>{&settings_, &browser_, &vaPane_, &divider_, &fxPane_})
@@ -489,96 +499,80 @@ void MainView::setLiveMode(bool live)
     menuItemsChanged();
 }
 
-juce::PopupMenu MainView::synthMenu()
+// ---- Menus ----------------------------------------------------------------------
+
+juce::StringArray MainView::getMenuBarNames()
+{
+    juce::StringArray names;
+    for (const auto& name : menubar::names(synth_ != nullptr))
+        names.add(name);
+    return names;
+}
+
+juce::PopupMenu MainView::getMenuForIndex(int, const juce::String& name)
+{
+    return buildMenu(name.toStdString());
+}
+
+// A menu from its plan (MenuBar.h): the commands this window offers, a separator only between two of them.
+juce::PopupMenu MainView::buildMenu(const std::string& name)
 {
     juce::PopupMenu m;
-    if (synth_ == nullptr)
-        return m;
-    using Kind = SynthSync::Kind;
-    m.addItem(item(kSynthG2, "Connect to G2 (USB)", {}, synth_->kind() != Kind::G2, synth_->kind() == Kind::G2));
-    m.addItem(item(kSynthVirtual, "Connect to Virtual G2 (no hardware)", {}, synth_->kind() != Kind::Virtual,
-                   synth_->kind() == Kind::Virtual));
-    if (emulator_ != nullptr && emulator_->emulatorAvailable()) {
-        m.addItem(item(kSynthEmulated, "Connect to Emulated G2 (your G2 OS, plays in G2fresh)", {},
-                       synth_->kind() != Kind::Emulated, synth_->kind() == Kind::Emulated));
-        m.addItem(item(kEmulatorFirmware, "Choose the G2 OS for the Emulated G2..."));
-        m.addItem(item(kHostClock, "Emulated G2 Follows the Host's Tempo (MIDI Clock)", {}, true, emulator_->hostClock()));
-        m.addItem(item(kMixOut34, "Mix Out 3/4 into Out 1/2 (when the Out 3/4 output is not used)", {}, true,
-                       emulator_->mixOut34()));
-        juce::PopupMenu buffer;
-        for (int b = 0; b < 3; ++b)
-            buffer.addItem(item(kEmulatorBufferBase + b, emulatorBufferName(b), {}, true, emulator_->emulatorBuffer() == b));
-        m.addSubMenu("Emulated G2 Buffer (latency)", buffer);
-        m.addItem(item(kEmulatorExpansion, "Emulated G2 Voice Expansion Board (8 DSPs: twice the voices and the CPU)", {},
-                       true, emulator_->emulatorExpansion()));
+    bool separator = false;
+    for (const int id : menubar::items(name)) {
+        if (id == menubar::kSeparator) {
+            separator = true;
+            continue;
+        }
+        juce::PopupMenu one;
+        addMenuItem(one, id);
+        if (one.getNumItems() == 0)
+            continue;
+        if (separator && m.getNumItems() > 0)
+            m.addSeparator();
+        separator = false;
+        for (juce::PopupMenu::MenuItemIterator it(one); it.next();)
+            m.addItem(it.getItem());
     }
-    m.addItem(item(kSynthDisconnect, "Disconnect", {}, synth_->kind() != Kind::None));
-    m.addSeparator();
-    const bool ready = synth_->ready();
-    m.addItem(item(kSynthSettings, "Synth Settings...", kCmd + "G", ready));
-    m.addSeparator();
+    return m;
+}
+
+bool MainView::liveAvailable() const
+{
+    const bool usbG2 = synth_ != nullptr
+                    && (synth_->kind() == SynthSync::Kind::G2 || synth_->kind() == SynthSync::Kind::Virtual);
+    return liveViewAvailable(emulator_ != nullptr && emulator_->emulatorAvailable(), usbG2);
+}
+
+// One command of the menu bar, with its label, shortcut and state; nothing if this window cannot offer it.
+void MainView::addMenuItem(juce::PopupMenu& m, int id)
+{
+    using Kind = SynthSync::Kind;
+    const bool selected = va_.hasSelection() || fx_.hasSelection();
+    const bool emulator = emulator_ != nullptr && emulator_->emulatorAvailable();
+    const bool ready = synth_ != nullptr && synth_->ready();
+    const auto kind = synth_ != nullptr ? synth_->kind() : Kind::None;
     auto slotLabel = [this](int s) {
         const auto name = synth_->slotName(s);
         return "Slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + s))
              + (name.isNotEmpty() ? "  (" + name + ")" : juce::String());
     };
-    if (doc_.isPerformance()) {
-        m.addItem(item(kSendPerformance, "Send Performance to G2", {}, ready));
-    } else {
-        juce::PopupMenu send;
+    // The original's New To, Open To and Save From (SMNU File 110, 107, 113).
+    auto slotMenu = [&](int base, const juce::String& label) {
+        juce::PopupMenu slots;
         for (int s = 0; s < 4; ++s)
-            send.addItem(item(kSendPatchBase + s, slotLabel(s), {}, ready, synth_->boundSlot() == s));
-        m.addSubMenu("Send Patch to Slot", send, ready);
-    }
-    juce::PopupMenu get;
-    for (int s = 0; s < 4; ++s)
-        get.addItem(item(kGetPatchBase + s, slotLabel(s), {}, ready));
-    m.addSubMenu("Get Patch from Slot", get, ready);
-    m.addItem(item(kGetPerformance, "Get Performance from G2", {}, ready));
-    m.addItem(item(kSynthMemory, "Synth Memory (Banks)...", {}, true));
-    m.addSeparator();
-    // Live Editing (LiveEditing.h): stops it, or sends the document again to start it (round-6 hand tests).
-    const auto live = liveEditingItem(ready, synth_->bound(), doc_.isPerformance(), synth_->kind() == Kind::Emulated,
-                                      juce::jlimit(0, 3, synth_->lastSlot()));
-    m.addItem(item(kUnbind, live.label, {}, live.enabled, live.ticked));
-    m.addSeparator();
-    m.addItem(item(kShowUsbLog, "Show USB Log (for bug reports)"));
-    m.addItem(item(kFullUsbLog, "Full USB Log (includes patch data)", {}, true, SynthSync::fullUsbLog()));
-    return m;
-}
-
-// ---- Menus ----------------------------------------------------------------------
-
-juce::StringArray MainView::getMenuBarNames()
-{
-    juce::StringArray names{"File", "Edit", "View"};
-    if (synth_ != nullptr)
-        names.add("Synth");
-    if (onAudioSettings || midiOut_ != nullptr)
-        names.add("Options");
-    return names;
-}
-
-juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
-{
-    if (name == "Synth")
-        return synthMenu();
-    juce::PopupMenu m;
-    if (index == 0) {
-        m.addItem(item(kNew, "New Patch", kCmd + "N"));
-        m.addItem(item(kNewPerformance, "New Performance"));
-        m.addItem(item(kOpen, "Open...", kCmd + "O"));
-        // The original's New To, Open To and Save From (SMNU File 110, 107, 113).
-        const auto target = slotTarget(doc_.isPerformance(), synth_ != nullptr && synth_->ready());
-        juce::PopupMenu newTo, openTo, saveFrom;
-        for (int s = 0; s < 4; ++s) {
-            const auto label = "Slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + s));
-            newTo.addItem(item(kNewToBase + s, label));
-            openTo.addItem(item(kOpenToBase + s, label));
-            saveFrom.addItem(item(kSaveFromBase + s, label));
-        }
-        m.addSubMenu("New To", newTo, target != SlotTarget::None);
-        m.addSubMenu("Open To", openTo, target != SlotTarget::None);
+            slots.addItem(item(base + s, "Slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + s))));
+        m.addSubMenu(label, slots, slotTarget(doc_.isPerformance(), ready) != SlotTarget::None);
+    };
+    const juce::String variation = juce::String(doc_.variation() + 1);
+    switch (id) {
+    // File
+    case kNew: m.addItem(item(kNew, "New Patch", kCmd + "N")); break;
+    case kNewPerformance: m.addItem(item(kNewPerformance, "New Performance")); break;
+    case kOpen: m.addItem(item(kOpen, "Open...", kCmd + "O")); break;
+    case kNewToBase: slotMenu(kNewToBase, "New To"); break;
+    case kOpenToBase: slotMenu(kOpenToBase, "Open To"); break;
+    case kRecentBase: {
         juce::PopupMenu recent;
         recent_.createPopupMenuItems(recent, kRecentBase, false, true);
         if (recent.getNumItems() > 0) {
@@ -586,97 +580,181 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             recent.addItem(item(kClearRecent, "Clear Menu"));
         }
         m.addSubMenu("Open Recent", recent, recent.getNumItems() > 0);
-        m.addItem(item(kPatchLibrary, "Patch Library...", kCmd + "B"));
-        m.addSeparator();
-        m.addItem(item(kSave, "Save", kCmd + "S"));
-        m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S"));
-        m.addSubMenu("Save From", saveFrom, target != SlotTarget::None);
-        m.addItem(item(kSaveInitPatch1, "Save InitPatch 1")); // the original's File menu (SMNU, items 108 and 109)
-        m.addItem(item(kSaveInitPatch2, "Save InitPatch 2"));
-        m.addSeparator();
-        m.addItem(item(kPerformanceSettings, "Performance Settings...", kCmd + "R", doc_.isPerformance()));
-    } else if (index == 1) {
-        const auto& undo = doc_;
-        m.addItem(item(kUndo, "Undo", kCmd + "Z", undo.canUndo()));
-        m.addItem(item(kRedo, "Redo", kShift + kCmd + "Z", undo.canRedo()));
-        m.addSeparator();
-        const bool selected = va_.hasSelection() || fx_.hasSelection();
-        m.addItem(item(kCut, "Cut", kCmd + "X", selected));
-        m.addItem(item(kCopy, "Copy", kCmd + "C", selected));
-        m.addItem(item(kPaste, "Paste", kCmd + "V", !AreaView::clipboard().empty()));
-        m.addItem(item(kDuplicate, "Duplicate", kCmd + "D", selected));
+        break;
+    }
+    case kPatchLibrary: m.addItem(item(kPatchLibrary, "Patch Library...", kCmd + "B")); break;
+    case kSave: m.addItem(item(kSave, "Save", kCmd + "S")); break;
+    case kSaveAs: m.addItem(item(kSaveAs, "Save As...", kShift + kCmd + "S")); break;
+    case kSaveFromBase: slotMenu(kSaveFromBase, "Save From"); break;
+    case kSaveInitPatch1: m.addItem(item(kSaveInitPatch1, "Save InitPatch 1")); break; // SMNU File 108, 109
+    case kSaveInitPatch2: m.addItem(item(kSaveInitPatch2, "Save InitPatch 2")); break;
+    // Edit
+    case kUndo: m.addItem(item(kUndo, "Undo", kCmd + "Z", doc_.canUndo())); break;
+    case kRedo: m.addItem(item(kRedo, "Redo", kShift + kCmd + "Z", doc_.canRedo())); break;
+    case kCut: m.addItem(item(kCut, "Cut", kCmd + "X", selected)); break;
+    case kCopy: m.addItem(item(kCopy, "Copy", kCmd + "C", selected)); break;
+    case kPaste: m.addItem(item(kPaste, "Paste", kCmd + "V", !AreaView::clipboard().empty())); break;
+    case kDuplicate: m.addItem(item(kDuplicate, "Duplicate", kCmd + "D", selected)); break;
+    case kPasteParams:
         m.addItem(item(kPasteParams, "Paste Params", kCmd + "E", selected && !AreaView::clipboard().empty()));
+        break;
+    case kDelete:
         m.addItem(item(kDelete, "Delete", "Delete", selected || va_.hasHighlightedCable() || fx_.hasHighlightedCable()));
-        m.addItem(item(kSelectAll, "Select All", kCmd + "A"));
-        m.addSeparator();
-        // G2fresh's own: a selection as a patch file, and a patch file's modules into this patch.
-        m.addItem(item(kSaveSelection, "Save Selection as Patch...", {}, selected));
-        m.addItem(item(kInsertPatch, "Insert Patch File..."));
-        m.addSeparator();
-        juce::PopupMenu variations;
-        for (int v = 0; v < g2::kFileVariations; ++v)
-            variations.addItem(item(kCopyVariationBase + v, v < g2::kUserVariations ? "Variation " + juce::String(v + 1) : juce::String("Init"),
-                                    {}, v != doc_.variation()));
-        m.addSubMenu("Copy Variation " + juce::String(doc_.variation() + 1) + " To", variations);
-        m.addItem(item(kRecallInit, "Recall Init into Variation " + juce::String(doc_.variation() + 1)));
-        const juce::String target = selected ? "Selected Modules" : "Variation " + juce::String(doc_.variation() + 1);
-        m.addItem(item(kRandomize, "Randomize " + target));
-        m.addItem(item(kMutate, "Mutate " + target));
-        m.addItem(item(kMutator, "Patch Mutator...", kCmd + "2"));
-        m.addSeparator();
-        m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch..."));
-        m.addItem(item(kPatchNotes, "Patch Notes...", kCmd + "J"));
-        m.addSeparator();
-        m.addItem(item(kDeleteUnused, "Delete Unused Modules")); // the original's Patch menu (SMNU, item 305)
-        m.addSeparator();
-        // The original's Tools menu (SMNU 1086-1088).
-        m.addItem(item(kAssignMidiSelection, "Assign MIDI to Selection", {}, selected));
-        m.addItem(item(kDeassignMidiSelection, "Deassign MIDI from Selection", {}, selected));
-        m.addItem(item(kDeassignAllMidi, "Deassign All MIDI"));
-    } else if (index == 2) {
-        m.addItem(item(kLiveMode, "Live (Emulated G2 Panel and Keyboard)", kCmd + "L", true, liveMode_));
-        m.addSeparator();
-        m.addItem(item(kZoomIn, "Zoom In", kCmd + "+", zoom_ < kMaxZoom));
-        m.addItem(item(kZoomOut, "Zoom Out", kCmd + "-", zoom_ > kMinZoom));
-        m.addItem(item(kZoomReset, "Actual Size", kCmd + "0"));
-        m.addItem(item(kZoomFit, "Zoom to Fit", kShift + kCmd + "0"));
-        m.addSeparator();
-        m.addItem(item(kShowSettings, "Show Patch Settings", kCmd + "P", true, !settings_.isCollapsed()));
+        break;
+    case kSelectAll: m.addItem(item(kSelectAll, "Select All", kCmd + "A")); break;
+    // View
+    case kLiveMode:
+        m.addItem(item(kLiveMode, "Live (Emulated G2 Panel and Keyboard)", kCmd + "L", liveAvailable(), liveMode_));
+        break;
+    case kZoomIn: m.addItem(item(kZoomIn, "Zoom In", kCmd + "+", zoom_ < kMaxZoom)); break;
+    case kZoomOut: m.addItem(item(kZoomOut, "Zoom Out", kCmd + "-", zoom_ > kMinZoom)); break;
+    case kZoomReset: m.addItem(item(kZoomReset, "Actual Size", kCmd + "0")); break;
+    case kZoomFit: m.addItem(item(kZoomFit, "Zoom to Fit", kShift + kCmd + "0")); break;
+    case kCablesBase: {
         juce::PopupMenu cables;
         static const char* const names[7] = {"Red", "Blue", "Yellow", "Orange", "Green", "Purple", "White"};
         for (int c = 0; c < 7; ++c)
             cables.addItem(item(kCablesBase + c, names[c], {}, true, doc_.patch().header.cablesVisible[static_cast<std::size_t>(c)]));
         m.addSubMenu("Show Cables", cables);
-        // The original's H and S buttons and their keys (Space, Control+Space).
-        m.addItem(item(kHideAllCables, "Hide All Cables", "Space", true, !doc_.cablesShown()));
-        m.addItem(item(kShakeCables, "Shake Cables", "Ctrl+Space", isCurved(cableStyle())));
+        break;
+    }
+    // The original's H and S buttons and their keys (Space, Control+Space).
+    case kHideAllCables: m.addItem(item(kHideAllCables, "Hide All Cables", "Space", true, !doc_.cablesShown())); break;
+    case kShakeCables: m.addItem(item(kShakeCables, "Shake Cables", "Ctrl+Space", isCurved(cableStyle()))); break;
+    case kClassicLook: m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic)); break;
+    case kCableStyleBase: {
         juce::PopupMenu styles;
         static const char* const styleNames[4] = {"Straight 3D", "Curved 3D", "Straight Thin", "Curved Thin"};
-        for (int s = 0; s < 4; ++s)
-            styles.addItem(item(kCableStyleBase + s, styleNames[s], {}, true, static_cast<int>(cableStyle()) == s));
+        for (int st = 0; st < 4; ++st)
+            styles.addItem(item(kCableStyleBase + st, styleNames[st], {}, true, static_cast<int>(cableStyle()) == st));
         m.addSubMenu("Cable Style", styles);
+        break;
+    }
+    case kCableOpacityBase: {
         juce::PopupMenu opacity;
         for (std::size_t i = 0; i < kCableOpacities.size(); ++i)
             opacity.addItem(item(kCableOpacityBase + static_cast<int>(i), juce::String(kCableOpacities[i]) + "%", {}, true,
                                  cableOpacity() == kCableOpacities[i]));
         m.addSubMenu("Cable Opacity", opacity);
-        m.addItem(item(kRemoveBendPoints, "Remove All Bend Points", {}, g2::edit::hasCableBends(doc_.patch())));
-        m.addItem(item(kClassicLook, "Classic Look", {}, true, currentLook() == Look::Classic));
-        m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation()));
-        m.addSeparator();
-        // Deliberate deviations from the original editor, off by default.
-        m.addItem(item(kWheelEditsKnobs, "Mouse Wheel Edits Knobs", {}, true, wheelEditsKnobs()));
-        juce::PopupMenu doubleClick;
-        const auto dc = knobDoubleClick();
-        doubleClick.addItem(item(kDoubleClickMorph, "Drag the Morph Range (as the original)", {}, true, dc == KnobDoubleClick::Morph));
-        doubleClick.addItem(item(kDoubleClickReset, "Reset to the Default Value", {}, true, dc == KnobDoubleClick::Reset));
-        doubleClick.addItem(item(kDoubleClickNothing, "Nothing", {}, true, dc == KnobDoubleClick::Nothing));
-        m.addSubMenu("Double-Click on a Knob", doubleClick);
+        break;
+    }
+    case kAnimateCables: m.addItem(item(kAnimateCables, "Animate Cables", {}, true, cableAnimation())); break;
+    case kMorphGroupColours:
         m.addItem(item(kMorphGroupColours, "Morph Groups in Eight Colours", {}, true, morphGroupColours()));
+        break;
+    case kShowLoadEstimate:
         m.addItem(item(kShowLoadEstimate, "Show Load Estimate Offline", {}, true, showLoadEstimate()));
-    } else if (name == "Options") {
+        break;
+    // Patch
+    case kShowSettings:
+        m.addItem(item(kShowSettings, "Patch Settings", kCmd + "P", true, !settings_.isCollapsed()));
+        break;
+    case kPatchNotes: m.addItem(item(kPatchNotes, "Patch Notes...", kCmd + "J")); break;
+    case kRename: m.addItem(item(kRename, doc_.isPerformance() ? "Rename Slot..." : "Rename Patch...")); break;
+    case kCopyVariationBase: {
+        juce::PopupMenu variations;
+        for (int v = 0; v < g2::kFileVariations; ++v)
+            variations.addItem(item(kCopyVariationBase + v, v < g2::kUserVariations ? "Variation " + juce::String(v + 1) : juce::String("Init"),
+                                    {}, v != doc_.variation()));
+        m.addSubMenu("Copy Variation " + variation + " To", variations);
+        break;
+    }
+    case kRecallInit: m.addItem(item(kRecallInit, "Recall Init into Variation " + variation)); break;
+    // G2fresh's own: a patch file's modules into this patch, and a selection as a patch file.
+    case kInsertPatch: m.addItem(item(kInsertPatch, "Insert Patch File...")); break;
+    case kSaveSelection: m.addItem(item(kSaveSelection, "Save Selection as Patch...", {}, selected)); break;
+    case kDeleteUnused: m.addItem(item(kDeleteUnused, "Delete Unused Modules")); break;
+    case kRemoveBendPoints:
+        m.addItem(item(kRemoveBendPoints, "Remove All Bend Points", {}, g2::edit::hasCableBends(doc_.patch())));
+        break;
+    // Performance
+    case kPerformanceSettings:
+        m.addItem(item(kPerformanceSettings, "Performance Settings...", kCmd + "R", doc_.isPerformance()));
+        break;
+    // Synth: a G2 or G2X on USB, or the Emulated G2.
+    case kSynthG2:
+        if (synth_ != nullptr)
+            m.addItem(item(kSynthG2, "G2 or G2X (USB)", {}, kind != Kind::G2, kind == Kind::G2));
+        break;
+    case kSynthEmulated:
+        if (synth_ != nullptr && emulator)
+            m.addItem(item(kSynthEmulated, "Emulated G2 (your G2 OS, plays in G2fresh)", {}, kind != Kind::Emulated,
+                           kind == Kind::Emulated));
+        break;
+    case kSynthDisconnect:
+        if (synth_ != nullptr)
+            m.addItem(item(kSynthDisconnect, "Disconnect", {}, kind != Kind::None));
+        break;
+    case kSynthSettings:
+        if (synth_ != nullptr)
+            m.addItem(item(kSynthSettings, "Synth Settings...", kCmd + "G", ready));
+        break;
+    case kSendPatchBase:
+        if (synth_ != nullptr && !doc_.isPerformance()) {
+            juce::PopupMenu send;
+            for (int sl = 0; sl < 4; ++sl)
+                send.addItem(item(kSendPatchBase + sl, slotLabel(sl), {}, ready, synth_->boundSlot() == sl));
+            m.addSubMenu("Send Patch to Slot", send, ready);
+        }
+        break;
+    case kSendPerformance:
+        if (synth_ != nullptr && doc_.isPerformance())
+            m.addItem(item(kSendPerformance, "Send Performance to G2", {}, ready));
+        break;
+    case kGetPatchBase:
+        if (synth_ != nullptr) {
+            juce::PopupMenu get;
+            for (int sl = 0; sl < 4; ++sl)
+                get.addItem(item(kGetPatchBase + sl, slotLabel(sl), {}, ready));
+            m.addSubMenu("Get Patch from Slot", get, ready);
+        }
+        break;
+    case kGetPerformance:
+        if (synth_ != nullptr)
+            m.addItem(item(kGetPerformance, "Get Performance from G2", {}, ready));
+        break;
+    case kUnbind:
+        // Live Editing (LiveEditing.h): stops it, or sends the document again to start it (round-6 hand tests).
+        if (synth_ != nullptr) {
+            const auto live = liveEditingItem(ready, synth_->bound(), doc_.isPerformance(), kind == Kind::Emulated,
+                                              juce::jlimit(0, 3, synth_->lastSlot()));
+            m.addItem(item(kUnbind, live.label, {}, live.enabled, live.ticked));
+        }
+        break;
+    case kSynthMemory:
+        if (synth_ != nullptr)
+            m.addItem(item(kSynthMemory, "Synth Memory (Banks)...", {}, true));
+        break;
+    // Its options are the Emulated G2's: not while the editor is on a G2 on USB.
+    case kEmulatedMenu:
+        if (synth_ != nullptr && emulator)
+            m.addSubMenu("Emulated G2", buildMenu("Emulated G2"), kind != Kind::G2);
+        break;
+    case kEmulatorFirmware: m.addItem(item(kEmulatorFirmware, "Choose the G2 OS...")); break;
+    case kEmulatorBufferBase: {
+        juce::PopupMenu buffer;
+        for (int b = 0; b < 3; ++b)
+            buffer.addItem(item(kEmulatorBufferBase + b, emulatorBufferName(b), {}, true, emulator_->emulatorBuffer() == b));
+        m.addSubMenu("Buffer (latency)", buffer);
+        break;
+    }
+    case kEmulatorExpansion:
+        m.addItem(item(kEmulatorExpansion, "Voice Expansion Board (8 DSPs: twice the voices and the CPU)", {}, true,
+                       emulator_->emulatorExpansion()));
+        break;
+    case kHostClock:
+        m.addItem(item(kHostClock, "Follow the Host's Tempo (MIDI Clock)", {}, true, emulator_->hostClock()));
+        break;
+    case kMixOut34:
+        m.addItem(item(kMixOut34, "Mix Out 3/4 into Out 1/2 (when the Out 3/4 output is not used)", {}, true,
+                       emulator_->mixOut34()));
+        break;
+    // Setup
+    case kAudioSettings:
         if (onAudioSettings)
             m.addItem(item(kAudioSettings, "Audio/MIDI Settings..."));
+        break;
+    case kMidiOutOff:
         if (midiOut_ != nullptr) {
             // The G2's USB connection carries no notes: MIDI goes to the
             // synth through a MIDI interface. (Not the emulated G2's MIDI
@@ -698,8 +776,38 @@ juce::PopupMenu MainView::getMenuForIndex(int index, const juce::String& name)
             out.addSubMenu("Channel", channels, current.isNotEmpty());
             m.addSubMenu("Forward MIDI to a Hardware G2", out);
         }
+        break;
+    // Deliberate deviations from the original editor, off by default.
+    case kWheelEditsKnobs: m.addItem(item(kWheelEditsKnobs, "Mouse Wheel Edits Knobs", {}, true, wheelEditsKnobs())); break;
+    case kDoubleClickMorph: {
+        juce::PopupMenu doubleClick;
+        const auto dc = knobDoubleClick();
+        doubleClick.addItem(item(kDoubleClickMorph, "Drag the Morph Range (as the original)", {}, true, dc == KnobDoubleClick::Morph));
+        doubleClick.addItem(item(kDoubleClickReset, "Reset to the Default Value", {}, true, dc == KnobDoubleClick::Reset));
+        doubleClick.addItem(item(kDoubleClickNothing, "Nothing", {}, true, dc == KnobDoubleClick::Nothing));
+        m.addSubMenu("Double-Click on a Knob", doubleClick);
+        break;
     }
-    return m;
+    // Tools (SMNU 1090, 1086-1088)
+    case kMutator: m.addItem(item(kMutator, "Patch Mutator...", kCmd + "2")); break;
+    case kRandomize:
+    case kMutate: {
+        const juce::String target = selected ? "Selected Modules" : "Variation " + variation;
+        m.addItem(item(id, (id == kRandomize ? "Randomize " : "Mutate ") + target));
+        break;
+    }
+    case kAssignMidiSelection: m.addItem(item(kAssignMidiSelection, "Assign MIDI to Selection", {}, selected)); break;
+    case kDeassignMidiSelection:
+        m.addItem(item(kDeassignMidiSelection, "Deassign MIDI from Selection", {}, selected));
+        break;
+    case kDeassignAllMidi: m.addItem(item(kDeassignAllMidi, "Deassign All MIDI")); break;
+    // Help
+    case kShowUsbLog: m.addItem(item(kShowUsbLog, "Show USB Log (for bug reports)")); break;
+    case kFullUsbLog:
+        m.addItem(item(kFullUsbLog, "Full USB Log (includes patch data)", {}, true, SynthSync::fullUsbLog()));
+        break;
+    default: break;
+    }
 }
 
 void MainView::menuItemSelected(int id, int)
@@ -757,7 +865,7 @@ void MainView::menuItemSelected(int id, int)
                 if (self != nullptr)
                     self->offerExpansion(t);
             })) {
-            setStatus("The computer test cannot start: choose the G2 OS first (Synth > Choose the G2 OS for the Emulated G2...)");
+            setStatus("The computer test cannot start: choose the G2 OS first (Synth > Emulated G2 > Choose the G2 OS...)");
             return;
         }
         setStatus("Testing this computer with eight DSPs (about 20 s; the Emulated G2 stops meanwhile)...");
@@ -782,8 +890,6 @@ void MainView::menuItemSelected(int id, int)
     if (synth_ != nullptr && id >= kSynthG2 && id < kGetPatchBase + 4) {
         if (id == kSynthG2)
             synth_->connectG2();
-        else if (id == kSynthVirtual)
-            synth_->connectVirtual();
         else if (id == kSynthDisconnect)
             synth_->disconnect();
         else if (id == kSendPerformance)
@@ -1548,7 +1654,11 @@ void MainView::resized()
     auto r = getLocalBounds();
     if (menuBar_)
         menuBar_->setBounds(r.removeFromTop(24));
-    auto bar = r.removeFromTop(34).reduced(6, 4);
+    // The toolbar: the document's items on the left of the first row, the groups on the right (ToolbarLayout.h), on
+    // as many rows as the width needs.
+    constexpr int kRowHeight = 26, kRowStep = 30;
+    const auto top = r.reduced(6, 4).withHeight(kRowHeight);
+    auto bar = top;
     if (!standalone_) {
         menuButton_.setBounds(bar.removeFromLeft(64));
         bar.removeFromLeft(10);
@@ -1566,33 +1676,50 @@ void MainView::resized()
     init1_.setBounds(bar.removeFromLeft(48));
     init2_.setBounds(bar.removeFromLeft(48));
 
-    zoomIn_.setBounds(bar.removeFromRight(28));
-    zoomReset_.setBounds(bar.removeFromRight(54));
-    zoomOut_.setBounds(bar.removeFromRight(28));
-    bar.removeFromRight(16);
-    if (doc_.isPerformance()) {
-        for (int i = slots_.size(); --i >= 0;)
-        {
-            slots_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
-            keyboardMarks_[i]->setBounds(slots_[i]->getBounds().withHeight(3).reduced(3, 0));
-        }
-        bar.removeFromRight(16);
+    // Each group's items from left to right: a component and its width, or a space (nullptr).
+    using Items = std::vector<std::pair<juce::Component*, int>>;
+    std::vector<Items> groups;
+    std::vector<ToolbarGroup> sizes;
+    auto add = [&](Items items, int gapBefore) {
+        int width = 0;
+        for (const auto& item : items)
+            width += item.second;
+        sizes.push_back({width, gapBefore});
+        groups.push_back(std::move(items));
+    };
+    {
+        Items v{{&variationLabel_, textWidth(variationLabel_)}};
+        for (auto* b : variations_)
+            v.push_back({nullptr, 2}), v.push_back({b, 28});
+        v.push_back({nullptr, 4});
+        v.push_back({&varInit_, 40});
+        add(std::move(v), 0);
     }
-    mutatorButton_.setBounds(bar.removeFromRight(92));
-    bar.removeFromRight(4);
-    randomizeButton_.setBounds(bar.removeFromRight(92));
-    bar.removeFromRight(4);
-    morphGroup_.setBounds(bar.removeFromRight(150));
-    bar.removeFromRight(8);
-    bucketButton_.setBounds(bar.removeFromRight(44));
-    bar.removeFromRight(2);
-    colourButton_.setBounds(bar.removeFromRight(28));
-    bar.removeFromRight(16);
-    varInit_.setBounds(bar.removeFromRight(40));
-    bar.removeFromRight(4);
-    for (int i = variations_.size(); --i >= 0;)
-        variations_[i]->setBounds(bar.removeFromRight(28)), bar.removeFromRight(2);
-    variationLabel_.setBounds(bar.removeFromRight(textWidth(variationLabel_)));
+    add({{&colourButton_, 28}, {nullptr, 2}, {&bucketButton_, 44}}, 16);
+    add({{&morphGroup_, 150}}, 8);
+    add({{&randomizeButton_, 92}, {nullptr, 4}, {&mutatorButton_, 92}}, 4);
+    if (doc_.isPerformance()) {
+        Items s;
+        for (auto* b : slots_)
+            s.push_back({nullptr, 2}), s.push_back({b, 28});
+        add(std::move(s), 16);
+    }
+    add({{&zoomOut_, 28}, {&zoomReset_, 54}, {&zoomIn_, 28}}, 16);
+
+    const auto layout = layoutToolbar(top.getWidth(), bar.getX() - top.getX(), sizes);
+    for (std::size_t g = 0; g < groups.size(); ++g) {
+        auto x = top.getX() + layout.groups[g].x;
+        const auto y = top.getY() + layout.groups[g].row * kRowStep;
+        for (const auto& [component, width] : groups[g]) {
+            if (component != nullptr)
+                component->setBounds(x, y, width, kRowHeight);
+            x += width;
+        }
+    }
+    if (doc_.isPerformance())
+        for (int i = 0; i < slots_.size(); ++i)
+            keyboardMarks_[i]->setBounds(slots_[i]->getBounds().withHeight(3).reduced(3, 0));
+    r.removeFromTop(34 + (layout.rows - 1) * kRowStep);
 
     {
         auto bottom = r.removeFromBottom(24);
