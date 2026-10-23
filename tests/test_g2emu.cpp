@@ -2513,14 +2513,14 @@ TEST_CASE("The user's G2 OS: a held note keeps five envelopes up in a voice of 2
     const auto rec = g2.record(3.2, clock0);
     // Out 1 (word 0) in 50 ms windows, from 0.2 s after the note to the end; the outputs come out inverted
     constexpr std::size_t Window = Machine::FrameRate / 20;
-    auto mean = [&](std::size_t f, std::size_t n = Window) {
+    auto mean = [&](std::size_t f, std::size_t n) {
         double s = 0;
         for(std::size_t i = f; i < f + n; ++i) s -= rec[i * 4];
         return s / double(n);
     };
     CHECK(std::fabs(mean(0, 400)) < 0.001);  // before the note: the envelopes are down
     std::vector<double> level;
-    for(std::size_t f = 500 + Machine::FrameRate / 5; f + Window <= rec.size() / 4; f += Window) level.push_back(mean(f));
+    for(std::size_t f = 500 + Machine::FrameRate / 5; f + Window <= rec.size() / 4; f += Window) level.push_back(mean(f, Window));
     REQUIRE(level.size() >= 55);
     auto sorted = level;
     std::sort(sorted.begin(), sorted.end());
