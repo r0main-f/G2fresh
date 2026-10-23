@@ -13,27 +13,22 @@ if(NOT dsp56300_POPULATED)
   FetchContent_Populate(dsp56300)
 endif()
 
-# A fix to the library (re/notes/g2-hardware-and-emulation.md 3.8). In a build that has the JIT
-# (g_useJIT), DSP::execInterrupt runs every interrupt vector through the JIT, also when the DSP
-# runs on the interpreter, as ours do. The interpreter computes the condition codes E, U and N
-# lazily (ccrCache); the JIT reads SR as it is, so a jsr in the vector stacked an SR without the
-# pending N of the instruction before the interrupt, and the rti brought back the stale bits. A
-# Bcc right after a cmp went the wrong way whenever an interrupt fell in between: the G2's
-# background loop then ran its control-rate code every 2 to 3 frames instead of every 4.
-# Resolving the pending bits before the JIT runs the vector fixes it (idempotent edit).
+# The library runs one engine per build: the JIT where it has one (g_useJIT, from g_jitSupported),
+# otherwise the interpreter (or with DSP56K_FORCE_INTERPRETER). Calling the interpreter in a build
+# that has the JIT mixes the two, which the library does not support (its maintainer, 2026-10-23):
+# interrupts still run on the JIT, which lost the interpreter's pending condition codes (re/notes/
+# g2-hardware-and-emulation.md 3.8), and cycles are not counted. g2emu runs on the JIT only. An
+# earlier edit here flushed the condition codes before an interrupt; a build folder that still has
+# it gets the library's own file back.
 set(_dsp_cpp ${dsp56300_SOURCE_DIR}/source/dsp56kEmu/dsp.cpp)
 file(READ ${_dsp_cpp} _dsp_src)
-if(NOT _dsp_src MATCHES "G2FRESH: flush the lazy CCR")
-  string(REPLACE "			LOGJITPC(vba);\n"
-                 "			LOGJITPC(vba);\n			updateDirtyCCR();  // G2FRESH: flush the lazy CCR before the JIT stacks SR\n"
-                 _dsp_patched "${_dsp_src}")
-  if(_dsp_patched STREQUAL _dsp_src)
-    message(FATAL_ERROR "dsp56300: could not apply the interrupt CCR fix to ${_dsp_cpp}")
-  endif()
-  file(WRITE ${_dsp_cpp} "${_dsp_patched}")
+if(_dsp_src MATCHES "G2FRESH: flush the lazy CCR")
+  string(REPLACE "			updateDirtyCCR();  // G2FRESH: flush the lazy CCR before the JIT stacks SR\n" ""
+                 _dsp_unpatched "${_dsp_src}")
+  file(WRITE ${_dsp_cpp} "${_dsp_unpatched}")
 endif()
 
-# A second fix, for GCC: on x86-64 outside Windows the library lists no callee-saved XMM registers as
+# A fix, for GCC: on x86-64 outside Windows the library lists no callee-saved XMM registers as
 # `JitReg128 g_nonVolatileXMMs[] = {}`, a zero-size array GCC rejects (clang accepts it). An empty std::array
 # works with every use (range-for in jit.cpp's static_asserts and in jitstackhelper.cpp). Idempotent.
 set(_jit_regs ${dsp56300_SOURCE_DIR}/source/dsp56kEmu/jitregtypes.h)
@@ -68,6 +63,11 @@ if(NOT TARGET dsp56kEmu)
   endforeach()
 endif()
 
+# The research tools below (3.5-3.8, the Python emulator; g2emu replaced them) step the interpreter in
+# this build that has the JIT, which the library does not support (above): their cycle counts do not
+# advance, and in g2dspbridge a conditional right after an interrupt can go the wrong way (3.8.2).
+# g2dspframe and g2dsppoc run frame code without interrupts.
+
 # g2dsppoc: runs one DSP fragment of the G2 OS on the emulated DSP56300.
 add_executable(g2dsppoc dsppoc/g2dsppoc.cpp)
 target_include_directories(g2dsppoc PRIVATE ${dsp56300_SOURCE_DIR}/source)
@@ -95,13 +95,6 @@ target_include_directories(g2dspframe PRIVATE ${dsp56300_SOURCE_DIR}/source)
 target_link_libraries(g2dspframe PRIVATE dsp56kEmu)
 target_compile_features(g2dspframe PRIVATE cxx_std_17)
 target_compile_definitions(g2dspframe PRIVATE _USE_MATH_DEFINES)  # M_PI with MSVC
-
-# g2dspccr: checks the library fix above (an interrupt between cmp and Bcc keeps the branch);
-# run build/emu/g2dspccr (exit code 0 = fixed).
-add_executable(g2dspccr dsptest/g2dspccr.cpp)
-target_include_directories(g2dspccr PRIVATE ${dsp56300_SOURCE_DIR}/source)
-target_link_libraries(g2dspccr PRIVATE dsp56kEmu)
-target_compile_features(g2dspccr PRIVATE cxx_std_17)
 
 # ---------------------------------------------------------------------------------------------------------------
 # g2emu: the real-time C++ emulator of the whole G2 (re/notes/g2-hardware-and-emulation.md 3.9): the user's own OS

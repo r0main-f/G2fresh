@@ -71,7 +71,6 @@ public:
     static constexpr std::uint32_t CyclesPerFrame = 1536;
 
     struct Options {
-        bool jit = true;
         bool idleSkip = true;
         std::uint32_t hostLagFrames = 0;  // for tests: see Machine::Options
     };

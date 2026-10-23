@@ -981,6 +981,45 @@ TEST_CASE("The user's G2 OS: boots, syncs with our client, plays a MIDI note", "
     CHECK(m.stats().exceptions == 0);
 }
 
+TEST_CASE("The user's G2 OS on the JIT: control-rate code runs once every 4 frames on every DSP", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // Stage 1's background loop passes once the frame counter X:$43 is past 3, then adds X:$40 to the 48-bit control
+    // tick count L:$42 and runs the patch's control-rate code (re/notes/g2-hardware-and-emulation.md §3.8.1 [C]):
+    // 0.25 ticks per frame, a 24 kHz control rate at 96 kHz. With the interpreter in a build that has the JIT, the
+    // condition codes of the loop's cmp were lost when an interrupt fell before its ble, and it passed every 2 or 3
+    // frames (§3.8.2: 0.33 to 0.5). dsp56300 runs one engine per build; ours is the JIT.
+    Machine m(fw);
+    m.run(Machine::FrameRate * 2);  // booted: the frame programs run (about 1.6 s)
+    auto ticks = [&](int n) {
+        return (std::uint64_t(m.dspMemory(n, 1, 0x42)) << 24 | m.dspMemory(n, 2, 0x42)) / m.dspMemory(n, 1, 0x40);
+    };
+    std::uint64_t before[4];
+    for(int n = 0; n < 4; ++n)
+    {
+        REQUIRE(m.dspMemory(n, 1, 0x40) != 0);
+        before[n] = ticks(n);
+    }
+    const auto from = m.frame();
+    m.run(Machine::FrameRate);
+    const double frames = double(m.frame() - from);
+    for(int n = 0; n < 4; ++n)
+    {
+        INFO("DSP on chip select A" << 3 + n);
+        // each DSP keeps its own frames, within a few of the DACs' (Options::skew, the lines' prefill)
+        CHECK_THAT(double(ticks(n) - before[n]) / frames, Catch::Matchers::WithinAbs(0.25, 0.001));
+    }
+    CHECK(m.stats().exceptions == 0);
+}
+
 TEST_CASE("The user's G2 OS in real time: the plugin's path (Runner, a link over USB, MIDI)", "[g2emu][firmware]")
 {
     Firmware fw;
