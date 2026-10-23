@@ -990,7 +990,7 @@ What dominates:
 * Speed: about 0.15–0.6 × real time here. Next: run the four DSPs' links without per-frame thread hand-offs (larger
   batches, or all four on one thread with the JIT), port the host to C++ (§3.6.7), fix the JIT.
 
-## 3.8 Control-rate timing: the emulator's fault and its fix (2026-10-10)
+## 3.8 Control-rate timing: two engines mixed, and the way out (2026-10-10, 2026-10-23)
 
 **Symptom** (`re/notes/native-engine.md` §3.3, measured as a black box). In the full machine, control-rate code ran
 about 2 × too often:
@@ -1001,8 +1001,9 @@ about 2 × too often:
 
 `--no-idle-skip` did not change it.
 
-**Cause: lost condition codes in the dsp56300 library, not a clock rate.** Details below. The DSP clock, the ESAI
-frame clock, DSP timer 0 and the ColdFire timer ticks play no part.
+**Cause: lost condition codes, not a clock rate.** We called dsp56300's interpreter in a build of the library that
+has the JIT, which mixes its two engines (§3.8.3). Details below. The DSP clock, the ESAI frame clock, DSP timer 0 and
+the ColdFire timer ticks play no part.
 
 ### 3.8.1 How control-rate code is dispatched [C]
 
@@ -1045,7 +1046,7 @@ gives a 24 kHz control rate at 96 kHz. No DSP timer and no host tick is involved
 `ble` (P:`$229`). There are three interrupts per frame on every DSP: the frame interrupt and the DMA 4/5 done
 interrupts (P:`$20/$22`, `jsr`).
 
-**The mechanism, in the library at the pinned commit:**
+**The mechanism, with the interpreter called in a build that has the JIT (the pinned commit):**
 1. The interpreter computes the CCR bits E, U and N lazily (`ccrCache`).
 2. `DSP::execInterrupt` hands every interrupt vector to the JIT (`if(g_useJIT)`), also when the DSP runs on the
    interpreter. `g_useJIT` is `g_jitSupported`, so it is true on arm64 and x64.
@@ -1055,7 +1056,7 @@ interrupts (P:`$20/$22`, `jsr`).
 **Reproduced in isolation.**
 * A bench script (not kept) ran stage 1's loop on one DSP with X:`$43` held at 0, under a stream of host commands
   whose vector is `jsr $300; rti`. It counted 6,000–100,000 wrong passes per second.
-* `g2dspccr` (§3.8.3) is the same check without firmware.
+* `g2dspccr` (§3.8.3, removed 2026-10-23) was the same check without firmware.
 
 **Why the rate was about 2 × and varied.** Where an interrupt lands in the loop depends on the emulated timing (idle
 skipping, link waits). So the loop passed every 2 or 3 frames instead of every 4, which gives 1.3–2 × on average.
@@ -1068,22 +1069,35 @@ likely cause of the gate dropouts in big patches (`native-engine.md` §3.3).
 Audio-rate code runs inside the frame interrupt. The library runs no peripherals during a long interrupt, so no
 other interrupt can land there, and pitch was never affected.
 
-### 3.8.3 The fix
+### 3.8.3 The fix, then the way out
 
-* **`emu/CMakeLists.txt` edits the fetched `dsp56kEmu/dsp.cpp` after population.**
-  * It inserts `updateDirtyCCR();` before the JIT runs the vector in `DSP::execInterrupt`. This resolves the
-    pending E/U/N into SR before anything stacks it.
-  * The edit is idempotent and marked `G2FRESH`. Configure fails if the anchor line is missing (a new pin).
-  * In a pure JIT run nothing is pending, so it changes nothing there.
-* **`emu/dsptest/g2dspccr.cpp`** (target `g2dspccr`) checks the fix without firmware: a `cmp`/`ble` loop with an
-  interrupt injected at each position.
-  * Without the fix: 100 wrong branches in 400 loops (every interrupt that lands after the `cmp`).
-  * With the fix: 0.
-* **`g2dspreplay.py`** now prints the control ticks per frame from L:`$42`/X:`$40`. The bench gives **0.2500 on all
-  four DSPs**, with and without idle skipping.
-* **Debugging aids in the bridge:**
-  * `g2dsp_trace`: per slot tick;
-  * `g2dsp_trace_fine`: per instruction. It is blind inside long interrupts, where the library runs no peripherals.
+**2026-10-10: a patch to the library.**
+* `emu/CMakeLists.txt` edited the fetched `dsp56kEmu/dsp.cpp`: `updateDirtyCCR();` before the JIT runs the vector in
+  `DSP::execInterrupt`, which resolved the pending E/U/N into SR before anything stacked it.
+* `g2dspccr` checked it without firmware: a `cmp`/`ble` loop with an interrupt injected at each position. Without the
+  patch, 100 wrong branches in 400 loops (every interrupt that lands after the `cmp`); with it, 0.
+* `g2dspreplay.py` prints the control ticks per frame from L:`$42`/X:`$40`: the bench gave **0.2500 on all four
+  DSPs**, with and without idle skipping.
+* Debugging aids in the bridge: `g2dsp_trace` (per slot tick) and `g2dsp_trace_fine` (per instruction; blind inside
+  long interrupts, where the library runs no peripherals).
+
+**2026-10-23: the library's answer.** We reported the fault upstream. Its maintainer closed the report: the library
+picks its engine when it is compiled (`g_useJIT` is `g_jitSupported`, `dsp.h`/`dspconfig.h`), and `DSP::exec()` runs
+everything on it, instructions, DO loops and interrupts. Calling `execInterpreter()` in a build that has the JIT mixes
+the two engines, which is not supported. The lazy condition codes are one of the places where they disagree; another
+is the cycle count, which only an interpreter-only build keeps (`m_cycles` in `dsp.cpp`, under `!g_useJIT`; seen here
+in §3.7.4, the bridge's clock on instructions). For the interpreter, build with `DSP56K_FORCE_INTERPRETER`.
+
+**What we did:**
+* **g2emu runs on the JIT only** (§3.9.3); its interpreter switch (`Options::jit`, `g2emurun --no-jit`) is gone. The
+  patch is gone too, and a build folder that still has it gets the library's file back. In a pure JIT run nothing is
+  pending, so the patch never changed anything there.
+* **Checked on the JIT without the patch** (`tests/test_g2emu.cpp`, "control-rate code runs once every 4 frames on
+  every DSP", the user's OS 1.62): **0.25 control ticks per frame on all four DSPs** over one second after boot.
+* **The research tools** (`g2dspbridge`, `g2dspframe`, `g2dsppoc`; §3.5–§3.8, the Python emulator, replaced by g2emu)
+  still step the interpreter in the JIT build. `g2dspframe` and `g2dsppoc` run frame code without interrupts. In
+  `g2dspbridge` a conditional right after an interrupt can again go the wrong way, so its control-rate results are not
+  reliable. To use it again, build the library with `DSP56K_FORCE_INTERPRETER` (not set up).
 
 ### 3.8.4 Before and after [emulated, full machine, same patches, one session each]
 

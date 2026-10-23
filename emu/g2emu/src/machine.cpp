@@ -346,7 +346,6 @@ struct Machine::Impl final : coldfire::Bus {
 #endif
             );
         Dsp::Options dopt;
-        dopt.jit = opt.jit;
         dopt.idleSkip = opt.idleSkip;
         dopt.hostLagFrames = opt.threads ? opt.hostLagFrames : 0;
         for(int n : chain) dsps[std::size_t(n)] = std::make_unique<Dsp>(n, dopt);

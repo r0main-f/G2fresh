@@ -48,7 +48,6 @@ public:
     static constexpr int MaxDsps = 8;  // the main board's four and the expansion board's four
 
     struct Options {
-        bool jit = true;               // the DSPs on dsp56300's JIT (the interpreter cannot be stepped: debugging)
         bool idleSkip = true;          // skip the DSPs' idle background loop (no state changes)
         bool pollSkip = true;          // skip the ColdFire's loops that wait on a DSP's host port
         double cfHz = 162e6;           // ColdFire core clock: cycles of the core's (V2) timing per second
