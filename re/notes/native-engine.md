@@ -177,7 +177,12 @@ DAC word = **−0.0085306** × (signal into Out 1 × patch Gain curve × 2-Out P
     (envelopes, LFOs, slews, the output ramp) must rescale time.
 * **Frame repeats:** about 0.1 % of samples, clustered around USB activity (note on/off).
 * **Gate dropouts in a bigger patch:** in the 26-module patch of §4, the held note's gate dropped three times (72, 55,
-  504 ms), and in another run it stayed lost after 1.4 s.
+  504 ms), and in another run it stayed lost after 1.4 s. **Gone on the JIT (2026-10-23):** a voice put together the
+  same way (21 modules: 5 EnvADSR summed to Out 1, 6 OscA and 4 FltLP to Out 2; the 26-module patch was not kept)
+  holds its five envelopes flat for 3 s, every 50 ms window within 3 % of the median (test "a held note keeps five
+  envelopes up", `tests/test_g2emu.cpp`; a 100 ms dropout put in by hand fails it). So the dropouts were most
+  likely the condition codes lost between the two engines (g2-hardware-and-emulation.md §3.8); the old patch itself
+  could not be run again.
   * Sub-chains of the same patch matched exactly: t1/t2/t3 within 0.01 dB, DC 0.384 vs 0.384.
   * Where the gate stayed up, the full patch matched on its non-beating component (0.04 dB) and its DC (0.1872 vs
     0.1884).

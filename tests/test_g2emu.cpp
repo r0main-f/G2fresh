@@ -2450,6 +2450,91 @@ TEST_CASE("The user's G2 OS: a Vocoder driven by an audio input", "[g2emu][firmw
     CHECK(g2.m.stats().exceptions == 0);
 }
 
+TEST_CASE("The user's G2 OS: a held note keeps five envelopes up in a voice of 21 modules", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // The bigger voice of re/notes/native-engine.md §3.3/§4 (that patch was not kept; this one is put together the
+    // same way): with the interpreter in a build that has the JIT, its held note's gate dropped for 55 to 504 ms, or
+    // for good (g2-hardware-and-emulation.md §3.8.2). An envelope holds its sustain while the gate is up, so the sum
+    // of five envelopes' Env outputs is flat during a held note, and one that drops takes a fifth of it away.
+    PatchBuilder b;
+    const auto kbd = b.add("Keyboard", 0);
+    g2::u8 env[5];
+    for(int k = 0; k < 5; ++k)
+    {
+        env[k] = b.add("EnvADSR", 1, g2::u8(k * 8));
+        b.param(env[k], "Attack", 0);
+        b.param(env[k], "Decay", 0);
+        b.param(env[k], "Sustain", 16);
+        b.cable(kbd, 1, env[k], 1);
+    }
+    const auto sum4 = b.add("Mix4-1A", 2, 0), sum = b.add("Mix2-1A", 2, 10), out = b.add("2-Out", 7, 0);
+    for(int k = 0; k < 4; ++k) b.cable(env[k], 0, sum4, g2::u8(k));
+    b.cable(sum4, 0, sum, 0);
+    b.cable(env[4], 0, sum, 1);
+    b.param(sum, "Level1", 127);
+    b.param(sum, "Level2", 127);
+    b.cable(sum, 0, out, 0);
+    // the rest of that voice's load: six oscillators, four of them through lowpass filters, into Out 2
+    const auto load4 = b.add("Mix4-1A", 6, 0), load = b.add("Mix2-1A", 6, 10);
+    for(int k = 0; k < 6; ++k)
+    {
+        const auto osc = b.add("OscA", g2::u8(3 + k / 3), g2::u8(k % 3 * 10));
+        b.param(osc, "Wave", 2);
+        if(k < 4)
+        {
+            const auto f = b.add("FltLP", 5, g2::u8(k * 8));
+            b.cable(osc, 0, f, 0);
+            b.cable(f, 0, load4, g2::u8(k));
+        }
+        else
+            b.cable(osc, 0, load, g2::u8(k - 4));
+    }
+    b.cable(load4, 0, load, 2);
+    b.cable(load, 0, out, 1);
+    REQUIRE(b.patch.va.modules.size() == 21);
+
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    REQUIRE(g2.upload(b.done()));
+    g2.run(1.5);  // the output's ramp after an upload is done by 1.7 s (g2-hardware-and-emulation.md §3.8.4)
+
+    const std::uint8_t on[3] = {0x90, 60, 100};
+    g2.m.midiInAt(on, g2.m.frame() + 500);
+    std::uint64_t clock0 = 0;
+    const auto rec = g2.record(3.2, clock0);
+    // Out 1 (word 0) in 50 ms windows, from 0.2 s after the note to the end; the outputs come out inverted
+    constexpr std::size_t Window = Machine::FrameRate / 20;
+    auto mean = [&](std::size_t f, std::size_t n = Window) {
+        double s = 0;
+        for(std::size_t i = f; i < f + n; ++i) s -= rec[i * 4];
+        return s / double(n);
+    };
+    CHECK(std::fabs(mean(0, 400)) < 0.001);  // before the note: the envelopes are down
+    std::vector<double> level;
+    for(std::size_t f = 500 + Machine::FrameRate / 5; f + Window <= rec.size() / 4; f += Window) level.push_back(mean(f));
+    REQUIRE(level.size() >= 55);
+    auto sorted = level;
+    std::sort(sorted.begin(), sorted.end());
+    const double median = sorted[sorted.size() / 2];
+    CHECK(median > 0.05);
+    for(std::size_t w = 0; w < level.size(); ++w)
+    {
+        INFO("window " << w << " (" << 0.2 + 0.05 * double(w) << " s after the note): " << level[w] << ", median "
+                       << median);
+        CHECK(std::fabs(level[w] - median) < median * 0.03);
+    }
+    CHECK(g2.m.stats().exceptions == 0);
+}
+
 TEST_CASE("The user's G2 OS in real time: audio inputs on the reader's timeline (Runner::write)", "[g2emu][firmware]")
 {
     Firmware fw;
