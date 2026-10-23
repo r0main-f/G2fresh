@@ -3558,6 +3558,64 @@ TEST_CASE("The user's G2 OS with DSP threads: a status read finds the DSP past w
 }
 
 
+TEST_CASE("The user's G2 OS in real time: the latency holds while a status read stretches the DSPs' horizon",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // When the OS reads a DSP's status before the DSP has taken what it wrote, the ColdFire may let the DSPs run up
+    // to Machine's HorizonStretch frames past dspLead, and takeHosts() one more. Issue #3 asked (from the code)
+    // whether the DACs then get further ahead of what the machine was asked for than latencyFrames() allows for
+    // (dacLead(): 10 frames). Here the DSPs take what the OS writes only in every 8th frame of theirs, as when their
+    // threads get little time, through two heavy uploads: thousands of status reads find a DSP behind. The machine
+    // must still never be further ahead of the reader than latencyFrames(), which MIDI IN (midiInAt) and the inputs
+    // rely on. Measured 2026-10-23: at most 1 frame past its target (289 of 298; also with the DSPs 12, 16 or 32
+    // frames late); the DACs alone, against Machine::run's frames: at most 2 ahead.
+    Runner::Options options;
+    options.bufferMs = 2;
+    options.stretchMs = 1;
+    options.machine.realtimeThreads = true;
+    options.machine.hostLagFrames = 8;
+    Runner runner(fw, options);
+    constexpr std::size_t N = 32;
+    runner.setReadSize(N);
+    auto link = emulatedG2Link(runner.machine());
+    std::vector<float> out(4 * N);
+    std::size_t most = 0;
+    using Clock = std::chrono::steady_clock;
+    const auto start = Clock::now();
+    auto within = [&](double s) { return std::chrono::duration<double>(Clock::now() - start).count() < s; };
+    auto block = [&] {
+        while(runner.available() < N && within(120)) std::this_thread::sleep_for(std::chrono::microseconds(100));
+        most = std::max(most, runner.available());
+        runner.read(out.data(), N);
+        link->tick();
+    };
+    while(!link->synced() && within(20)) block();
+    REQUIRE(link->synced());
+    for(int k = 0; k < 2; ++k)
+    {
+        link->sendPerformance(g2::Performance::playing(heavyPolySine(3, 8), "Heavy"), "Heavy");
+        while(!link->client().idle() && within(60)) block();
+        REQUIRE(link->client().idle());
+        for(int i = 0; i < 300; ++i) block();
+    }
+    runner.stop();
+    const auto s = runner.machine().stats();
+    INFO(s.statusBehind << " status reads found a DSP behind the OS, " << s.statusStale << " of them at the stretch's limit");
+    REQUIRE(s.statusBehind > 0);
+    INFO("the machine was at most " << most << " frames ahead of the reader; latencyFrames() " << runner.latencyFrames());
+    CHECK(most <= runner.latencyFrames());
+    CHECK(s.exceptions == 0);
+}
+
 TEST_CASE("The user's G2 OS: notes still sound after it has followed an external MIDI clock", "[g2emu][firmware]")
 {
     Firmware fw;
