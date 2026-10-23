@@ -1064,7 +1064,8 @@ Bursts of 4 Env changes appear when passes cluster.
 
 **Effects beyond the loop.** The same fault hits any conditional in control-rate code (`Tcc`, `Bcc`, `IFcc`) that
 follows an ALU op when an interrupt falls between the two. That corrupts module state now and then, which is a
-likely cause of the gate dropouts in big patches (`native-engine.md` §3.3).
+likely cause of the gate dropouts in big patches (`native-engine.md` §3.3). On the JIT alone they are gone: a held
+note keeps five envelopes flat in a 21-module voice (2026-10-23, `native-engine.md` §3.3).
 
 Audio-rate code runs inside the frame interrupt. The library runs no peripherals during a long interrupt, so no
 other interrupt can land there, and pitch was never affected.
@@ -1172,7 +1173,8 @@ emulated second); the slews, the note latency and the post-upload ramp now take 
 * **`re/notes/native-engine.md`:**
   * §2.3 and §3.3: the 2.213 × time rescale is no longer needed, and the emulator is now a timing reference. The
     rescaled numbers were right, because the error was a pure speed-up of the control ticks.
-  * The 0.5–3 ms stage errors near note events, the frame repeats and the gate dropouts need re-measuring.
+  * The 0.5–3 ms stage errors near note events and the frame repeats need re-measuring. The gate dropouts are gone
+    on the JIT (§3.3 there, 2026-10-23).
 * **`re/notes/dsp-module-catalog.md`** is largely unaffected:
   * parameter words and slews come from the OS's host-port writes;
   * responses and costs come from `g2dspframe`, which runs only the frame program, offline, without interrupts.
