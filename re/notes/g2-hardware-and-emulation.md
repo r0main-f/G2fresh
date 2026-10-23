@@ -1173,8 +1173,8 @@ emulated second); the slews, the note latency and the post-upload ramp now take 
 * **`re/notes/native-engine.md`:**
   * §2.3 and §3.3: the 2.213 × time rescale is no longer needed, and the emulator is now a timing reference. The
     rescaled numbers were right, because the error was a pure speed-up of the control ticks.
-  * The 0.5–3 ms stage errors near note events and the frame repeats need re-measuring. The gate dropouts are gone
-    on the JIT (§3.3 there, 2026-10-23).
+  * The 0.5–3 ms stage errors near note events, the frame repeats and the gate dropouts are gone on the JIT (§2.3
+    and §3.3 there, 2026-10-23).
 * **`re/notes/dsp-module-catalog.md`** is largely unaffected:
   * parameter words and slews come from the OS's host-port writes;
   * responses and costs come from `g2dspframe`, which runs only the frame program, offline, without interrupts.

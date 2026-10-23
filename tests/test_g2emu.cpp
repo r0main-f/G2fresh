@@ -2535,6 +2535,201 @@ TEST_CASE("The user's G2 OS: a held note keeps five envelopes up in a voice of 2
     CHECK(g2.m.stats().exceptions == 0);
 }
 
+TEST_CASE("The user's G2 OS: a 3 ms envelope steps once every 4 frames in every note", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // Control-rate code runs once every 4 frames (re/notes/g2-hardware-and-emulation.md §3.8.1 [C]), so an envelope
+    // changes on every 4th frame and holds in between. LinLin attacks rise and releases fall by the same step each
+    // time, full scale in the displayed time (re/notes/native-engine.md §2.3). Its 0.5-3 ms stages once showed
+    // errors of up to 0.14 around note events (§2.3), measured with the interpreter in a build that has the JIT.
+    PatchBuilder b;
+    const auto kbd = b.add("Keyboard", 0), env = b.add("EnvADSR", 1), out = b.add("2-Out", 2);
+    b.param(env, "Shape", 3);    // LinLin
+    b.param(env, "Attack", 10);  // 3.0 ms
+    b.param(env, "Decay", 10);   // 3.0 ms
+    b.param(env, "Sustain", 64);
+    b.param(env, "Release", 10); // 3.0 ms
+    b.cable(kbd, 1, env, 1);
+    b.cable(env, 0, out, 0);
+    constexpr double StageFrames = 3.0e-3 * Machine::FrameRate;  // 288 frames, 72 control ticks
+
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    REQUIRE(g2.upload(b.done()));
+    g2.run(1.5);  // the output's ramp after an upload
+
+    // eight notes of 30 ms, 70 ms apart, starting at a different frame within a tick each time
+    constexpr int Notes = 8;
+    constexpr std::uint32_t Spacing = Machine::FrameRate / 10 + 1, Held = Machine::FrameRate * 3 / 100;
+    const auto start = g2.m.frame() + 500;
+    for(int k = 0; k < Notes; ++k)
+    {
+        const std::uint8_t on[3] = {0x90, 60, 100}, off[3] = {0x80, 60, 0};
+        g2.m.midiInAt(on, start + std::uint64_t(k) * Spacing);
+        g2.m.midiInAt(off, start + std::uint64_t(k) * Spacing + Held);
+    }
+    std::uint64_t clock0 = 0;
+    const auto rec = g2.record(double(Notes * Spacing + 1000) / Machine::FrameRate, clock0);
+    std::vector<double> v(rec.size() / 4);
+    for(std::size_t i = 0; i < v.size(); ++i) v[i] = -rec[i * 4];  // Out 1; the outputs come out inverted
+
+    // The changes of the envelope, frame by frame: (frame, new value)
+    std::vector<std::pair<std::size_t, double>> changes;
+    for(std::size_t i = 1; i < v.size(); ++i)
+        if(v[i] != v[i - 1]) changes.push_back({i, v[i]});
+    REQUIRE(!changes.empty());
+    const double peak = *std::max_element(v.begin(), v.end());
+    REQUIRE(peak > 0.1);
+
+    // Cut the changes into stages: a run of changes in one direction, without a pause (the sustain, the time between
+    // notes: more than 64 frames). Within a stage the envelope must change every 4 frames, no more often and no less.
+    struct Stage {
+        std::size_t first = 0, last = 0;  // the frames of the first and last change
+        double from = 0, to = 0;
+        std::vector<double> steps;
+    };
+    std::vector<Stage> stages;
+    for(std::size_t c = 0; c < changes.size();)
+    {
+        Stage s;
+        s.from = c ? changes[c - 1].second : 0.0;
+        s.first = changes[c].first;
+        const bool rising = changes[c].second > s.from;
+        double prev = s.from;
+        std::size_t e = c;
+        for(; e < changes.size() && (changes[e].second > prev) == rising && (e == c || changes[e].first - changes[e - 1].first <= 64);
+            ++e)
+        {
+            s.steps.push_back(changes[e].second - prev);
+            prev = changes[e].second;
+            s.last = changes[e].first;
+        }
+        s.to = prev;
+        INFO("stage from frame " << s.first << " to " << s.last << ", " << s.steps.size() << " steps, from " << s.from
+                                 << " to " << s.to);
+        for(std::size_t k = c + 1; k < e; ++k) CHECK(changes[k].first - changes[k - 1].first == 4);
+        stages.push_back(s);
+        c = e;
+    }
+    // Each note: an attack from 0 to the peak, a decay to the sustain (half the peak), a release to 0; each at full
+    // scale per displayed time, so 288, 144 and 144 frames, by steps of one size (the last may be cut short).
+    REQUIRE(stages.size() == 3 * Notes);
+    for(std::size_t k = 0; k < stages.size(); ++k)
+    {
+        const auto& s = stages[k];
+        INFO("note " << k / 3 << ", stage " << k % 3 << ": frames " << s.first << " to " << s.last << ", from " << s.from
+                     << " to " << s.to);
+        const double expectFrom[3] = {0, peak, peak / 2}, expectTo[3] = {peak, peak / 2, 0};
+        CHECK(std::fabs(s.from - expectFrom[k % 3]) < peak * 0.01);
+        CHECK(std::fabs(s.to - expectTo[k % 3]) < peak * 0.01);
+        const double frames = double(s.last - s.first + 4);
+        CHECK(std::fabs(frames - (k % 3 == 0 ? StageFrames : StageFrames / 2)) <= 8);
+        const double step = s.steps[s.steps.size() / 2];
+        for(std::size_t n = 0; n + 1 < s.steps.size(); ++n) CHECK(std::fabs(s.steps[n] - step) < std::fabs(step) * 0.02);
+    }
+    CHECK(g2.m.stats().exceptions == 0);
+}
+
+TEST_CASE("The user's G2 OS: no frame repeated or lost while notes and parameter changes come in", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // A sine plays on Out 1 throughout; notes over MIDI and parameter changes over USB go to a second voice on
+    // Out 2. Each frame of a sine is 2 cos(w) times the one before it minus the one before that, so a frame that
+    // comes twice, or one that is missing, stands out. re/notes/native-engine.md §3.3 found about 0.1 % of frames
+    // repeated around note events, with the interpreter in a build that has the JIT.
+    PatchBuilder b;
+    const auto sine = b.add("OscA", 0), kbd = b.add("Keyboard", 1), osc = b.add("OscA", 2), env = b.add("EnvADSR", 3),
+               out = b.add("2-Out", 4);
+    b.param(sine, "Wave", 0);
+    b.param(sine, "KBT", 0);
+    b.param(sine, "Coarse", 76);  // a fixed pitch, without the keyboard
+    b.param(osc, "Wave", 2);
+    b.param(env, "Attack", 0);
+    b.cable(sine, 0, out, 0);
+    b.cable(osc, 0, env, 0);
+    b.cable(kbd, 1, env, 1);
+    b.cable(env, 1, out, 1);
+    const auto sustain = b.paramIndex(env, "Sustain");
+
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    REQUIRE(g2.upload(b.done()));
+    g2.run(1.5);  // the output's ramp after an upload
+
+    // 3 s: a note every 50 ms (held 25 ms), a Sustain change over USB every 20 ms, the client served every ms
+    std::vector<float> rec;
+    const auto start = g2.m.frame();
+    for(int ms = 0; ms < 3000; ++ms)
+    {
+        if(ms % 50 == 0)
+        {
+            const std::uint8_t on[3] = {0x90, std::uint8_t(48 + ms / 50 % 24), 100};
+            const std::uint8_t off[3] = {0x80, on[1], 0};
+            g2.m.midiInAt(on, g2.m.frame() + 10);
+            g2.m.midiInAt(off, g2.m.frame() + 10 + Machine::FrameRate / 40);
+        }
+        if(ms % 20 == 0) g2.client.setParam(0, g2::Location::Va, env, sustain, std::uint8_t(40 + ms / 20 % 80), 0);
+        g2.m.run(Machine::FrameRate / 1000, &rec);
+        g2.clock.set(std::uint64_t(g2.m.seconds() * 1000));
+        g2.client.tick();
+    }
+    REQUIRE(g2.client.synced());
+    REQUIRE(g2.m.frame() - start >= 3 * Machine::FrameRate - 2);
+    std::vector<double> x(rec.size() / 4);
+    for(std::size_t i = 0; i < x.size(); ++i) x[i] = rec[i * 4];
+
+    // the sine's 2 cos(w) by least squares, and its amplitude
+    double num = 0, den = 0, peak = 0;
+    for(std::size_t i = 1; i + 1 < x.size(); ++i)
+    {
+        num += (x[i + 1] + x[i - 1]) * x[i];
+        den += x[i] * x[i];
+        peak = (std::max)(peak, std::fabs(x[i]));
+    }
+    const double c2 = num / den;
+    REQUIRE(peak > 0.1);
+    CHECK(c2 < 2.0);  // a tone, not DC
+    auto outliers = [&](const std::vector<double>& s) {
+        std::vector<std::size_t> at;
+        for(std::size_t i = 1; i + 1 < s.size(); ++i)
+            if(std::fabs(s[i + 1] - c2 * s[i] + s[i - 1]) > peak * 3e-4) at.push_back(i);
+        return at;
+    };
+    const auto bad = outliers(x);
+    INFO(bad.size() << " frames off the sine, the first at " << (bad.empty() ? 0 : bad[0]) << " of " << x.size());
+    CHECK(bad.empty());
+
+    // The check sees one: the same recording with a frame repeated, and one with a frame left out, at the sine's top
+    // where they change it least (w^2 / 2 of the amplitude: 9e-4 here). The oscillator's own sine is off a pure one
+    // by up to about 1.2e-4 of its amplitude, at its tops; the check's limit is 3e-4.
+    std::size_t top = 50000;
+    for(std::size_t i = top; i < top + 200; ++i)
+        if(x[i] > x[top]) top = i;
+    auto repeated = x;
+    repeated.insert(repeated.begin() + std::ptrdiff_t(top), repeated[top]);
+    CHECK(!outliers(repeated).empty());
+    auto lost = x;
+    lost.erase(lost.begin() + std::ptrdiff_t(top));
+    CHECK(!outliers(lost).empty());
+    CHECK(g2.m.stats().exceptions == 0);
+}
+
 TEST_CASE("The user's G2 OS in real time: audio inputs on the reader's timeline (Runner::write)", "[g2emu][firmware]")
 {
     Firmware fw;
