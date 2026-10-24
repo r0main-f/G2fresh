@@ -4,6 +4,7 @@
 #include "dsp.hpp"
 #include "hw.hpp"
 #include "panel.hpp"
+#include "realtime_share.hpp"
 #include "thread.hpp"
 
 #include "coldfire/cfCpu.h"
@@ -848,6 +849,53 @@ TEST_CASE("ColdFire core: run()'s dispatch and specialised handlers do what step
     CHECK(instructions > 20000);
 }
 
+TEST_CASE("Real-time threads: the emulated G2s keep them while all of theirs fit on the performance cores", "[g2emu]")
+{
+    // macOS keeps time-constraint threads on the performance cores. Measured on an M1 (4 of them; re/notes/
+    // audio-path.md §3.7): one emulated G2's three (the Runner's and two DSP threads) beside the host's audio thread
+    // lost nothing; two emulated G2s, six such threads, lost all of their audio at 0.46 x real time, and at an
+    // application's priority none, at 2.0 x. One performance core stays for the host's own audio thread.
+    CHECK(realtimeFits(3, 4));
+    CHECK_FALSE(realtimeFits(6, 4));
+    CHECK_FALSE(realtimeFits(4, 4));
+    CHECK(realtimeFits(6, 8));
+    CHECK(realtimeFits(7, 8));
+    CHECK_FALSE(realtimeFits(8, 8));
+    CHECK_FALSE(realtimeFits(1, 1));  // a computer whose cores are not known (0) or a single one: never
+    CHECK_FALSE(realtimeFits(3, 0));
+}
+
+#ifndef _WIN32
+TEST_CASE("RealtimeShare: the threads of every emulated G2 that runs in any process but not of one that ended", "[g2emu]")
+{
+    const auto dir = std::filesystem::temp_directory_path() / ("g2fresh-rt-test-" + std::to_string(::getpid()));
+    std::filesystem::remove_all(dir);
+    {
+        RealtimeShare a(dir, 3);
+        CHECK(a.threadsAll() == 3);
+        {
+            RealtimeShare b(dir, 3);  // a second one, here as in another process: each holds a lock on its file
+            CHECK(a.threadsAll() == 6);
+            CHECK(b.threadsAll() == 6);
+        }
+        CHECK(a.threadsAll() == 3);
+        // A process that ended without removing its file (it crashed): nobody holds its lock, so it does not count,
+        // and the file goes.
+        const auto stale = dir / "99999-1-3";
+        std::ofstream(stale).put('x');
+        CHECK(std::filesystem::exists(stale));
+        CHECK(a.threadsAll() == 3);
+        CHECK_FALSE(std::filesystem::exists(stale));
+    }
+    // a folder that cannot be made: each machine counts itself alone, as before
+    {
+        RealtimeShare c("/dev/null/g2fresh", 3);
+        CHECK(c.threadsAll() == 3);
+    }
+    std::filesystem::remove_all(dir);
+}
+#endif
+
 TEST_CASE("Doorbell: no wake-up is lost between threads that wait for each other", "[g2emu]")
 {
     // A ping-pong of a counter: each side waits for its turn, takes it and rings. One side dawdles (0.2 ms) every
@@ -1019,6 +1067,58 @@ TEST_CASE("The user's G2 OS on the JIT: control-rate code runs once every 4 fram
     }
     CHECK(m.stats().exceptions == 0);
 }
+
+#ifdef __APPLE__
+TEST_CASE("The user's G2 OS in real time: two emulated G2s give up real-time priority while they do not fit together",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // As on an M1: 4 performance cores, so one emulated G2's three real-time threads fit and two's six do not
+    // (realtimeFits; re/notes/audio-path.md §3.7). The machines count each other through a folder of their own here.
+    const auto dir = std::filesystem::temp_directory_path() / ("g2fresh-rt-runner-" + std::to_string(::getpid()));
+    std::filesystem::remove_all(dir);
+    Runner::Options options;
+    options.machine.realtimeThreads = true;
+    options.machine.threads = 2;
+    options.realtimeShareDir = dir;
+    options.performanceCores = 4;
+    using Clock = std::chrono::steady_clock;
+    // the runners rest while nobody reads: a reader for each, as a host's audio thread
+    auto until = [&](std::vector<Runner*> rs, auto ready) {
+        std::vector<float> out(4 * 64);
+        const auto end = Clock::now() + std::chrono::seconds(10);
+        while(!ready() && Clock::now() < end)
+        {
+            for(auto* r : rs) r->read(out.data(), 64);
+            std::this_thread::sleep_for(std::chrono::microseconds(600));
+        }
+        return ready();
+    };
+    auto all = [](Runner& r, bool on) { return r.stats().realtime == on && r.machine().stats().realtimeDspThreads == (on ? 2 : 0); };
+    auto a = std::make_unique<Runner>(fw, options);
+    REQUIRE(until({a.get()}, [&] { return all(*a, true); }));  // alone: the Runner's thread and both DSP threads
+    {
+        Runner b(fw, options);
+        CHECK(until({a.get(), &b}, [&] { return all(*a, false) && all(b, false); }));
+        INFO("speeds " << a->stats().speed << " and " << b.stats().speed);
+        b.stop();
+    }
+    // the other one has gone: the first takes real-time priority again
+    CHECK(until({a.get()}, [&] { return all(*a, true); }));
+    a->stop();
+    CHECK(a->machine().stats().exceptions == 0);
+    a.reset();
+    std::filesystem::remove_all(dir);
+}
+#endif
 
 TEST_CASE("The user's G2 OS in real time: the plugin's path (Runner, a link over USB, MIDI)", "[g2emu][firmware]")
 {
