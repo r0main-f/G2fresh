@@ -142,6 +142,9 @@ struct Machine::Impl final : coldfire::Bus {
     };
     std::array<Worker, MaxDsps> worker{};
     std::array<int, MaxDsps> dspWorker{};  // which DSP thread runs DSP n
+    // Options::realtimeThreads: whether the DSP threads should have real-time priority (setRealtime), and how many do
+    std::atomic<bool> realtimeWanted{true};
+    std::atomic<int> realtimeDsp{0};
     struct alignas(128) {
         std::atomic<std::uint64_t> horizon{0};
         std::atomic<bool> quit{false};
@@ -1079,7 +1082,8 @@ struct Machine::Impl final : coldfire::Bus {
             workers.emplace_back([this, w, n, ringSlack, mine = parts[std::size_t(w)]] {
                 auto& me = worker[std::size_t(w)];
                 auto& my = me.time;
-                if(opt.realtimeThreads) makeThreadRealtime(0.001, 0.0005);
+                bool rt = opt.realtimeThreads && realtimeWanted.load(std::memory_order_relaxed) && makeThreadRealtime(0.001, 0.0005);
+                if(rt) realtimeDsp.fetch_add(1, std::memory_order_relaxed);
                 RealtimeBreath breath;
                 std::uint64_t done = my.load(), frames = 0;
                 auto limit = [&] {
@@ -1144,7 +1148,21 @@ struct Machine::Impl final : coldfire::Bus {
                     if((++frames & 63) == 0)
                     {
                         me.cpuNs.store(threadCpuNs(), std::memory_order_relaxed);
-                        if(opt.realtimeThreads) breath();
+                        if(opt.realtimeThreads)
+                        {
+                            const bool want = realtimeWanted.load(std::memory_order_relaxed);
+                            if(want && !rt && makeThreadRealtime(0.001, 0.0005))
+                            {
+                                rt = true;
+                                realtimeDsp.fetch_add(1, std::memory_order_relaxed);
+                            }
+                            else if(!want && rt && makeThreadOrdinary())
+                            {
+                                rt = false;
+                                realtimeDsp.fetch_sub(1, std::memory_order_relaxed);
+                            }
+                            if(rt) breath();
+                        }
                     }
                     std::uint64_t slowest = done;
                     for(int v = 0; v < n; ++v) slowest = std::min(slowest, worker[std::size_t(v)].time.load(std::memory_order_acquire));
@@ -1171,6 +1189,7 @@ struct Machine::Impl final : coldfire::Bus {
         s.cfCycles = cfNow();
         s.cfSkipped = cfSkipped;
         s.dspThreads = opt.threads;
+        s.realtimeDspThreads = realtimeDsp.load(std::memory_order_relaxed);
         s.cfPc = cpu.getPC();
         s.dsps = int(chain.size());
         for(int n : chain)
@@ -1397,6 +1416,7 @@ std::string Machine::panelDebug() const { return impl_->panelDebug(); }
 
 Machine::Stats Machine::stats() const { return impl_->stats(); }
 int Machine::dspThreads() const { return impl_->opt.threads; }
+void Machine::setRealtime(bool on) { impl_->realtimeWanted.store(on, std::memory_order_relaxed); }
 
 std::uint32_t Machine::dspMemory(int n, int area, std::uint32_t address) const
 {
