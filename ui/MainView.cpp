@@ -1656,8 +1656,8 @@ void MainView::resized()
         menuBar_->setBounds(r.removeFromTop(24));
     // The toolbar: the document's items on the left of the first row, the groups on the right (ToolbarLayout.h), on
     // as many rows as the width needs.
-    constexpr int kRowHeight = 26, kRowStep = 30;
-    const auto top = r.reduced(6, 4).withHeight(kRowHeight);
+    constexpr int kBarRowHeight = 26, kRowStep = 30;
+    const auto top = r.reduced(6, 4).withHeight(kBarRowHeight);
     auto bar = top;
     if (!standalone_) {
         menuButton_.setBounds(bar.removeFromLeft(64));
@@ -1712,7 +1712,7 @@ void MainView::resized()
         const auto y = top.getY() + layout.groups[g].row * kRowStep;
         for (const auto& [component, width] : groups[g]) {
             if (component != nullptr)
-                component->setBounds(x, y, width, kRowHeight);
+                component->setBounds(x, y, width, kBarRowHeight);
             x += width;
         }
     }
@@ -1758,10 +1758,13 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         fx_.setHintMode(mode);
         return true;
     }
-    // Esc aborts every drag (|, not ||), as CPatchView::KeyAbortDragOperations @000f7cde; an area's own Esc comes to it
-    // first.
-    if (code == juce::KeyPress::escapeKey && !liveMode_ && (divider_.abortDrag() | va_.abortDrag() | fx_.abortDrag()))
-        return true;
+    // Esc aborts every drag (each one asked, none skipped), as CPatchView::KeyAbortDragOperations @000f7cde; an area's
+    // own Esc comes to it first.
+    if (code == juce::KeyPress::escapeKey && !liveMode_) {
+        const bool divider = divider_.abortDrag(), va = va_.abortDrag(), fx = fx_.abortDrag();
+        if (divider || va || fx)
+            return true;
+    }
     if (code == juce::KeyPress::spaceKey && !liveMode_ && !repeat) {
         const auto m = key.getModifiers();
 #if JUCE_MAC
