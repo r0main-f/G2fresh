@@ -200,7 +200,7 @@ private:
     alignas(128) std::atomic<std::uint32_t> hostTail_{0};  // the DSP's thread writes
     std::atomic<int> commandsOutstanding_{0};  // host commands written and not yet taken by the DSP
     bool awaitingCommand_ = false, awaitingFlags_ = false;  // the DSP's thread
-    struct alignas(128) {} endOfHostQueue_;
+    [[maybe_unused]] struct alignas(128) {} endOfHostQueue_;  // padding: what follows starts a cache line
 
     bool takingHost_ = false;  // inside takeHost(): the idle loop runs, so that the clock moves no further than it must
     Link* in_[2] = {nullptr, nullptr};

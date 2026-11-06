@@ -1311,8 +1311,8 @@ bool MainView::keyStateChanged(bool)
         // CPanel::CtrlRelease @000c0794).
         if (const auto f = std::exchange(heldButton_, std::nullopt)) {
             const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
-            doc_.performMomentary([f = *f, variation](g2::Patch& p) {
-                g2::edit::setParam(p, f.location, f.module, f.param, variation, 0);
+            doc_.performMomentary([held = *f, variation](g2::Patch& p) {
+                g2::edit::setParam(p, held.location, held.module, held.param, variation, 0);
             });
         }
     }
