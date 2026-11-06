@@ -16,6 +16,7 @@ add_executable(g2tests
   test_edit.cpp
   test_cables.cpp
   test_focus.cpp
+  test_split_bar.cpp
   test_morph.cpp
   test_file.cpp
   test_patch.cpp
@@ -42,6 +43,7 @@ add_executable(g2tests
   test_live_show.cpp
   test_focus_keys.cpp
   test_inc_dec.cpp
+  test_reset_knob.cpp
   test_module_bar_keys.cpp
   test_module_search.cpp
   test_cable_curve.cpp
@@ -52,6 +54,15 @@ add_executable(g2tests
   test_selection_file.cpp
   test_button_press.cpp
   test_patch_keys.cpp
+  test_module_menu.cpp
+  test_background_menu.cpp
+  test_midi_cc_items.cpp
+  test_hint_overlay.cpp
+  test_menu_ids.cpp
+  test_menu_bar.cpp
+  test_toolbar_layout.cpp
+  test_emulator_follow.cpp
+  test_live_editing.cpp
   test_drag_copy.cpp
   test_paste_layout.cpp
   test_drum_selectors.cpp

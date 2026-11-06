@@ -44,6 +44,9 @@ struct ParamDef {
     // Can take a MIDI controller (param spec +0x10, CPanel::CtrlIsMidiAssignable);
     // false for the controller-number parameters of Automate, CtrlSend, CtrlRcv.
     bool midiAssignable;
+    // The push button a knob's assignment takes along (param spec +0x0E: a sequencer step's slider and its button);
+    // 0xFF none, or the parameter itself. Such a button gets no knob of its own (CKnobAssignMenu::GetNoOfAssignableParams).
+    std::uint8_t knobButtonParam = 0xFF;
 };
 
 struct ModeDef {
@@ -88,6 +91,8 @@ struct ModuleDef {
     // Where it may go (flags.contexts; the original's IsValidContext): bit 0 the FX area, bit 1 the voice area, bit 2
     // the patch settings (bit = g2::Location). All three when the data gives none.
     std::uint8_t contexts = 0b111;
+    // Kept by Delete Unused Modules whatever its cables (flags.keepIfUnused, the module info's +0x26): the MIDI senders.
+    bool keepIfUnused = false;
 };
 
 struct CategoryDef {

@@ -826,3 +826,12 @@ TEST_CASE("Patch Library: the default folder is G2fresh/Patches in the Music fol
     CHECK(g2ui::defaultPatchFolder("/Users/x/Music") == "/Users/x/Music/G2fresh/Patches");
     CHECK(g2ui::defaultPatchFolder("C:\\Users\\x\\Music") == "C:\\Users\\x\\Music\\G2fresh\\Patches");
 }
+
+TEST_CASE("file dialogs start in the document's folder, else the default patch folder")
+{
+    // Round-4 hand tests: a new patch's first Save opened Documents, not G2fresh/Patches.
+    CHECK(g2ui::dialogFolder("/Users/r/Music/G2fresh/Patches/Bass/Sub.pch2", "/Users/r/Music/G2fresh/Patches")
+          == "/Users/r/Music/G2fresh/Patches/Bass");
+    CHECK(g2ui::dialogFolder("", "/Users/r/Music/G2fresh/Patches") == "/Users/r/Music/G2fresh/Patches");
+    CHECK(g2ui::dialogFolder("C:\\Users\\r\\Patches\\a.pch2", "D:\\x") == "C:\\Users\\r\\Patches");
+}

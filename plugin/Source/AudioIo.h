@@ -19,7 +19,7 @@
 // The buffer. The emulated G2 runs on threads of its own, ahead of the host: it keeps a reserve of audio ready, so
 // that a moment in which the computer gives it no time is not heard (re/notes/audio-path.md). The reserve is part
 // of the latency, and how much it takes depends on the computer and on what else runs: the user chooses (Synth >
-// Emulated G2 Buffer), for the computer, not for the project.
+// Emulated G2 > Buffer), for the computer, not for the project.
 //
 // Plain C++ (no JUCE).
 #pragma once

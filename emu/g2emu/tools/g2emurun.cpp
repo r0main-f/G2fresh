@@ -2,7 +2,7 @@
 //
 //   g2emurun [--fw PATH] [--patch FILE | --kbd FILE] [--to B:FILE ...] [--settle S] [--seconds S]
 //            [--note N@ON-OFF ...] [--midi N@ON-OFF[:CH] ...] [--wav OUT.wav] [--json OUT.json]
-//            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0..8|-1] [--model g2|g2x|engine] [--expansion on|off] [--skew N] [--dsp-lead N] [--no-jit] [--no-idle-skip] [--cf-mhz F] [--trace]
+//            [--realtime S] [--flash FILE] [--boot S] [--quantum N] [--threads 0..8|-1] [--model g2|g2x|engine] [--expansion on|off] [--skew N] [--dsp-lead N] [--no-idle-skip] [--cf-mhz F] [--trace]
 //            [--no-usb] [--panel] [--panel-at T] [--press RAW@T[-T2]] [--turn RAW:N@T] [--adc POS:V@T] [--key K@T-T2[:MS]] [--var V@T]
 //            [--in N:HZ[:LEVEL] ...] [--causal-reads] [--host-lag N] [--no-host-taken]
 //
@@ -538,7 +538,6 @@ int main(int argc, char** argv)
             const auto e = next();
             opt.expansion = e == "on" ? g2emu::Expansion::With : e == "off" ? g2emu::Expansion::Without : g2emu::Expansion::AsBuilt;
         }
-        else if(a == "--no-jit") opt.jit = false;
         else if(a == "--no-idle-skip") opt.idleSkip = false;
         else if(a == "--no-poll-skip") opt.pollSkip = false;
         else if(a == "--causal-reads") opt.causalReads = true;
@@ -631,7 +630,7 @@ int main(int argc, char** argv)
 
     // USB and our protocol client, clocked by emulated time
     std::unique_ptr<proto::Transport> transportPtr = std::make_unique<g2emu::MachineTransport>(m);
-    if(const char* log = std::getenv("G2EMU_USBLOG"))  // the protocol traffic, as Synth > Full USB Log writes it
+    if(const char* log = std::getenv("G2EMU_USBLOG"))  // the protocol traffic, as Help > Full USB Log writes it
         transportPtr = std::make_unique<proto::LoggingTransport>(std::move(transportPtr), log, proto::LogData::Full);
     auto& transport = *transportPtr;
     proto::ManualClock clock;

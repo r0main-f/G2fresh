@@ -403,3 +403,48 @@ left out of the verdict; with it a heavy patch beside the 6 threads took 9.68 ms
 So the default is Normal. What the sweep does not say: whether a real host's audio threads (Live with a heavy
 project) starve the machine as the stand-in did, and why two machines fall to 0.4 x where one makes 2 x (a guess:
 six real-time threads on four performance cores, DSP threads waiting for each other); the next measurements.
+
+### 3.7 Two emulated G2s, and real-time priority [measured, 2026-10-24]
+
+MacBook Pro M1 (4 performance cores), on power, heavy patch (B13, a chord), 512-frame blocks, Safe's reserve,
+20 s per run, each run started at a load average under 2 (`g2audiopath runner` under `taskpolicy -a`, one process per
+emulated G2). A system daemon (`BTLEServer`) held one core at 100 % through the first two rounds and was restarted
+before the last ones.
+
+**Why two fell to 0.4 x.** Each emulated G2 has three real-time threads (the Runner's, which also runs the ColdFire,
+and two DSP threads) that work in step: each waits for the others, spinning for up to 50 us before it sleeps
+(`Doorbell::wait`). macOS keeps time-constraint threads on the performance cores; six of them on four, and one that
+loses its core holds the others up while they spin:
+
+| Two at once | Audio lost | Chunk speed p50 | Cores each |
+|---|---|---|---|
+| real-time, as 0.14.0 | all, both | 0.46 | 1.97 |
+| real-time, no spin | 31 % and 50 % | 1.35 | 1.81 |
+| real-time, 5 / 10 / 20 us spin | all | 0.93 / 0.83 / 0.66 | 1.9 |
+| real-time, one DSP thread each | all | 0.93 | 2.01 |
+| real-time, one DSP thread, no spin | all | 0.81 | 1.40 |
+| **an application's priority** (user-interactive, 46) | **none**, in 5 of 5 runs | 2.0 | 1.6 to 2.3 |
+| an application's priority, no spin | none | 1.16 | 2.05 |
+
+One alone, real-time: none lost, 1.73 x (no spin: 1.50 x; 5 us: 1.68 x), so the spin stays as it is.
+
+**The rule** (`emu/g2emu/src/realtime_share.hpp`). The emulated G2s count their real-time threads together, across
+processes (a file each in the user's temporary folder, held under a lock that the system lets go when the process
+ends), and keep real-time priority only while all of them fit on the performance cores with one left for the host's
+audio thread: on an M1 one emulated G2 (3 threads), not two (6). The Runner recounts every half second on a thread of
+its own and its thread and the DSP threads switch within a few milliseconds.
+
+**Switching back.** macOS refuses to give a thread that has had a policy set its QoS class back (EPERM), and the
+standard policy alone leaves it at the default priority, 31, 26 once it has computed a while: two emulated G2s
+switched back that way lost some of their audio (19 %, 2 %, 0.2 %, 0.9 %) where two that never had real-time priority
+lost none. With the standard policy and a precedence of 15 (priority 46, 41 under load) the new code lost **none in 5
+of 6 runs**; in the sixth both lost about 1.5 % at the same moments (73 and 76 short blocks, a 5.8 ms chunk in each),
+which looks like a stall of the whole computer, not of these threads (inferred).
+
+**Not solved: beside a host's busy audio threads** (`g2audiopath burn 4 rt`, 60 % of every 2.9 ms at the audio
+priority), one emulated G2 lost all of its audio at real-time priority (chunk speed p50 1.99 between the burners'
+bursts, p1 0.45 during them: 0.94 x overall), and 38 % at an application's priority; one DSP thread was worse. Joining
+the host's audio workgroup (macOS 11+) is the next step; it needs a real host to measure.
+
+**Not measured:** a Mac with more performance cores (there two emulated G2s keep real-time priority: 6 threads on 8
+cores fit), three or more emulated G2s, eight DSPs (the expansion board: more DSP threads), a real host.

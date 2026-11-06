@@ -125,6 +125,10 @@ emulated DSP56367s, our protocol client on the emulated USB).
   * attack t90 within 0.3 %;
   * release to 10 % within 1 %.
   * The 0.5–3 ms stages show up to 0.05–0.14 instantaneous error from the emulator's frame jitter around note events.
+    **Gone on the JIT (2026-10-23):** a LinLin envelope with 3.0 ms stages, eight notes, changes on every 4th frame
+    and on no other, by equal steps, and each stage takes its displayed time within 8 frames (attack 288, decay and
+    release from half scale 144) (test "a 3 ms envelope steps once every 4 frames in every note", `tests/test_g2emu.cpp`;
+    a frame repeated by hand or a 3.5 ms attack fails it).
 * **Inferred, not measured:** OutType variants, AM, Reset, and retriggering from a non-zero level.
 
 ### 2.4 Mixers (Mix2-1A type 194, Mix4-1A type 193)
@@ -175,9 +179,19 @@ DAC word = **−0.0085306** × (signal into Out 1 × patch Gain curve × 2-Out P
     matches the editor's displayed time to within 0.5 %, and the display formulas were written to match the hardware.
   * **Consequence:** the native engine uses the editor's times. Emulator comparisons of anything at control rate
     (envelopes, LFOs, slews, the output ramp) must rescale time.
-* **Frame repeats:** about 0.1 % of samples, clustered around USB activity (note on/off).
+* **Frame repeats:** about 0.1 % of samples, clustered around USB activity (note on/off). **Gone on the JIT
+  (2026-10-23):** a sine on Out 1 for 3 s, with a note over MIDI every 50 ms and a parameter change over USB every
+  20 ms on a second voice, has no frame repeated or lost: every frame is within 3e-4 of the amplitude of what the two
+  before it predict (test "no frame repeated or lost while notes and parameter changes come in"; a frame repeated or
+  left out at the sine's top, where it shows least, is caught). The oscillator's own sine is off a pure one by up to
+  1.2e-4 of its amplitude, at its tops.
 * **Gate dropouts in a bigger patch:** in the 26-module patch of §4, the held note's gate dropped three times (72, 55,
-  504 ms), and in another run it stayed lost after 1.4 s.
+  504 ms), and in another run it stayed lost after 1.4 s. **Gone on the JIT (2026-10-23):** a voice put together the
+  same way (21 modules: 5 EnvADSR summed to Out 1, 6 OscA and 4 FltLP to Out 2; the 26-module patch was not kept)
+  holds its five envelopes flat for 3 s, every 50 ms window within 3 % of the median (test "a held note keeps five
+  envelopes up", `tests/test_g2emu.cpp`; a 100 ms dropout put in by hand fails it). So the dropouts were most
+  likely the condition codes lost between the two engines (g2-hardware-and-emulation.md §3.8); the old patch itself
+  could not be run again.
   * Sub-chains of the same patch matched exactly: t1/t2/t3 within 0.01 dB, DC 0.384 vs 0.384.
   * Where the gate stayed up, the full patch matched on its non-beating component (0.04 dB) and its DC (0.1872 vs
     0.1884).

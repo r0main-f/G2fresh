@@ -164,7 +164,8 @@ def generate():
                              f"{'true' if p.get('morphable') else 'false'}, {func}, "
                              f"{{{deps[0]}, {deps[1]}}}, {cstr(p.get('rangeType'))}, "
                              f"{'true' if p.get('momentary') else 'false'}, "
-                             f"{'false' if p.get('midiAssignable') is False else 'true'}}},")
+                             f"{'false' if p.get('midiAssignable') is False else 'true'}, "
+                             f"{0xFF if p.get('knobButtonParam') is None else p['knobButtonParam']}}},")
             lines.append("};")
         order = m.get("editOrder") or []
         if order:
@@ -199,7 +200,7 @@ def generate():
             f"{span('Inputs', 'inputs')}, {span('Outputs', 'outputs')}, "
             f"{span('Params', 'params')}, {span('Modes', 'modes')}, {cstr(descriptions.get(m['shortName']) if m['kind'] == 'module' else None)}, "
             f"{m['toolbarSlot'] if m.get('toolbarSlot') is not None else 255}, "
-            f"{('kLabels' + str(t)) if t in labels else '{}'}, {span('EditOrder', 'editOrder')}, {contexts_bits(fl)}}},")
+            f"{('kLabels' + str(t)) if t in labels else '{}'}, {span('EditOrder', 'editOrder')}, {contexts_bits(fl)}, {'true' if fl.get('keepIfUnused') else 'false'}}},")
     lines += ["};", "", "const CategoryDef kCategories[] = {"]
     for c in mdb["categories"]:
         r, g, b = c["color"]

@@ -1,5 +1,6 @@
 #include "Dialogs.h"
 
+#include "MidiCcItems.h"
 #include "Theme.h"
 
 namespace g2ui {
@@ -72,6 +73,82 @@ private:
     juce::TextEditor editor_;
     juce::Label info_;
     juce::TextButton ok_{"OK"}, cancel_{"Cancel"};
+};
+
+// Columns MIDI Ctrl, Module, Parameter, as the original's (CDialogMIDIControl::InitDialog @00031476).
+class MidiCcList : public juce::Component, private juce::ListBoxModel {
+public:
+    MidiCcList(PatchDocument& doc, g2::Location loc, std::uint8_t module, std::uint8_t param)
+        : doc_(doc), loc_(loc), module_(module), param_(param), rows_(midiCcRows(doc.patch()))
+    {
+        list_.setModel(this);
+        list_.setRowHeight(20);
+        list_.setColour(juce::ListBox::backgroundColourId, juce::Colour(0xff25272b));
+        const auto current = g2::edit::midiCcOf(doc.patch(), loc, module, param);
+        for (std::size_t i = 0; i < rows_.size(); ++i)
+            if (current && rows_[i].cc == *current)
+                list_.selectRow(static_cast<int>(i));
+        header_.setFont(theme::font(true));
+        header_.setText("MIDI Ctrl        Module                Parameter", juce::dontSendNotification);
+        ok_.onClick = [this] { assignSelected(); };
+        cancel_.onClick = [this] { close(); };
+        for (auto* c : std::initializer_list<juce::Component*>{&header_, &list_, &ok_, &cancel_})
+            addAndMakeVisible(c);
+        setSize(420, 460);
+    }
+
+    void resized() override
+    {
+        auto r = getLocalBounds().reduced(12);
+        header_.setBounds(r.removeFromTop(20));
+        auto buttons = r.removeFromBottom(30);
+        ok_.setBounds(buttons.removeFromRight(90));
+        buttons.removeFromRight(8);
+        cancel_.setBounds(buttons.removeFromRight(90));
+        r.removeFromBottom(8);
+        list_.setBounds(r);
+    }
+
+private:
+    int getNumRows() override { return static_cast<int>(rows_.size()); }
+    void paintListBoxItem(int row, juce::Graphics& g, int width, int height, bool selected) override
+    {
+        if (!juce::isPositiveAndBelow(row, static_cast<int>(rows_.size())))
+            return;
+        if (selected)
+            g.fillAll(juce::Colour(0xff3478d4));
+        const auto& r = rows_[static_cast<std::size_t>(row)];
+        g.setColour(juce::Colours::white);
+        g.setFont(theme::font());
+        g.drawText("CC " + juce::String(r.cc), 6, 0, 90, height, juce::Justification::centredLeft);
+        g.drawText(juce::String(r.module), 100, 0, 140, height, juce::Justification::centredLeft, true);
+        g.drawText(juce::String(r.param), 244, 0, width - 248, height, juce::Justification::centredLeft, true);
+    }
+    void listBoxItemDoubleClicked(int, const juce::MouseEvent&) override { assignSelected(); }
+    void returnKeyPressed(int) override { assignSelected(); }
+
+    void assignSelected()
+    {
+        const int row = list_.getSelectedRow();
+        if (!juce::isPositiveAndBelow(row, static_cast<int>(rows_.size())))
+            return;
+        const auto cc = rows_[static_cast<std::size_t>(row)].cc;
+        doc_.perform("Assign MIDI controller", [&](g2::Patch& p) { g2::edit::assignMidiCc(p, cc, loc_, module_, param_); });
+        close();
+    }
+    void close()
+    {
+        if (auto* w = findParentComponentOfClass<juce::DialogWindow>())
+            w->exitModalState(0);
+    }
+
+    PatchDocument& doc_;
+    g2::Location loc_;
+    std::uint8_t module_, param_;
+    std::vector<MidiCcRow> rows_;
+    juce::Label header_;
+    juce::ListBox list_;
+    juce::TextButton ok_{"Assign"}, cancel_{"Cancel"};
 };
 
 // One row per slot, plus the performance-wide settings. Changes apply at once.
@@ -255,6 +332,11 @@ private:
 void showPatchNotes(PatchDocument& doc, juce::Component* parent)
 {
     launch(std::make_unique<NotesEditor>(doc), "Patch Notes: " + doc.name(), parent);
+}
+
+void showMidiCcDialog(PatchDocument& doc, g2::Location loc, std::uint8_t module, std::uint8_t param, juce::Component* parent)
+{
+    launch(std::make_unique<MidiCcList>(doc, loc, module, param), "MIDI Controller", parent);
 }
 
 void showPerformanceSettings(PatchDocument& doc, juce::Component* parent)

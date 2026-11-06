@@ -409,3 +409,26 @@ TEST_CASE("cable edits keep the bends of the cables that stay")
     edit::recolorChain(f.p, VA, f.in(a), CableColor::Green);
     CHECK(f.cable(f.out(osc), f.in(a))->bend == CableBend{12, -7});
 }
+
+TEST_CASE("Delete Unused Modules removes what plays into nothing, again until nothing more goes")
+{
+    // Audit M12: CPatchData::GetDeleteUnusedModulesMolecules @000e8d02. A module with outputs goes when none of them is
+    // in a cable tree; one without outputs when none of its inputs is fed by an output; modules whose info says to
+    // keep them (Automate, CtrlSend, PCSend, NoteZone) stay; then again, as each removal can make others unused.
+    Fixture f;
+    const u8 osc = f.add(kOscB), out = f.add(kOut2);
+    f.connect(f.out(osc), f.in(out));         // used: the Osc plays into the Out
+    const u8 lone = f.add(kLfoB);             // nothing connected
+    const u8 mix = f.add(kLevMult), osc2 = f.add(kOscB);
+    f.connect(f.out(osc2), f.in(mix));        // osc2 feeds mix, whose output goes nowhere: both go, one after the other
+    const u8 deaf = f.add(kOut2), deaf2 = f.add(kOut2);
+    f.connect(f.in(deaf), f.in(deaf2));       // two Outs linked input to input, fed by nothing: both go
+    const u8 automate = f.add(57);            // kept whatever
+    CHECK(edit::unusedModules(f.p, VA) == std::vector<u8>{lone, mix, osc2, deaf, deaf2});
+    edit::deleteUnusedModules(f.p);
+    CHECK(f.p.va.find(osc));
+    CHECK(f.p.va.find(out));
+    CHECK(f.p.va.find(automate));
+    CHECK(f.p.va.modules.size() == 3);
+    CHECK(f.count() == 1);
+}

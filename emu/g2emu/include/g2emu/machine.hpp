@@ -48,7 +48,6 @@ public:
     static constexpr int MaxDsps = 8;  // the main board's four and the expansion board's four
 
     struct Options {
-        bool jit = true;               // the DSPs on dsp56300's JIT (the interpreter cannot be stepped: debugging)
         bool idleSkip = true;          // skip the DSPs' idle background loop (no state changes)
         bool pollSkip = true;          // skip the ColdFire's loops that wait on a DSP's host port
         double cfHz = 162e6;           // ColdFire core clock: cycles of the core's (V2) timing per second
@@ -127,6 +126,7 @@ public:
         // threads > 0: the wall time the ColdFire's thread (the caller of run()) spent waiting for the DSP threads
         std::uint64_t cfWaitNs = 0;
         int dspThreads = 0;  // Options::threads as resolved (-1: autoThreads())
+        int realtimeDspThreads = 0;  // DSP threads at the computer's real-time priority now (Options::realtimeThreads)
         int dsps = 4;        // 8 with the expansion board
     };
 
@@ -240,6 +240,10 @@ public:
 
     Stats stats() const;
     int dspThreads() const;  // Options::threads as resolved (any thread)
+    // With Options::realtimeThreads: whether the DSP threads have real-time priority from now on (they change within
+    // 64 of their frames). A Runner gives it up while the emulated G2s' real-time threads do not fit on the computer's
+    // performance cores together (realtime_share.hpp). Any thread.
+    void setRealtime(bool on);
     // A word of DSP n's memory (n: chip select A(3+n); area 0 P, 1 X, 2 Y), for tests and debugging.
     std::uint32_t dspMemory(int n, int area, std::uint32_t address) const;
     std::uint32_t cfRead32(std::uint32_t address) const;

@@ -15,6 +15,7 @@
 #include "MutatorWindow.h"
 #include "PatchDocument.h"
 #include "PatchSettingsBar.h"
+#include "SplitBar.h"
 #include "Theme.h"
 #include "ZoomHolder.h"
 
@@ -37,7 +38,7 @@ public:
 
     // Stand-alone app only: opens the audio/MIDI device settings.
     std::function<void()> onAudioSettings;
-    // Where Options > Forward MIDI to a Hardware G2 sends the MIDI (nullptr: no such menu).
+    // Where Setup > Forward MIDI to a Hardware G2 sends the MIDI (nullptr: no such menu).
     void setMidiOutput(MidiOutputTarget* target)
     {
         midiOut_ = target;
@@ -126,10 +127,22 @@ private:
     juce::Label slotPrefix_, name_, edited_;
     juce::Label variationLabel_{{}, "Variation"};
     juce::OwnedArray<juce::TextButton> variations_;
+    juce::TextButton varInit_{"Init"};
+    // The red line on top of a slot button the keyboard plays (manual p58).
+    struct KeyboardMark : juce::Component {
+        KeyboardMark() { setInterceptsMouseClicks(false, false); }
+        void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xffe03030)); }
+    };
+    juce::OwnedArray<KeyboardMark> keyboardMarks_;
     juce::OwnedArray<juce::TextButton> slots_; // performance slots A-D
     juce::TextButton zoomOut_{"-"}, zoomReset_{"100%"}, zoomIn_{"+"};
     juce::TextButton randomizeButton_{"Randomize"}, mutatorButton_{"Mutator..."};
     juce::ComboBox morphGroup_;
+    // The original's Color selector and paint bucket (manual p60, p82): the colour new modules get; choosing one or
+    // the bucket paints the selected modules. Not saved.
+    juce::TextButton colourButton_, bucketButton_{"Paint"};
+    std::uint8_t moduleColour_ = 0;
+    void chooseModuleColour();
     std::unique_ptr<MutatorWindow> mutator_;
     MidiOutputTarget* midiOut_ = nullptr;
     SynthSync* synth_ = nullptr;
@@ -158,9 +171,12 @@ private:
     void startForLive();
     bool liveMode_ = false;
     juce::TextButton editButton_{"Edit"}, liveButton_{"Live"};
+    juce::TextButton init1_{"Init 1"}, init2_{"Init 2"};
     LiveView live_{nullptr};
     void updateLoad();
-    juce::PopupMenu synthMenu();
+    juce::PopupMenu buildMenu(const std::string& name);
+    void addMenuItem(juce::PopupMenu& m, int id);
+    bool liveAvailable() const;
     void showMutator();
     juce::Label status_, load_;
     PatchSettingsBar settings_{doc_};
@@ -170,6 +186,18 @@ private:
     bool focusKeyPressed(g2ui::FocusKey key);
     void showFocus();
     void zoomToFit();
+    void recallVariationInit();
+    // The two init patches (File > Save InitPatch 1/2, the toolbar's Init 1 and Init 2): files beside the settings.
+    static juce::File initPatchFile(int n);
+    void saveInitPatch(int n);
+    // File > New To, Open To, Save From (PatchKeys.h slotTarget): a slot of the performance, or of the connected G2.
+    // Where the file dialogs start (PatchLibraryModel.h dialogFolder).
+    juce::File dialogFolder() const;
+    void newTo(int slot);
+    void openTo(int slot);
+    void saveFrom(int slot);
+    void recallInitPatch(int n);
+    void slotClicked(int slot);
     void saveSelection();
     void insertPatchFile();
     void showFocusStatus();
@@ -183,8 +211,33 @@ private:
     float zoom_ = 1.0f;
     AreaView* activeArea_ = nullptr; // last clicked area: target of Edit commands
     g2::mutate::Random random_{static_cast<std::uint32_t>(juce::Time::currentTimeMillis())};
-    juce::StretchableLayoutManager layout_;
-    juce::StretchableLayoutResizerBar divider_{&layout_, 1, false};
+    // The split bar between the areas (SplitBar.h): dragged, or its three buttons (only the FX Area, only the Voice
+    // Area, back), as the original's CSplitterView. The position is the patch's (its header's splitterPos).
+    class Divider : public juce::Component, public juce::SettableTooltipClient {
+    public:
+        explicit Divider(MainView& owner) : owner_(owner) { setMouseCursor(juce::MouseCursor::UpDownResizeCursor); }
+        void paint(juce::Graphics&) override;
+        void mouseMove(const juce::MouseEvent&) override;
+        void mouseDown(const juce::MouseEvent&) override;
+        void mouseDrag(const juce::MouseEvent&) override;
+        void mouseUp(const juce::MouseEvent&) override;
+        // Esc during a drag: the bar stays where it got to, and the drag ends (CSplitterView::Release @000f6e7e).
+        bool abortDrag();
+
+    private:
+        // 0, 1, 2: the button under x (FX only, Voice only, back); -1: the bar.
+        int buttonAt(int x) const { return x >= 0 && x < 3 * SplitBar::kHeight ? x / SplitBar::kHeight : -1; }
+        MainView& owner_;
+        bool dragging_ = false;
+        int grab_ = 0;
+    };
+    friend class Divider;
+    SplitBar split_;
+    Divider divider_{*this};
+    int splitTotal() const;
+    // After the bar was moved by the user: the layout, and the patch header (not an undo step, as the original's
+    // RequestPatchHeaderChange).
+    void splitMoved();
     std::unique_ptr<juce::FileChooser> chooser_;
     juce::RecentlyOpenedFilesList recent_;
 };

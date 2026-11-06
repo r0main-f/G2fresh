@@ -5,7 +5,7 @@
 // nothing was chosen yet. Opening an input is not free: a Bluetooth headset's microphone switches the headset to its
 // call profile, which changes the sound of every application, and macOS asks for the microphone. A G2 plays its
 // IN 1-4 only where a patch has an In module, so the app starts on its output alone until the user chooses an input
-// (Options > Audio/MIDI Settings), and keeps that choice from then on.
+// (Setup > Audio/MIDI Settings), and keeps that choice from then on.
 
 #include <algorithm>
 #include <optional>

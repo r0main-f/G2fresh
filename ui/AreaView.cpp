@@ -5,7 +5,10 @@
 #include "DrumSelectors.h"
 #include "CableColours.h"
 #include "CableCurve.h"
+#include "BackgroundMenu.h"
 #include "IncDec.h"
+#include "ModuleMenu.h"
+#include "ResetKnob.h"
 #include "ModernIcons.h"
 #include "ModuleBrowser.h"
 #include "SpecialControls.h"
@@ -32,8 +35,10 @@ bool inKnobControl(const PanelElement& e, juce::Point<int> local)
 {
     if (e.kind != "Knob")
         return false;
-    const auto k = incDecKnob(e.type.toStdString());
-    return k && incDecControlSize(*k).contains(local.x - e.x, local.y - e.y);
+    const auto type = e.type.toStdString();
+    const auto k = incDecKnob(type);
+    return k && (incDecControlSize(*k).contains(local.x - e.x, local.y - e.y - knobTop(type))
+                 || onResetStrip(type, local.x - e.x, local.y - e.y));
 }
 
 // The parameter a control focuses: knobs, sliders and buttons do (CPnlKnobSliderABC::OnClick @000cb9b0,
@@ -431,10 +436,58 @@ void AreaView::paintOverlay(juce::Graphics& g)
     if (dropCell_) {
         g.setColour(juce::Colours::white.withAlpha(0.3f));
         g.fillRoundedRectangle(juce::Rectangle<int>(dropCell_->x * kModuleWidth, dropCell_->y * kRowHeight, kModuleWidth,
-                                                    2 * kRowHeight).toFloat(), 5.0f);
+                                                    dropRows_ * kRowHeight).toFloat(), 5.0f);
     }
     paintLiveLeds(g);
     paintCables(g);
+    paintHints(g);
+}
+
+void AreaView::setHintMode(HintMode mode)
+{
+    if (mode == hintMode_)
+        return;
+    hintMode_ = mode;
+    overlay_->repaint();
+}
+
+void AreaView::paintHints(juce::Graphics& g)
+{
+    // Yellow boxes centred on each parameter's control (CPanelItem::GetItemCenter), one per parameter.
+    if (hintMode_ == HintMode::None)
+        return;
+    const auto& patch = doc_.patch();
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    g.setFont(juce::Font(juce::FontOptions(10.0f)));
+    for (const auto& m : patch.area(location_).modules) {
+        const auto* panel = ModulePainter::panelFor(m);
+        if (!panel)
+            continue;
+        const auto origin = ModulePainter::moduleBounds(m).getPosition();
+        std::vector<std::uint8_t> shown;
+        for (const auto& e : panel->elements) {
+            const auto param = focusParam(e);
+            if (!param || std::find(shown.begin(), shown.end(), *param) != shown.end())
+                continue;
+            shown.push_back(*param);
+            const auto text = hintText(patch, hintMode_, location_, m.index, *param, variation);
+            if (!text)
+                continue;
+            const auto lines = juce::StringArray::fromLines(juce::String(*text));
+            int w = 0;
+            for (const auto& l : lines)
+                w = std::max(w, juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), l));
+            const auto centre = ModulePainter::elementBounds(e).translated(origin.x, origin.y).getCentre();
+            const int h = lines.size() * 12 + 2;
+            const juce::Rectangle<int> box(centre.x - (w + 6) / 2, centre.y - h / 2, w + 6, h);
+            g.setColour(juce::Colour(0xffffffa0));
+            g.fillRect(box);
+            g.setColour(juce::Colours::black);
+            g.drawRect(box);
+            for (int i = 0; i < lines.size(); ++i)
+                g.drawText(lines[i], box.getX(), box.getY() + 1 + i * 12, box.getWidth(), 12, juce::Justification::centred);
+        }
+    }
 }
 
 void AreaView::paintLiveLeds(juce::Graphics& g)
@@ -890,13 +943,23 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
     }
     highlightCable(std::nullopt);
     if (!dragHit_.module) {
-        if (e.mods.isPopupMenu())
+        if (e.mods.isPopupMenu()) {
+            showBackgroundMenu(e.getPosition());
             return;
+        }
         // Empty background: start a rubber-band selection.
         if (!e.mods.isShiftDown())
             clearSelection();
         dragHit_.local = e.getPosition();
         drag_ = Drag::Band;
+        return;
+    }
+    // The module's Replace button (ResetKnob.h): its menu (CPanel::HandleChangeRequests @000bf2d8).
+    if (!e.mods.isPopupMenu() && !dragHit_.element && onReplaceButton(dragHit_.local.x, dragHit_.local.y)) {
+        if (!isSelected(dragHit_.module))
+            select(dragHit_.module, false);
+        showReplaceMenu(dragHit_.module);
+        dragHit_ = {};
         return;
     }
     if (e.mods.isPopupMenu()) {
@@ -935,9 +998,23 @@ void AreaView::mouseDown(const juce::MouseEvent& e)
         const auto* m = doc_.patch().area(location_).find(dragHit_.module);
         // The inc/dec pair under a knob: a step on mouse-down, then again while held; Option steps the morph range
         // (CPnlControl::UpDownOnClickHandler @000c8970).
-        if (const auto k = dragHit_.element->kind == "Knob" ? incDecKnob(dragHit_.element->type.toStdString()) : std::nullopt;
+        const auto type = dragHit_.element->type.toStdString();
+        // A reset knob's triangle: the centre value, or with the morph key no morph range in the focused group
+        // (CPnlKnobSliderABC::OnClick @000cb9b0 area 4: ResetParamValue, ResetMorphValue).
+        if (m && dragHit_.element->kind == "Knob" && !e.mods.isCommandDown()
+            && onResetStrip(type, dragHit_.local.x - dragHit_.element->x, dragHit_.local.y - dragHit_.element->y)) {
+#if JUCE_MAC
+            const bool morphKey = e.mods.isAltDown();
+#else
+            const bool morphKey = e.mods.isCtrlDown();
+#endif
+            resetKnob(dragHit_, morphKey);
+            return;
+        }
+        if (const auto k = dragHit_.element->kind == "Knob" ? incDecKnob(type) : std::nullopt;
             m && k && !e.mods.isCommandDown()) {
-            const auto part = incDecAt(*k, dragHit_.local.x - dragHit_.element->x, dragHit_.local.y - dragHit_.element->y);
+            const auto part = incDecAt(*k, dragHit_.local.x - dragHit_.element->x,
+                                       dragHit_.local.y - dragHit_.element->y - knobTop(type));
             if (part != IncDecPart::None) {
                 startIncDec(dragHit_, part == IncDecPart::Inc ? +1 : -1, e.mods.isAltDown());
                 return;
@@ -1311,8 +1388,40 @@ void AreaView::deleteHighlightedCable()
     doc_.perform("Delete cables", [&](g2::Patch& p) { g2::edit::deleteChain(p, loc, jack); });
 }
 
+bool AreaView::abortDrag()
+{
+    bool aborted = false;
+    if (incDec_) {
+        incDec_.reset();
+        incDecRepeat_.stopTimer();
+        aborted = true;
+    }
+    if (std::exchange(pushed_, false)) {
+        pressMomentary(dragHit_, 0); // CPanel::ReleaseAllDragOperations releases it
+        aborted = true;
+    }
+    if (drag_ != Drag::None) {
+        drag_ = Drag::None;
+        cableFrom_.reset();
+        moveDrag_ = false;
+        aborted = true;
+    }
+    if (!aborted)
+        return false;
+    doc_.endCoalescing();
+    dragHit_ = {}; // the release clicks nothing
+    heldChain_.clear();
+    setMouseCursor(juce::MouseCursor::NormalCursor);
+    status({});
+    overlay_->repaint();
+    repaintModules();
+    return true;
+}
+
 bool AreaView::keyPressed(const juce::KeyPress& key)
 {
+    if (key == juce::KeyPress::escapeKey && abortDrag())
+        return true;
     if (onArrowKey && (key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::downKey)
                        || key.isKeyCode(juce::KeyPress::leftKey) || key.isKeyCode(juce::KeyPress::rightKey)))
         return onArrowKey(key);
@@ -1329,6 +1438,28 @@ bool AreaView::keyPressed(const juce::KeyPress& key)
         return true;
     }
     return false;
+}
+
+void AreaView::resetKnob(const Hit& h, bool morph)
+{
+    const auto* m = doc_.patch().area(location_).find(h.module);
+    if (!m || !h.element)
+        return;
+    if (!morph) {
+        doc_.endCoalescing();
+        setValue(h, resetValue(ModulePainter::maxValue(context(*m), *h.element)), false);
+        return;
+    }
+    touch(h.module);
+    const auto loc = location_;
+    const auto module = h.module;
+    const auto param = static_cast<std::uint8_t>(h.element->codeRef);
+    const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
+    const auto group = static_cast<std::uint8_t>(doc_.focusedMorphGroup());
+    juce::String error;
+    if (!doc_.perform("Reset morph", [=](g2::Patch& p) { g2::edit::setMorph(p, variation, loc, module, param, group, 0); }, &error))
+        status("Cannot reset the morph: " + error);
+    repaintModules();
 }
 
 void AreaView::setValue(const Hit& h, int value, bool coalesce)
@@ -1533,12 +1664,99 @@ void AreaView::rename(std::uint8_t module)
                        true);
 }
 
+void AreaView::showBackgroundMenu(juce::Point<int> where)
+{
+    // The original's background pop-up (BackgroundMenu.h). Insert puts the module where the menu was opened; the
+    // original arms it, and the next click places it.
+    enum { kCut = 1, kCopy, kPaste, kInsertBase = 10000 };
+    juce::PopupMenu menu;
+    const auto edits = editItems(hasSelection(), !clipboard().empty());
+    for (int i = 0; i < 3; ++i)
+        menu.addItem(kCut + i, edits[static_cast<std::size_t>(i)].label, edits[static_cast<std::size_t>(i)].enabled);
+    menu.addSeparator();
+    juce::PopupMenu insert;
+    for (const auto& g : insertGroups(location_)) {
+        juce::PopupMenu modules;
+        for (const auto& m : g.modules)
+            modules.addItem(kInsertBase + m.type, m.label, m.enabled);
+        insert.addSubMenu(g.name, modules);
+    }
+    menu.addSubMenu("Insert", insert);
+    if (addSynthItems) {
+        juce::PopupMenu synth;
+        addSynthItems(synth);
+        if (synth.getNumItems() > 0) {
+            menu.addSeparator();
+            for (juce::PopupMenu::MenuItemIterator it(synth); it.next();)
+                menu.addItem(it.getItem());
+        }
+    }
+    menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), where](int result) {
+        if (!safe || result <= 0)
+            return;
+        auto& self = *safe;
+        if (result == kCut || result == kCopy) {
+            clipboard() = self.copySelection();
+            if (result == kCut)
+                self.deleteSelected();
+        } else if (result == kPaste) {
+            self.paste(clipboard());
+        } else if (result >= kInsertBase && result < kInsertBase + 256) {
+            self.addModule(static_cast<std::uint8_t>(result - kInsertBase), where);
+        }
+    });
+}
+
+void AreaView::colourSelection(std::uint8_t colour)
+{
+    if (selection_.empty())
+        return;
+    const auto loc = location_;
+    const auto targets = selection_;
+    doc_.perform("Change module colour", [&](g2::Patch& p) {
+        for (auto index : targets)
+            if (p.area(loc).find(index))
+                g2::edit::setModuleColor(p, loc, index, colour);
+    });
+}
+
+void AreaView::showReplaceMenu(std::uint8_t module)
+{
+    const auto* m = doc_.patch().area(location_).find(module);
+    if (!m)
+        return;
+    juce::PopupMenu replace;
+    for (const auto& item : g2::replace::menu(m->type, location_))
+        replace.addItem(1 + item.type, item.label, item.enabled, item.type == m->type);
+    const auto at = localPointToGlobal(ModulePainter::moduleBounds(*m).getTopLeft());
+    replace.showMenuAsync(juce::PopupMenu::Options().withTargetScreenArea({at.x, at.y + 12, 1, 1}),
+                          [safe = juce::Component::SafePointer<AreaView>(this), module](int result) {
+                              if (safe && result > 0)
+                                  safe->replaceModule(module, static_cast<std::uint8_t>(result - 1));
+                          });
+}
+
+void AreaView::replaceModule(std::uint8_t module, std::uint8_t newType)
+{
+    const auto loc = location_;
+    std::uint8_t replaced = 0;
+    juce::String error;
+    if (doc_.perform("Replace module", [&](g2::Patch& p) { replaced = g2::replace::replaceModule(p, loc, module, newType); }, &error)) {
+        selection_ = {replaced};
+        touch(replaced);
+    } else {
+        status("Cannot replace: " + error);
+    }
+}
+
 void AreaView::showModuleMenu(std::uint8_t module)
 {
     const auto* m = doc_.patch().area(location_).find(module);
     if (!m)
         return;
-    enum { kRename = 1, kDuplicate, kCopy, kCut, kDelete, kLock, kColourBase = 100, kReplaceBase = 1000 };
+    // The original's items and order, then G2fresh's own (ModuleMenu.h).
+    using Id = ModuleMenuItem::Id;
+    enum { kColourBase = 100, kReplaceBase = 1000, kAssignBase = 2000, kAssignMultiBase = 2100 };
     const bool many = selection_.size() > 1;
     juce::PopupMenu colours;
     for (int c : ModulePainter::moduleColourMenuOrder()) {
@@ -1553,33 +1771,42 @@ void AreaView::showModuleMenu(std::uint8_t module)
     for (const auto& item : g2::replace::menu(m->type, location_))
         replace.addItem(kReplaceBase + item.type, item.label, item.enabled, item.type == m->type);
     juce::PopupMenu menu;
-    menu.addItem(kRename, "Rename...", !many);
-    menu.addSubMenu("Replace With", replace, !many && replace.getNumItems() > 1);
-    menu.addSubMenu(many ? "Colour (selection)" : "Colour", colours);
-    menu.addItem(kLock, "Lock (keep when randomizing)", true, m->locked);
-    menu.addSeparator();
-    menu.addItem(kCopy, many ? "Copy Modules" : "Copy");
-    menu.addItem(kCut, many ? "Cut Modules" : "Cut");
-    menu.addItem(kDuplicate, many ? "Duplicate Modules" : "Duplicate");
-    menu.addSeparator();
-    menu.addItem(kDelete, many ? "Delete Modules" : "Delete");
+    for (const auto& item : moduleMenu({!clipboard().empty(), m->locked, many})) {
+        if (item.id == Id::Separator)
+            menu.addSeparator();
+        else if (item.id == Id::Replace)
+            menu.addSubMenu(item.label, replace, item.enabled && replace.getNumItems() > 1);
+        else if (item.id == Id::Assign) {
+            juce::PopupMenu assign;
+            if (const auto* def = g2::db::find(m->type))
+                for (const auto& page : assignMenu(doc_.patch(), *def)) {
+                    juce::PopupMenu columns;
+                    for (const auto& a : page.items)
+                        columns.addItem((a.multi ? kAssignMultiBase : kAssignBase) + a.page, a.label);
+                    assign.addSubMenu(page.label, columns);
+                }
+            menu.addSubMenu(item.label, assign, item.enabled);
+        } else if (item.id == Id::Colour)
+            menu.addSubMenu(many ? "Colour (selection)" : "Colour", colours);
+        else
+            menu.addItem(static_cast<int>(item.id), item.label, item.enabled, item.ticked);
+    }
     menu.showMenuAsync({}, [safe = juce::Component::SafePointer<AreaView>(this), module](int result) {
         if (!safe || result <= 0)
             return;
         auto& self = *safe;
         const auto loc = self.location_;
-        if (result >= kReplaceBase) {
-            const auto newType = static_cast<std::uint8_t>(result - kReplaceBase);
-            std::uint8_t replaced = 0;
+        if (result >= kAssignBase && result < kAssignMultiBase + 15) {
+            const bool multi = result >= kAssignMultiBase;
+            const int page = result - (multi ? kAssignMultiBase : kAssignBase);
             juce::String error;
-            if (self.doc_.perform("Replace module", [&](g2::Patch& p) {
-                    replaced = g2::replace::replaceModule(p, loc, module, newType);
-                }, &error)) {
-                self.selection_ = {replaced};
-                self.touch(replaced);
-            } else {
-                self.status("Cannot replace: " + error);
-            }
+            if (!self.doc_.perform("Assign module to knobs",
+                                   [&](g2::Patch& p) { g2::edit::assignModuleToPage(p, loc, module, page, multi); }, &error))
+                self.status("Cannot assign: " + error);
+            else
+                self.status("Assigned to knobs from " + juce::String(g2::edit::knobName(page * g2::edit::kKnobsPerPage)));
+        } else if (result >= kReplaceBase) {
+            self.replaceModule(module, static_cast<std::uint8_t>(result - kReplaceBase));
         } else if (result >= kColourBase) {
             const auto colour = static_cast<std::uint8_t>(result - kColourBase);
             const auto targets = self.selection_.empty() ? std::vector<std::uint8_t>{module} : self.selection_;
@@ -1587,24 +1814,28 @@ void AreaView::showModuleMenu(std::uint8_t module)
                 for (auto index : targets)
                     g2::edit::setModuleColor(p, loc, index, colour);
             });
-        } else if (result == kLock) {
+        } else if (result == static_cast<int>(Id::Exclude)) {
             const auto targets = self.selection_.empty() ? std::vector<std::uint8_t>{module} : self.selection_;
             const auto* first = self.doc_.patch().area(loc).find(module);
             const bool lock = first && !first->locked;
-            self.doc_.perform(lock ? "Lock modules" : "Unlock modules", [&](g2::Patch& p) {
+            self.doc_.perform(lock ? "Exclude from mutation" : "Include in mutation", [&](g2::Patch& p) {
                 for (auto index : targets)
                     if (p.area(loc).find(index))
                         g2::edit::setLocked(p, loc, index, lock);
             });
-        } else if (result == kRename) {
+        } else if (result == static_cast<int>(Id::Rename)) {
             self.rename(module);
-        } else if (result == kCopy || result == kCut) {
+        } else if (result == static_cast<int>(Id::Copy) || result == static_cast<int>(Id::Cut)) {
             clipboard() = self.copySelection();
-            if (result == kCut)
+            if (result == static_cast<int>(Id::Cut))
                 self.deleteSelected();
-        } else if (result == kDuplicate) {
+        } else if (result == static_cast<int>(Id::Paste)) {
+            self.paste(clipboard());
+        } else if (result == static_cast<int>(Id::PasteParams)) {
+            self.pasteParams(clipboard());
+        } else if (result == static_cast<int>(Id::Duplicate)) {
             self.duplicateSelection();
-        } else if (result == kDelete) {
+        } else if (result == static_cast<int>(Id::Delete)) {
             self.deleteSelected();
         }
     });
@@ -1634,7 +1865,7 @@ void AreaView::showControlMenu(const Hit& h)
 
     const auto knob = g2::edit::knobOf(patch, loc, module, param);
     const auto cc = g2::edit::midiCcOf(patch, loc, module, param);
-    const auto ccs = am::ccMenu(patch, loc, module, param);
+    const auto ccs = am::ccMenu(patch, loc, module, param, lastMidiCc ? lastMidiCc() : std::nullopt);
 
     juce::PopupMenu menu;
     menu.addSectionHeader(juce::String(m->name) + "  " + def->params[param].name);
@@ -1672,7 +1903,7 @@ void AreaView::showControlMenu(const Hit& h)
             // leaving it removes that group only (CControlMenu::HandleMenuSelection).
             doc.perform("Morph assign", [&](g2::Patch& p) { g2::edit::toggleMorphAssign(p, variation, loc, module, param, group); });
         } else if (am::isAssignItem(r)) {
-            am::apply(doc, r, loc, module, param);
+            am::apply(doc, r, loc, module, param, safe.getComponent());
         } else if (r == kDefault) {
             const auto* mod = doc.patch().area(loc).find(module);
             if (mod && mod->def())
@@ -1867,7 +2098,26 @@ void AreaView::deleteSelected()
 
 g2::edit::Clipboard AreaView::copySelection() const
 {
-    return g2::edit::copyModules(doc_.patch(), location_, selection_);
+    auto clip = g2::edit::copyModules(doc_.patch(), location_, selection_);
+    clip.variation = static_cast<std::uint8_t>(doc_.focusedVariation()); // what Paste Params takes
+    return clip;
+}
+
+void AreaView::pasteParams(const g2::edit::Clipboard& clip)
+{
+    const auto loc = location_;
+    const auto to = static_cast<std::uint8_t>(doc_.focusedVariation());
+    const auto selection = selection_;
+    std::string refused;
+    doc_.perform("Paste params", [&](g2::Patch& p) {
+        refused = g2::edit::pasteParams(p, loc, selection, clip, to);
+        if (!refused.empty())
+            throw std::invalid_argument(refused); // nothing changes, no undo step
+    });
+    if (!refused.empty())
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Paste Params", juce::String(refused), {}, this);
+    else
+        status("Pasted the parameters of " + juce::String(static_cast<int>(clip.modules.size())) + " module(s)");
 }
 
 void AreaView::paste(const g2::edit::Clipboard& clip)
@@ -1915,7 +2165,7 @@ void AreaView::addModule(std::uint8_t type, std::optional<juce::Point<int>> wher
     std::uint8_t added = 0;
     juce::String error;
     if (doc_.perform("Add module", [&](g2::Patch& p) {
-            added = g2::edit::dropModule(p, loc, type, static_cast<std::uint8_t>(cell.x), static_cast<std::uint8_t>(cell.y));
+            added = g2::edit::dropModule(p, loc, type, static_cast<std::uint8_t>(cell.x), static_cast<std::uint8_t>(cell.y), newModuleColour_);
         }, &error)) {
         selection_ = {added};
         touch(added);
@@ -1933,7 +2183,7 @@ void AreaView::insertModule(std::uint8_t type)
     std::uint8_t added = 0;
     juce::String error;
     if (doc_.perform("Add module", [&](g2::Patch& p) {
-            added = g2::edit::addModule(p, loc, type, col, row);
+            added = g2::edit::addModule(p, loc, type, col, row, newModuleColour_);
             g2::edit::resolveOverlaps(p, loc, added);
         }, &error)) {
         clearSelection();
@@ -1951,6 +2201,10 @@ bool AreaView::isInterestedInDragSource(const SourceDetails& d)
 void AreaView::itemDragMove(const SourceDetails& d)
 {
     dropCell_ = gridCell(d.localPosition);
+    // The frame as tall as the module dragged (round-4 hand tests: it was always two rows).
+    const int type = d.description.toString().fromFirstOccurrenceOf(kModuleDragPrefix, false, false).getIntValue();
+    const auto* def = g2::db::find(static_cast<std::uint8_t>(type));
+    dropRows_ = def != nullptr ? std::max<int>(1, def->height) : 2;
     overlay_->repaint();
 }
 

@@ -1,5 +1,8 @@
 #include "AssignMenus.h"
 
+#include "Dialogs.h"
+#include "MidiCcItems.h"
+
 #include <algorithm>
 
 namespace g2ui::assignmenus {
@@ -26,32 +29,26 @@ juce::PopupMenu knobMenu(const g2::Patch& patch, g2::Location loc, std::uint8_t 
     return knobs;
 }
 
-juce::PopupMenu ccMenu(const g2::Patch& patch, g2::Location loc, std::uint8_t module, std::uint8_t param)
+juce::PopupMenu ccMenu(const g2::Patch& patch, g2::Location loc, std::uint8_t module, std::uint8_t param,
+                       std::optional<std::uint8_t> lastReceived)
 {
-    // None for a parameter holding CC 7 or 17 or not MIDI-assignable
-    // (CControlMenu removes the item).
+    // None for a parameter holding CC 7 or 17 or not MIDI-assignable (CControlMenu removes the item).
     juce::PopupMenu ccs;
     if (!g2::edit::canAssignMidiCc(patch, loc, module, param))
         return ccs;
-    const auto cc = g2::edit::midiCcOf(patch, loc, module, param);
-    for (int group = 0; group < 8; ++group) {
-        juce::PopupMenu groupMenu;
-        for (int n = group * 16; n < std::min(group * 16 + 16, 120); ++n) {
-            if (!g2::edit::isValidMidiCc(static_cast<std::uint8_t>(n)) || g2::edit::isPreAssignedMidiCc(static_cast<std::uint8_t>(n)))
-                continue;
-            const bool used = std::any_of(patch.controllers.begin(), patch.controllers.end(),
-                                          [&](const g2::CtrlAssign& a) { return a.cc == n; });
-            groupMenu.addItem(kCcBase + n, "CC " + juce::String(n) + (used && cc != n ? "  (in use)" : ""), true, cc == n);
-        }
-        ccs.addSubMenu("CC " + juce::String(group * 16) + "-" + juce::String(std::min(group * 16 + 15, 119)), groupMenu);
-    }
-    ccs.addSeparator();
-    ccs.addItem(kClearCc, "No MIDI controller", cc.has_value());
+    const auto items = midiCcItems(g2::edit::midiCcOf(patch, loc, module, param), lastReceived);
+    ccs.addItem(lastReceived ? kCcBase + *lastReceived : kCcBase - 1, items[0].label, items[0].enabled);
+    ccs.addItem(kCcDialog, items[1].label, items[1].enabled, items[1].ticked);
+    ccs.addItem(kClearCc, items[2].label, items[2].enabled);
     return ccs;
 }
 
-void apply(PatchDocument& doc, int r, g2::Location loc, std::uint8_t module, std::uint8_t param)
+void apply(PatchDocument& doc, int r, g2::Location loc, std::uint8_t module, std::uint8_t param, juce::Component* parent)
 {
+    if (r == kCcDialog) {
+        showMidiCcDialog(doc, loc, module, param, parent);
+        return;
+    }
     if (r >= kKnobBase && r < kKnobBase + g2::kKnobCount) {
         doc.perform("Assign knob", [&](g2::Patch& p) { g2::edit::assignKnob(p, r - kKnobBase, loc, module, param); });
     } else if (r == kClearKnob) {

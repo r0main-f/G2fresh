@@ -49,10 +49,10 @@ struct Endpoint {
 // Adds a module with default parameters and modes, the lowest free index and
 // a default name ("OscB1", "OscB2", ...). Returns the new module's index
 // (references into the module list are invalidated by later additions).
-u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row);
+u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color = 0); // color: the toolbar's (0..24)
 // addModule, then resolveOverlaps: a module dropped at (col, row). (The
 // original makes room before it creates the module.)
-u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row);
+u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color = 0);
 // Deletes a module (Edit > Clear, Delete). Its cables go and the chains
 // through it are spliced back together (Out->A->X->B minus X: Out->A->B);
 // a chain whose output goes keeps its cables, white
@@ -180,6 +180,14 @@ std::string settingText(const Patch& patch, Setting s, u8 param, u8 variation);
 enum class VoiceMode : u8 { Poly = 0, Mono = 1, Legato = 2 };
 void setVoices(Patch& patch, VoiceMode mode, u8 polyVoices = 0); // count used for Poly
 std::string voicesText(const Patch& patch);                   // "Mono", "Legato" or the count
+// The toolbar's voices (CPatchToolbar::SetupState @000f38b4): a poly patch's count, or, connected to a synth,
+// "actual (requested)" ("? (n)" until the synth has said how many it plays: `actual` nullopt); "Mono" or "Legato".
+// Red when the synth plays none.
+struct VoicesShown {
+    std::string text;
+    bool red = false;
+};
+VoicesShown voicesShown(const Patch& patch, bool connected, std::optional<u8> actual);
 void setCategory(Patch& patch, u8 category);                   // 0..15
 const char* categoryName(u8 category);
 
@@ -255,6 +263,14 @@ inline constexpr u8 kKnobToLed = 1;
 void assignKnob(Patch& patch, int knob, Location loc, u8 module, u8 param); // replaces the knob's previous target
 void clearKnob(Patch& patch, int knob);
 std::string knobName(int knob); // "A1-3": page A1 (the original's "Page A1"), knob 3
+// Module Assign (the module pop-up's Assign > Page > Column or Multi Column; CKnobMap::GetAssignModuleToPageMolecules
+// @000f24d4): the module's parameters in its edit order, without those another takes along as its button, onto knob
+// page `page` (0..14: A1, A2, A3, B1...) from its first knob; at most 8 unless `multi`, which runs on into the pages
+// after. A knob's old target, and a parameter's old knob, are freed first.
+std::vector<u8> assignableParams(const db::ModuleDef& def);
+void assignModuleToPage(Patch& patch, Location loc, u8 module, int page, bool multi);
+// Whether any of a knob page's 8 knobs is assigned (CKnobMap::IsPageUsed @000f0fe0).
+bool isKnobPageUsed(const Patch& patch, int page);
 
 // MIDI controllers a patch can assign: 0..119 except 0, 1, 11, 18, 32, 64,
 // 70, 96, 97 (MIDICtrl::IsValid @00148754). CC 7 and 17 are pre-assigned to
@@ -274,6 +290,13 @@ std::optional<u8> midiCcOf(const Patch& patch, Location loc, u8 module, u8 param
 void assignMidiCc(Patch& patch, u8 cc, Location loc, u8 module, u8 param);
 // Removes an assignment (not a pre-assigned one: throws).
 void clearMidiCc(Patch& patch, u8 cc);
+// Tools > Assign MIDI to Selection (CPatch::InternalAutoAssignMIDICtrl @000d6cc6): each parameter of the modules, in
+// order, that can take a CC and has none gets the lowest valid one not pre-assigned and not in use. Deassign MIDI from
+// Selection (InternalDeassignMIDICtrl @000d67de) removes the modules' CCs, Deassign All MIDI
+// (InternalDeassignMIDICtrlAll @000d64dc) every CC but the pre-assigned ones.
+void autoAssignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules);
+void deassignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules);
+void deassignAllMidiCcs(Patch& patch);
 // The same without the editor's rules, for mirrors of what a synth has.
 void storeMidiCc(Patch& patch, u8 cc, Location loc, u8 module, u8 param);
 void eraseMidiCc(Patch& patch, u8 cc);
@@ -319,6 +342,9 @@ bool hasCableBends(const Patch& patch);
 // Copies every value of a variation (modules, settings, morphs) to another.
 // Variation 8 is the "init" variation.
 void copyVariation(Patch& patch, u8 from, u8 to);
+// The toolbar's Init button ("recall variation init", CPatchToolbar::HandleChangeRequests @000f622a): the init
+// variation (8) copied into `variation`, as CMParamSettingCopy(8, variation).
+inline void recallVariationInit(Patch& patch, u8 variation) { copyVariation(patch, 8, variation); }
 
 // The audition variation: the original's patches have a tenth variation
 // (index 9), never saved in files, where the Patch Mutator plays the
@@ -350,6 +376,7 @@ struct Clipboard {
     std::vector<Module> modules;
     std::vector<Cable> cables;
     std::vector<std::pair<u8, MorphAssign>> morphs; // (variation, assignment)
+    u8 variation = 0; // the variation shown when it was copied: what Paste Params takes (GetCopyParamsMolecules)
     bool empty() const { return modules.empty(); }
 };
 Clipboard copyModules(const Patch& patch, Location loc, const std::vector<u8>& indices);
@@ -372,6 +399,20 @@ struct Inserted {
     std::vector<u8> va, fx;
 };
 Inserted insertPatch(Patch& patch, const Patch& file);
+// Delete Unused Modules (CPatchData::GetDeleteUnusedModulesMolecules @000e8d02): the modules of an area that play into
+// nothing, in the order the original finds them. A module with outputs is unused when none of them is in a cable
+// tree; one without outputs when none of its inputs is fed by an output; keepIfUnused modules never are. Each one
+// found is taken out with its cables and the search starts again, as a removal can leave others unused.
+std::vector<u8> unusedModules(const Patch& patch, Location loc);
+// Deletes them in both areas, as a delete (chains spliced; their knobs, controllers and morphs go).
+void deleteUnusedModules(Patch& patch);
+// Edit > Paste Params (Cmd-E; manual p68, p100, p116). CClipboard::ValidatePasteParams @0014d556: as many selected
+// modules as copied, of the same types pair by pair (both sorted by column, then row), else the original's alert text
+// is returned and nothing changes. Then (CPatchData::GetCopyParamsMolecules @000e9502) each copied module's values in
+// the variation it was copied from (clip.variation) go into variation `to` of the first selected module of its type
+// not given values yet, with its morphs there (at most 25 parameters morphed). Sent as the area's parameter and morph
+// dumps. Returns "" when done.
+std::string pasteParams(Patch& patch, Location loc, const std::vector<u8>& selection, const Clipboard& clip, u8 to);
 // Deletes several modules as one selection (delete, cut), splicing as removeModule.
 void removeModules(Patch& patch, Location loc, const std::vector<u8>& indices);
 void moveModules(Patch& patch, Location loc, const std::vector<u8>& indices, int dCol, int dRow);

@@ -72,8 +72,10 @@ public:
 
     bool undo();
     bool redo();
-    bool canUndo() const { return undo_.canUndo(); }
-    bool canRedo() const { return undo_.canRedo(); }
+    // Per patch: in a performance each slot has its own history, as each of the original's patches (CUndoRedo in
+    // CPatch; the audit's U1).
+    bool canUndo() const { return history().canUndo(); }
+    bool canRedo() const { return history().canRedo(); }
 
     // The user variation (0..7) last chosen.
     int variation() const { return variation_; }
@@ -196,7 +198,9 @@ private:
     g2::Patch patch_;
     std::optional<g2::Performance> perf_;
     int slot_ = 0;
-    juce::UndoManager undo_;
+    std::array<juce::UndoManager, 4> undo_; // one per slot; a patch uses the first
+    juce::UndoManager& history() { return undo_[static_cast<std::size_t>(perf_ ? slot_ : 0)]; }
+    const juce::UndoManager& history() const { return undo_[static_cast<std::size_t>(perf_ ? slot_ : 0)]; }
     juce::String coalesceKey_;
     Step* lastStep_ = nullptr; // the step a coalesced edit extends
     int variation_ = 0;

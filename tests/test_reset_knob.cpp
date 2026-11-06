@@ -1,0 +1,63 @@
+// The knobs with a reset triangle ("Reset", "Reset/medium" in the panels), as Clavia's editor v1.62 draws and hits
+// them (CPnlIndicatorKnob: its constructor @000cc346, MapToTargetArea @000cc4b8, Draw @000cc686, UpdateGraphics
+// @000cdc6c; CPnlKnobSliderABC::OnClick @000cb9b0, ResetParamValue @000cb92e, ResetMorphValue @000cb960).
+#include <catch2/catch_test_macros.hpp>
+
+#include "IncDec.h"
+#include "ResetKnob.h"
+
+using namespace g2ui;
+
+TEST_CASE("reset knob: a strip on top, the knob below it")
+{
+    // The constructor: medium 6 high, 6 in from each side; small 5 and 5. The control is the knob plus the strip.
+    CHECK_FALSE(resetStrip("Small"));
+    CHECK_FALSE(resetStrip("Medium"));
+    REQUIRE(resetStrip("Reset"));
+    CHECK(*resetStrip("Reset") == IncDecRect{5, 0, 21 - 10, 5});
+    REQUIRE(resetStrip("Reset/medium"));
+    CHECK(*resetStrip("Reset/medium") == IncDecRect{6, 0, 23 - 12, 6});
+    CHECK(knobTop("Reset") == 5);
+    CHECK(knobTop("Reset/medium") == 6);
+    CHECK(knobTop("Medium") == 0);
+}
+
+TEST_CASE("reset knob: the triangle's hit area")
+{
+    // MapToTargetArea: the strip first (area 4), then the knob and its pair below it.
+    CHECK(onResetStrip("Reset/medium", 11, 2));
+    CHECK_FALSE(onResetStrip("Reset/medium", 2, 2)); // left of the strip
+    CHECK_FALSE(onResetStrip("Reset/medium", 11, 6)); // the knob
+    CHECK_FALSE(onResetStrip("Medium", 11, 2));
+}
+
+TEST_CASE("reset knob: the centre value, and the lit triangle")
+{
+    // ResetParamValue: (max + 1) >> 1; UpdateGraphics lights the triangle at that value.
+    CHECK(resetValue(127) == 64);
+    CHECK(resetValue(2) == 1);
+    CHECK(resetValue(1) == 1);
+    CHECK(resetLit(64, 127));
+    CHECK_FALSE(resetLit(63, 127));
+}
+
+TEST_CASE("the Replace button: 11 x 11 at the module's top left, the name after it")
+{
+    // CPanel::CPanel @000c2b6a: CReplaceView at (1, 1), 11 x 11 (CReplaceView::CReplaceView @000d00d6), on every
+    // module (CBuildModule::HasReplaceButton is set by every constructor); the name bar from kWidth + 1.
+    CHECK(replaceButton() == IncDecRect{1, 1, 11, 11});
+    CHECK(onReplaceButton(1, 1));
+    CHECK(onReplaceButton(11, 11));
+    CHECK_FALSE(onReplaceButton(12, 5));
+    CHECK_FALSE(onReplaceButton(0, 5));
+    CHECK(kModuleNameX == 12);
+}
+
+TEST_CASE("reset knob: the triangle is drawn centred over the knob")
+{
+    // Round-5 hand tests: it sat right of the knob in both looks. The hit strip stays the original's; the drawing is
+    // centred on the knob as drawn (19 px small, 21 px medium).
+    CHECK(resetTriangle("Reset", 19) == IncDecRect{4, 0, 11, 5});
+    CHECK(resetTriangle("Reset/medium", 21) == IncDecRect{5, 0, 11, 6});
+    CHECK_FALSE(resetTriangle("Small", 19));
+}

@@ -10,7 +10,7 @@
 
 namespace g2io {
 
-// `expansion`: the user fitted the voice expansion board (Synth > Emulated G2 Voice Expansion Board);
+// `expansion`: the user fitted the voice expansion board (Synth > Emulated G2 > Voice Expansion Board);
 // `expansionThreads`: the DSP threads the computer test found fastest with it (-1: Machine::autoThreads).
 inline void pluginMachine(g2emu::Machine::Options& m, bool expansion = false, int expansionThreads = -1)
 {

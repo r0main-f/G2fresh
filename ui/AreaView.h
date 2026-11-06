@@ -2,6 +2,7 @@
 // editing gestures in it. Lives inside a juce::Viewport.
 #pragma once
 
+#include "HintOverlay.h"
 #include "ModulePainter.h"
 #include "PatchDocument.h"
 #include "LiveLeds.h"
@@ -38,6 +39,10 @@ public:
     // jack popup's Delete).
     bool hasHighlightedCable() const { return highlighted_.has_value(); }
     void deleteHighlightedCable();
+    // Esc: the drag in progress stops and its release does nothing (CPatch::AbortUserActions @000d38d0 ->
+    // CPatchBackground::ReleaseAllDragOperations @000e18d2): no module moves, no cable is made, the rubber band adds
+    // nothing; a knob keeps the value it was dragged to, a held push button is released. False if none.
+    bool abortDrag();
     const std::vector<std::uint8_t>& selection() const { return selection_; }
     void selectAll();
     // The module the parameter focus moved to: selected alone unless it is selected already.
@@ -50,6 +55,8 @@ public:
     // Pastes below the selection (or at the first free row) and selects the result.
     void paste(const g2::edit::Clipboard& clip);
     void duplicateSelection();
+    // Edit > Paste Params (Cmd-E): the clipboard's values into the selected modules of the same types.
+    void pasteParams(const g2::edit::Clipboard& clip);
     // The editor-wide clipboard (shared by both areas).
     static g2::edit::Clipboard& clipboard()
     {
@@ -60,6 +67,15 @@ public:
     std::function<void(AreaView*)> onActivated;
     // The arrow keys, for the patch window's parameter focus (its viewport would scroll with them).
     std::function<bool(const juce::KeyPress&)> onArrowKey;
+    // The synth's part of the background pop-up (BackgroundMenu.h), with what each item does, from the window.
+    std::function<void(juce::PopupMenu&)> addSynthItems;
+    // The last MIDI CC the synth received (CPatch::GetLastUsedMidiController), for a parameter's MIDI Controller menu.
+    std::function<std::optional<std::uint8_t>()> lastMidiCc;
+    // The toolbar's colour (manual p60, p82): what new modules get; colourSelection paints the selected modules with one.
+    void setNewModuleColour(std::uint8_t colour) { newModuleColour_ = colour; }
+    void colourSelection(std::uint8_t colour);
+    // F5-F8 held: the hint boxes over every parameter (HintOverlay.h); None takes them down.
+    void setHintMode(HintMode mode);
     // Adds a module at the first free row of the first column, or at `where`.
     void addModule(std::uint8_t type, std::optional<juce::Point<int>> where = std::nullopt);
     // Adds a module from the module bar (double-click or Return), where the
@@ -132,6 +148,8 @@ private:
     class Overlay;
     void paintModules(juce::Graphics& g);
     void paintOverlay(juce::Graphics& g);
+    void paintHints(juce::Graphics& g);
+    HintMode hintMode_ = HintMode::None;
     void paintCables(juce::Graphics& g);
     void paintLiveLeds(juce::Graphics& g);
     void paintCable(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to, juce::Colour c, bool flowing,
@@ -146,12 +164,19 @@ private:
     void repaintModules();
 
     void setValue(const Hit& h, int value, bool coalesce);
+    // A reset knob's triangle clicked (ResetKnob.h): the centre value, or (morph) the focused group's range cleared.
+    void resetKnob(const Hit& h, bool morph);
     // Push buttons (momentary parameters): pressed while the mouse is down.
     bool isPushButton(const Hit& h) const;
     void pressMomentary(const Hit& h, int value);
     void clickControl(const Hit& h);
     void clickSpecial(const Hit& h, SpecialControls::Hit part);
     void showModuleMenu(std::uint8_t module);
+    void showBackgroundMenu(juce::Point<int> where);
+    // The module's Replace button: the modules of its group (g2::replace::menu), and the replacement as one undo step.
+    void showReplaceMenu(std::uint8_t module);
+    std::uint8_t newModuleColour_ = 0;
+    void replaceModule(std::uint8_t module, std::uint8_t newType);
     void showJackMenu(const Jack& jack);
     void showControlMenu(const Hit& h);
     void showCableMenu(const g2::Cable& cable);
@@ -231,6 +256,7 @@ private:
     std::map<std::uint8_t, g2::special::DrumPresetSelector> drumSelectors_;
     int shownGeneration_ = -1, shownSlot_ = -1; // the document and slot the selectors belong to
     std::optional<juce::Point<int>> dropCell_; // browser drag-over preview
+    int dropRows_ = 2;                         // its height: the dragged module's, in grid rows
 
     std::unique_ptr<ModulesLayer> modules_;
     std::unique_ptr<Overlay> overlay_;

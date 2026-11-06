@@ -288,10 +288,9 @@ void Dsp::runTo(std::uint64_t target)
                 return;
             }
         }
-        if(options_.jit)
-            dsp_.getJit().getTrampoline().exec(&dsp_, dsp56k::JitTrampoline::UnrollSize);  // 8 blocks (a count below 8 means 2^32 rounds)
-        else
-            dsp_.execInterpreter();  // a DO FOREVER does not come back from here: debugging only
+        // On the JIT only: dsp56300 runs one engine per build, and with the interpreter in a build that has the JIT
+        // the interrupts still run on the JIT (re/notes/g2-hardware-and-emulation.md §3.8.2)
+        dsp_.getJit().getTrampoline().exec(&dsp_, dsp56k::JitTrampoline::UnrollSize);  // 8 blocks (a count below 8 means 2^32 rounds)
         if(dsp_.getPC().toWord() >= WildPcFrom && dsp_.getPC().toWord() < 0xff0000 && !wild_)
         {
             wild_ = true;

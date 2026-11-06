@@ -4,6 +4,7 @@
 #include "dsp.hpp"
 #include "hw.hpp"
 #include "panel.hpp"
+#include "realtime_share.hpp"
 #include "thread.hpp"
 
 #include "coldfire/cfCpu.h"
@@ -848,40 +849,96 @@ TEST_CASE("ColdFire core: run()'s dispatch and specialised handlers do what step
     CHECK(instructions > 20000);
 }
 
+TEST_CASE("Real-time threads: the emulated G2s keep them while all of theirs fit on the performance cores", "[g2emu]")
+{
+    // macOS keeps time-constraint threads on the performance cores. Measured on an M1 (4 of them; re/notes/
+    // audio-path.md §3.7): one emulated G2's three (the Runner's and two DSP threads) beside the host's audio thread
+    // lost nothing; two emulated G2s, six such threads, lost all of their audio at 0.46 x real time, and at an
+    // application's priority none, at 2.0 x. One performance core stays for the host's own audio thread.
+    CHECK(realtimeFits(3, 4));
+    CHECK_FALSE(realtimeFits(6, 4));
+    CHECK_FALSE(realtimeFits(4, 4));
+    CHECK(realtimeFits(6, 8));
+    CHECK(realtimeFits(7, 8));
+    CHECK_FALSE(realtimeFits(8, 8));
+    CHECK_FALSE(realtimeFits(1, 1));  // a computer whose cores are not known (0) or a single one: never
+    CHECK_FALSE(realtimeFits(3, 0));
+}
+
+#ifndef _WIN32
+TEST_CASE("RealtimeShare: the threads of every emulated G2 that runs in any process but not of one that ended", "[g2emu]")
+{
+    const auto dir = std::filesystem::temp_directory_path() / ("g2fresh-rt-test-" + std::to_string(::getpid()));
+    std::filesystem::remove_all(dir);
+    {
+        RealtimeShare a(dir, 3);
+        CHECK(a.threadsAll() == 3);
+        {
+            RealtimeShare b(dir, 3);  // a second one, here as in another process: each holds a lock on its file
+            CHECK(a.threadsAll() == 6);
+            CHECK(b.threadsAll() == 6);
+        }
+        CHECK(a.threadsAll() == 3);
+        // A process that ended without removing its file (it crashed): nobody holds its lock, so it does not count,
+        // and the file goes.
+        const auto stale = dir / "99999-1-3";
+        std::ofstream(stale).put('x');
+        CHECK(std::filesystem::exists(stale));
+        CHECK(a.threadsAll() == 3);
+        CHECK_FALSE(std::filesystem::exists(stale));
+    }
+    // a folder that cannot be made: each machine counts itself alone, as before
+    {
+        RealtimeShare c("/dev/null/g2fresh", 3);
+        CHECK(c.threadsAll() == 3);
+    }
+    std::filesystem::remove_all(dir);
+}
+#endif
+
 TEST_CASE("Doorbell: no wake-up is lost between threads that wait for each other", "[g2emu]")
 {
     // A ping-pong of a counter: each side waits for its turn, takes it and rings. One side dawdles (0.2 ms) every
-    // other round, so that the other spins out and sleeps; a lost ring would show as a sleep that timed out.
+    // other round, so that the other spins out and sleeps. The bell's timeout (2 ms in the machine, a safety net) is
+    // an hour here: a lost ring would leave a waiter asleep, and the rounds would not finish. Finishing is the fact
+    // that holds on any machine; counting the 2 ms timeouts did not, as a busy scheduler alone makes many of them
+    // (it failed under load).
     for(const int spin : {0, 50})
     {
-        Doorbell bell;
+        Doorbell bell{std::chrono::hours(1)};
         std::atomic<int> turn{0};
+        std::atomic<bool> abandon{false};
         constexpr int rounds = 2000;
         std::thread other([&] {
-            for(int i = 0; i < rounds; ++i)
+            for(int i = 0; i < rounds && !abandon; ++i)
             {
-                bell.wait([&] { return turn.load() == 2 * i + 1; }, spin);
+                bell.wait([&] { return turn.load() == 2 * i + 1 || abandon.load(); }, spin);
                 if(i & 1) std::this_thread::sleep_for(std::chrono::microseconds(200));
                 turn.store(2 * i + 2);
                 bell.ring();
             }
         });
-        for(int i = 0; i < rounds; ++i)
-        {
-            bell.wait([&] { return turn.load() == 2 * i; }, spin);
-            if(!(i & 1)) std::this_thread::sleep_for(std::chrono::microseconds(200));
-            turn.store(2 * i + 1);
-            bell.ring();
-        }
-        other.join();
-        INFO("spin " << spin << " us");
+        std::thread self([&] {
+            for(int i = 0; i < rounds && !abandon; ++i)
+            {
+                bell.wait([&] { return turn.load() == 2 * i || abandon.load(); }, spin);
+                if(!(i & 1)) std::this_thread::sleep_for(std::chrono::microseconds(200));
+                turn.store(2 * i + 1);
+                bell.ring();
+            }
+        });
+        // 2000 rounds take about half a second; two minutes is far beyond any machine's slowness, and well short of
+        // the hour a lost ring would sleep.
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(2);
+        while(turn.load() < 2 * rounds && std::chrono::steady_clock::now() < deadline)
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        INFO("spin " << spin << " us: " << turn.load() << " of " << 2 * rounds << " turns taken");
         CHECK(turn.load() == 2 * rounds);
-        // A timeout is a sleep that ended without a ring after 2 ms: a lost ring, or (on a busy shared machine such as
-        // a CI runner) a waiter the scheduler left asleep that long. Lost rings would show in every round. Windows'
-        // timer is too coarse for the count to mean anything (the test's 0.2 ms naps last milliseconds there).
-#ifndef _WIN32
-        CHECK(bell.timeouts() < rounds / 50);
-#endif
+        abandon = true;
+        for(int k = 0; k < 4; ++k) bell.ring(); // a stuck waiter, if any, is asleep and counted now: it wakes and leaves
+        other.join();
+        self.join();
+        CHECK(bell.timeouts() == 0);
     }
 }
 
@@ -971,6 +1028,97 @@ TEST_CASE("The user's G2 OS: boots, syncs with our client, plays a MIDI note", "
     CHECK_THAT(hz, Catch::Matchers::WithinAbs(440.0, 0.1));
     CHECK(m.stats().exceptions == 0);
 }
+
+TEST_CASE("The user's G2 OS on the JIT: control-rate code runs once every 4 frames on every DSP", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // Stage 1's background loop passes once the frame counter X:$43 is past 3, then adds X:$40 to the 48-bit control
+    // tick count L:$42 and runs the patch's control-rate code (re/notes/g2-hardware-and-emulation.md §3.8.1 [C]):
+    // 0.25 ticks per frame, a 24 kHz control rate at 96 kHz. With the interpreter in a build that has the JIT, the
+    // condition codes of the loop's cmp were lost when an interrupt fell before its ble, and it passed every 2 or 3
+    // frames (§3.8.2: 0.33 to 0.5). dsp56300 runs one engine per build; ours is the JIT.
+    Machine m(fw);
+    m.run(Machine::FrameRate * 2);  // booted: the frame programs run (about 1.6 s)
+    auto ticks = [&](int n) {
+        return (std::uint64_t(m.dspMemory(n, 1, 0x42)) << 24 | m.dspMemory(n, 2, 0x42)) / m.dspMemory(n, 1, 0x40);
+    };
+    std::uint64_t before[4];
+    for(int n = 0; n < 4; ++n)
+    {
+        REQUIRE(m.dspMemory(n, 1, 0x40) != 0);
+        before[n] = ticks(n);
+    }
+    const auto from = m.frame();
+    m.run(Machine::FrameRate);
+    const double frames = double(m.frame() - from);
+    for(int n = 0; n < 4; ++n)
+    {
+        INFO("DSP on chip select A" << 3 + n);
+        // each DSP keeps its own frames, within a few of the DACs' (Options::skew, the lines' prefill)
+        CHECK_THAT(double(ticks(n) - before[n]) / frames, Catch::Matchers::WithinAbs(0.25, 0.001));
+    }
+    CHECK(m.stats().exceptions == 0);
+}
+
+#ifdef __APPLE__
+TEST_CASE("The user's G2 OS in real time: two emulated G2s give up real-time priority while they do not fit together",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // As on an M1: 4 performance cores, so one emulated G2's three real-time threads fit and two's six do not
+    // (realtimeFits; re/notes/audio-path.md §3.7). The machines count each other through a folder of their own here.
+    const auto dir = std::filesystem::temp_directory_path() / ("g2fresh-rt-runner-" + std::to_string(::getpid()));
+    std::filesystem::remove_all(dir);
+    Runner::Options options;
+    options.machine.realtimeThreads = true;
+    options.machine.threads = 2;
+    options.realtimeShareDir = dir;
+    options.performanceCores = 4;
+    using Clock = std::chrono::steady_clock;
+    // the runners rest while nobody reads: a reader for each, as a host's audio thread
+    auto until = [&](std::vector<Runner*> rs, auto ready) {
+        std::vector<float> out(4 * 64);
+        const auto end = Clock::now() + std::chrono::seconds(10);
+        while(!ready() && Clock::now() < end)
+        {
+            for(auto* r : rs) r->read(out.data(), 64);
+            std::this_thread::sleep_for(std::chrono::microseconds(600));
+        }
+        return ready();
+    };
+    auto all = [](Runner& r, bool on) { return r.stats().realtime == on && r.machine().stats().realtimeDspThreads == (on ? 2 : 0); };
+    auto a = std::make_unique<Runner>(fw, options);
+    REQUIRE(until({a.get()}, [&] { return all(*a, true); }));  // alone: the Runner's thread and both DSP threads
+    {
+        Runner b(fw, options);
+        CHECK(until({a.get(), &b}, [&] { return all(*a, false) && all(b, false); }));
+        INFO("speeds " << a->stats().speed << " and " << b.stats().speed);
+        b.stop();
+    }
+    // the other one has gone: the first takes real-time priority again
+    CHECK(until({a.get()}, [&] { return all(*a, true); }));
+    a->stop();
+    CHECK(a->machine().stats().exceptions == 0);
+    a.reset();
+    std::filesystem::remove_all(dir);
+}
+#endif
 
 TEST_CASE("The user's G2 OS in real time: the plugin's path (Runner, a link over USB, MIDI)", "[g2emu][firmware]")
 {
@@ -2402,6 +2550,286 @@ TEST_CASE("The user's G2 OS: a Vocoder driven by an audio input", "[g2emu][firmw
     CHECK(g2.m.stats().exceptions == 0);
 }
 
+TEST_CASE("The user's G2 OS: a held note keeps five envelopes up in a voice of 21 modules", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // The bigger voice of re/notes/native-engine.md §3.3/§4 (that patch was not kept; this one is put together the
+    // same way): with the interpreter in a build that has the JIT, its held note's gate dropped for 55 to 504 ms, or
+    // for good (g2-hardware-and-emulation.md §3.8.2). An envelope holds its sustain while the gate is up, so the sum
+    // of five envelopes' Env outputs is flat during a held note, and one that drops takes a fifth of it away.
+    PatchBuilder b;
+    const auto kbd = b.add("Keyboard", 0);
+    g2::u8 env[5];
+    for(int k = 0; k < 5; ++k)
+    {
+        env[k] = b.add("EnvADSR", 1, g2::u8(k * 8));
+        b.param(env[k], "Attack", 0);
+        b.param(env[k], "Decay", 0);
+        b.param(env[k], "Sustain", 16);
+        b.cable(kbd, 1, env[k], 1);
+    }
+    const auto sum4 = b.add("Mix4-1A", 2, 0), sum = b.add("Mix2-1A", 2, 10), out = b.add("2-Out", 7, 0);
+    for(int k = 0; k < 4; ++k) b.cable(env[k], 0, sum4, g2::u8(k));
+    b.cable(sum4, 0, sum, 0);
+    b.cable(env[4], 0, sum, 1);
+    b.param(sum, "Level1", 127);
+    b.param(sum, "Level2", 127);
+    b.cable(sum, 0, out, 0);
+    // the rest of that voice's load: six oscillators, four of them through lowpass filters, into Out 2
+    const auto load4 = b.add("Mix4-1A", 6, 0), load = b.add("Mix2-1A", 6, 10);
+    for(int k = 0; k < 6; ++k)
+    {
+        const auto osc = b.add("OscA", g2::u8(3 + k / 3), g2::u8(k % 3 * 10));
+        b.param(osc, "Wave", 2);
+        if(k < 4)
+        {
+            const auto f = b.add("FltLP", 5, g2::u8(k * 8));
+            b.cable(osc, 0, f, 0);
+            b.cable(f, 0, load4, g2::u8(k));
+        }
+        else
+            b.cable(osc, 0, load, g2::u8(k - 4));
+    }
+    b.cable(load4, 0, load, 2);
+    b.cable(load, 0, out, 1);
+    REQUIRE(b.patch.va.modules.size() == 21);
+
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    REQUIRE(g2.upload(b.done()));
+    g2.run(1.5);  // the output's ramp after an upload is done by 1.7 s (g2-hardware-and-emulation.md §3.8.4)
+
+    const std::uint8_t on[3] = {0x90, 60, 100};
+    g2.m.midiInAt(on, g2.m.frame() + 500);
+    std::uint64_t clock0 = 0;
+    const auto rec = g2.record(3.2, clock0);
+    // Out 1 (word 0) in 50 ms windows, from 0.2 s after the note to the end; the outputs come out inverted
+    constexpr std::size_t Window = Machine::FrameRate / 20;
+    auto mean = [&](std::size_t f, std::size_t n) {
+        double s = 0;
+        for(std::size_t i = f; i < f + n; ++i) s -= rec[i * 4];
+        return s / double(n);
+    };
+    CHECK(std::fabs(mean(0, 400)) < 0.001);  // before the note: the envelopes are down
+    std::vector<double> level;
+    for(std::size_t f = 500 + Machine::FrameRate / 5; f + Window <= rec.size() / 4; f += Window) level.push_back(mean(f, Window));
+    REQUIRE(level.size() >= 55);
+    auto sorted = level;
+    std::sort(sorted.begin(), sorted.end());
+    const double median = sorted[sorted.size() / 2];
+    CHECK(median > 0.05);
+    for(std::size_t w = 0; w < level.size(); ++w)
+    {
+        INFO("window " << w << " (" << 0.2 + 0.05 * double(w) << " s after the note): " << level[w] << ", median "
+                       << median);
+        CHECK(std::fabs(level[w] - median) < median * 0.03);
+    }
+    CHECK(g2.m.stats().exceptions == 0);
+}
+
+TEST_CASE("The user's G2 OS: a 3 ms envelope steps once every 4 frames in every note", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // Control-rate code runs once every 4 frames (re/notes/g2-hardware-and-emulation.md §3.8.1 [C]), so an envelope
+    // changes on every 4th frame and holds in between. LinLin attacks rise and releases fall by the same step each
+    // time, full scale in the displayed time (re/notes/native-engine.md §2.3). Its 0.5-3 ms stages once showed
+    // errors of up to 0.14 around note events (§2.3), measured with the interpreter in a build that has the JIT.
+    PatchBuilder b;
+    const auto kbd = b.add("Keyboard", 0), env = b.add("EnvADSR", 1), out = b.add("2-Out", 2);
+    b.param(env, "Shape", 3);    // LinLin
+    b.param(env, "Attack", 10);  // 3.0 ms
+    b.param(env, "Decay", 10);   // 3.0 ms
+    b.param(env, "Sustain", 64);
+    b.param(env, "Release", 10); // 3.0 ms
+    b.cable(kbd, 1, env, 1);
+    b.cable(env, 0, out, 0);
+    constexpr double StageFrames = 3.0e-3 * Machine::FrameRate;  // 288 frames, 72 control ticks
+
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    REQUIRE(g2.upload(b.done()));
+    g2.run(1.5);  // the output's ramp after an upload
+
+    // eight notes of 30 ms, 70 ms apart, starting at a different frame within a tick each time
+    constexpr int Notes = 8;
+    constexpr std::uint32_t Spacing = Machine::FrameRate / 10 + 1, Held = Machine::FrameRate * 3 / 100;
+    const auto start = g2.m.frame() + 500;
+    for(int k = 0; k < Notes; ++k)
+    {
+        const std::uint8_t on[3] = {0x90, 60, 100}, off[3] = {0x80, 60, 0};
+        g2.m.midiInAt(on, start + std::uint64_t(k) * Spacing);
+        g2.m.midiInAt(off, start + std::uint64_t(k) * Spacing + Held);
+    }
+    std::uint64_t clock0 = 0;
+    const auto rec = g2.record(double(Notes * Spacing + 1000) / Machine::FrameRate, clock0);
+    std::vector<double> v(rec.size() / 4);
+    for(std::size_t i = 0; i < v.size(); ++i) v[i] = -rec[i * 4];  // Out 1; the outputs come out inverted
+
+    // The changes of the envelope, frame by frame: (frame, new value)
+    std::vector<std::pair<std::size_t, double>> changes;
+    for(std::size_t i = 1; i < v.size(); ++i)
+        if(v[i] != v[i - 1]) changes.push_back({i, v[i]});
+    REQUIRE(!changes.empty());
+    const double peak = *std::max_element(v.begin(), v.end());
+    REQUIRE(peak > 0.1);
+
+    // Cut the changes into stages: a run of changes in one direction, without a pause (the sustain, the time between
+    // notes: more than 64 frames). Within a stage the envelope must change every 4 frames, no more often and no less.
+    struct Stage {
+        std::size_t first = 0, last = 0;  // the frames of the first and last change
+        double from = 0, to = 0;
+        std::vector<double> steps;
+    };
+    std::vector<Stage> stages;
+    for(std::size_t c = 0; c < changes.size();)
+    {
+        Stage s;
+        s.from = c ? changes[c - 1].second : 0.0;
+        s.first = changes[c].first;
+        const bool rising = changes[c].second > s.from;
+        double prev = s.from;
+        std::size_t e = c;
+        for(; e < changes.size() && (changes[e].second > prev) == rising && (e == c || changes[e].first - changes[e - 1].first <= 64);
+            ++e)
+        {
+            s.steps.push_back(changes[e].second - prev);
+            prev = changes[e].second;
+            s.last = changes[e].first;
+        }
+        s.to = prev;
+        INFO("stage from frame " << s.first << " to " << s.last << ", " << s.steps.size() << " steps, from " << s.from
+                                 << " to " << s.to);
+        for(std::size_t k = c + 1; k < e; ++k) CHECK(changes[k].first - changes[k - 1].first == 4);
+        stages.push_back(s);
+        c = e;
+    }
+    // Each note: an attack from 0 to the peak, a decay to the sustain (half the peak), a release to 0; each at full
+    // scale per displayed time, so 288, 144 and 144 frames, by steps of one size (the last may be cut short).
+    REQUIRE(stages.size() == 3 * Notes);
+    for(std::size_t k = 0; k < stages.size(); ++k)
+    {
+        const auto& s = stages[k];
+        INFO("note " << k / 3 << ", stage " << k % 3 << ": frames " << s.first << " to " << s.last << ", from " << s.from
+                     << " to " << s.to);
+        const double expectFrom[3] = {0, peak, peak / 2}, expectTo[3] = {peak, peak / 2, 0};
+        CHECK(std::fabs(s.from - expectFrom[k % 3]) < peak * 0.01);
+        CHECK(std::fabs(s.to - expectTo[k % 3]) < peak * 0.01);
+        const double frames = double(s.last - s.first + 4);
+        CHECK(std::fabs(frames - (k % 3 == 0 ? StageFrames : StageFrames / 2)) <= 8);
+        const double step = s.steps[s.steps.size() / 2];
+        for(std::size_t n = 0; n + 1 < s.steps.size(); ++n) CHECK(std::fabs(s.steps[n] - step) < std::fabs(step) * 0.02);
+    }
+    CHECK(g2.m.stats().exceptions == 0);
+}
+
+TEST_CASE("The user's G2 OS: no frame repeated or lost while notes and parameter changes come in", "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // A sine plays on Out 1 throughout; notes over MIDI and parameter changes over USB go to a second voice on
+    // Out 2. Each frame of a sine is 2 cos(w) times the one before it minus the one before that, so a frame that
+    // comes twice, or one that is missing, stands out. re/notes/native-engine.md §3.3 found about 0.1 % of frames
+    // repeated around note events, with the interpreter in a build that has the JIT.
+    PatchBuilder b;
+    const auto sine = b.add("OscA", 0), kbd = b.add("Keyboard", 1), osc = b.add("OscA", 2), env = b.add("EnvADSR", 3),
+               out = b.add("2-Out", 4);
+    b.param(sine, "Wave", 0);
+    b.param(sine, "KBT", 0);
+    b.param(sine, "Coarse", 76);  // a fixed pitch, without the keyboard
+    b.param(osc, "Wave", 2);
+    b.param(env, "Attack", 0);
+    b.cable(sine, 0, out, 0);
+    b.cable(osc, 0, env, 0);
+    b.cable(kbd, 1, env, 1);
+    b.cable(env, 1, out, 1);
+    const auto sustain = b.paramIndex(env, "Sustain");
+
+    InputRig g2(fw);
+    REQUIRE(g2.client.synced());
+    REQUIRE(g2.upload(b.done()));
+    g2.run(1.5);  // the output's ramp after an upload
+
+    // 3 s: a note every 50 ms (held 25 ms), a Sustain change over USB every 20 ms, the client served every ms
+    std::vector<float> rec;
+    const auto start = g2.m.frame();
+    for(int ms = 0; ms < 3000; ++ms)
+    {
+        if(ms % 50 == 0)
+        {
+            const std::uint8_t on[3] = {0x90, std::uint8_t(48 + ms / 50 % 24), 100};
+            const std::uint8_t off[3] = {0x80, on[1], 0};
+            g2.m.midiInAt(on, g2.m.frame() + 10);
+            g2.m.midiInAt(off, g2.m.frame() + 10 + Machine::FrameRate / 40);
+        }
+        if(ms % 20 == 0) g2.client.setParam(0, g2::Location::Va, env, sustain, std::uint8_t(40 + ms / 20 % 80), 0);
+        g2.m.run(Machine::FrameRate / 1000, &rec);
+        g2.clock.set(std::uint64_t(g2.m.seconds() * 1000));
+        g2.client.tick();
+    }
+    REQUIRE(g2.client.synced());
+    REQUIRE(g2.m.frame() - start >= 3 * Machine::FrameRate - 2);
+    std::vector<double> x(rec.size() / 4);
+    for(std::size_t i = 0; i < x.size(); ++i) x[i] = rec[i * 4];
+
+    // the sine's 2 cos(w) by least squares, and its amplitude
+    double num = 0, den = 0, peak = 0;
+    for(std::size_t i = 1; i + 1 < x.size(); ++i)
+    {
+        num += (x[i + 1] + x[i - 1]) * x[i];
+        den += x[i] * x[i];
+        peak = (std::max)(peak, std::fabs(x[i]));
+    }
+    const double c2 = num / den;
+    REQUIRE(peak > 0.1);
+    CHECK(c2 < 2.0);  // a tone, not DC
+    auto outliers = [&](const std::vector<double>& s) {
+        std::vector<std::size_t> at;
+        for(std::size_t i = 1; i + 1 < s.size(); ++i)
+            if(std::fabs(s[i + 1] - c2 * s[i] + s[i - 1]) > peak * 3e-4) at.push_back(i);
+        return at;
+    };
+    const auto bad = outliers(x);
+    INFO(bad.size() << " frames off the sine, the first at " << (bad.empty() ? 0 : bad[0]) << " of " << x.size());
+    CHECK(bad.empty());
+
+    // The check sees one: the same recording with a frame repeated, and one with a frame left out, at the sine's top
+    // where they change it least (w^2 / 2 of the amplitude: 9e-4 here). The oscillator's own sine is off a pure one
+    // by up to about 1.2e-4 of its amplitude, at its tops; the check's limit is 3e-4.
+    std::size_t top = 50000;
+    for(std::size_t i = top; i < top + 200; ++i)
+        if(x[i] > x[top]) top = i;
+    auto repeated = x;
+    repeated.insert(repeated.begin() + std::ptrdiff_t(top), repeated[top]);
+    CHECK(!outliers(repeated).empty());
+    auto lost = x;
+    lost.erase(lost.begin() + std::ptrdiff_t(top));
+    CHECK(!outliers(lost).empty());
+    CHECK(g2.m.stats().exceptions == 0);
+}
+
 TEST_CASE("The user's G2 OS in real time: audio inputs on the reader's timeline (Runner::write)", "[g2emu][firmware]")
 {
     Firmware fw;
@@ -2561,6 +2989,7 @@ TEST_CASE("The user's G2 OS in real time: the reserve and the reader's block are
     CHECK(first >= 92);
     CHECK(first < 92 + 960);
     // the machine was never further ahead of the reader than the latency says (what MIDI and the inputs rely on)
+    INFO("the machine was at most " << most << " frames ahead of the reader");
     CHECK(most <= runner.latencyFrames());
 
     // The reserve changed while it runs: the latency follows, and the note's own time stays what it was
@@ -2572,6 +3001,8 @@ TEST_CASE("The user's G2 OS in real time: the reserve and the reader's block are
     const double second = note(4800) - double(runner.latencyFrames());
     INFO("with a reserve of 10 ms: " << second << " frames after the latency");
     CHECK(std::fabs(second - first) < 48);  // (the OS takes its MIDI bytes within half a millisecond)
+    INFO("then at most " << most << " frames ahead; " << runner.stats().framesMissing << " frames missing, "
+                         << runner.stats().shortReads << " short reads");
     CHECK(most <= runner.latencyFrames());
     CHECK(runner.stats().framesMissing == 0);
     CHECK(runner.stats().shortReads == 0);
@@ -3226,6 +3657,64 @@ TEST_CASE("The user's G2 OS with DSP threads: a status read finds the DSP past w
     }
 }
 
+
+TEST_CASE("The user's G2 OS in real time: the latency holds while a status read stretches the DSPs' horizon",
+          "[g2emu][firmware]")
+{
+    Firmware fw;
+    try
+    {
+        fw = Firmware::load(firmwarePath());
+    }
+    catch(const std::exception&)
+    {
+        SKIP("no G2 firmware (set G2_FIRMWARE to the updater's .rsrc, or unpack it into original/firmware)");
+    }
+    // When the OS reads a DSP's status before the DSP has taken what it wrote, the ColdFire may let the DSPs run up
+    // to Machine's HorizonStretch frames past dspLead, and takeHosts() one more. Issue #3 asked (from the code)
+    // whether the DACs then get further ahead of what the machine was asked for than latencyFrames() allows for
+    // (dacLead(): 10 frames). Here the DSPs take what the OS writes only in every 8th frame of theirs, as when their
+    // threads get little time, through two heavy uploads: thousands of status reads find a DSP behind. The machine
+    // must still never be further ahead of the reader than latencyFrames(), which MIDI IN (midiInAt) and the inputs
+    // rely on. Measured 2026-10-23: at most 1 frame past its target (289 of 298; also with the DSPs 12, 16 or 32
+    // frames late); the DACs alone, against Machine::run's frames: at most 2 ahead.
+    Runner::Options options;
+    options.bufferMs = 2;
+    options.stretchMs = 1;
+    options.machine.realtimeThreads = true;
+    options.machine.hostLagFrames = 8;
+    Runner runner(fw, options);
+    constexpr std::size_t N = 32;
+    runner.setReadSize(N);
+    auto link = emulatedG2Link(runner.machine());
+    std::vector<float> out(4 * N);
+    std::size_t most = 0;
+    using Clock = std::chrono::steady_clock;
+    const auto start = Clock::now();
+    auto within = [&](double s) { return std::chrono::duration<double>(Clock::now() - start).count() < s; };
+    auto block = [&] {
+        while(runner.available() < N && within(120)) std::this_thread::sleep_for(std::chrono::microseconds(100));
+        most = std::max(most, runner.available());
+        runner.read(out.data(), N);
+        link->tick();
+    };
+    while(!link->synced() && within(20)) block();
+    REQUIRE(link->synced());
+    for(int k = 0; k < 2; ++k)
+    {
+        link->sendPerformance(g2::Performance::playing(heavyPolySine(3, 8), "Heavy"), "Heavy");
+        while(!link->client().idle() && within(60)) block();
+        REQUIRE(link->client().idle());
+        for(int i = 0; i < 300; ++i) block();
+    }
+    runner.stop();
+    const auto s = runner.machine().stats();
+    INFO(s.statusBehind << " status reads found a DSP behind the OS, " << s.statusStale << " of them at the stretch's limit");
+    REQUIRE(s.statusBehind > 0);
+    INFO("the machine was at most " << most << " frames ahead of the reader; latencyFrames() " << runner.latencyFrames());
+    CHECK(most <= runner.latencyFrames());
+    CHECK(s.exceptions == 0);
+}
 
 TEST_CASE("The user's G2 OS: notes still sound after it has followed an external MIDI clock", "[g2emu][firmware]")
 {

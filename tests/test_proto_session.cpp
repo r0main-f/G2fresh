@@ -125,6 +125,7 @@ TEST_CASE("session: handshake and the full sync in Clavia's order")
     CHECK(state.settings.name == "G2 Emulator");
     CHECK(state.perfName == "Emulator");
     CHECK(state.voices == rig.emulator.state().voices);
+    CHECK(state.voicesReceived); // the toolbar shows "? (n)" until then (CPatch::GetCurrentNumberOfVoices)
     CHECK(state.perfSession == rig.emulator.state().perfSession);
     for (int s = 0; s < kSlots; ++s) {
         INFO("slot " << s);

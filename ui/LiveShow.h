@@ -23,10 +23,17 @@ inline LiveShow liveShow(bool emulatorAvailable, bool running, bool editorOnIt, 
     if (otherSynth)
         return LiveShow::OtherSynth;
     if (running)
-        return LiveShow::Start; // connect the editor to it again, as Synth > Connect to Emulated G2
+        return LiveShow::Start; // connect the editor to it again, as Synth > Emulated G2
     if (othersInHost > 0)
         return LiveShow::OtherInstance;
     return LiveShow::Start;
+}
+
+// Whether View > Live and the toolbar's Live can be used: the panel and keyboard are the Emulated G2's, so not while
+// the editor is on a G2 on USB, which has its own (the user's decision, 2026-10-19).
+inline bool liveViewAvailable(bool emulatorAvailable, bool usbG2)
+{
+    return emulatorAvailable && !usbG2;
 }
 
 } // namespace g2ui

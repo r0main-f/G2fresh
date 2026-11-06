@@ -1,5 +1,5 @@
 // Sends the plugin's incoming MIDI to a hardware MIDI output (into a real
-// G2's MIDI IN: Options > Forward MIDI to a Hardware G2). The audio thread
+// G2's MIDI IN: Setup > Forward MIDI to a Hardware G2). The audio thread
 // only stamps each message with the time it is due and pushes it into a
 // lock-free queue; a sender thread sends it on time. System exclusive
 // messages are not forwarded. (Not the emulated G2's MIDI OUT: that is the

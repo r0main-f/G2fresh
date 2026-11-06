@@ -593,3 +593,138 @@ TEST_CASE("a knob assigned to an LED is not a parameter's knob")
     CHECK(edit::knobTarget(p, 6) == edit::Target{Location::Va, osc, 0});
     CHECK(edit::knobOf(p, Location::Va, osc, 0) == 6);
 }
+
+TEST_CASE("Init recalls the init variation into the variation shown")
+{
+    // Audit V2: the toolbar's Init button ("recall variation init", CPatchToolbar::HandleChangeRequests @000f622a)
+    // sends CMParamSettingCopy(8, the focused variation): the init variation's values into the one shown.
+    Patch p = Patch::makeDefault();
+    const u8 mix = edit::addModule(p, Location::Va, 19, 0, 0);
+    edit::setParam(p, Location::Va, mix, 0, 8, 33); // the init variation
+    edit::setParam(p, Location::Va, mix, 0, 2, 100);
+    edit::setParam(p, Location::Va, mix, 0, 3, 90);
+    edit::recallVariationInit(p, 2);
+    CHECK(p.va.find(mix)->params[2][0] == 33);
+    CHECK(p.va.find(mix)->params[3][0] == 90); // other variations untouched
+    CHECK(p.va.find(mix)->params[8][0] == 33);
+}
+
+TEST_CASE("Paste Params: the copied modules' values into the selected modules of the same types")
+{
+    // Audit P9 (manual p68, p100, p116: Edit > Paste Params, Cmd-E). CClipboard::ValidatePasteParams @0014d556: as many
+    // modules as copied, the same types pair by pair, else "Selection does not match the original data". PasteParams
+    // @0014d048 -> CPatchData::GetCopyParamsMolecules @000e9502: each copied module's values in the variation it was
+    // copied from go into the current variation of the first selected module of its type, with its morphs.
+    Patch p = Patch::makeDefault();
+    const u8 mixA = edit::addModule(p, Location::Va, 19, 0, 0), envA = edit::addModule(p, Location::Va, 20, 0, 4);
+    const u8 mixB = edit::addModule(p, Location::Va, 19, 2, 0), envB = edit::addModule(p, Location::Va, 20, 2, 4);
+    edit::setParam(p, Location::Va, mixA, 0, 1, 99); // variation 2's values (index 1)
+    edit::setParam(p, Location::Va, envA, 1, 1, 77);
+    edit::setMorph(p, 1, Location::Va, mixA, 0, 3, 10);
+    auto clip = edit::copyModules(p, Location::Va, {mixA, envA});
+    clip.variation = 1;
+    CHECK(edit::pasteParams(p, Location::Va, {envB, mixB}, clip, 4).empty());
+    CHECK(p.va.find(mixB)->params[4][0] == 99);
+    CHECK(p.va.find(envB)->params[4][1] == 77);
+    CHECK(edit::morphRange(p, 4, Location::Va, mixB, 0, 3) == 10);
+    CHECK(p.va.find(mixB)->params[1][0] != 99); // only the current variation
+    // A selection that doesn't match: refused, nothing changes.
+    CHECK(edit::pasteParams(p, Location::Va, {mixB}, clip, 5) == "Selection does not match the original data");
+    const u8 osc = edit::addModule(p, Location::Va, 7, 4, 0);
+    CHECK(edit::pasteParams(p, Location::Va, {osc, envB}, clip, 5) == "Selection does not match the original data");
+    CHECK(p.va.find(envB)->params[5][1] != 77);
+}
+
+TEST_CASE("the toolbar's voices: the synth's count, then the patch's")
+{
+    // CPatchToolbar::SetupState @000f38b4: a poly patch shows its count; connected, "? (n)" until the synth says how
+    // many it plays (CPatch::GetCurrentNumberOfVoices), then "actual (requested)", red when none; Mono or Legato.
+    auto p = g2::Patch::makeDefault();
+    edit::setVoices(p, edit::VoiceMode::Poly, 6);
+    CHECK(edit::voicesShown(p, false, std::nullopt).text == "6");
+    CHECK_FALSE(edit::voicesShown(p, false, std::nullopt).red);
+    CHECK(edit::voicesShown(p, true, std::nullopt).text == "? (6)");
+    CHECK_FALSE(edit::voicesShown(p, true, std::nullopt).red);
+    CHECK(edit::voicesShown(p, true, 4).text == "4 (6)");
+    CHECK_FALSE(edit::voicesShown(p, true, 4).red);
+    CHECK(edit::voicesShown(p, true, 0).text == "0 (6)");
+    CHECK(edit::voicesShown(p, true, 0).red);
+    edit::setVoices(p, edit::VoiceMode::Mono);
+    CHECK(edit::voicesShown(p, true, 1).text == "Mono");
+    CHECK(edit::voicesShown(p, true, 0).red);
+    edit::setVoices(p, edit::VoiceMode::Legato);
+    CHECK(edit::voicesShown(p, false, std::nullopt).text == "Legato");
+}
+
+TEST_CASE("module Assign: a module's parameters onto a knob page")
+{
+    // CKnobMap::GetAssignModuleToPageMolecules @000f24d4 and CKnobAssignMenu::GetNoOfAssignableParams @000bb8b4: the
+    // parameters in the module's edit order, without those that are another parameter's button (param spec +0x0E);
+    // knob page * 8 + i; at most 8 unless Multi Column, which runs on into the next pages; a knob's old target and the
+    // parameter's old knob are freed first.
+    const auto* oscB = g2::db::find(7);
+    REQUIRE(oscB != nullptr);
+    CHECK(edit::assignableParams(*oscB) == std::vector<u8>{0, 1, 3, 8, 6, 7, 5, 9});
+
+    auto p = g2::Patch::makeDefault();
+    const auto osc = edit::dropModule(p, Location::Va, 7, 0, 0);
+    const auto seq = edit::dropModule(p, Location::Va, 121, 2, 0);
+    edit::assignKnob(p, 9, Location::Va, seq, 0); // page A2, knob 2: freed by the assignment below
+    edit::assignKnob(p, 40, Location::Va, osc, 0); // the oscillator's first parameter elsewhere: moves
+    CHECK_FALSE(edit::isKnobPageUsed(p, 2));
+    edit::assignModuleToPage(p, Location::Va, osc, 1, false); // Page A, Column 2
+    CHECK(edit::knobOf(p, Location::Va, osc, 0) == 8);
+    CHECK(edit::knobOf(p, Location::Va, osc, 1) == 9);
+    CHECK(edit::knobOf(p, Location::Va, osc, 9) == 15);
+    CHECK_FALSE(edit::knobOf(p, Location::Va, osc, 2)); // a button parameter
+    CHECK_FALSE(edit::knobOf(p, Location::Va, seq, 0));
+    CHECK_FALSE(p.knobs[40].has_value());
+    CHECK(edit::isKnobPageUsed(p, 1));
+
+    const auto* seqNote = g2::db::find(121);
+    REQUIRE(edit::assignableParams(*seqNote).size() == 21);
+    edit::assignModuleToPage(p, Location::Va, seq, 3, false); // Page B, Column 1: the first 8 only
+    CHECK(edit::knobOf(p, Location::Va, seq, edit::assignableParams(*seqNote)[7]) == 31);
+    CHECK_FALSE(edit::knobOf(p, Location::Va, seq, edit::assignableParams(*seqNote)[8]));
+    edit::assignModuleToPage(p, Location::Va, seq, 3, true); // Multi Column: 21 knobs from B1
+    CHECK(edit::knobOf(p, Location::Va, seq, edit::assignableParams(*seqNote)[20]) == 24 + 20);
+}
+
+TEST_CASE("a new module takes the toolbar's colour")
+{
+    // Manual p60, p82: "the color selector stays in its new selection, causing any new modules that you add to the
+    // Patch window to get the selected color".
+    auto p = g2::Patch::makeDefault();
+    const auto a = edit::addModule(p, Location::Va, 7, 0, 0);
+    CHECK(p.va.find(a)->color == 0);
+    const auto b = edit::addModule(p, Location::Va, 7, 0, 4, 9);
+    CHECK(p.va.find(b)->color == 9);
+    const auto c = edit::dropModule(p, Location::Va, 7, 0, 8, 3);
+    CHECK(p.va.find(c)->color == 3);
+    CHECK_THROWS_AS(edit::addModule(p, Location::Va, 7, 0, 12, 25), std::invalid_argument); // 25 colours: 0..24
+}
+
+TEST_CASE("Tools > Assign MIDI to Selection, Deassign MIDI from Selection, Deassign All MIDI")
+{
+    // CPatch::InternalAutoAssignMIDICtrl @000d6cc6: every parameter of the selected modules without a CC gets the
+    // lowest one that is valid, not pre-assigned and not in use; InternalDeassignMIDICtrl @000d67de takes the
+    // selection's away, InternalDeassignMIDICtrlAll @000d64dc every one but the pre-assigned (SMNU Tools 1086-1088).
+    auto p = g2::Patch::makeDefault();
+    const auto a = edit::addModule(p, Location::Va, 7, 0, 0);  // OscB
+    const auto b = edit::addModule(p, Location::Va, 7, 0, 5);
+    edit::assignMidiCc(p, 2, Location::Va, b, 0);
+    const std::vector<u8> sel{a};
+    edit::autoAssignMidiCcs(p, Location::Va, sel);
+    CHECK(edit::midiCcOf(p, Location::Va, a, 0) == 3); // 0 and 1 are not valid, 2 is in use
+    CHECK(edit::midiCcOf(p, Location::Va, a, 1) == 4);
+    for (u8 i = 0; i < g2::db::find(7)->params.size(); ++i)
+        if (edit::canAssignMidiCc(p, Location::Va, a, i))
+            CHECK(edit::midiCcOf(p, Location::Va, a, i).has_value());
+    edit::deassignMidiCcs(p, Location::Va, sel);
+    CHECK_FALSE(edit::midiCcOf(p, Location::Va, a, 0));
+    CHECK(edit::midiCcOf(p, Location::Va, b, 0) == 2);
+    edit::deassignAllMidiCcs(p);
+    CHECK_FALSE(edit::midiCcOf(p, Location::Va, b, 0));
+    for (const auto& c : p.controllers)
+        CHECK(edit::isPreAssignedMidiCc(c.cc));
+}

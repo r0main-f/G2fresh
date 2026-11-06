@@ -39,8 +39,10 @@ private:
 };
 
 PatchDocument::PatchDocument()
-    : patch_(g2::Patch::makeDefault()), undo_(30000, 200)
+    : patch_(g2::Patch::makeDefault())
 {
+    for (auto& u : undo_)
+        u.setMaxNumberOfStoredUnits(30000, 200);
 }
 
 void PatchDocument::replace(int slot, const g2::Patch& p, const g2::live::Edit* edit, bool undo)
@@ -63,7 +65,8 @@ void PatchDocument::resetHistory()
     focus_.fill(g2::focus::kDefault); // a new or loaded document (CPatch::CPatch @000d96d4)
     cablesShown_.fill(true);
     ++generation_;
-    undo_.clearUndoHistory();
+    for (auto& u : undo_)
+        u.clearUndoHistory();
     endCoalescing();
     lastStep_ = nullptr;
 }
@@ -97,9 +100,9 @@ bool PatchDocument::perform(const juce::String& name, const std::function<void(g
             *error = e.what();
         return false;
     }
-    undo_.beginNewTransaction(name);
+    history().beginNewTransaction(name);
     auto* step = new Step(*this, slot_, patch(), std::move(next), std::move(recorded));
-    if (!undo_.perform(step, name))
+    if (!history().perform(step, name))
         return false;
     lastStep_ = step;
     return true;
@@ -107,7 +110,7 @@ bool PatchDocument::perform(const juce::String& name, const std::function<void(g
 
 bool PatchDocument::performCoalesced(const juce::String& key, const std::function<void(g2::Patch&)>& edit)
 {
-    if (key != coalesceKey_ || !lastStep_ || !undo_.canUndo()) {
+    if (key != coalesceKey_ || !lastStep_ || !history().canUndo()) {
         const bool ok = perform(key, edit);
         coalesceKey_ = key;
         return ok;
@@ -208,14 +211,14 @@ bool PatchDocument::undo()
 {
     endCoalescing();
     lastStep_ = nullptr;
-    return undo_.undo();
+    return history().undo();
 }
 
 bool PatchDocument::redo()
 {
     endCoalescing();
     lastStep_ = nullptr;
-    return undo_.redo();
+    return history().redo();
 }
 
 void PatchDocument::setVariation(int v)

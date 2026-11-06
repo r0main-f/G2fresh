@@ -284,7 +284,7 @@ bool filterLoadedNames(Patch& patch)
     return changed;
 }
 
-u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
+u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color)
 {
     Area& area = areaFor(patch, loc);
     const auto* def = db::find(type);
@@ -294,6 +294,8 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
         throw std::invalid_argument(std::string(def->shortName) + " cannot go in this area");
     if (col > 127 || row > 127)
         throw std::invalid_argument("position out of range");
+    if (color > 24)
+        throw std::invalid_argument("no such module colour");
     if (!patchload::canAddModule(patch, loc, type))
         throw std::invalid_argument("the patch is too big: the synth has no room for another module here");
 
@@ -316,6 +318,7 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
     m.type = type;
     m.col = col;
     m.row = row;
+    m.color = color;
     m.locked = def->defaultLocked;
     for (const auto& mode : def->modes)
         m.modes.push_back(mode.defaultValue);
@@ -347,13 +350,13 @@ u8 addModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
     return index;
 }
 
-u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row)
+u8 dropModule(Patch& patch, Location loc, u8 type, u8 col, u8 row, u8 color)
 {
     // A module dragged in (CClipboard::Drop @0014d882): the original makes
     // room before it creates the module, so its 34s come first.
     auto* recorded = live::recording();
     const std::size_t start = recorded ? recorded->size() : 0;
-    const u8 index = addModule(patch, loc, type, col, row);
+    const u8 index = addModule(patch, loc, type, col, row, color);
     const std::size_t moves = recorded ? recorded->size() : 0;
     resolveOverlaps(patch, loc, index);
     if (recorded)
@@ -1155,6 +1158,15 @@ std::string voicesText(const Patch& patch)
     }
 }
 
+VoicesShown voicesShown(const Patch& patch, bool connected, std::optional<u8> actual)
+{
+    const bool known = connected && actual.has_value();
+    VoicesShown out{voicesText(patch), known && *actual == 0};
+    if (patch.header.monoMode == 0 && connected)
+        out.text = (known ? std::to_string(*actual) : std::string("?")) + " (" + out.text + ")";
+    return out;
+}
+
 void setCategory(Patch& patch, u8 category)
 {
     if (category > 15)
@@ -1506,6 +1518,94 @@ void clearKnob(Patch& patch, int knob)
                                                                     held->module, held->param, held->assignType});
         patch.knobs[static_cast<std::size_t>(knob)].reset();
     }
+}
+
+void autoAssignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules)
+{
+    auto used = [&](u8 cc) {
+        return std::any_of(patch.controllers.begin(), patch.controllers.end(), [&](const CtrlAssign& a) { return a.cc == cc; });
+    };
+    for (const u8 module : modules) {
+        const auto* m = patch.area(loc).find(module);
+        const auto* def = m ? db::find(m->type) : nullptr;
+        if (!def)
+            continue;
+        for (std::size_t param = 0; param < def->params.size(); ++param) {
+            const auto p8 = static_cast<u8>(param);
+            if (!canAssignMidiCc(patch, loc, module, p8) || midiCcOf(patch, loc, module, p8))
+                continue;
+            for (int n = 0; n < 120; ++n) {
+                const auto cc = static_cast<u8>(n);
+                if (isValidMidiCc(cc) && !isPreAssignedMidiCc(cc) && !used(cc)) {
+                    assignMidiCc(patch, cc, loc, module, p8);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void deassignMidiCcs(Patch& patch, Location loc, std::span<const u8> modules)
+{
+    std::vector<u8> ccs;
+    for (const auto& a : patch.controllers)
+        if (a.location == static_cast<u8>(loc) && std::find(modules.begin(), modules.end(), a.module) != modules.end()
+            && !isPreAssignedMidiCc(a.cc))
+            ccs.push_back(a.cc);
+    for (const u8 cc : ccs)
+        clearMidiCc(patch, cc);
+}
+
+void deassignAllMidiCcs(Patch& patch)
+{
+    std::vector<u8> ccs;
+    for (const auto& a : patch.controllers)
+        if (!isPreAssignedMidiCc(a.cc))
+            ccs.push_back(a.cc);
+    for (const u8 cc : ccs)
+        clearMidiCc(patch, cc);
+}
+
+std::vector<u8> assignableParams(const db::ModuleDef& def)
+{
+    std::vector<u8> out;
+    for (const u8 param : def.editOrder) {
+        bool button = false;
+        for (std::size_t q = 0; q < def.params.size() && !button; ++q)
+            button = def.params[q].knobButtonParam == param && def.params[q].knobButtonParam != q;
+        if (!button)
+            out.push_back(param);
+    }
+    return out;
+}
+
+void assignModuleToPage(Patch& patch, Location loc, u8 module, int page, bool multi)
+{
+    const auto* m = patch.area(loc).find(module);
+    const auto* def = m ? db::find(m->type) : nullptr;
+    if (!def)
+        throw std::invalid_argument("no such module");
+    if (page < 0 || page >= kKnobCount / kKnobsPerPage)
+        throw std::invalid_argument("no such knob page");
+    auto params = assignableParams(*def);
+    if (!multi && params.size() > static_cast<std::size_t>(kKnobsPerPage))
+        params.resize(kKnobsPerPage);
+    const int first = page * kKnobsPerPage;
+    if (first + static_cast<int>(params.size()) > kKnobCount)
+        params.resize(static_cast<std::size_t>(kKnobCount - first));
+    for (std::size_t i = 0; i < params.size(); ++i) {
+        if (const auto old = knobOf(patch, loc, module, params[i]))
+            clearKnob(patch, *old);
+        assignKnob(patch, first + static_cast<int>(i), loc, module, params[i]);
+    }
+}
+
+bool isKnobPageUsed(const Patch& patch, int page)
+{
+    for (int k = page * kKnobsPerPage; k < (page + 1) * kKnobsPerPage && k < kKnobCount; ++k)
+        if (patch.knobs[static_cast<std::size_t>(k)])
+            return true;
+    return false;
 }
 
 std::string knobName(int knob)
@@ -2068,6 +2168,119 @@ std::vector<u8> copyModulesBy(Patch& patch, Location loc, const std::vector<u8>&
         return {};
     return pasteModules(patch, loc, clip, static_cast<u8>(std::clamp(col + dCol, 0, 127)),
                         static_cast<u8>(std::clamp(row + dRow, 0, 127)));
+}
+
+std::vector<u8> unusedModules(const Patch& patch, Location loc)
+{
+    Area area = patch.area(loc); // a copy, taken apart as the original's clone is
+    std::vector<u8> unused;
+    auto takeOut = [&](u8 index) {
+        unused.push_back(index);
+        std::erase_if(area.modules, [&](const Module& m) { return m.index == index; });
+        std::erase_if(area.cables, [&](const Cable& c) { return c.fromModule == index || c.toModule == index; });
+    };
+    for (bool found = true; found;) {
+        found = false;
+        const cables::Tree tree(area);
+        for (const auto& m : area.modules) {
+            const auto* def = m.def();
+            if (!def || def->keepIfUnused || def->outputs.empty())
+                continue;
+            bool used = false;
+            for (std::size_t o = 0; o < def->outputs.size() && !used; ++o)
+                used = tree.contains({m.index, static_cast<u8>(o), true});
+            if (!used) {
+                takeOut(m.index);
+                found = true;
+                break;
+            }
+        }
+        if (found)
+            continue;
+        for (const auto& m : area.modules) {
+            const auto* def = m.def();
+            if (!def || def->keepIfUnused || !def->outputs.empty() || def->inputs.empty())
+                continue;
+            bool fed = false;
+            for (std::size_t i = 0; i < def->inputs.size() && !fed; ++i) {
+                const cables::Connector c{m.index, static_cast<u8>(i), false};
+                fed = tree.contains(c) && tree.hasSignal(c);
+            }
+            if (!fed) {
+                takeOut(m.index);
+                found = true;
+                break;
+            }
+        }
+    }
+    return unused;
+}
+
+void deleteUnusedModules(Patch& patch)
+{
+    for (const Location loc : {Location::Va, Location::Fx})
+        if (const auto unused = unusedModules(patch, loc); !unused.empty())
+            removeModules(patch, loc, unused);
+}
+
+std::string pasteParams(Patch& patch, Location loc, const std::vector<u8>& selection, const Clipboard& clip, u8 to)
+{
+    const char* const mismatch = "Selection does not match the original data";
+    if (loc == Location::Settings || to >= kFileVariations)
+        return mismatch;
+    const Area& area = patch.area(loc);
+    std::vector<const Module*> src, dst;
+    for (const auto& m : clip.modules)
+        src.push_back(&m);
+    for (const u8 index : selection)
+        if (const Module* m = area.find(index))
+            dst.push_back(m);
+    auto byPlace = [](const Module* a, const Module* b) { return std::pair(a->col, a->row) < std::pair(b->col, b->row); };
+    std::stable_sort(src.begin(), src.end(), byPlace);
+    std::stable_sort(dst.begin(), dst.end(), byPlace);
+    if (src.size() != dst.size() || src.empty())
+        return mismatch;
+    for (std::size_t i = 0; i < src.size(); ++i)
+        if (src[i]->type != dst[i]->type)
+            return mismatch;
+    Patch next = patch;
+    Area& out = areaFor(next, loc);
+    auto& morphs = next.morphs[to].assigns;
+    std::vector<u8> given;
+    for (const Module* s : src) {
+        const auto it = std::find_if(dst.begin(), dst.end(), [&](const Module* d) {
+            return d->type == s->type && std::find(given.begin(), given.end(), d->index) == given.end();
+        });
+        if (it == dst.end() || clip.variation >= s->params.size())
+            continue;
+        const u8 index = (*it)->index;
+        given.push_back(index);
+        Module* d = out.find(index);
+        if (to >= d->params.size())
+            continue;
+        d->params[to] = s->params[clip.variation];
+        // Its morphs in that variation are the copied module's (the others' count toward the 25).
+        std::erase_if(morphs, [&](const MorphAssign& a) { return a.location == static_cast<u8>(loc) && a.module == index; });
+        for (const auto& [var, a] : clip.morphs) {
+            if (var != clip.variation || a.module != s->index || a.range == 0)
+                continue;
+            MorphAssign copy = a;
+            copy.location = static_cast<u8>(loc);
+            copy.module = index;
+            const bool already = std::any_of(morphs.begin(), morphs.end(), [&](const MorphAssign& m) {
+                return m.location == copy.location && m.module == copy.module && m.param == copy.param;
+            });
+            if (!already && morphedParamCount(next, to) >= kMaxMorphedParams)
+                continue;
+            putMorph(morphs, copy);
+        }
+    }
+    if (live::recording()) {
+        live::record(live::Section{live::variationParams(next, loc, to)}, live::Section{live::variationParams(patch, loc, to)});
+        live::record(live::Section{live::variationMorphs(next, to)}, live::Section{live::variationMorphs(patch, to)});
+    }
+    patch = std::move(next);
+    return {};
 }
 
 Patch selectionPatch(const Patch& patch, Location loc, const std::vector<u8>& indices)

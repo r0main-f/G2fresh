@@ -35,8 +35,23 @@ public:
 
     // One knob, menu or toggle bound to a value of the document.
     class Control;
+    // Whether the patch plays on a synth, and the voices the synth gives it (unknown: nullopt), for the Voices box.
+    std::function<std::pair<bool, std::optional<std::uint8_t>>()> voicesOnSynth;
+    // The last MIDI CC the synth received, for the morph dials' MIDI Controller menu.
+    std::function<std::optional<std::uint8_t>()> lastMidiCc;
+    void synthChanged()
+    {
+        if (const auto now = liveVoices(); now != shownVoices_) {
+            shownVoices_ = now;
+            repaint();
+        }
+    }
 
 private:
+    std::pair<bool, std::optional<std::uint8_t>> liveVoices() const
+    {
+        return voicesOnSynth ? voicesOnSynth() : std::pair<bool, std::optional<std::uint8_t>>{false, std::nullopt};
+    }
     struct Group {
         juce::String title;
         std::vector<Control*> controls;
@@ -60,6 +75,7 @@ private:
     juce::OwnedArray<Control> controls_;
     std::vector<Group> groups_;
     bool collapsed_ = false;
+    std::pair<bool, std::optional<std::uint8_t>> shownVoices_{false, std::nullopt};
 };
 
 } // namespace g2ui

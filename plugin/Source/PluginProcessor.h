@@ -127,7 +127,7 @@ private:
     // The emulated G2 (EmulatedSoundEngine) while the editor is connected to
     // it: the only sound G2fresh makes. Before synth_, whose link uses it.
     std::unique_ptr<SoundEngine> emulated_;
-    bool emulatedSent_ = false; // the document went to the emulated G2 once it was up
+    int emulatedSentGeneration_ = -1; // the document (PatchDocument::generation) last sent to the emulated G2, -1: none
     bool emulatedLocal_ = false; // its system settings applied once it was up (applySynthSettings)
     bool emulatedFresh_ = false; // it started from an erased memory and has not got a factory G2's settings yet
     // In the state: whether the emulated G2 runs (it starts again with the project), and its flash (gzip): each

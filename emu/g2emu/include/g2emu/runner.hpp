@@ -24,6 +24,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <span>
@@ -78,6 +79,12 @@ public:
         std::vector<std::uint8_t> flash;
         // called on the machine's thread after every chunk (none: nothing; for measurements only)
         std::function<void(const Chunk&)> onChunk;
+        // machine.realtimeThreads: the emulated G2s running on this computer count their real-time threads together
+        // and keep that priority only while all of them fit on the performance cores (realtime_share.hpp; two of them
+        // on an M1 lost all of their audio otherwise). The folder they count in (empty: the user's temporary folder)
+        // and the performance cores (0: the computer's); for tests.
+        std::filesystem::path realtimeShareDir;
+        int performanceCores = 0;
         static Machine::Options defaultMachineOptions()
         {
             Machine::Options o;
@@ -96,8 +103,9 @@ public:
         std::uint64_t midiOutLate = 0;
         double speed = 0;  // emulated seconds per wall second while the machine runs (its rests left out), recently
         double longestChunkMs = 0;  // the longest wall time one chunk took (a stall of the machine's threads shows here)
-        // the machine's thread has the computer's real-time priority (Machine::Options::realtimeThreads asked for it
-        // and the system gave it: macOS only)
+        // the machine's thread has the computer's real-time priority now (Machine::Options::realtimeThreads asked for
+        // it, the emulated G2s' real-time threads fit on the performance cores together, and the system gave it; macOS
+        // only). Machine::Stats::realtimeDspThreads: its DSP threads.
         bool realtime = false;
     };
 
@@ -221,6 +229,11 @@ private:
     std::atomic<std::uint32_t> consumed_{0};
     struct Thread;
     std::unique_ptr<Thread> thread_;
+    // machine.realtimeThreads: this machine's share of the count, recounted on a thread of its own (files), and
+    // whether all the real-time threads fit (the machine's thread applies it)
+    struct Share;
+    std::unique_ptr<Share> share_;
+    std::atomic<bool> realtimeFits_{true};
 };
 
 } // namespace g2emu

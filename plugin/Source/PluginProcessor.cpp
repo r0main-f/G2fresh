@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
 
+#include "EmulatorFollow.h"
+
 #include <algorithm>
 #include <utility>
 #include "AudioIo.h"
@@ -200,7 +202,7 @@ int G2EditorProcessor::emulatorsInHost() const
 
 namespace {
 
-// The buffer the user chose for this computer (Synth > Emulated G2 Buffer), from the settings every instance
+// The buffer the user chose for this computer (Synth > Emulated G2 > Buffer), from the settings every instance
 // shares. The environment variable G2FRESH_EMULATOR_BUFFER (low, normal or safe) goes first: for tests, which do
 // not touch the user's settings.
 g2io::Buffer chosenBuffer()
@@ -210,7 +212,7 @@ g2io::Buffer chosenBuffer()
     return g2io::bufferFromKey(key.toStdString(), g2io::kDefaultBuffer);
 }
 
-// Whether the user fitted the voice expansion board (Synth > Emulated G2 Voice Expansion Board), from the settings
+// Whether the user fitted the voice expansion board (Synth > Emulated G2 > Voice Expansion Board), from the settings
 // every instance shares: a choice for this computer, which must run twice the DSPs. G2FRESH_EMULATOR_EXPANSION (on or
 // off) goes first: for tests, which do not touch the user's settings.
 bool chosenExpansion()
@@ -415,7 +417,7 @@ void G2EditorProcessor::timerCallback()
     // The emulated G2 runs but the link gave up on it (it ran too slowly to answer in time, e.g. while the host
     // loaded a project): talk to it again, and send it the patch once it answers.
     if (synth_.kind() == g2ui::SynthSync::Kind::Emulated && synth_.linkFailed()) {
-        emulatedSent_ = false;
+        emulatedSentGeneration_ = -1;
         emulatedLocal_ = false;
         synth_.restartLink();
         return;
@@ -443,7 +445,7 @@ void G2EditorProcessor::autoStartEmulator()
         return; // the editor talks to another synth
     const juce::File firmware{g2ui::userSettings().getValue("emulatorFirmware")};
     if (!firmware.exists())
-        return; // never set up: Synth > Connect to Emulated G2 asks for it
+        return; // never set up: Synth > Emulated G2 asks for it
     // One emulated G2 starts by itself per host: each takes about 1.5 cores, and a few of them overload a laptop
     // (they then drop out, which sounds like distortion). The others start from the Synth menu or the Live view.
     if (EmulatedSoundEngine::running() > 0)
@@ -482,7 +484,7 @@ juce::String G2EditorProcessor::startEmulator(const juce::File& firmware)
     engine->machine().panelAnalog(g2emu::PanelAnalog::MasterLevel, masterLevel_); // the knob where it was left
     flashSeen_ = engine->flashChanges();
     synth_.connectEmulated(g2emu::emulatedG2Link(engine->machine()));
-    emulatedSent_ = false;
+    emulatedSentGeneration_ = -1;
     emulatedLocal_ = false;
     emulatorWanted_ = true;
     dropoutsShown_ = 0;
@@ -692,9 +694,10 @@ void G2EditorProcessor::changeListenerCallback(juce::ChangeBroadcaster* source)
             emulatedLocal_ = true;
             applySynthSettings();
         }
-        // Once up, the emulated G2 plays the document (later, the user sends what they want).
-        if (synth_.kind() == Kind::Emulated && synth_.ready() && !synth_.bound() && !emulatedSent_) {
-            emulatedSent_ = true;
+        // Once up, the emulated G2 plays the document, and each one opened or made since (EmulatorFollow.h).
+        if (g2io::emulatorSendsDocument(synth_.kind() == Kind::Emulated, synth_.ready(), synth_.bound(),
+                                        document_.generation(), emulatedSentGeneration_)) {
+            emulatedSentGeneration_ = document_.generation();
             if (document_.isPerformance())
                 synth_.sendPerformance();
             else
@@ -862,7 +865,8 @@ void G2EditorProcessor::loadState(std::vector<std::uint8_t> bytes)
         document_.setConvertedFrom(static_cast<int>(state.getProperty("convertedFrom", 0)));
         document_.applyLayoutJson(state["layout"].toString());
         midiOut_.restore(state["midiOut"].toString(), state["midiOutName"].toString(), state["midiChannel"]);
-        emulatorWanted_ = static_cast<bool>(state.getProperty("emulated", true));
+        emulatorWanted_ = g2io::emulatorAtLaunch(wrapperType == wrapperType_Standalone,
+                                                 static_cast<bool>(state.getProperty("emulated", true)));
         hostClockOn_ = static_cast<bool>(state.getProperty("hostClock", false));
         masterLevel_ = static_cast<float>(state.getProperty("masterLevel", 1.0f));
         setMixOut34(static_cast<bool>(state.getProperty("mixOut34", false)));

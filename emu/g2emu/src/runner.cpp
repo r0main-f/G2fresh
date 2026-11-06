@@ -1,12 +1,15 @@
 #include "g2emu/runner.hpp"
 
+#include "realtime_share.hpp"
 #include "thread.hpp"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -14,6 +17,37 @@ namespace g2emu {
 
 struct Runner::Thread {
     BigStackThread thread;
+};
+
+// Every half second, whether the real-time threads of all the emulated G2s running fit on the performance cores
+// (realtime_share.hpp). On a thread of its own at an ordinary priority: the count reads files.
+struct Runner::Share {
+    RealtimeShare share;
+    int cores;
+    std::atomic<bool>& fits;
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool quit = false;
+    std::thread thread;
+    Share(std::filesystem::path dir, int threads, int performanceCores, std::atomic<bool>& out)
+        : share(std::move(dir), threads), cores(performanceCores ? performanceCores : g2emu::performanceCores()), fits(out)
+    {
+        fits.store(realtimeFits(share.threadsAll(), cores), std::memory_order_relaxed);
+        thread = std::thread([this] {
+            std::unique_lock lock(mutex);
+            while(!cv.wait_for(lock, std::chrono::milliseconds(500), [this] { return quit; }))
+                fits.store(realtimeFits(share.threadsAll(), cores), std::memory_order_relaxed);
+        });
+    }
+    ~Share()
+    {
+        {
+            std::lock_guard lock(mutex);
+            quit = true;
+        }
+        cv.notify_all();
+        thread.join();
+    }
 };
 
 Runner::Runner(const Firmware& firmware) : Runner(firmware, Options{}) {}
@@ -42,6 +76,14 @@ Runner::Runner(const Firmware& firmware, Options options)
         machine_->loadMemory(options_.flash);
         options_.flash = {};
     }
+    if(options_.machine.realtimeThreads)
+    {
+        // the machine's own thread and its DSP threads
+        const int threads = 1 + std::max(0, machine_->dspThreads());
+        share_ = std::make_unique<Share>(options_.realtimeShareDir.empty() ? RealtimeShare::defaultDir() : options_.realtimeShareDir,
+                                         threads, options_.performanceCores, realtimeFits_);
+        machine_->setRealtime(realtimeFits_.load(std::memory_order_relaxed));
+    }
     thread_ = std::make_unique<Thread>(Thread{BigStackThread([this] { loop(); })});
 }
 
@@ -53,6 +95,7 @@ void Runner::stop()
     consumed_.fetch_add(1, std::memory_order_release);
     consumed_.notify_one();
     thread_.reset();
+    share_.reset();
 }
 
 std::size_t Runner::available() const
@@ -131,7 +174,21 @@ void InputQueue::adcFrame(std::uint64_t clock, std::int32_t words[4])
 void Runner::loop()
 {
     using Clock = std::chrono::steady_clock;
-    if(options_.machine.realtimeThreads) realtime_.store(makeThreadRealtime(0.001, 0.0005), std::memory_order_relaxed);
+    // real-time priority while the emulated G2s' real-time threads fit together (the Share's count), for this thread
+    // here and for the DSP threads through the machine
+    bool realtimeApplied = false;
+    auto applyRealtime = [&] {
+        const bool want = realtimeFits_.load(std::memory_order_relaxed);
+        if(want == realtimeApplied) return;
+        realtimeApplied = want;
+        realtime_.store(want ? makeThreadRealtime(0.001, 0.0005) : !makeThreadOrdinary() && realtime_.load(), std::memory_order_relaxed);
+        machine_->setRealtime(want);
+    };
+    if(options_.machine.realtimeThreads)
+    {
+        realtimeApplied = !realtimeFits_.load(std::memory_order_relaxed);
+        applyRealtime();
+    }
     std::vector<float> chunk;
     // the speed while running (the rests left out), over about the last tenth of a second of running
     double busyWall = 0;
@@ -140,7 +197,11 @@ void Runner::loop()
     RealtimeBreath breath;
     while(!quit_.load(std::memory_order_relaxed))
     {
-        if(options_.machine.realtimeThreads) breath();
+        if(options_.machine.realtimeThreads)
+        {
+            applyRealtime();
+            if(realtime_.load(std::memory_order_relaxed)) breath();
+        }
         // The machine fills the ring up to `high` and rests; it starts again when the reader's next block would
         // reach into the reserve (`low`: at once after a block that is longer than the stretch). A few frames short
         // of a mark count as there: the machine does not start for a frame or two (the DACs hand a run's last frame
