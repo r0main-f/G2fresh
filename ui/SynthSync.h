@@ -174,6 +174,7 @@ private:
     // PatchDocument::EditListener
     void patchEdited(int slot, const g2::live::Edit* edit, bool undo) override;
     void paramFocused(int slot, const g2::focus::Focus& focus) override;
+    using g2::proto::SynthLink::Listener::paramFocused; // the synth's own focus messages: not used here
     // Applies a change made on the synth to the document and to what we
     // know the synth has, so it is not sent back.
     void fromSynth(int synthSlot, const std::function<void(g2::Patch&)>& change);

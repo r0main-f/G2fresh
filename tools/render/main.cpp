@@ -180,11 +180,11 @@ int renderLive(const juce::File& out, bool live)
             if (!on)
                 return s;
             s.generation = 1;
-            s.displays[0] = {16, 2, {"A:Drone      Pa", "Bank 1  Patch 3 "}};
+            s.displays[0] = {.columns = 16, .rows = 2, .text = {"A:Drone      Pa", "Bank 1  Patch 3 "}};
             const char* const text[4][2] = {{"OscA1-----------", "Coarse   Fine   "}, {"FltLP1----------", "Freq     Res    "},
                                             {"EnvADSR1--------", "Attack   Decay  "}, {"Mix2-1A1--------", "Lev1     Lev2   "}};
             for (int i = 0; i < 4; ++i)
-                s.displays[static_cast<std::size_t>(i + 1)] = {16, 2, {text[i][0], text[i][1]}};
+                s.displays[static_cast<std::size_t>(i + 1)] = {.columns = 16, .rows = 2, .text = {text[i][0], text[i][1]}};
             using L = g2ui::PanelLed;
             for (auto l : {L::Patch, L::SlotA, L::FocusA, L::Octave3, L::Var1, L::PageA, L::Column1, L::Midi, L::ModWheel})
                 s.leds[static_cast<std::size_t>(l)] = 1.0f;

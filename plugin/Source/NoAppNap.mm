@@ -13,6 +13,8 @@ NoAppNap::NoAppNap()
 
 NoAppNap::~NoAppNap()
 {
-    if (activity_ != nullptr)
-        [[NSProcessInfo processInfo] endActivity:CFBridgingRelease(activity_)];
+    if (activity_ != nullptr) {
+        id<NSObject> token = CFBridgingRelease(activity_);
+        [[NSProcessInfo processInfo] endActivity:token];
+    }
 }

@@ -890,7 +890,7 @@ void run(const juce::String& path, const juce::File& patch)
             }
         }
         if (best > 0)
-            std::cout << "  (longest silence: " << best << " samples ending at " << end / rate << " s)" << std::endl;
+            std::cout << "  (longest silence: " << best << " samples ending at " << static_cast<double>(end) / rate << " s)" << std::endl;
     }
     check(peak(bounce, 0, bounce.size()) > 0.01f, "it renders the patch");
     check(longestSilence(bounce, 0, bounce.size()) < static_cast<std::size_t>(rate * 0.005),
@@ -927,7 +927,6 @@ public:
         }
         const juce::String path(args[0]);
         if (args.size() > 1 && args[1] == "--clock") {
-            const juce::String path(args[0]);
             test_ = std::thread([this, path] {
                 clock(path);
                 std::cout << (failures == 0 ? "all checks passed" : juce::String(failures) + " check(s) failed") << std::endl;
@@ -939,7 +938,6 @@ public:
             return;
         }
         if (args.size() > 2 && (args[1] == "--outputs" || args[1] == "--inputs" || args[1] == "--midi" || args[1] == "--midi-tempo")) {
-            const juce::String path(args[0]);
             const auto patch = juce::File::getCurrentWorkingDirectory().getChildFile(args[2]);
             test_ = std::thread([this, path, patch, mode = args[1]] {
                 if (mode == "--midi" || mode == "--midi-tempo")

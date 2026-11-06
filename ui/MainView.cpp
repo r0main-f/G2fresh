@@ -1656,8 +1656,8 @@ void MainView::resized()
         menuBar_->setBounds(r.removeFromTop(24));
     // The toolbar: the document's items on the left of the first row, the groups on the right (ToolbarLayout.h), on
     // as many rows as the width needs.
-    constexpr int kRowHeight = 26, kRowStep = 30;
-    const auto top = r.reduced(6, 4).withHeight(kRowHeight);
+    constexpr int kBarRowHeight = 26, kRowStep = 30;
+    const auto top = r.reduced(6, 4).withHeight(kBarRowHeight);
     auto bar = top;
     if (!standalone_) {
         menuButton_.setBounds(bar.removeFromLeft(64));
@@ -1712,7 +1712,7 @@ void MainView::resized()
         const auto y = top.getY() + layout.groups[g].row * kRowStep;
         for (const auto& [component, width] : groups[g]) {
             if (component != nullptr)
-                component->setBounds(x, y, width, kRowHeight);
+                component->setBounds(x, y, width, kBarRowHeight);
             x += width;
         }
     }
@@ -1758,10 +1758,13 @@ bool MainView::keyPressed(const juce::KeyPress& key)
         fx_.setHintMode(mode);
         return true;
     }
-    // Esc aborts every drag (|, not ||), as CPatchView::KeyAbortDragOperations @000f7cde; an area's own Esc comes to it
-    // first.
-    if (code == juce::KeyPress::escapeKey && !liveMode_ && (divider_.abortDrag() | va_.abortDrag() | fx_.abortDrag()))
-        return true;
+    // Esc aborts every drag (each one asked, none skipped), as CPatchView::KeyAbortDragOperations @000f7cde; an area's
+    // own Esc comes to it first.
+    if (code == juce::KeyPress::escapeKey && !liveMode_) {
+        const bool divider = divider_.abortDrag(), va = va_.abortDrag(), fx = fx_.abortDrag();
+        if (divider || va || fx)
+            return true;
+    }
     if (code == juce::KeyPress::spaceKey && !liveMode_ && !repeat) {
         const auto m = key.getModifiers();
 #if JUCE_MAC
@@ -1953,8 +1956,8 @@ bool MainView::keyStateChanged(bool)
         // CPanel::CtrlRelease @000c0794).
         if (const auto f = std::exchange(heldButton_, std::nullopt)) {
             const auto variation = static_cast<std::uint8_t>(doc_.focusedVariation());
-            doc_.performMomentary([f = *f, variation](g2::Patch& p) {
-                g2::edit::setParam(p, f.location, f.module, f.param, variation, 0);
+            doc_.performMomentary([held = *f, variation](g2::Patch& p) {
+                g2::edit::setParam(p, held.location, held.module, held.param, variation, 0);
             });
         }
     }

@@ -3,6 +3,7 @@
 #include "EmulatorFollow.h"
 
 #include <algorithm>
+#include <utility>
 #include "AudioIo.h"
 #include "PluginEditor.h"
 #include "Skin.h"
@@ -265,7 +266,7 @@ bool G2EditorProcessor::testExpansion(std::function<void(const g2ui::ExpansionTe
     }
     testingExpansion_ = true;
     stopExpansionTest_ = false;
-    expansionTest_ = std::thread([this, firmware, wasRunning, done = std::move(done), alive = std::weak_ptr<int>(alive_)] {
+    expansionTest_ = std::thread([this, firmware, wasRunning, onDone = std::move(done), alive = std::weak_ptr<int>(alive_)] {
         g2ui::ExpansionTest t;
         std::vector<std::pair<int, double>> tried;
         try {
@@ -297,7 +298,7 @@ bool G2EditorProcessor::testExpansion(std::function<void(const g2ui::ExpansionTe
                  : advice == g2io::ExpansionAdvice::QuietOnly   ? g2ui::ExpansionTest::QuietOnly
                                                                  : g2ui::ExpansionTest::TooSlow;
         t.othersRunning = EmulatedSoundEngine::running();
-        juce::MessageManager::callAsync([this, t, firmware, wasRunning, done, alive] {
+        juce::MessageManager::callAsync([this, t, firmware, wasRunning, onDone, alive] {
             if (!alive.lock())
                 return;
             testingExpansion_ = false;
@@ -306,8 +307,8 @@ bool G2EditorProcessor::testExpansion(std::function<void(const g2ui::ExpansionTe
             if (wasRunning && emulated_ == nullptr)
                 if (const auto error = startEmulator(firmware); error.isNotEmpty())
                     DBG("G2fresh: " << error);
-            if (done)
-                done(t);
+            if (onDone)
+                onDone(t);
         });
     });
     return true;
@@ -389,9 +390,10 @@ void G2EditorProcessor::checkCapture()
         for (int c = 0; c < 2; ++c)
             audio.setSample(c, i, capture_[static_cast<std::size_t>(i) * 2 + static_cast<std::size_t>(c)]);
     file.deleteFile();
-    if (auto stream = file.createOutputStream()) {
+    if (std::unique_ptr<juce::OutputStream> stream = file.createOutputStream()) {
         juce::WavAudioFormat wav;
-        if (auto writer = std::unique_ptr<juce::AudioFormatWriter>(wav.createWriterFor(stream.release(), rate, 2, 32, {}, 0)))
+        const auto options = juce::AudioFormatWriterOptions{}.withSampleRate(rate).withNumChannels(2).withBitsPerSample(32);
+        if (auto writer = wav.createWriterFor(stream, options))
             writer->writeFromAudioSampleBuffer(audio, 0, audio.getNumSamples());
     }
     file.withFileExtension(".txt").replaceWithText("sample rate " + juce::String(rate) + ", block " + juce::String(blockSize_)
@@ -531,27 +533,30 @@ std::optional<g2emu::PanelButton> toEmu(g2ui::PanelButton b)
         return offset(E::Page1, i - static_cast<int>(U::Column1));
     if (b >= U::SlotA && b <= U::SlotD)
         return offset(E::SlotA, i - static_cast<int>(U::SlotA));
-    switch (b) {
-    case U::System: return E::System;
-    case U::Patch: return E::Patch;
-    case U::Store: return E::Store;
-    case U::DisplayMode: return E::DisplayMode;
-    case U::NavUp: return E::NavUp;
-    case U::NavLeft: return E::NavLeft;
-    case U::NavRight: return E::NavRight;
-    case U::NavDown: return E::NavDown;
-    case U::LoadPatch: return E::LoadPatch;
-    case U::PerformanceMode: return E::PerfMode;
-    case U::KbSplit: return E::KbSplit;
-    case U::OctaveDown: return E::OctaveDown;
-    case U::OctaveUp: return E::OctaveUp;
-    case U::KbHold: return E::KbHold;
-    case U::FocusCopy: return E::FocusCopy;
-    case U::Shift: return E::Shift;
-    case U::Morph: return E::Morph;
-    case U::PatchSettings: return E::PatchSettings;
-    default: return std::nullopt;
-    }
+    static constexpr std::pair<U, E> named[] = {
+        {U::System, E::System},
+        {U::Patch, E::Patch},
+        {U::Store, E::Store},
+        {U::DisplayMode, E::DisplayMode},
+        {U::NavUp, E::NavUp},
+        {U::NavLeft, E::NavLeft},
+        {U::NavRight, E::NavRight},
+        {U::NavDown, E::NavDown},
+        {U::LoadPatch, E::LoadPatch},
+        {U::PerformanceMode, E::PerfMode},
+        {U::KbSplit, E::KbSplit},
+        {U::OctaveDown, E::OctaveDown},
+        {U::OctaveUp, E::OctaveUp},
+        {U::KbHold, E::KbHold},
+        {U::FocusCopy, E::FocusCopy},
+        {U::Shift, E::Shift},
+        {U::Morph, E::Morph},
+        {U::PatchSettings, E::PatchSettings},
+    };
+    for (const auto& [key, value] : named)
+        if (key == b)
+            return value;
+    return std::nullopt;
 }
 
 // The view's LED for each emulated one (g2emu::PanelLed order).
@@ -570,24 +575,27 @@ g2ui::PanelLed toUi(g2emu::PanelLed l)
     if (l >= E::Page1 && l <= E::Page3) return from(E::Page1, U::Column1);
     if (l >= E::Knob1 && l <= E::Knob8) return from(E::Knob1, U::KnobUpper1);
     if (l >= E::Button1 && l <= E::Button8) return from(E::Button1, U::KnobLower1);
-    switch (l) {
-    case E::Midi: return U::Midi;
-    case E::Mic20: return U::MicLow;
-    case E::Mic12: return U::MicMid;
-    case E::Mic0: return U::MicHigh;
-    case E::System: return U::System;
-    case E::Patch: return U::Patch;
-    case E::Store: return U::Store;
-    case E::LoadPatch: return U::LoadPatch;
-    case E::KbHold: return U::KbHold;
-    case E::KbSplit: return U::KbSplit;
-    case E::PerfMode: return U::PerformanceMode;
-    case E::SubFunc: return U::SubFunc;
-    case E::PatchSettings: return U::PatchSettings;
-    case E::GlobalPanel: return U::GlobalPanel;
-    case E::Morph: return U::Morph;
-    default: return U::Count;
-    }
+    static constexpr std::pair<E, U> named[] = {
+        {E::Midi, U::Midi},
+        {E::Mic20, U::MicLow},
+        {E::Mic12, U::MicMid},
+        {E::Mic0, U::MicHigh},
+        {E::System, U::System},
+        {E::Patch, U::Patch},
+        {E::Store, U::Store},
+        {E::LoadPatch, U::LoadPatch},
+        {E::KbHold, U::KbHold},
+        {E::KbSplit, U::KbSplit},
+        {E::PerfMode, U::PerformanceMode},
+        {E::SubFunc, U::SubFunc},
+        {E::PatchSettings, U::PatchSettings},
+        {E::GlobalPanel, U::GlobalPanel},
+        {E::Morph, U::Morph},
+    };
+    for (const auto& [key, value] : named)
+        if (key == l)
+            return value;
+    return U::Count;
 }
 
 } // namespace
